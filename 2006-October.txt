@@ -1,0 +1,3695 @@
+From rsmudge at mail.berlios.de  Mon Oct  2 03:07:38 2006
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Mon, 2 Oct 2006 03:07:38 +0200
+Subject: [Sleep-svn] r128 - in sleep: . src/sleep/bridges src/sleep/runtime
+	tests tests/output
+Message-ID: <200610020107.k9217c5u006058@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-10-02 03:07:36 +0200 (Mon, 02 Oct 2006)
+New Revision: 128
+
+Added:
+   sleep/tests/fork2.sl
+   sleep/tests/output/fork2.sl
+Modified:
+   sleep/src/sleep/bridges/SleepClosure.java
+   sleep/src/sleep/runtime/ScriptVariables.java
+   sleep/tests/output/fe_generatordb.sl
+   sleep/tests/output/fork.sl
+   sleep/tests/output/nparams.sl
+   sleep/tests/output/setf.sl
+   sleep/whatsnew.txt
+Log:
+closures passed to forked variables now retain their this scope
+
+
+
+Modified: sleep/src/sleep/bridges/SleepClosure.java
+===================================================================
+--- sleep/src/sleep/bridges/SleepClosure.java	2006-09-30 08:10:11 UTC (rev 127)
++++ sleep/src/sleep/bridges/SleepClosure.java	2006-10-02 01:07:36 UTC (rev 128)
+@@ -81,6 +81,9 @@
+     /** the meta data for this closure context */
+     HashMap          metadata; 
+ 
++    /** the closure variables referenced by this closure */
++    Variable         variables;
++
+     /** saves the top level context */
+     private void saveToplevelContext(Stack _context, Variable localLevel)
+     {
+@@ -116,10 +119,10 @@
+     /** Creates a new Sleep Closure that uses the specified variable container for its internal variables */
+     public SleepClosure(ScriptInstance si, Block _code, Variable _var)
+     {
+-       code     = _code;
+-       owner    = si;
+-       context  = new Stack();
+-       metadata = new HashMap();
++       code      = _code;
++       owner     = si;
++       context   = new Stack();
++       metadata  = new HashMap();
+ 
+        _var.putScalar("$this", SleepUtils.getScalar(this));
+        setVariables(_var);
+@@ -140,13 +143,13 @@
+     /** Returns the variable container for this closures */
+     public Variable getVariables()
+     {
+-       return getOwner().getScriptVariables().getClosureVariables(this);
++       return variables;
+     }
+ 
+     /** Sets the variable environment for this closure */
+     public void setVariables(Variable _variables)
+     {
+-       getOwner().getScriptVariables().setClosureVariables(this, _variables);
++       variables = _variables; 
+     }
+ 
+     /** "Safely" calls this closure.  Use this if you are evaluating this closure from your own code. 
+@@ -185,7 +188,7 @@
+           Stack toplevel = getToplevelContext();
+           env.loadContext(toplevel, metadata);
+ 
+-          vars.pushClosureLevel(this);
++          vars.pushClosureLevel(getVariables()); 
+ 
+           if (toplevel.isEmpty()) /* a normal closure call */
+           {
+
+Modified: sleep/src/sleep/runtime/ScriptVariables.java
+===================================================================
+--- sleep/src/sleep/runtime/ScriptVariables.java	2006-09-30 08:10:11 UTC (rev 127)
++++ sleep/src/sleep/runtime/ScriptVariables.java	2006-10-02 01:07:36 UTC (rev 128)
+@@ -68,7 +68,6 @@
+     Variable    global;   /* global variables */
+     LinkedList  closure;  /* closure specific variables :) */
+     LinkedList  locals;   /* local variables */
+-    WeakHashMap cscopes;  /* closure scope storage */
+ 
+     /** Initializes this ScriptVariables container using a DefaultVariable object for default variable storage */
+     public ScriptVariables()
+@@ -82,7 +81,6 @@
+        global   = aVariableClass;
+        closure  = new LinkedList();
+        locals   = new LinkedList();
+-       cscopes  = new WeakHashMap();
+ 
+        pushLocalLevel();
+     }
+@@ -179,26 +177,19 @@
+     /** returns the closure level variables for this specific script environment */
+     public Variable getClosureVariables(SleepClosure closure)
+     {
+-       Object temp = cscopes.get(closure);
+-       if (temp == null)
+-       {
+-          temp = global.createInternalVariableContainer();
+-          cscopes.put(closure, temp);
+-       }
+-
+-       return (Variable)temp;       
++       return closure.getVariables();
+     }
+ 
+     /** returns the closure level variables for this specific script environment */
+     public void setClosureVariables(SleepClosure closure, Variable variables)
+     {
+-       cscopes.put(closure, variables);
++       closure.setVariables(variables);
+     }
+ 
+-    /** makes the specified closure variable scope active, once the closure has executed this should be popped */
+-    public void pushClosureLevel(SleepClosure level)
++    /** pushes the specified variables into this closures level, once the closure has executed this should be popped */
++    public void pushClosureLevel(Variable variables)
+     {
+-       closure.addFirst(getClosureVariables(level));
++       closure.addFirst(variables);
+     }
+ 
+     /** discards the current closure variable scope */
+
+Added: sleep/tests/fork2.sl
+===================================================================
+--- sleep/tests/fork2.sl	2006-09-30 08:10:11 UTC (rev 127)
++++ sleep/tests/fork2.sl	2006-10-02 01:07:36 UTC (rev 128)
+@@ -0,0 +1,62 @@
++#
++# more scope testing of fork... oi vey.
++#
++
++#
++# easy test
++# 
++sub function
++{
++   println("\$x is $x from &function");
++   $x++;
++} 
++
++$a = lambda(&function, $x => 1);
++
++$handle = fork({
++   [$func];
++}, $func => $a);
++
++wait($handle);
++
++[$a];
++[$a];
++
++$handle = fork({
++   [$func];
++}, $func => $a);
++
++wait($handle);
++
++#
++# yield out of a coroutine and resume in a fork... ooh..
++#
++
++sub coroutine
++{
++   local('$z');
++   println("Coroutine start");
++   $z = 33;
++
++   yield "checkpoint A";
++
++   println("After checkpoint a and \$z is $z");
++   $z++;
++
++   yield "checkpoint B";
++
++   println("After checkpoint b and \$z is $z");
++   
++   return "done: $z"; # reset the whole damned thing..
++}
++
++println("Return value in main is: " . coroutine());
++
++$handle = fork({
++   println("Return value within fork is: " . [$_coroutine]);
++}, $_coroutine => &coroutine);
++
++wait($handle);
++
++println("Return value in main is: " . coroutine());
++
+
+Modified: sleep/tests/output/fe_generatordb.sl
+===================================================================
+--- sleep/tests/output/fe_generatordb.sl	2006-09-30 08:10:11 UTC (rev 127)
++++ sleep/tests/output/fe_generatordb.sl	2006-10-02 01:07:36 UTC (rev 128)
+@@ -19,7 +19,7 @@
+ Trace: &println('8 => val: 8') at line 8
+ 9 => val: 9
+ Trace: &println('9 => val: 9') at line 8
+-Trace: &lambda(&closure10132325, $start => 50, $stop => 60) = &closure5253145 at line 22
++Trace: &lambda(&closure1677625, $start => 50, $stop => 60) = &closure10132325 at line 22
+ Testing out range stuff: 0 => 50
+ Trace: &println('Testing out range stuff: 0 => 50') at line 24
+ Testing out range stuff: 1 => 51
+
+Modified: sleep/tests/output/fork.sl
+===================================================================
+--- sleep/tests/output/fork.sl	2006-09-30 08:10:11 UTC (rev 127)
++++ sleep/tests/output/fork.sl	2006-10-02 01:07:36 UTC (rev 128)
+@@ -2,5 +2,5 @@
+ From fork_me: this is a global variable in the closure script
+ Main script: this is a global variable in the main script
+ Main script: 4
+-Forked: 1
+-Main script: 5
++Forked: 5
++Main script: 6
+
+Added: sleep/tests/output/fork2.sl
+===================================================================
+--- sleep/tests/output/fork2.sl	2006-09-30 08:10:11 UTC (rev 127)
++++ sleep/tests/output/fork2.sl	2006-10-02 01:07:36 UTC (rev 128)
+@@ -0,0 +1,10 @@
++$x is 1 from &function
++$x is 2 from &function
++$x is 3 from &function
++$x is 4 from &function
++Coroutine start
++Return value in main is: checkpoint A
++After checkpoint a and $z is 33
++Return value within fork is: checkpoint B
++After checkpoint b and $z is 34
++Return value in main is: done: 34
+
+Modified: sleep/tests/output/nparams.sl
+===================================================================
+--- sleep/tests/output/nparams.sl	2006-09-30 08:10:11 UTC (rev 127)
++++ sleep/tests/output/nparams.sl	2006-10-02 01:07:36 UTC (rev 128)
+@@ -41,7 +41,7 @@
+ Trace: &println('Test 5 has been called, executing action:') at line 51
+ The passed in closure has been called
+ Trace: &println('The passed in closure has been called') at line 55
+-Trace: [&closure10363227] at line 52
+-Trace: &test5($action => &closure10363227) at line 55
+-Trace: &test5(action => &closure10481832) - FAILED! at line 56
++Trace: [&closure6961504] at line 52
++Trace: &test5($action => &closure6961504) at line 55
++Trace: &test5(action => &closure14470877) - FAILED! at line 56
+ Warning: unreachable named parameter: action at line 56
+
+Modified: sleep/tests/output/setf.sl
+===================================================================
+--- sleep/tests/output/setf.sl	2006-09-30 08:10:11 UTC (rev 127)
++++ sleep/tests/output/setf.sl	2006-10-02 01:07:36 UTC (rev 128)
+@@ -2,7 +2,7 @@
+ Warning: Attempted to call non-existent function &foo at line 9
+ bar
+ Warning: &setf: can not set function &foo to a class java.lang.String at line 19
+-Warning: &setf: invalid function name foo at line 20
++Warning: &setf: invalid function name 'foo' at line 20
+ bar
+ bar
+ bar
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-09-30 08:10:11 UTC (rev 127)
++++ sleep/whatsnew.txt	2006-10-02 01:07:36 UTC (rev 128)
+@@ -17,6 +17,10 @@
+   value of a field in a Java class or object.
+ - added &setf('&function', { closure }) for setting a named closure (i.e. a 
+   subroutine).
++- closure this scope is now associated directly with the closure itself and not
++  just its script environment.  the implication of this is passing a closure
++  to a fork will carry the closure this scope with it as well (and also the
++  local scope in the case of a partially executed coroutine).
+ 
+ 2.1-beta 5  (17 Sept 06)
+ ===========
+
+
+
+From rsmudge at mail.berlios.de  Mon Oct  2 03:48:46 2006
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Mon, 2 Oct 2006 03:48:46 +0200
+Subject: [Sleep-svn] r129 - in sleep: . src/sleep/bridges tests/output
+Message-ID: <200610020148.k921mkEl008435@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-10-02 03:48:45 +0200 (Mon, 02 Oct 2006)
+New Revision: 129
+
+Modified:
+   sleep/src/sleep/bridges/BasicUtilities.java
+   sleep/tests/output/fe_generatordb.sl
+   sleep/tests/output/nparams.sl
+   sleep/tests/output/trace.sl
+   sleep/tests/output/wrong.sl
+   sleep/whatsnew.txt
+Log:
+added semaphores to sleep
+
+
+
+Modified: sleep/src/sleep/bridges/BasicUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicUtilities.java	2006-10-02 01:07:36 UTC (rev 128)
++++ sleep/src/sleep/bridges/BasicUtilities.java	2006-10-02 01:48:45 UTC (rev 129)
+@@ -119,12 +119,41 @@
+         temp.put("&eval",     new eval());
+         temp.put("&expr",     new expr());
+ 
++        // synchronization primitives...
++        SyncPrimitives sync = new SyncPrimitives();
++        temp.put("&semaphore", sync);
++        temp.put("&acquire",   sync);
++        temp.put("&release",   sync);
+ 
+         temp.put("=>",       new HashKeyValueOp());
+ 
+         return true;
+     }
+ 
++    private static class SyncPrimitives implements Function 
++    {
++       public Scalar evaluate(String n, ScriptInstance si, Stack l)
++       {
++          if (n.equals("&semaphore"))
++          {
++             int initial = BridgeUtilities.getInt(l, 1);
++             return SleepUtils.getScalar(new Semaphore(initial));
++          }
++          else if (n.equals("&acquire"))
++          {
++             Semaphore sem = (Semaphore)BridgeUtilities.getObject(l);
++             sem.P();
++          }
++          else if (n.equals("&release"))
++          {
++             Semaphore sem = (Semaphore)BridgeUtilities.getObject(l);
++             sem.V();
++          }
++
++          return SleepUtils.getEmptyScalar();
++       }
++    }
++
+     private static class HashKeyValueOp implements Operator
+     {
+         public Scalar operate(String name, ScriptInstance script, Stack locals)
+
+Modified: sleep/tests/output/fe_generatordb.sl
+===================================================================
+--- sleep/tests/output/fe_generatordb.sl	2006-10-02 01:07:36 UTC (rev 128)
++++ sleep/tests/output/fe_generatordb.sl	2006-10-02 01:48:45 UTC (rev 129)
+@@ -19,7 +19,7 @@
+ Trace: &println('8 => val: 8') at line 8
+ 9 => val: 9
+ Trace: &println('9 => val: 9') at line 8
+-Trace: &lambda(&closure1677625, $start => 50, $stop => 60) = &closure10132325 at line 22
++Trace: &lambda(&closure9087808, $start => 50, $stop => 60) = &closure15794899 at line 22
+ Testing out range stuff: 0 => 50
+ Trace: &println('Testing out range stuff: 0 => 50') at line 24
+ Testing out range stuff: 1 => 51
+@@ -41,7 +41,7 @@
+ Testing out range stuff: 9 => 59
+ Trace: &println('Testing out range stuff: 9 => 59') at line 24
+ Trace: &this('$start $stop') at line 29
+-Trace: &_range2(70, 80) = &closure7907968 at line 42
++Trace: &_range2(70, 80) = &closure2355643 at line 42
+ My third test: 0 => 70
+ Trace: &println('My third test: 0 => 70') at line 44
+ My third test: 1 => 71
+
+Modified: sleep/tests/output/nparams.sl
+===================================================================
+--- sleep/tests/output/nparams.sl	2006-10-02 01:07:36 UTC (rev 128)
++++ sleep/tests/output/nparams.sl	2006-10-02 01:48:45 UTC (rev 129)
+@@ -41,7 +41,7 @@
+ Trace: &println('Test 5 has been called, executing action:') at line 51
+ The passed in closure has been called
+ Trace: &println('The passed in closure has been called') at line 55
+-Trace: [&closure6961504] at line 52
+-Trace: &test5($action => &closure6961504) at line 55
+-Trace: &test5(action => &closure14470877) - FAILED! at line 56
++Trace: [&closure10481832] at line 52
++Trace: &test5($action => &closure10481832) at line 55
++Trace: &test5(action => &closure7388808) - FAILED! at line 56
+ Warning: unreachable named parameter: action at line 56
+
+Modified: sleep/tests/output/trace.sl
+===================================================================
+--- sleep/tests/output/trace.sl	2006-10-02 01:07:36 UTC (rev 128)
++++ sleep/tests/output/trace.sl	2006-10-02 01:48:45 UTC (rev 129)
+@@ -1,13 +1,13 @@
+ this is a test
+-Trace: [java.io.PrintStream at 94257f println: 'this is a test'] at line 6
++Trace: [java.io.PrintStream at c7980c println: 'this is a test'] at line 6
+ Trace: [java.lang.Math pow: 3, 4] = 81.0 at line 7
+ 81.0
+-Trace: [java.io.PrintStream at 94257f println: 81.0] at line 7
++Trace: [java.io.PrintStream at c7980c println: 81.0] at line 7
+ Trace: [java.lang.Math pow: 3, 5] = 243.0 at line 8
+ 243.0
+ Trace: &println(243.0) at line 8
+ testing again...
+-Trace: [java.io.PrintStream at 94257f println: 'testing again...'] at line 10
++Trace: [java.io.PrintStream at c7980c println: 'testing again...'] at line 10
+ Trace: [sleep.runtime.SleepUtils getListFromArray: @('a', 'b', 'c')] = [a, b, c] at line 12
+ Trace: [new java.util.LinkedList: [a, b, c]] = [a, b, c] at line 12
+ Warning: variable '$list' not declared at line 12
+
+Modified: sleep/tests/output/wrong.sl
+===================================================================
+--- sleep/tests/output/wrong.sl	2006-10-02 01:07:36 UTC (rev 128)
++++ sleep/tests/output/wrong.sl	2006-10-02 01:48:45 UTC (rev 129)
+@@ -1,32 +1,32 @@
+ Trace: [java.lang.Math pow: 3, 4] = 81.0 at line 6
+ 81.0
+-Trace: [java.io.PrintStream at a4488 println: 81.0] at line 6
++Trace: [java.io.PrintStream at 199939 println: 81.0] at line 6
+ Trace: &casti(1, 'z') = true at line 9
+ true
+-Trace: [java.io.PrintStream at a4488 println: true] at line 9
++Trace: [java.io.PrintStream at 199939 println: true] at line 9
+ Trace: &casti(0, 'z') = false at line 10
+ false
+-Trace: [java.io.PrintStream at a4488 println: false] at line 10
++Trace: [java.io.PrintStream at 199939 println: false] at line 10
+ Trace: &casti(1, 'd') = 1.0 at line 13
+ 1.0
+-Trace: [java.io.PrintStream at a4488 println: 1.0] at line 13
++Trace: [java.io.PrintStream at 199939 println: 1.0] at line 13
+ Trace: &casti(1, 'b') = 1 at line 16
+ 1
+-Trace: [java.io.PrintStream at a4488 println: 1] at line 16
++Trace: [java.io.PrintStream at 199939 println: 1] at line 16
+ Trace: &casti(100, 'f') = 100.0 at line 19
+ 100.0
+-Trace: [java.io.PrintStream at a4488 println: 100.0] at line 19
++Trace: [java.io.PrintStream at 199939 println: 100.0] at line 19
+ Trace: &casti('b', 'c') = b at line 22
+ b
+-Trace: [java.io.PrintStream at a4488 println: b] at line 22
++Trace: [java.io.PrintStream at 199939 println: b] at line 22
+ Trace: &casti(63, 'i') = 63 at line 25
+ 63
+-Trace: [java.io.PrintStream at a4488 println: 63] at line 25
++Trace: [java.io.PrintStream at 199939 println: 63] at line 25
+ this is a string y0
+-Trace: [java.io.PrintStream at a4488 println: 'this is a string y0'] at line 28
++Trace: [java.io.PrintStream at 199939 println: 'this is a string y0'] at line 28
+ Trace: [new java.lang.StringBuilder: 'test'] = test at line 31
+ test
+-Trace: [java.io.PrintStream at a4488 println: test] at line 31
+-Trace: &cast(@('a', 'b', 'c', 'd'), 'c') = [C at 1d98a at line 34
++Trace: [java.io.PrintStream at 199939 println: test] at line 31
++Trace: &cast(@('a', 'b', 'c', 'd'), 'c') = [C at d33a6b at line 34
+ abcd
+-Trace: [java.io.PrintStream at a4488 println: [C at 1d98a] at line 34
++Trace: [java.io.PrintStream at 199939 println: [C at d33a6b] at line 34
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-10-02 01:07:36 UTC (rev 128)
++++ sleep/whatsnew.txt	2006-10-02 01:48:45 UTC (rev 129)
+@@ -21,7 +21,17 @@
+   just its script environment.  the implication of this is passing a closure
+   to a fork will carry the closure this scope with it as well (and also the
+   local scope in the case of a partially executed coroutine).
++- added semaphore synchronization primitive to the sleep language:
+ 
++  # initialize a semaphore
++  $semaphore = semaphore([initial count]);
++
++  # acquire the semaphore
++  acquire($semaphore);
++
++  # release the semaphore
++  release($semaphore);
++
+ 2.1-beta 5  (17 Sept 06)
+ ===========
+ - fixed a bug with import [path] from: [jar] not working when a package.class
+
+
+
+From rsmudge at mail.berlios.de  Mon Oct  2 03:49:08 2006
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Mon, 2 Oct 2006 03:49:08 +0200
+Subject: [Sleep-svn] r130 - in sleep/tests: . output
+Message-ID: <200610020149.k921n8T6008491@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-10-02 03:49:07 +0200 (Mon, 02 Oct 2006)
+New Revision: 130
+
+Added:
+   sleep/tests/output/sync.sl
+   sleep/tests/sync.sl
+Log:
+tests of the semaphores...
+
+
+
+Added: sleep/tests/output/sync.sl
+===================================================================
+--- sleep/tests/output/sync.sl	2006-10-02 01:48:45 UTC (rev 129)
++++ sleep/tests/output/sync.sl	2006-10-02 01:49:07 UTC (rev 130)
+@@ -0,0 +1,20 @@
++fork: 0
++fork: 1
++fork: 2
++fork: 3
++fork: 4
++fork: 5
++fork: 6
++fork: 7
++fork: 8
++fork: 9
++main: 0
++main: 1
++main: 2
++main: 3
++main: 4
++main: 5
++main: 6
++main: 7
++main: 8
++main: 9
+
+Added: sleep/tests/sync.sl
+===================================================================
+--- sleep/tests/sync.sl	2006-10-02 01:48:45 UTC (rev 129)
++++ sleep/tests/sync.sl	2006-10-02 01:49:07 UTC (rev 130)
+@@ -0,0 +1,27 @@
++#
++# test of synchronization primitive...
++#
++
++$mutex = semaphore();
++
++$handle = fork({
++
++  acquire($mutex);
++  for ($x = 0; $x < 10; $x++)
++  {
++     println("fork: $x");
++     [Thread yield];
++  } 
++  release($mutex);
++}, $mutex => $mutex);
++
++acquire($mutex);
++
++for ($x = 0; $x < 10; $x++)
++{
++   println("main: $x");
++   [Thread yield];
++}
++
++release($mutex);
++
+
+
+
+From rsmudge at mail.berlios.de  Mon Oct  2 04:11:38 2006
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Mon, 2 Oct 2006 04:11:38 +0200
+Subject: [Sleep-svn] r131 - in sleep: . src/sleep/bridges
+Message-ID: <200610020211.k922Bcr1009665@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-10-02 04:11:38 +0200 (Mon, 02 Oct 2006)
+New Revision: 131
+
+Added:
+   sleep/src/sleep/bridges/Semaphore.java
+Modified:
+   sleep/whatsnew.txt
+Log:
+Yay...
+
+
+
+Added: sleep/src/sleep/bridges/Semaphore.java
+===================================================================
+--- sleep/src/sleep/bridges/Semaphore.java	2006-10-02 01:49:07 UTC (rev 130)
++++ sleep/src/sleep/bridges/Semaphore.java	2006-10-02 02:11:38 UTC (rev 131)
+@@ -0,0 +1,52 @@
++package sleep.bridges;
++
++/** A sleep synchronization primitive.  I know Java 1.5.0 has this stuff but since Sleep targets 1.4.2
++    I get to provide my own.  How exciting. */
++public class Semaphore
++{
++   private long count;
++
++   /** initializes this semaphore with the specified initial count */
++   public Semaphore(long initialCount)
++   {
++      count = initialCount;
++   }
++
++   /** aquires this semaphore by attempting to decrement the count.  blocks if the count is not > 0 (prior to decrement).  */
++   public void P()
++   {
++      synchronized (this)
++      {
++         try
++         {
++            while (count <= 0)
++            {
++               wait();
++            }
++
++            count--;
++         }
++         catch (InterruptedException ex)
++         { 
++            ex.printStackTrace();
++            notify();
++         }
++      }
++   }
++
++   /** returns the current count data associated with this semaphore.  note that this value is volatile */
++   public long getCount()
++   {
++      return count;
++   }
++
++   /** increments this semaphore */
++   public void V()
++   {
++      synchronized (this)
++      {
++         count++;
++         notify();
++      }
++   }
++}
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-10-02 01:49:07 UTC (rev 130)
++++ sleep/whatsnew.txt	2006-10-02 02:11:38 UTC (rev 131)
+@@ -1,4 +1,4 @@
+-2.1-beta 6 
++2.1-beta 6  (1 Oct 06)
+ ===========
+ - added named parameters for Sleep closures.  When a $key => value argument is
+   passed to a sleep closure the value will be installed into the local scope of
+
+
+
+From rsmudge at mail.berlios.de  Mon Oct  2 04:12:14 2006
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Mon, 2 Oct 2006 04:12:14 +0200
+Subject: [Sleep-svn] r132 - in sleep: . src/sleep/runtime
+Message-ID: <200610020212.k922CEN9009723@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-10-02 04:12:14 +0200 (Mon, 02 Oct 2006)
+New Revision: 132
+
+Modified:
+   sleep/readme.txt
+   sleep/src/sleep/runtime/SleepUtils.java
+Log:
+more changes.
+
+
+
+Modified: sleep/readme.txt
+===================================================================
+--- sleep/readme.txt	2006-10-02 02:11:38 UTC (rev 131)
++++ sleep/readme.txt	2006-10-02 02:12:14 UTC (rev 132)
+@@ -1,5 +1,5 @@
+  ------- -------------------- ---------   ---------------  ------- ---------
+-Sleep - 2.1 beta 4 - README   
++Sleep - 2.1 beta 6 - README   
+ -  ------------- -------- -   ---------------- --       -    -     -     - - -
+ 
+ "You got the language, all you need now is the O'Reilly book".  That is
+
+Modified: sleep/src/sleep/runtime/SleepUtils.java
+===================================================================
+--- sleep/src/sleep/runtime/SleepUtils.java	2006-10-02 02:11:38 UTC (rev 131)
++++ sleep/src/sleep/runtime/SleepUtils.java	2006-10-02 02:12:14 UTC (rev 132)
+@@ -49,7 +49,7 @@
+ public class SleepUtils
+ {
+    /** A date stamp of this Sleep release in YYYYMMDD format */
+-   public static final int    SLEEP_RELEASE = 20060917;
++   public static final int    SLEEP_RELEASE = 20061001;
+ 
+    /** A string description of this Sleep release */
+    public static final String SLEEP_VERSION = "Sleep 2.1";
+
+
+
+From rsmudge at mail.berlios.de  Mon Oct  2 04:13:03 2006
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Mon, 2 Oct 2006 04:13:03 +0200
+Subject: [Sleep-svn] r133 - sleep/docs
+Message-ID: <200610020213.k922D3Jk009777@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-10-02 04:13:03 +0200 (Mon, 02 Oct 2006)
+New Revision: 133
+
+Modified:
+   sleep/docs/sleeplang.html
+Log:
+updated documentation
+
+
+
+Modified: sleep/docs/sleeplang.html
+===================================================================
+--- sleep/docs/sleeplang.html	2006-10-02 02:12:14 UTC (rev 132)
++++ sleep/docs/sleeplang.html	2006-10-02 02:13:03 UTC (rev 133)
+@@ -881,10 +881,25 @@
+ 
+ <pre>%hash = %(key1 => "this is a value", key2 => 3 * (9 % 7));</pre>
+ 
+-<p>The => is the key/value pair operator.  Any time a key/value pair is required as a parameter it can be specified with => or 
+-as a string separating the key/value by an equal sign i.e. 'key=value'.  The => operator is special because the left hand side (key) is taken 
+-as-is with no evaluation by the sleep language.</p>
++<p>The => is the key/value pair operator.  The key/value pair operator can be used with special functions to 
++specify a key/value pair.  The left hand side is never evaluated.</p>
+ 
++<p>Sleep subroutines (and closures) can receive named parameters using the key/value operator.  When a named 
++parameter is specified the left hand side must be equivalent to the variable to be installed into the local
++environment of the called subroutine.  Within a subroutine @_ and $1, $2, ... are not affected by a key/value
++argument.  The named parameter is simply available for immediate use.</p>
++
++<pre>sub blah
++{
++   println("My name is $first $last $+ , and I like $1");
++}
++
++blah($first => "Raphael", $last => "Mudge", "ice cream!!!");
++blah("ice cream!!!", $first => "Raphael", $last => "Mudge");
++blah($first => "Raphael", "ice cream!!!", $last => "Mudge");</pre>
++
++<p>The example above prints 'My name is Raphael Mudge, and I like ice cream!!!' three times.</p>
++
+ <h3>Multidimensional Hashes/Arrays</h3>
+ 
+ <p>Multidimensional hashes work exactly the same as Sleep arrays.  It is also possible to have an array of hashes, or a hash of 
+@@ -1202,6 +1217,9 @@
+ compound things there is no synchronization to protect against both environments using the data at the same time.  In short,
+ if you pass an initial value to a fork, discipline yourself to only manipulate that data from one environment.</p>
+ 
++<p>Sleep does provide semaphores as a synchronization primitive that can be used to lock critical sections of 
++code.  Semaphores can be used to control resources that forks attempt to access.</p>
++
+ <h3>Working with Binary Data</h3>
+ 
+ <p>Sleep also has the ability to work with binary data.  A byte of data is generally represented as a string of one character 
+@@ -1558,28 +1576,19 @@
+ 
+ <h3>Coroutines</h3>
+ 
+-<p>Another nifty trick of Sleep closures is that they can also be used as coroutines.  A coroutine is a function with
+-multiple points of entry (rather than just a single point of entry as is common with subroutines).</p>
++<p>Another nifty trick of Sleep closures is that they can also be used as coroutines.  A coroutine is a function
++with multiple points of entry (rather than just a single point of entry as is common with subroutines).</p>
+ 
+ <h4>The Yield Command</h4>
+ 
+-<p>Sleep implements coroutines with a <b>yield</b> command.  The yield command causes the current closure to stop executing
+-and to return to where it started.  Just like return you can specify a scalar with yield that will be return value of
+-the current closure call.</p>
++<p>Sleep implements coroutines with a <b>yield</b> command.  The yield command causes the current closure to 
++stop executing, save its current execution state (including local variables) and to return a value.  In short
++yield works just like return except it saves the current execution state.</p>
+ 
+-<p>What separates yield from return is next time the yielded closure is called, execution will resume from the place
+-where yield was last called.</p>
++<p>What separates yield from return is next time the yielded closure is called, the saved execution state will be
++loaded (including local variables) and execution of the coroutine will resume from the place where yield was 
++last called.</p>
+ 
+-<p>When execution is restored local variables are not preserved.  If you want to preserve variables you will need to 
+-place variables into the <b>this</b> scope for the current closure.  Arguments passed to each call on the closure
+-will be available as local variables $1, $2, etc. during the current call.</p>
+-
+-<p>It is important to note that while coroutines can call other coroutines, a coroutine should not recursively call
+-itself.  A closure turns into a coroutine once the yield keyword has been utilized.  The reason coroutines should not
+-call themselves is because when yield is used the context of the closure is saved.  Next time the closure is executed
+-the last used context is restored.  If a coroutine is trying to save its context while at the same time trying to 
+-restore from the last execution, bad things will happen.</p>
+-
+ <p>When the return command is used or the end of the closure is reached, the saved context will be discarded.</p>
+ 
+ <h4>Generators with Coroutines</h4>
+@@ -2436,6 +2445,11 @@
+   <th>Description</th>
+  </tr>  
+  <tr>
++  <td></td>
++  <td>acquire($semaphore)</td>
++  <td>blocks the current thread of execution until the semaphore count is > 0, when that happens the semaphore count is decremented.</td>
++ </tr>
++ <tr>
+   <td>$</td>
+   <td>checkError([$scalar])</td>
+   <td>returns the last error message to occur.  if a $scalar is specified : $scalar is set to the error string.  Once chekError() is called the error message is cleared.  Functions that might flag an error will be documented.</td>
+@@ -2488,6 +2502,26 @@
+  </tr>
+  <tr>
+   <td></td>
++  <td>release($semaphore)</td>
++  <td>increments the count value of the specified semaphore.</td>
++ </tr>
++ <tr>
++  <td></td>
++  <td>setf('&func_name', &closure)</td>
++  <td>sets the specified function to be bound to the specified closure.</td>
++ </tr>
++ <tr>
++  <td></td>
++  <td>setField(class|$object, "field", value)</td>
++  <td>sets a public/protected field of the specified class or instance of $object to a specified value.</td>
++ </tr>
++ <tr>
++  <td>$</td>
++  <td>semaphore([initial value])</td>
++  <td>constructs a $semaphore suitable for use with &amp;acquire and &amp;release.</td>
++ </tr>
++ <tr>
++  <td></td>
+   <td>sleep(n)</td>
+   <td>force the current executing thread to sleep for n milliseconds</td>
+  </tr>
+
+
+
+From crazycoder at mail.berlios.de  Mon Oct  9 13:13:41 2006
+From: crazycoder at mail.berlios.de (crazycoder at BerliOS)
+Date: Mon, 9 Oct 2006 13:13:41 +0200
+Subject: [Sleep-svn] r134 - sleep/docs
+Message-ID: <200610091113.k99BDfwo022919@sheep.berlios.de>
+
+Author: crazycoder
+Date: 2006-10-09 13:13:41 +0200 (Mon, 09 Oct 2006)
+New Revision: 134
+
+Modified:
+   sleep/docs/sleeplang.html
+Log:
+You owe me beer for fixing your HTML errors =)
+
+Modified: sleep/docs/sleeplang.html
+===================================================================
+--- sleep/docs/sleeplang.html	2006-10-02 02:13:03 UTC (rev 133)
++++ sleep/docs/sleeplang.html	2006-10-09 11:13:41 UTC (rev 134)
+@@ -39,7 +39,7 @@
+ <li><a href="#17">F - Transliteration Syntax</a></li>
+ </ol>
+ 
+-<a name="1"><h2>Scalar Variables</h2></a>
++<h2><a name="1">Scalar Variables</a></h2>
+ 
+ <p>Variables in sleep are temporary locations in memory to store a value.  Variables in sleep are called scalars.  Scalars can be 
+ strings, numbers, or even a reference to an object.</p>
+@@ -83,7 +83,7 @@
+ 
+ <p>Sleep also includes a set of logical operators.  These include <var>&lt;&lt;</var>, <var>&gt;&gt;</var>, <var>^</var>, 
+ <var>|</var>, <var>&amp;</var>, and a 
+-function <var>&amp;not()</var>.  
++function <var>&amp;not()</var>.</p>
+ 
+ <h3>Expressions</h3>
+ 
+@@ -226,12 +226,12 @@
+ <var>$decision</var> was then assigned the value "not guilty".  When the subroutine verdict finished executing the local variable
+ <var>$decision</var> went away.  The global variable <var>$decision</var> was not touched.</p>
+ 
+-<a name="2"><h2>If-Else Statements</h2></a>
++<h2><a name="2">If-Else Statements</a></h2>
+ 
+ <p>If-Else statements let you compare different values and execute a certain part of the script based on the result of the 
+ comparison.</p>
+ 
+-<p>The basic format of an if-else statement is:
++<p>The basic format of an if-else statement is:</p>
+ 
+ <pre>if (<b>v1 operator v2</b>) { <b>commands</b> }
+ else if (<b>v3 operator v4</b>) { <b>commands</b> }
+@@ -240,7 +240,7 @@
+ <p>The ( ) parentheses enclose the comparisons while the { } brackets enclose the commands to execute.  If the comparison within 
+ the ( ) parentheses is true then the following commands are executed.  If the initial comparison is false then the else statement 
+ is executed.  Else statements can be followed by either a block of statements enclosed in { } brackets or by another if 
+-statement.</P>
++statement.</p>
+ 
+ <h3>The Operators</h3>
+ 
+@@ -432,7 +432,7 @@
+ <var>$value</var> would be "Calculation took 1 second".  The iff example above checks if <var>$x</var> is greater than 1.  If it 
+ is then "s" is returned.  Otherwise "" is returned.</p>
+ 
+-<a name="3"><h2>Loops</h2></a>
++<h2><a name="3">Loops</a></h2>
+ 
+ <h3>While Loops</h3>
+ 
+@@ -520,7 +520,7 @@
+ just jumps to the beginning of the loop again ignoring the current item.  Within a for loop the incremeter ($x++
+ in this example) is always executed even if continue is used.</p>
+ 
+-<a name="4"><h2>Number Crunching</h2></a>
++<h2><a name="4">Number Crunching</a></h2>
+ 
+ <p>The Scalars -> Expressions section introduced sleep's family of numerical scalars.</p>
+ 
+@@ -568,7 +568,7 @@
+    
+ <p><code>$x--</code> is equivalent to <code>$x = $x - 1</code>;</p>
+ 
+-<a name="5"><h2>Subroutines</h2></a>
++<h2><a name="5">Subroutines</a></h2>
+ 
+ <p>Subroutines in sleep are basically mini programs.  You can pass arguments to them and they can return values.</p>
+ 
+@@ -665,7 +665,7 @@
+ returns "my favorite color is red".   Otherwise the subroutine favoriteColor will be declared as a subroutine that returns "I 
+ don't know what my favorite color is".</p>
+ 
+-<a name="6"><h2>Arrays</h2></a>
++<h2><a name="6">Arrays</a></h2>
+ 
+ <p>An array is a variable that holds a bunch of variables.  Arrays reference variables in numerical order.  So each variable in 
+ the array has an index (or position).  Arrays in sleep always begin with the @ at symbol.   This goes for referencing array 
+@@ -848,7 +848,7 @@
+ 
+ <p>There is no limit to how many levels deep your arrays/data structures can go.  Levels do not need to be the same size.</p>
+ 
+-<a name="7"><h2>Hashes</h2></a>
++<h2><a name="7">Hashes</a></h2>
+ 
+ <p>Hashes are a special scalar type that can hold a bunch of variables as well.  Unlike arrays hashes reference variables with a 
+ key.   Each variable in the hash has a unique key associated with it.  Hashes in sleep always begin with the % at symbol.   This 
+@@ -920,7 +920,7 @@
+ 
+ <pre>$temp = split(' ', "A B C")[1]; # $temp is now "B"</pre>
+ 
+-<a name="8"><h2>String manipulation</h2></a>
++<h2><a name="8">String manipulation</a></h2>
+ 
+ <p>Sleep strings come in two varieties.  Literals and parsed literals.  A literal string is a string where what you type is 
+ exactly what you get.</p>
+@@ -1052,7 +1052,7 @@
+ 
+ <pre>$value = join("replacement value", split(<b>'pattern'</b>, "the entire string"));</pre>
+ 
+-<a name="9"><h2>Input/Output Capabilities</h2></a>
++<h2><a name="9">Input/Output Capabilities</a></h2>
+ 
+ <p>The sleep IO capabilities allow you to read and write data from/to files, tcp sockets, and other processes.</p>
+ 
+@@ -1191,7 +1191,7 @@
+ <p>When the above script executes the subroutines <code>&amp;my_taskA</code> and <code>&amp;my_taskB</code> will both execute 
+ at the same time.  The output will be a seemingly random mix of Task A counting to 100 and Task B counting to 100.  This is 
+ because Java lets <code>&amp;my_taskA</code> run for a little while and then it lets <code>&amp;my_taskB</code> run for a 
+-little while.<p>
++little while.</p>
+ 
+ <p>When a Sleep script forks, a completely new script environment is created.  This new script environment is mostly isolated
+ (see <i>*</i>) from its parent script environment.  No variables that were visible or available in the parent environment are
+@@ -1278,7 +1278,7 @@
+ message is cleared.   A scalar passed to checkError() as  an argument will have the value of the 'current' error message placed 
+ into it.  In the above example checkError sets the value of $error to be a message stating why the file could not be opened.</P>
+ 
+-<a name="10"><h2>Working with Objects</h2></a>
++<h2><a name="10">Working with Objects</a></h2>
+ 
+ <p>A new feature in Sleep is the haphazard object extensions for Sleep (HOES).  HOES adds some new syntax for creating, 
+ accessing, and working with Java objects.  This interface is brand new and is geared towards experienced programmers.  If you 
+@@ -1324,7 +1324,7 @@
+ 
+ <p>You can not use a period '.' to access a message/field in an object i.e.:</p>
+ 
+-<pre><s><font color="red">[System.out println: "test" ];</s> # wrong!</font></pre>
++<pre><font color="red"><s>[System.out println: "test" ];</s> # wrong!</font></pre>
+ 
+ <p>To correctly access a message/field that is multiple levels deep:</p>
+ 
+@@ -1457,7 +1457,7 @@
+ 
+ <p>Often times Java API's acessed via HOES can throw an "exception".  Exceptions are a mechanism used to notify programs that some type of error has occured.  You can check for an exception using the <code>checkError($scalar)</code> function.</p>
+ 
+-<a name="10a"><h2>Sleep Closures</h2></a>
++<h2><a name="10a">Sleep Closures</a></h2>
+ 
+ <p>Closely coupled with HOES is the concept of Sleep closures.  A closure in sleep is a block of code that contains its own 
+ lexical scope.  i.e. there are variables specific to each closure instance.</P>
+@@ -1501,7 +1501,7 @@
+ 
+ <p>The above creates a new closure assigned to $myfunc.  The initial value of $name inside of the closure scope is "Raffi".</p>
+ 
+-<p>To explicitly declare a value or set of values to be within a closure scope use the function <code>this()</code>>. i.e.</P.
++<p>To explicitly declare a value or set of values to be within a closure scope use the function <code>this()</code>>. i.e.</p>
+ 
+ <pre>$myfunc = {
+    this('$a $b $c @array %hash');
+@@ -1628,7 +1628,7 @@
+ evaluate an expression each iteration of a loop where as foreach is iterating over a closure reference.  The difference is
+ pretty much in the implementation, the end result is the same.</p>
+ 
+-<a name="11"><h2>Function Library</h2></a>
++<h2><a name="11">Function Library</a></h2>
+ 
+ <p>This appendix is a list of the application neutral built-in functions for sleep.  I expect this list to grow as time goes on.  
+ Much of the functionality for sleep should in theory come from the bridges provided by the application author.</p>
+@@ -2104,7 +2104,7 @@
+   <td>read([$handle], &closure, [n])</td>
+   <td>each time text is read from $handle, &closure will be called with the $1 = to the handle and $2 = to the text.  
+ specifying a n value will cause $2 to be a string of n bytes.  if n is specified sleep will try to read n bytes before 
+-calling the closure.  the closure will be called for the last read even if < n bytes are in the buffer.</td>
++calling the closure.  the closure will be called for the last read even if &lt; n bytes are in the buffer.</td>
+  </tr>
+  <tr>
+   <td>@</td>
+@@ -2547,8 +2547,7 @@
+  </tr>
+ </table>
+ 
+-<a name="AppendixA"></a>
+-<a name="12"><h2>Appendix A - System Properties</h2></a>
++<h2><a name="12">Appendix A - System Properties</a></h2>
+ 
+ <p>This appendix contains a list of system properties available in the hash returned by the systemProperties() function.  This 
+ list is not comprehensive:</p>
+@@ -2604,8 +2603,7 @@
+  </tr>
+ </table>
+ 
+-<a name="AppendixB"></a>
+-<a name="13"><h2>Appendix B - Wildcard Strings</h2></a>
++<h2><a name="13">Appendix B - Wildcard Strings</a></h2>
+ 
+ <p>Sleep has the ability to determine if a string matches a specified wildcard string.  This appendix is just a quick 
+ refresher.</p>
+@@ -2658,8 +2656,7 @@
+ <p>In the greedy example the matcher will find "this" and it will then use * for as much stuff as possible.  Taking it all the 
+ way to the end of the string where "test" is.</p>
+ 
+-<a name="AppendixC"></a>
+-<a name="14"><h2>Appendix C - Regular Expression Pattern Syntax</h2></a>
++<h2><a name="14">Appendix C - Regular Expression Pattern Syntax</a></h2>
+ 
+ <p>Think of a pattern as a description of a string.  A pattern describes what an "acceptable" string looks like.   When a string 
+ is applied to a pattern, the regex engine goes through the string character by character advancing it through the pattern.  If 
+@@ -2899,7 +2896,7 @@
+  <tr><td valign="top" headers="construct posix"><tt>\p{Blank}</tt></td>
+      <td headers="matches">A space or a tab: <tt>[ \t]</tt></td></tr>
+  <tr><td valign="top" headers="construct posix"><tt>\p{Cntrl}</tt></td>
+-     <td headers="matches">A control character: <tt>[\x00-\x1F\x7F]</td></tr>
++     <td headers="matches">A control character: <tt>[\x00-\x1F\x7F]</tt></td></tr>
+  <tr><td valign="top" headers="construct posix"><tt>\p{XDigit}</tt></td>
+      <td headers="matches">A hexadecimal digit: <tt>[0-9a-fA-F]</tt></td></tr>
+  <tr><td valign="top" headers="construct posix"><tt>\p{Space}</tt></td>
+@@ -3008,7 +3005,7 @@
+  <tr align="left"><td colspan="2" id="quot"><b>Quotation</b></td></tr>
+ 
+  <tr><td valign="top" headers="construct quot"><tt>\</tt></td>
+-     <td headers="matches">Nothing, but quotes the following character</tt></td></tr>
++     <td headers="matches">Nothing, but quotes the following character</td></tr>
+  <tr><td valign="top" headers="construct quot"><tt>\Q</tt></td>
+      <td headers="matches">Nothing, but quotes all characters until <tt>\E</tt></td></tr>
+  <tr><td valign="top" headers="construct quot"><tt>\E</tt></td>
+@@ -3049,7 +3046,7 @@
+ would have to create a string <tt>'\\\\'</tt> which is resolved into <tt>\\</tt> which is used by the regex engine to match a 
+ single <tt>\</tt>.  At least with single quoted strings one has to only worry about <tt>\\</tt> and <tt>\'</tt>.</p>
+ 
+-<a name="15"><h2>Appendix D - Date/Time Formats</h2></a>
++<h2><a name="15">Appendix D - Date/Time Formats</a></h2>
+ 
+ <p>Note: The following is modified from the documentation provided by Sun for the Java java.util.SimpleDateFormat class.  FYI for 
+ Sun, nice job on this API - I like it.</p>
+@@ -3217,7 +3214,7 @@
+  </tr>
+ </table>
+ 
+-<a name="16"><h2>Appendix E - Binary Data Format Strings</h2></a>
++<h2><a name="16">Appendix E - Binary Data Format Strings</a></h2>
+ 
+ <p>Binary data format strings are used in the &amp;bread, &amp;bwrite, &amp;pack, and &amp;unpack functions.  An array of byte 
+ data is stored as a sleep string scalar.  Specifying a data format string with one of the above functions allows you to 
+@@ -3300,7 +3297,8 @@
+   <td>s</td>
+   <td>2</td>
+   <td>short (converted to/from a sleep int)</td>
+- <tr>
++ </tr>
++  <tr>
+   <td>S</td>
+   <td>2</td>
+   <td>unsigned short (converted to/from a sleep int)</td>
+@@ -3345,13 +3343,13 @@
+ 
+ <pre>$endianess = iff(unpack('i!', pack('i+', 1))[0] == 1, "big endian", "little endian");</pre>
+ 
+-<a name="snote"></a><p><font color="red">u/U/z/Z Note:</font> Writes using Z/U will pad until the specified count is reached.  
++<a name="snote"></a><p><font color="red">u/U/z/Z Note:</font> Writes using Z/U will pad until the specified count is reached.
+ If no count is specified a \0 is guaranteed to be written.  If the string length is the same as the specified count no \0 will 
+ be written.  The values z/u will write the entire string with a guaranteed \0 always (two \0's for UTF-16).  The count value 
+ has no effect on z/u.  Consequently for reads, Z/U will always consume the number of characters specified in the count.  For 
+ reads z/u will keep reading until a \0 is found.  U/u strings always read/write 2-byte characters.</p>
+ 
+-<a name="17"><h2>Appendix F - Transliteration</h2></a>
++<h2><a name="17">Appendix F - Transliteration</a></h2>
+ 
+ <p>Sleep provides a character translation utility similar to the UNIX tr command with the <code>&amp;tr</code> function..
+ A transliteration consists of a pattern of characters to match and a pattern, typically of equal length, of characters to 
+@@ -3370,7 +3368,7 @@
+ println("Cipher: $cipher   Plain: $plain");</pre>
+ 
+ <p>Replacement patterns and Matcher patterns may both contain ranges.  Any range specified in either of these places will be
+-expanded to all of the characters.  A range is specified as <code><i>n</i>-</i>m</i></code> where <i>n</i> is the
++expanded to all of the characters.  A range is specified as <code><i>n</i>-<i>m</i></code> where <i>n</i> is the
+ starting character (A-Z, a-z, 0-9) and <i>m</i> is the ending character.  Backwards ranges are allowed as well.</p>
+ 
+ <p>If an expanded replacement pattern is shorter than the matcher pattern, the last character of the replacement pattern
+
+
+
+From rsmudge at mail.berlios.de  Sat Oct 14 23:12:23 2006
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Sat, 14 Oct 2006 23:12:23 +0200
+Subject: [Sleep-svn] r135 - in sleep: . src/sleep/engine/atoms
+Message-ID: <200610142112.k9ELCN3c012785@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-10-14 23:12:22 +0200 (Sat, 14 Oct 2006)
+New Revision: 135
+
+Modified:
+   sleep/build.xml
+   sleep/src/sleep/engine/atoms/Index.java
+Log:
+implemented an idea that is crazy as hell, indexing operator can now be used to access values in a closures this scope...
+full on sleep OO next?
+
+
+
+Modified: sleep/build.xml
+===================================================================
+--- sleep/build.xml	2006-10-09 11:13:41 UTC (rev 134)
++++ sleep/build.xml	2006-10-14 21:12:22 UTC (rev 135)
+@@ -16,7 +16,7 @@
+            destdir="${project.build}"
+            nowarn="yes"
+            depend="yes"
+-           debug="true"
++           debug="false"
+            source="1.4"
+            target="1.4"
+            optimize="yes"
+
+Modified: sleep/src/sleep/engine/atoms/Index.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/Index.java	2006-10-09 11:13:41 UTC (rev 134)
++++ sleep/src/sleep/engine/atoms/Index.java	2006-10-14 21:12:22 UTC (rev 135)
+@@ -26,6 +26,7 @@
+ import sleep.interfaces.*;
+ import sleep.engine.*;
+ import sleep.runtime.*;
++import sleep.bridges.SleepClosure;
+ 
+ public class Index extends Step
+ {
+@@ -90,6 +91,16 @@
+ 
+       if (structure.getArray() != null) { rv = structure.getArray().getAt(pos.getValue().intValue()); }
+       else if (structure.getHash() != null) { rv = structure.getHash().getAt(pos); }
++      else if (structure.objectValue() != null && structure.objectValue() instanceof SleepClosure)
++      {
++         SleepClosure closure = (SleepClosure)structure.objectValue();
++
++         if (!closure.getVariables().scalarExists(pos.toString()))
++         {
++            closure.getVariables().putScalar(pos.toString(), SleepUtils.getEmptyScalar());
++         }
++         rv = closure.getVariables().getScalar(pos.toString());
++      }
+       else { rv = SleepUtils.getEmptyScalar(); } // always return an empty scalar if we are not referencing a hash or an array
+ 
+       e.FrameResult(rv);
+
+
+
+From rsmudge at mail.berlios.de  Mon Oct 16 01:40:38 2006
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Mon, 16 Oct 2006 01:40:38 +0200
+Subject: [Sleep-svn] r136 - in sleep: . src/sleep/bridges src/sleep/parser
+	tests tests/output
+Message-ID: <200610152340.k9FNeck4025285@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-10-16 01:40:37 +0200 (Mon, 16 Oct 2006)
+New Revision: 136
+
+Added:
+   sleep/tests/closureindex.sl
+   sleep/tests/invoke.sl
+   sleep/tests/output/closureindex.sl
+   sleep/tests/output/invoke.sl
+   sleep/tests/output/sleepoo.sl
+   sleep/tests/sleepoo.sl
+Modified:
+   sleep/src/sleep/bridges/BasicUtilities.java
+   sleep/src/sleep/parser/Checkers.java
+   sleep/whatsnew.txt
+Log:
+fun stuff...
+
+
+
+Modified: sleep/src/sleep/bridges/BasicUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicUtilities.java	2006-10-14 21:12:22 UTC (rev 135)
++++ sleep/src/sleep/bridges/BasicUtilities.java	2006-10-15 23:40:37 UTC (rev 136)
+@@ -91,6 +91,7 @@
+         temp.put("-istrue", this);    // predicate -istrue <Scalar>, determine wether or not the scalar is null or not.
+         temp.put("-isarray", this);   
+         temp.put("-ishash",  this); 
++        temp.put("-isfunction", this);
+         temp.put("&setField", this);
+      
+         SetScope scopeFunctions = new SetScope();
+@@ -125,6 +126,8 @@
+         temp.put("&acquire",   sync);
+         temp.put("&release",   sync);
+ 
++        temp.put("&invoke",    this);
++
+         temp.put("=>",       new HashKeyValueOp());
+ 
+         return true;
+@@ -182,6 +185,9 @@
+        if (predName.equals("-istrue"))
+           return value.getValue().toString().length() != 0 && !("0".equals(value.getValue().toString()));
+ 
++       if (predName.equals("-isfunction"))
++          return SleepUtils.isFunctionScalar(value);
++
+        if (predName.equals("-isarray"))
+           return value.getArray() != null;
+ 
+@@ -686,6 +692,18 @@
+          
+           return SleepUtils.getEmptyScalar();
+        }
++       else if (n.equals("&invoke")) 
++       {
++          SleepClosure c    = BridgeUtilities.getFunction(l, i);
++
++          Stack        args = new Stack();
++          Iterator iter     = BridgeUtilities.getIterator(l, i);
++          while (iter.hasNext()) { args.add(0, iter.next()); }
++
++          String message    = BridgeUtilities.getString(l, null);
++ 
++          return c.callClosure(message, i, args);
++       }
+        else if (n.equals("&debug"))
+        {
+           /* allow the script to programatically set the debug level */
+
+Modified: sleep/src/sleep/parser/Checkers.java
+===================================================================
+--- sleep/src/sleep/parser/Checkers.java	2006-10-14 21:12:22 UTC (rev 135)
++++ sleep/src/sleep/parser/Checkers.java	2006-10-15 23:40:37 UTC (rev 136)
+@@ -181,7 +181,7 @@
+ 
+    public static boolean isIndexableItem(String a, String b)
+    {
+-      return (isIndex(b) && (isFunctionCall(a) || isExpression(a) || isVariable(a) || isIndex(a)));
++      return (isIndex(b) && (isFunctionCall(a) || isExpression(a) || isVariable(a) || isIndex(a) || isFunctionReferenceToken(a)));
+    }
+ 
+    public static boolean isIndexableItem(String a)
+
+Added: sleep/tests/closureindex.sl
+===================================================================
+--- sleep/tests/closureindex.sl	2006-10-14 21:12:22 UTC (rev 135)
++++ sleep/tests/closureindex.sl	2006-10-15 23:40:37 UTC (rev 136)
+@@ -0,0 +1,29 @@
++#
++# test out indexing in some other cases.
++#
++
++sub phoenetic
++{
++   this('$evil');
++
++   $this["a"] = "alpha";
++   $this["b"] = "bravo";
++   $this["c"] = "charlie";
++   $this["d"] = "delta";   
++
++   $evil = "evil test!!!";
++
++   println("evil test --- $evil");
++
++   yield; 
++
++   println("yeap, evil is now $evil");
++}
++
++phoenetic(); # set everything up please..
++
++println("a    is: " . &phoenetic["a"]);
++println("evil is: " . &phoenetic['$evil']);
++
++&phoenetic['$evil'] = "oooh, changes... eee";
++phoenetic();
+
+Added: sleep/tests/invoke.sl
+===================================================================
+--- sleep/tests/invoke.sl	2006-10-14 21:12:22 UTC (rev 135)
++++ sleep/tests/invoke.sl	2006-10-15 23:40:37 UTC (rev 136)
+@@ -0,0 +1,15 @@
++sub test
++{
++   if ($0 is $null)
++   {
++      println("&test - no \$0 - but $1 $2 and $3");
++   }
++   else
++   {
++      println("I am a subroutine with 1: $1 2: $2 and 3: $3 told $0");
++   }
++}
++
++invoke(&test, @("a", "b", 3), "testing");
++invoke(&test, @("aa", "bb", 3));
++
+
+Added: sleep/tests/output/closureindex.sl
+===================================================================
+--- sleep/tests/output/closureindex.sl	2006-10-14 21:12:22 UTC (rev 135)
++++ sleep/tests/output/closureindex.sl	2006-10-15 23:40:37 UTC (rev 136)
+@@ -0,0 +1,4 @@
++evil test --- evil test!!!
++a    is: alpha
++evil is: evil test!!!
++yeap, evil is now oooh, changes... eee
+
+Added: sleep/tests/output/invoke.sl
+===================================================================
+--- sleep/tests/output/invoke.sl	2006-10-14 21:12:22 UTC (rev 135)
++++ sleep/tests/output/invoke.sl	2006-10-15 23:40:37 UTC (rev 136)
+@@ -0,0 +1,2 @@
++I am a subroutine with 1: a 2: b and 3: 3 told testing
++&test - no $0 - but aa bb and 3
+
+Added: sleep/tests/output/sleepoo.sl
+===================================================================
+--- sleep/tests/output/sleepoo.sl	2006-10-14 21:12:22 UTC (rev 135)
++++ sleep/tests/output/sleepoo.sl	2006-10-15 23:40:37 UTC (rev 136)
+@@ -0,0 +1,4 @@
++<foo> my name is: not default x - foo; arg is x_foo argument
++<foo> my name is: default foo; arg is y_foo argument
++<bar> my name is: not default x - bar; arg is x_bar argument
++<bar> my name is: default bar; arg is y_bar argument
+
+Added: sleep/tests/sleepoo.sl
+===================================================================
+--- sleep/tests/sleepoo.sl	2006-10-14 21:12:22 UTC (rev 135)
++++ sleep/tests/sleepoo.sl	2006-10-15 23:40:37 UTC (rev 136)
+@@ -0,0 +1,103 @@
++#
++# this is just a test of using the new closure indexing capability
++# to see what kind of fun it brings to the sleep language.
++#
++
++# special thanks to Andreas for starting the train of thought that led
++# to this.
++
++# this concept can surely be expanded, I was just looking to mimic the
++# javascript "prototype" function ability.  
++
++# a generic object... when a message is passed, the objects closure scope is referred to.
++# if the message indexes a function, the function is called.
++# otherwise a value is returned.  no big deal.  eh. (:
++sub object
++{
++   if ($0 !is $null)
++   {
++      if (-isfunction $this[$0])
++      {
++         return invoke($this[$0], @_);
++      }
++      else
++      {
++         return $this[$0];
++      }
++   }  
++}
++
++#
++# a constructor for some sort of class... keeps track of all instances of
++# the "class".  allows slots for each instance to be populated via the
++# set message.  new instances are created with the new message.
++#
++# one weakness with this implementation is that all instances must be created
++# prior to populating the slots.  this could be easily fixed but I am just
++# creating a test case here, not a full object implementation for sleep.
++#
++sub construct
++{
++  this('@mybabies');
++
++  # [&construct set: "key", value]
++  if ($0 eq "set") 
++  {
++     return map(lambda({ 
++        if (-isfunction $y)
++        {
++           $1[$x] = lambda($y, $object => $1); 
++        }
++        else
++        {
++           $1[$x] = $y;
++        }
++     }, $x => $1, $y => $2), @mybabies);
++  }
++  # [&construct new]
++  else if ($0 eq "new")
++  {
++     return push(@mybabies, lambda(&object, $class => $this));
++  }
++}
++
++#
++# test all of this out
++# 
++
++$class_foo = lambda(&construct);
++$class_bar = lambda(&construct);  
++
++$x_foo = [$class_foo new];
++$x_bar = [$class_bar new];
++
++$y_foo = [$class_foo new];
++$y_bar = [$class_bar new];
++
++#
++# add a printme method to all instantiated class_foo and class_bar "objects"
++#
++[$class_foo set: "printme", { println("<foo> my name is: " . [$object name] . "; arg is $1"); }];
++[$class_bar set: "printme", { println("<bar> my name is: " . [$object name] . "; arg is $1"); }];
++
++#
++# add a name field to all instnatiated class_foo and class_bar objects
++#
++[$class_foo set: "name", "default foo"];
++[$class_bar set: "name", "default bar"];
++
++#
++# x will not use the defaults...
++#
++$x_foo["name"] = "not default x - foo";
++$x_bar["name"] = "not default x - bar";
++
++#
++# test it all out
++#
++[$x_foo printme: "x_foo argument"];
++[$y_foo printme: "y_foo argument"];
++
++[$x_bar printme: "x_bar argument"];
++[$y_bar printme: "y_bar argument"];
++
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-10-14 21:12:22 UTC (rev 135)
++++ sleep/whatsnew.txt	2006-10-15 23:40:37 UTC (rev 136)
+@@ -1,3 +1,17 @@
++2.1-beta 7  (15 Oct 06)
++===========
++- index operator can now be applied to closures to reference the "this" scope
++  of the closure i.e.
++
++  $closure = lambda({ println("I am: " . $name); }, $name => "Burt");
++  $closure['$name'] = "Joe";
++  [$closure];
++
++  Output: "I am Joe"
++- added -isfunction predicate to check if a scalar contains a function or not
++- added &invoke(&function, @args, [message]) to invoke a function with @args
++  passed as individual arguments.
++
+ 2.1-beta 6  (1 Oct 06)
+ ===========
+ - added named parameters for Sleep closures.  When a $key => value argument is
+
+
+
+From rsmudge at mail.berlios.de  Mon Oct 16 01:58:21 2006
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Mon, 16 Oct 2006 01:58:21 +0200
+Subject: [Sleep-svn] r137 - in sleep: . src/sleep/bridges tests tests/output
+Message-ID: <200610152358.k9FNwLVF027353@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-10-16 01:58:21 +0200 (Mon, 16 Oct 2006)
+New Revision: 137
+
+Modified:
+   sleep/src/sleep/bridges/BasicUtilities.java
+   sleep/tests/output/setfield.sl
+   sleep/tests/setfield.sl
+   sleep/whatsnew.txt
+Log:
+changed behavior of setfield.sl 
+
+
+
+Modified: sleep/src/sleep/bridges/BasicUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicUtilities.java	2006-10-15 23:40:37 UTC (rev 136)
++++ sleep/src/sleep/bridges/BasicUtilities.java	2006-10-15 23:58:21 UTC (rev 137)
+@@ -938,7 +938,7 @@
+           Class  aClass = null;
+           Object inst   = null;
+ 
+-          if (l.size() == 3 && "==CLASS==".equals(value.toString()))
++          if ("==CLASS==".equals(value.toString()))
+           {
+              aClass = (Class)(BridgeUtilities.getScalar(l).objectValue());
+           }
+@@ -946,42 +946,43 @@
+           {
+              throw new IllegalArgumentException("&setField: can not set field on a null object");
+           }
+-          else if (l.size() == 2)
++          else
+           {
+              inst   = value.objectValue();
+              aClass = inst.getClass();
+           }
+-          else
++
++          while (!l.isEmpty())
+           {
+-             throw new IllegalArgumentException("&setField: not enough parameters");
+-          }
++             KeyValuePair pair = BridgeUtilities.getKeyValuePair(l);
+ 
+-          String name = BridgeUtilities.getString(l, null);
+-          Scalar arg  = BridgeUtilities.getScalar(l);
++             String name = pair.getKey().toString();
++             Scalar arg  = pair.getValue();
+ 
+-          try
+-          {
+-             setMe = aClass.getDeclaredField(name);
++             try
++             {
++                setMe = aClass.getDeclaredField(name);
+ 
+-             if (ObjectUtilities.isArgMatch(setMe.getType(), arg) != 0)
++                if (ObjectUtilities.isArgMatch(setMe.getType(), arg) != 0)
++                {
++                   setMe.setAccessible(true);
++                   setMe.set(inst, ObjectUtilities.buildArgument(setMe.getType(), arg, i));
++                }
++                else
++                {
++                   throw new RuntimeException("unable to convert " + SleepUtils.describe(arg) + " to a " + setMe.getType());
++                }
++             }
++             catch (NoSuchFieldException fex)
+              {
+-                setMe.setAccessible(true);
+-                setMe.set(inst, ObjectUtilities.buildArgument(setMe.getType(), arg, i));
++                throw new RuntimeException("no field named " + name + " in " + aClass);
+              }
+-             else
++             catch (RuntimeException rex) { throw (rex); }
++             catch (Exception ex)
+              {
+-                throw new RuntimeException("unable to convert " + SleepUtils.describe(arg) + " to a " + setMe.getType());
++                throw new RuntimeException("cannot set " + name + " in " + aClass + ": " + ex.getMessage());
+              }
+           }
+-          catch (NoSuchFieldException fex)
+-          {
+-             throw new RuntimeException("no field named " + name + " in " + aClass);
+-          }
+-          catch (RuntimeException rex) { throw (rex); }
+-          catch (Exception ex)
+-          {
+-             throw new RuntimeException("cannot set " + name + " in " + aClass + ": " + ex.getMessage());
+-          }
+        }
+ 
+        return SleepUtils.getEmptyScalar();
+
+Modified: sleep/tests/output/setfield.sl
+===================================================================
+--- sleep/tests/output/setfield.sl	2006-10-15 23:40:37 UTC (rev 136)
++++ sleep/tests/output/setfield.sl	2006-10-15 23:58:21 UTC (rev 137)
+@@ -39,8 +39,17 @@
+ instance members:
+ instanceStringField 'squeeze box 2' instanceBooleanField = true
+ ------------------------------------------------------------
+-Warning: no field named nofield in class org.hick.blah.SqueezeBox at line 39
+-Warning: unable to convert 'false and true?' to a boolean at line 43
++static members:
++aStringField 'the rain in spain, falls mainly on the plain' and aDoubleField = 5.0
++instance members:
++instanceStringField 'this is another test' instanceBooleanField = true
++static members:
++aStringField 'the rain in spain, falls mainly on the plain' and aDoubleField = 5.0
++instance members:
++instanceStringField 'squeeze box 2' instanceBooleanField = true
++------------------------------------------------------------
++Warning: no field named nofield in class org.hick.blah.SqueezeBox at line 45
++Warning: unable to convert 'false and true?' to a boolean at line 49
+ 34
+ 56
+ Done?
+
+Modified: sleep/tests/setfield.sl
+===================================================================
+--- sleep/tests/setfield.sl	2006-10-15 23:40:37 UTC (rev 136)
++++ sleep/tests/setfield.sl	2006-10-15 23:58:21 UTC (rev 137)
+@@ -10,41 +10,47 @@
+ println("Pre change:");
+ [$sb1 printValues];
+ 
+-setField(SqueezeBox, "aDoubleField", 4);
++setField(SqueezeBox, aDoubleField => 4);
+ [$sb1 printValues];
+ [$sb2 printValues];
+ 
+ println("-" x 60);
+ 
+-setField($sb1, "instanceStringField", "squeeze box 1");
+-setField($sb2, "instanceStringField", "squeeze box 2");
++setField($sb1, instanceStringField => "squeeze box 1");
++setField($sb2, instanceStringField => "squeeze box 2");
+ [$sb1 printValues];
+ [$sb2 printValues];
+ 
+ println("-" x 60);
+ 
+-setField($sb1, "instanceBooleanField", 0);
++setField($sb1, instanceBooleanField => 0);
+ [$sb1 printValues];
+ [$sb2 printValues];
+ 
+ println("-" x 60);
+ 
+-setField($sb2, "aStringField", "the rain in spain, falls mainly on the plain");
++setField($sb2, aStringField => "the rain in spain, falls mainly on the plain");
+ [$sb1 printValues];
+ [$sb2 printValues];
+ 
+ println("-" x 60);
+ 
++setField($sb1, instanceBooleanField => 1, instanceStringField => "this is another test", aDoubleField => 5.0);
++[$sb1 printValues];
++[$sb2 printValues];
++
++println("-" x 60);
++
+ [{
+-   setField($sb2, "nofield", 33);
++   setField($sb2, nofield => 33);
+ }];
+ 
+ [{
+-   setField($sb2, "instanceBooleanField", "false and true?");
++   setField($sb2, instanceBooleanField => "false and true?");
+ }];
+ 
+ println([$sb1 squeeze]);
+-setField($sb1, "sq", 55);
++setField($sb1, sq => 55);
+ println([$sb1 squeeze]);
+ 
+ println("Done?");
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-10-15 23:40:37 UTC (rev 136)
++++ sleep/whatsnew.txt	2006-10-15 23:58:21 UTC (rev 137)
+@@ -11,7 +11,11 @@
+ - added -isfunction predicate to check if a scalar contains a function or not
+ - added &invoke(&function, @args, [message]) to invoke a function with @args
+   passed as individual arguments.
++- updated &setField to accept key/value pair arguments where the key specifies
++  the field to update and the argument the value, any number of args can be
++  specified.  this breaks to behavor set in 2.1-b6
+ 
++
+ 2.1-beta 6  (1 Oct 06)
+ ===========
+ - added named parameters for Sleep closures.  When a $key => value argument is
+
+
+
+From rsmudge at mail.berlios.de  Mon Oct 16 02:13:11 2006
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Mon, 16 Oct 2006 02:13:11 +0200
+Subject: [Sleep-svn] r138 - in sleep: . src/sleep/console
+Message-ID: <200610160013.k9G0DBeD030489@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-10-16 02:13:10 +0200 (Mon, 16 Oct 2006)
+New Revision: 138
+
+Modified:
+   sleep/src/sleep/console/TextConsole.java
+   sleep/whatsnew.txt
+Log:
+added the --help/-h command line option
+added the ability to read scripts from STDIN
+
+
+
+Modified: sleep/src/sleep/console/TextConsole.java
+===================================================================
+--- sleep/src/sleep/console/TextConsole.java	2006-10-15 23:58:21 UTC (rev 137)
++++ sleep/src/sleep/console/TextConsole.java	2006-10-16 00:13:10 UTC (rev 138)
+@@ -24,6 +24,20 @@
+          {
+              System.out.println(SleepUtils.SLEEP_VERSION + " (" + SleepUtils.SLEEP_RELEASE + ")");
+              return;
++         } 
++         else if (args[0].equals("-help") || args[0].equals("--help") || args[0].equals("-h"))
++         {
++             System.out.println(SleepUtils.SLEEP_VERSION + " (" + SleepUtils.SLEEP_RELEASE + ")");
++             System.out.println("Usage: java [properties] -jar sleep.jar [options] [-|file]");
++             System.out.println("       properties:");
++             System.out.println("         -Dsleep.debug=<debug level>");
++             System.out.println("         -Dsleep.classpath=<path to locate 3rd party jars from>");
++             System.out.println("       options:");
++             System.out.println("         -v --version   display version information");
++             System.out.println("         -h --help      display this help message");
++             System.out.println("       file:");
++             System.out.println("         specify a '-' to read script from STDIN");
++             return;
+          }
+          
+          //
+@@ -38,7 +52,15 @@
+ 
+          try
+          {
+-            ScriptInstance script = loader.loadScript(args[0]);     // load the script, parse it, etc.
++            ScriptInstance script;
++            if (args[0].equals("-"))
++            {
++                script = loader.loadScript("STDIN", System.in);
++            }
++            else
++            {
++                script = loader.loadScript(args[0]);     // load the script, parse it, etc.
++            }
+             script.getScriptVariables().putScalar("@ARGV", array);  // set @ARGV to be our array of command line arguments
+ 
+             if (System.getProperty("sleep.debug") != null)
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-10-15 23:58:21 UTC (rev 137)
++++ sleep/whatsnew.txt	2006-10-16 00:13:10 UTC (rev 138)
+@@ -14,8 +14,9 @@
+ - updated &setField to accept key/value pair arguments where the key specifies
+   the field to update and the argument the value, any number of args can be
+   specified.  this breaks to behavor set in 2.1-b6
++- added a -h/--help command line option (:
++- specifying a - on the sleep command line reads the script from STDIN
+ 
+-
+ 2.1-beta 6  (1 Oct 06)
+ ===========
+ - added named parameters for Sleep closures.  When a $key => value argument is
+
+
+
+From rsmudge at mail.berlios.de  Mon Oct 16 02:53:06 2006
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Mon, 16 Oct 2006 02:53:06 +0200
+Subject: [Sleep-svn] r139 - in sleep: . docs src src/sleep/runtime
+Message-ID: <200610160053.k9G0r6pd006317@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-10-16 02:53:05 +0200 (Mon, 16 Oct 2006)
+New Revision: 139
+
+Modified:
+   sleep/docs/sleeplang.html
+   sleep/readme.txt
+   sleep/src/count.pl
+   sleep/src/sleep/runtime/SleepUtils.java
+Log:
+Sleep 2.1-b7
+
+
+
+Modified: sleep/docs/sleeplang.html
+===================================================================
+--- sleep/docs/sleeplang.html	2006-10-16 00:13:10 UTC (rev 138)
++++ sleep/docs/sleeplang.html	2006-10-16 00:53:05 UTC (rev 139)
+@@ -382,6 +382,10 @@
+   <td>is the specified value a scalar array</td>
+  </tr>
+  <tr>
++  <td>-isfunction</td>
++  <td>does the specified scalar hold a function</td>
++ </tr>
++ <tr>
+   <td>-ishash</td>
+   <td>is the specified value a scalar hash</td>
+  </tr>
+@@ -1514,6 +1518,22 @@
+ <p>Another special variable available within closures is the <var>$this</var> variable.  <var>$this</var> refers to "this" 
+ closure.</p>
+ 
++<h4>Indexing Closures</h4>
++
++<p>The index operation applied to a closure obtains a value from the closure's "this" scope.</p>
++
++<pre>sub life_universe_and_everything
++{
++   this('$answer');
++   $answer = 42;
++}
++
++life_universe_and_everything(); # nothing is available until 
++                                # the function actually executes
++
++println("What is the meaning of it all? " . &life_universe_and_everything['$answer']);
++&life_universe_and_everything['$question'] = "Unknown?!?";</pre>
++
+ <h3>Accumulator Example</h3>
+ 
+ <p>This first example is a Sleep Accumulator Generator.  An Accumulator Generator is a function that takes a parameter
+@@ -2491,6 +2511,11 @@
+   <td>parses the specified string and declares all variables in the string as global variables.</td>
+  </tr>
+  <tr>
++  <td>$</td>
++  <td>invoke(&amp;closure, @args, ["message"])</td>
++  <td>invokes the specified closure using the specified array for each individual argument.  the message parameter ($0) can be specified as well.</td>
++ </tr>
++ <tr> 
+   <td>&amp;</td>
+   <td>lambda(&amp;closure,&nbsp;$key&nbsp;=&gt;&nbsp;"value",&nbsp;...)</td>
+   <td>copies &amp;closure into a new closure.  The closure environment is initialized with all of the key/value pair arguments.</td>
+@@ -2512,8 +2537,8 @@
+  </tr>
+  <tr>
+   <td></td>
+-  <td>setField(class|$object, "field", value)</td>
+-  <td>sets a public/protected field of the specified class or instance of $object to a specified value.</td>
++  <td>setField(class|$object, field => value, ...)</td>
++  <td>sets any number of public/protected fields of the specified class or instance of $object to a corresponding value.</td>
+  </tr>
+  <tr>
+   <td>$</td>
+
+Modified: sleep/readme.txt
+===================================================================
+--- sleep/readme.txt	2006-10-16 00:13:10 UTC (rev 138)
++++ sleep/readme.txt	2006-10-16 00:53:05 UTC (rev 139)
+@@ -1,5 +1,5 @@
+  ------- -------------------- ---------   ---------------  ------- ---------
+-Sleep - 2.1 beta 6 - README   
++Sleep - 2.1 beta 7 - README   
+ -  ------------- -------- -   ---------------- --       -    -     -     - - -
+ 
+ "You got the language, all you need now is the O'Reilly book".  That is
+@@ -89,6 +89,10 @@
+ 
+ [raffi at beardsley ~/sleep/bin]$ java -jar sleep.jar
+ 
++For Sleep interpreter usage information:
++
++[raffi at beardsley ~/sleep/bin]$ java -jar sleep.jar --help
++
+ To launch a sleep script from the command line:
+ 
+ [raffi at beardsley ~/sleep/bin]$ java -jar sleep.jar filename.sl
+
+Modified: sleep/src/count.pl
+===================================================================
+--- sleep/src/count.pl	2006-10-16 00:13:10 UTC (rev 138)
++++ sleep/src/count.pl	2006-10-16 00:53:05 UTC (rev 139)
+@@ -14,7 +14,7 @@
+ 
+ foreach $var (@files)
+ {
+-   $c = `wc --lines $var`;
++   $c = `wc -l $var`;
+    $c = join("", split(/ /, $c));
+    @t = split(/\./, $c);
+    $count += $t[0];
+
+Modified: sleep/src/sleep/runtime/SleepUtils.java
+===================================================================
+--- sleep/src/sleep/runtime/SleepUtils.java	2006-10-16 00:13:10 UTC (rev 138)
++++ sleep/src/sleep/runtime/SleepUtils.java	2006-10-16 00:53:05 UTC (rev 139)
+@@ -49,7 +49,7 @@
+ public class SleepUtils
+ {
+    /** A date stamp of this Sleep release in YYYYMMDD format */
+-   public static final int    SLEEP_RELEASE = 20061001;
++   public static final int    SLEEP_RELEASE = 20061015;
+ 
+    /** A string description of this Sleep release */
+    public static final String SLEEP_VERSION = "Sleep 2.1";
+
+
+
+From rsmudge at mail.berlios.de  Sat Oct 28 18:30:08 2006
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Sat, 28 Oct 2006 18:30:08 +0200
+Subject: [Sleep-svn] r140 - in sleep: . src/sleep/bridges tests tests/output
+Message-ID: <200610281630.k9SGU8ti028955@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-10-28 18:30:07 +0200 (Sat, 28 Oct 2006)
+New Revision: 140
+
+Added:
+   sleep/tests/longip.sl
+   sleep/tests/output/longip.sl
+Modified:
+   sleep/src/sleep/bridges/BasicIO.java
+   sleep/whatsnew.txt
+Log:
+Fixed a bug with packing unsigned integers
+
+
+
+Modified: sleep/src/sleep/bridges/BasicIO.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicIO.java	2006-10-16 00:53:05 UTC (rev 139)
++++ sleep/src/sleep/bridges/BasicIO.java	2006-10-28 16:30:07 UTC (rev 140)
+@@ -899,10 +899,13 @@
+                         out.write(bdata, 0, 2);
+                         break;
+                       case 'i':
+-                      case 'I':
+                         buffer.putInt(0, temp.intValue());
+                         out.write(bdata, 0, 4);
+                         break;
++                      case 'I':
++                        buffer.putInt(0, (int)temp.longValue());
++                        out.write(bdata, 0, 4);
++                        break;
+                       case 'f':
+                         buffer.putFloat(0, (float)temp.doubleValue());
+                         out.write(bdata, 0, 4);
+
+Added: sleep/tests/longip.sl
+===================================================================
+--- sleep/tests/longip.sl	2006-10-16 00:53:05 UTC (rev 139)
++++ sleep/tests/longip.sl	2006-10-28 16:30:07 UTC (rev 140)
+@@ -0,0 +1,4 @@
++$ip = join('.', unpack("B4", pack("I", '3232235777')));
++$longip = unpack("I-", pack("B4", split('\.', "192.168.1.1")))[0];
++
++println("$ip and $longip");
+
+Added: sleep/tests/output/longip.sl
+===================================================================
+--- sleep/tests/output/longip.sl	2006-10-16 00:53:05 UTC (rev 139)
++++ sleep/tests/output/longip.sl	2006-10-28 16:30:07 UTC (rev 140)
+@@ -0,0 +1 @@
++192.168.1.1 and 3232235777
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-10-16 00:53:05 UTC (rev 139)
++++ sleep/whatsnew.txt	2006-10-28 16:30:07 UTC (rev 140)
+@@ -1,3 +1,9 @@
++2.1-beta 8  (29 Oct 06)
++===========
++- when packing an unsigned integer the argument is now interpreted as a long
++  (and cast to an int) rather than an int (since an unsigned integer can be
++  "bigger" than a normal java integer).  
++
+ 2.1-beta 7  (15 Oct 06)
+ ===========
+ - index operator can now be applied to closures to reference the "this" scope
+
+
+
+From rsmudge at mail.berlios.de  Sun Oct 29 18:23:10 2006
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Sun, 29 Oct 2006 18:23:10 +0100
+Subject: [Sleep-svn] r141 - in sleep: . src/sleep/bridges src/sleep/parser
+	tests tests/output
+Message-ID: <200610291723.k9THNAxL003185@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-10-29 18:23:10 +0100 (Sun, 29 Oct 2006)
+New Revision: 141
+
+Added:
+   sleep/tests/hashambig.sl
+   sleep/tests/output/hashambig.sl
+Modified:
+   sleep/src/sleep/bridges/BasicNumbers.java
+   sleep/src/sleep/parser/LexicalAnalyzer.java
+   sleep/tests/longip.sl
+   sleep/tests/output/longip.sl
+   sleep/whatsnew.txt
+Log:
+Fixed an ambiguity between %(...) and ... % (...) i.e. hash literals versus some value mod an expression.
+
+
+
+Modified: sleep/src/sleep/bridges/BasicNumbers.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicNumbers.java	2006-10-28 16:30:07 UTC (rev 140)
++++ sleep/src/sleep/bridges/BasicNumbers.java	2006-10-29 17:23:10 UTC (rev 141)
+@@ -79,8 +79,13 @@
+        temp.put("/", this);
+        temp.put("*", this);
+        temp.put("**", this); // exponentation
+-       temp.put("%", this);
+ 
++       /* why "% "?  we had an amibiguity with %() to initialize hash literals and n % (expr) 
++          for normal math ops.  the initial parser in the case of mod will preserve one bit of
++          whitespace to try to prevent mass hysteria and confusion to the parser for determining
++          wether an op is being used or a hash literal is being initialized */
++       temp.put("% ", this);
++
+        temp.put("<<", this);
+        temp.put(">>", this);
+        temp.put("&", this);
+@@ -293,7 +298,7 @@
+           if (o.equals("-")) { return SleepUtils.getScalar(a - b); }
+           if (o.equals("*")) { return SleepUtils.getScalar(a * b); }
+           if (o.equals("/")) { return SleepUtils.getScalar(a / b); }
+-          if (o.equals("%")) { return SleepUtils.getScalar(a % b); }
++          if (o.equals("% ")) { return SleepUtils.getScalar(a % b); }
+           if (o.equals("**")) { return SleepUtils.getScalar(Math.pow((double)a, (double)b)); }
+        }
+        else if (right.getClass() == TYPE_LONG || left.getClass() == TYPE_LONG)
+@@ -305,7 +310,7 @@
+           if (o.equals("-")) { return SleepUtils.getScalar(a - b); }
+           if (o.equals("*")) { return SleepUtils.getScalar(a * b); }
+           if (o.equals("/")) { return SleepUtils.getScalar(a / b); }
+-          if (o.equals("%")) { return SleepUtils.getScalar(a % b); }
++          if (o.equals("% ")) { return SleepUtils.getScalar(a % b); }
+           if (o.equals("**")) { return SleepUtils.getScalar(Math.pow((double)a, (double)b)); }
+           if (o.equals(">>"))  { return SleepUtils.getScalar(a >> b); }
+           if (o.equals("<<"))  { return SleepUtils.getScalar(a << b); }
+@@ -322,7 +327,7 @@
+           if (o.equals("-")) { return SleepUtils.getScalar(a - b); }
+           if (o.equals("*")) { return SleepUtils.getScalar(a * b); }
+           if (o.equals("/")) { return SleepUtils.getScalar(a / b); }
+-          if (o.equals("%")) { return SleepUtils.getScalar(a % b); }
++          if (o.equals("% ")) { return SleepUtils.getScalar(a % b); }
+           if (o.equals("**")) { return SleepUtils.getScalar(Math.pow((double)a, (double)b)); }
+           if (o.equals(">>"))  { return SleepUtils.getScalar(a >> b); }
+           if (o.equals("<<"))  { return SleepUtils.getScalar(a << b); }
+
+Modified: sleep/src/sleep/parser/LexicalAnalyzer.java
+===================================================================
+--- sleep/src/sleep/parser/LexicalAnalyzer.java	2006-10-28 16:30:07 UTC (rev 140)
++++ sleep/src/sleep/parser/LexicalAnalyzer.java	2006-10-29 17:23:10 UTC (rev 141)
+@@ -317,7 +317,19 @@
+          {
+              if (aTerm.length() > 0)
+              {
+-                newTerm = new Token(trim(parser, aTerm.toString()), iterator.getLineNumber());
++                /* why is this happening here, you may be asking.  Well for the sake of future generations
++                   I introduced a nasty ambiguity creating a function %() for intializing hashes which of
++                   course to my friendly top down parser is easily mistaken with 3 % (some expr) for doing
++                   typical modulus operations.  So if there is whitespace following the % char then I preserve
++                   it so the parser can differentiate a hash literal from a MOD math operation. */
++                if (aTerm.length() == 1 && aTerm.charAt(0) == '%')
++                {
++                   newTerm = new Token("% ", iterator.getLineNumber());
++                }
++                else
++                {
++                   newTerm = new Token(trim(parser, aTerm.toString()), iterator.getLineNumber());
++                }
+                 terms.add(newTerm);
+                 aTerm = new StringBuffer();
+              }
+
+Added: sleep/tests/hashambig.sl
+===================================================================
+--- sleep/tests/hashambig.sl	2006-10-28 16:30:07 UTC (rev 140)
++++ sleep/tests/hashambig.sl	2006-10-29 17:23:10 UTC (rev 141)
+@@ -0,0 +1,10 @@
++#
++# a bug with some ambiguity between hash literals and the MOD operator
++#
++
++%hash = %(a => "apple", b => "bats", c => "cats");
++$expr = 9 % (3 + 4);
++
++println("Hash is: " . %hash);
++println("Expression is: " . $expr);
++
+
+Modified: sleep/tests/longip.sl
+===================================================================
+--- sleep/tests/longip.sl	2006-10-28 16:30:07 UTC (rev 140)
++++ sleep/tests/longip.sl	2006-10-29 17:23:10 UTC (rev 141)
+@@ -1,4 +1,34 @@
+-$ip = join('.', unpack("B4", pack("I", '3232235777')));
++#
++# test out converting between dotted quad notation and unsigned integer format for ip
++# addresses
++#
++$ip     = join('.', unpack("B4", pack("I", '3232235777')));
+ $longip = unpack("I-", pack("B4", split('\.', "192.168.1.1")))[0];
+ 
+ println("$ip and $longip");
++
++$longip1 = unpack("I-", pack("B4", split('\.', "255.255.255.255")))[0];
++$ip     = join('.', unpack("B4", pack("I", $longip1)));
++$longip2 = unpack("I-", pack("B4", split('\.', $ip)))[0];
++
++println("$ip and $longip1 and $longip2");
++
++$longip1 = unpack("I-", pack("B4", split('\.', "128.129.130.131")))[0];
++$ip     = join('.', unpack("B4", pack("I", $longip1)));
++$longip2 = unpack("I-", pack("B4", split('\.', $ip)))[0];
++
++println("$ip and $longip1 and $longip2");
++
++$longip1 = unpack("I-", pack("B4", split('\.', "0.0.0.1")))[0];
++$ip     = join('.', unpack("B4", pack("I", $longip1)));
++$longip2 = unpack("I-", pack("B4", split('\.', $ip)))[0];
++
++println("$ip and $longip1 and $longip2");
++
++$longip1 = unpack("I-", pack("B4", split('\.', "1.0.0.0")))[0];
++$ip     = join('.', unpack("B4", pack("I", $longip1)));
++$longip2 = unpack("I-", pack("B4", split('\.', $ip)))[0];
++
++println("$ip and $longip1 and $longip2");
++
++
+
+Added: sleep/tests/output/hashambig.sl
+===================================================================
+--- sleep/tests/output/hashambig.sl	2006-10-28 16:30:07 UTC (rev 140)
++++ sleep/tests/output/hashambig.sl	2006-10-29 17:23:10 UTC (rev 141)
+@@ -0,0 +1,2 @@
++Hash is: %(a => 'apple', c => 'cats', b => 'bats')
++Expression is: 2
+
+Modified: sleep/tests/output/longip.sl
+===================================================================
+--- sleep/tests/output/longip.sl	2006-10-28 16:30:07 UTC (rev 140)
++++ sleep/tests/output/longip.sl	2006-10-29 17:23:10 UTC (rev 141)
+@@ -1 +1,5 @@
+ 192.168.1.1 and 3232235777
++255.255.255.255 and 4294967295 and 4294967295
++128.129.130.131 and 2155971203 and 2155971203
++0.0.0.1 and 1 and 1
++1.0.0.0 and 16777216 and 16777216
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-10-28 16:30:07 UTC (rev 140)
++++ sleep/whatsnew.txt	2006-10-29 17:23:10 UTC (rev 141)
+@@ -3,6 +3,8 @@
+ - when packing an unsigned integer the argument is now interpreted as a long
+   (and cast to an int) rather than an int (since an unsigned integer can be
+   "bigger" than a normal java integer).  
++- fixed a parser ambiguity with hash literals i.e. %(...) and arithmetic
++  consisting of ... % (...).  both now work as they should.
+ 
+ 2.1-beta 7  (15 Oct 06)
+ ===========
+
+
+
+From rsmudge at mail.berlios.de  Sun Oct 29 18:40:23 2006
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Sun, 29 Oct 2006 18:40:23 +0100
+Subject: [Sleep-svn] r142 - in sleep: . src/sleep/bridges
+Message-ID: <200610291740.k9THeNeC030116@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-10-29 18:40:21 +0100 (Sun, 29 Oct 2006)
+New Revision: 142
+
+Modified:
+   sleep/src/sleep/bridges/BridgeUtilities.java
+   sleep/whatsnew.txt
+Log:
+added BridgeUtilities.extractNamedParameters(Stack args)
+
+
+
+Modified: sleep/src/sleep/bridges/BridgeUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BridgeUtilities.java	2006-10-29 17:23:10 UTC (rev 141)
++++ sleep/src/sleep/bridges/BridgeUtilities.java	2006-10-29 17:40:21 UTC (rev 142)
+@@ -22,10 +22,9 @@
+ package sleep.bridges;
+ 
+ import sleep.runtime.*;
+-import java.util.Stack;
+ import java.io.File;
+ import sleep.interfaces.Function;
+-import java.util.Iterator;
++import java.util.*;
+ 
+ /**
+  * A bridge is a class that bridges your applications API and sleep.  Bridges are created using interfaces from the sleep.interfaces package.  Arguments are passed to bridges generally in a java.util.Stack form.  The Stack of arguments contains sleep Scalar objects.  The BridgeUtilities makes it safer and easier for you to extract Java types from arguments.
+@@ -98,6 +97,26 @@
+       return ((Scalar)arguments.pop()).doubleValue();
+    }
+ 
++   /** extracts all named parameters from the argument stack.  this method returns a Map whose keys are strings
++       and values are Scalars. */
++   public static Map extractNamedParameters(Stack args)
++   {
++      Map rv = new HashMap();
++      Iterator i = args.iterator();
++      while (i.hasNext())
++      {
++         Scalar temp = (Scalar)i.next();
++         if (temp.objectValue() != null && temp.objectValue().getClass() == KeyValuePair.class)
++         {
++            i.remove();
++            KeyValuePair value = (KeyValuePair)temp.objectValue();
++            rv.put(value.getKey().toString(), value.getValue());
++         }
++      }
++
++      return rv;
++   }
++
+    /** grabs a scalar iterator, this can come from either an array or a closure called continuously until $null is returned. */
+    public static Iterator getIterator(Stack arguments, ScriptInstance script)
+    {
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-10-29 17:23:10 UTC (rev 141)
++++ sleep/whatsnew.txt	2006-10-29 17:40:21 UTC (rev 142)
+@@ -5,6 +5,8 @@
+   "bigger" than a normal java integer).  
+ - fixed a parser ambiguity with hash literals i.e. %(...) and arithmetic
+   consisting of ... % (...).  both now work as they should.
++- added a method to BridgeUtilities to extract all named parameters from an
++  argument stack.
+ 
+ 2.1-beta 7  (15 Oct 06)
+ ===========
+
+
+
+From rsmudge at mail.berlios.de  Sun Oct 29 19:36:13 2006
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Sun, 29 Oct 2006 19:36:13 +0100
+Subject: [Sleep-svn] r143 - in sleep: . src/sleep/engine/atoms
+	src/sleep/parser tests tests/output
+Message-ID: <200610291836.k9TIaD8a016664@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-10-29 19:36:13 +0100 (Sun, 29 Oct 2006)
+New Revision: 143
+
+Added:
+   sleep/tests/clmistake.sl
+   sleep/tests/output/clmistake.sl
+Modified:
+   sleep/src/sleep/engine/atoms/Assign.java
+   sleep/src/sleep/parser/CodeGenerator.java
+   sleep/tests/pep255.sl
+   sleep/whatsnew.txt
+Log:
+Added a stack corruption check for assignments.
+
+
+
+Modified: sleep/src/sleep/engine/atoms/Assign.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/Assign.java	2006-10-29 17:40:21 UTC (rev 142)
++++ sleep/src/sleep/engine/atoms/Assign.java	2006-10-29 18:36:13 UTC (rev 143)
+@@ -59,6 +59,11 @@
+    {
+       Scalar putv, value;
+ 
++      if (e.getCurrentFrame().size() > 1)
++      {
++         throw new RuntimeException("assignment is corrupted, did you forget a semicolon?");
++      }
++
+       // evaluate our left hand side (assign to) value
+ 
+       e.CreateFrame();
+
+Modified: sleep/src/sleep/parser/CodeGenerator.java
+===================================================================
+--- sleep/src/sleep/parser/CodeGenerator.java	2006-10-29 17:40:21 UTC (rev 142)
++++ sleep/src/sleep/parser/CodeGenerator.java	2006-10-29 18:36:13 UTC (rev 143)
+@@ -813,13 +813,25 @@
+            // handle the assignment step please (Assign will push the RHS onto the stack)
+            backup();
+ 
+-           atom = GeneratedSteps.CreateFrame(); /* overall create the frame please */
+-           add(atom, tokens[0]);
+-        
+-           parseBlock(new Token(strings[1] + " = " + strings[2] + ";", tokens[2].getHint()));
++           // assign:
++           // 1 = $var
++           // 2 = (expression) to assign, you know?!?
++
++           atom = GeneratedSteps.CreateFrame();
++           add(atom, tokens[2]);
++
++           parseIdea(tokens[2]);
++
++           backup();
++           parseIdea(tokens[1]);
++
++           atom = GeneratedSteps.Assign(restore());
++           add(atom, tokens[2]);
++
++           // end assign...
+            
+            // push $null onto the current frame as well...
+-           add(GeneratedSteps.SValue(SleepUtils.getEmptyScalar()), tokens[2]);
++           add(GeneratedSteps.SValue(SleepUtils.getEmptyScalar()), tokens[2]); // for comparisons sake
+ 
+            a = restore();
+ 
+
+Added: sleep/tests/clmistake.sl
+===================================================================
+--- sleep/tests/clmistake.sl	2006-10-29 17:40:21 UTC (rev 142)
++++ sleep/tests/clmistake.sl	2006-10-29 18:36:13 UTC (rev 143)
+@@ -0,0 +1,27 @@
++#
++# most common problem with closures... people forgetting to put a damned
++# semicolon after the literal form!!!
++#
++
++debug(7);
++global('$func');
++
++eval('
++   #
++   #
++   $func = { println("foo!"); }
++   [$func];
++');
++
++sub bar
++{
++   println("bar!");
++}
++
++eval('
++   #
++   #
++   #
++   $func = { println("foo!"); }
++   bar();
++');
+
+Added: sleep/tests/output/clmistake.sl
+===================================================================
+--- sleep/tests/output/clmistake.sl	2006-10-29 17:40:21 UTC (rev 142)
++++ sleep/tests/output/clmistake.sl	2006-10-29 18:36:13 UTC (rev 143)
+@@ -0,0 +1,4 @@
++Warning: Attempted to call a non-static method on a null reference at line 3
++Warning: assignment is corrupted, did you forget a semicolon? at line 3
++bar!
++Warning: assignment is corrupted, did you forget a semicolon? at line 4
+
+Modified: sleep/tests/pep255.sl
+===================================================================
+--- sleep/tests/pep255.sl	2006-10-29 17:40:21 UTC (rev 142)
++++ sleep/tests/pep255.sl	2006-10-29 18:36:13 UTC (rev 143)
+@@ -12,7 +12,6 @@
+       while $x (inorder([$1 left]))
+       {
+          yield $x;
+-         local('$x');
+       }
+ 
+       yield [$1 label];
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-10-29 17:40:21 UTC (rev 142)
++++ sleep/whatsnew.txt	2006-10-29 18:36:13 UTC (rev 143)
+@@ -5,8 +5,10 @@
+   "bigger" than a normal java integer).  
+ - fixed a parser ambiguity with hash literals i.e. %(...) and arithmetic
+   consisting of ... % (...).  both now work as they should.
+-- added a method to BridgeUtilities to extract all named parameters from an
+-  argument stack.
++- fixed assignment loops creating an extra non-needed stack frame
++- added a sanity check to the assignment step, checks for a "corrupted"
++  assignment stack, most commonly caused by forgetting to terminate the 
++  assigned expression with a semicolon.
+ 
+ 2.1-beta 7  (15 Oct 06)
+ ===========
+
+
+
+From rsmudge at mail.berlios.de  Sun Oct 29 19:38:52 2006
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Sun, 29 Oct 2006 19:38:52 +0100
+Subject: [Sleep-svn] r144 - sleep
+Message-ID: <200610291838.k9TIcqtP016948@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-10-29 19:38:52 +0100 (Sun, 29 Oct 2006)
+New Revision: 144
+
+Modified:
+   sleep/whatsnew.txt
+Log:
+blah
+
+
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-10-29 18:36:13 UTC (rev 143)
++++ sleep/whatsnew.txt	2006-10-29 18:38:52 UTC (rev 144)
+@@ -9,6 +9,8 @@
+ - added a sanity check to the assignment step, checks for a "corrupted"
+   assignment stack, most commonly caused by forgetting to terminate the 
+   assigned expression with a semicolon.
++- added BridgeUtilities.extractNamedParameters(Stack args) to extract all
++  named parameters from a stack of arguments.
+ 
+ 2.1-beta 7  (15 Oct 06)
+ ===========
+
+
+
+From rsmudge at mail.berlios.de  Sun Oct 29 22:54:16 2006
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Sun, 29 Oct 2006 22:54:16 +0100
+Subject: [Sleep-svn] r145 - in sleep: . src/sleep/bridges tests/output
+Message-ID: <200610292154.k9TLsGFr007077@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-10-29 22:54:15 +0100 (Sun, 29 Oct 2006)
+New Revision: 145
+
+Modified:
+   sleep/src/sleep/bridges/SleepClosure.java
+   sleep/tests/output/fe_generatordb.sl
+   sleep/tests/output/nparams.sl
+   sleep/whatsnew.txt
+Log:
+created a new string representation for closures.
+
+
+
+Modified: sleep/src/sleep/bridges/SleepClosure.java
+===================================================================
+--- sleep/src/sleep/bridges/SleepClosure.java	2006-10-29 18:38:52 UTC (rev 144)
++++ sleep/src/sleep/bridges/SleepClosure.java	2006-10-29 21:54:15 UTC (rev 145)
+@@ -32,6 +32,9 @@
+ /** The Sleep Closure class.  This class represents a Function object that is also a self contained closure */
+ public class SleepClosure implements Function
+ {
++    private static int ccount;
++    private int id;
++
+     private class ClosureIterator implements Iterator
+     {
+        protected Scalar            current;
+@@ -107,7 +110,7 @@
+ 
+     public String toString()
+     {
+-       return "&closure" + hashCode();
++       return "&closure" + id + ":" + code.getApproximateLineRange();
+     }
+ 
+     /** Creates a new Sleep Closure, with a brand new set of internal variables.  Don't be afraid, you can call this constructor from your code. */
+@@ -126,6 +129,10 @@
+ 
+        _var.putScalar("$this", SleepUtils.getScalar(this));
+        setVariables(_var);
++
++       ccount = (ccount + 1) % Short.MAX_VALUE;
++
++       id = ccount;
+     }
+ 
+     /** Returns the owning script instance */
+
+Modified: sleep/tests/output/fe_generatordb.sl
+===================================================================
+--- sleep/tests/output/fe_generatordb.sl	2006-10-29 18:38:52 UTC (rev 144)
++++ sleep/tests/output/fe_generatordb.sl	2006-10-29 21:54:15 UTC (rev 145)
+@@ -19,7 +19,7 @@
+ Trace: &println('8 => val: 8') at line 8
+ 9 => val: 9
+ Trace: &println('9 => val: 9') at line 8
+-Trace: &lambda(&closure9087808, $start => 50, $stop => 60) = &closure15794899 at line 22
++Trace: &lambda(&closure2:13-19, $start => 50, $stop => 60) = &closure3:13-19 at line 22
+ Testing out range stuff: 0 => 50
+ Trace: &println('Testing out range stuff: 0 => 50') at line 24
+ Testing out range stuff: 1 => 51
+@@ -41,7 +41,7 @@
+ Testing out range stuff: 9 => 59
+ Trace: &println('Testing out range stuff: 9 => 59') at line 24
+ Trace: &this('$start $stop') at line 29
+-Trace: &_range2(70, 80) = &closure2355643 at line 42
++Trace: &_range2(70, 80) = &closure4:29-39 at line 42
+ My third test: 0 => 70
+ Trace: &println('My third test: 0 => 70') at line 44
+ My third test: 1 => 71
+
+Modified: sleep/tests/output/nparams.sl
+===================================================================
+--- sleep/tests/output/nparams.sl	2006-10-29 18:38:52 UTC (rev 144)
++++ sleep/tests/output/nparams.sl	2006-10-29 21:54:15 UTC (rev 145)
+@@ -41,7 +41,7 @@
+ Trace: &println('Test 5 has been called, executing action:') at line 51
+ The passed in closure has been called
+ Trace: &println('The passed in closure has been called') at line 55
+-Trace: [&closure10481832] at line 52
+-Trace: &test5($action => &closure10481832) at line 55
+-Trace: &test5(action => &closure7388808) - FAILED! at line 56
++Trace: [&closure6:55] at line 52
++Trace: &test5($action => &closure6:55) at line 55
++Trace: &test5(action => &closure7:56) - FAILED! at line 56
+ Warning: unreachable named parameter: action at line 56
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-10-29 18:38:52 UTC (rev 144)
++++ sleep/whatsnew.txt	2006-10-29 21:54:15 UTC (rev 145)
+@@ -11,6 +11,9 @@
+   assigned expression with a semicolon.
+ - added BridgeUtilities.extractNamedParameters(Stack args) to extract all
+   named parameters from a stack of arguments.
++- changed string representation of closures to represent: 
++  &closureX:N-M where X represents the instantiation number (i.e. closure 3)
++  and N-M represents the line range where the closure was declared
+ 
+ 2.1-beta 7  (15 Oct 06)
+ ===========
+
+
+
+From rsmudge at mail.berlios.de  Sun Oct 29 23:23:19 2006
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Sun, 29 Oct 2006 23:23:19 +0100
+Subject: [Sleep-svn] r146 - in sleep: . src/sleep/bridges tests tests/output
+Message-ID: <200610292223.k9TMNJDG010931@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-10-29 23:23:19 +0100 (Sun, 29 Oct 2006)
+New Revision: 146
+
+Added:
+   sleep/tests/invoke2.sl
+   sleep/tests/output/invoke2.sl
+Modified:
+   sleep/src/sleep/bridges/BasicUtilities.java
+   sleep/whatsnew.txt
+Log:
+Updated &invoke to be more km-rad
+
+
+
+Modified: sleep/src/sleep/bridges/BasicUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicUtilities.java	2006-10-29 21:54:15 UTC (rev 145)
++++ sleep/src/sleep/bridges/BasicUtilities.java	2006-10-29 22:23:19 UTC (rev 146)
+@@ -694,15 +694,47 @@
+        }
+        else if (n.equals("&invoke")) 
+        {
++          Map params = BridgeUtilities.extractNamedParameters(l);
++
+           SleepClosure c    = BridgeUtilities.getFunction(l, i);
+-
+           Stack        args = new Stack();
+           Iterator iter     = BridgeUtilities.getIterator(l, i);
+           while (iter.hasNext()) { args.add(0, iter.next()); }
+ 
+           String message    = BridgeUtilities.getString(l, null);
++
++          /* parameters option */
++          if (params.containsKey("parameters"))
++          {
++             Scalar   h = (Scalar)params.get("parameters");
++
++             Iterator it = h.getHash().keys().scalarIterator();
++             while (it.hasNext())
++             {
++                Scalar key = (Scalar)it.next();
++                KeyValuePair temp = new KeyValuePair(key, h.getHash().getAt(key));
++                args.add(0, SleepUtils.getScalar(temp));
++             }
++          }
++
++          /* message option */
++          if (params.containsKey("message"))
++          {
++             message = params.get("message").toString();
++          }
+  
+-          return c.callClosure(message, i, args);
++          Variable old = c.getVariables();
++
++          /* environment option */
++          if (params.containsKey("environment"))
++          {
++             SleepClosure t = (SleepClosure)((Scalar)params.get("environment")).objectValue();
++             c.setVariables(t.getVariables());
++          }
++
++          Scalar rv = c.callClosure(message, i, args);
++          c.setVariables(old);
++          return rv;
+        }
+        else if (n.equals("&debug"))
+        {
+
+Added: sleep/tests/invoke2.sl
+===================================================================
+--- sleep/tests/invoke2.sl	2006-10-29 21:54:15 UTC (rev 145)
++++ sleep/tests/invoke2.sl	2006-10-29 22:23:19 UTC (rev 146)
+@@ -0,0 +1,34 @@
++#
++# updated version of &invoke :)
++#
++
++sub foo
++{
++   println("Message: $0");
++   println("Args: " . @_);
++   println("\$stuff is $stuff");
++   println("\$foo is $foo");
++   println("\$bar is $bar");
++
++   $stuff = "fooified!";
++   $count++;
++}
++
++sub bar
++{
++   this('$stuff $count');
++   println($stuff);
++   $stuff = "barified! $count";
++}
++
++bar();
++bar();
++
++invoke(&foo, @("a", "b", "c"), "test", environment => &bar, 
++                  message => "blah", parameters => %($foo => "foo!", $bar => "bar!"));
++invoke(&foo, @("x", "y", "z"), "test", environment => &bar, 
++                  parameters => %($foo => "fool!", $bar => "barl!"));
++
++bar();
++foo();
++bar();
+
+Added: sleep/tests/output/invoke2.sl
+===================================================================
+--- sleep/tests/output/invoke2.sl	2006-10-29 21:54:15 UTC (rev 145)
++++ sleep/tests/output/invoke2.sl	2006-10-29 22:23:19 UTC (rev 146)
+@@ -0,0 +1,19 @@
++
++barified! 
++Message: blah
++Args: @('a', 'b', 'c')
++$stuff is barified! 
++$foo is foo!
++$bar is bar!
++Message: test
++Args: @('x', 'y', 'z')
++$stuff is fooified!
++$foo is fool!
++$bar is barl!
++fooified!
++Message: &foo
++Args: @()
++$stuff is 
++$foo is 
++$bar is 
++barified! 2
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-10-29 21:54:15 UTC (rev 145)
++++ sleep/whatsnew.txt	2006-10-29 22:23:19 UTC (rev 146)
+@@ -14,6 +14,11 @@
+ - changed string representation of closures to represent: 
+   &closureX:N-M where X represents the instantiation number (i.e. closure 3)
+   and N-M represents the line range where the closure was declared
++- updated &invoke to accept the following named parameters:
++  parameter => %() - accepts a hashmap of $scalars to send as named parameters
++  environment => &closure - accepts a closure whose this scope is to be used
++     in lieu of the closures normal environment.  
++  message => "some string" - the message value to send to the called function
+ 
+ 2.1-beta 7  (15 Oct 06)
+ ===========
+
+
+
+From rsmudge at mail.berlios.de  Sun Oct 29 23:53:54 2006
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Sun, 29 Oct 2006 23:53:54 +0100
+Subject: [Sleep-svn] r147 - in sleep: . src/sleep/console
+Message-ID: <200610292253.k9TMrsEU014644@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-10-29 23:53:54 +0100 (Sun, 29 Oct 2006)
+New Revision: 147
+
+Modified:
+   sleep/src/sleep/console/ConsoleImplementation.java
+   sleep/whatsnew.txt
+Log:
+updated the sleep console with a debug command and enhanced 'help' a little (but not too much)
+
+
+
+Modified: sleep/src/sleep/console/ConsoleImplementation.java
+===================================================================
+--- sleep/src/sleep/console/ConsoleImplementation.java	2006-10-29 22:23:19 UTC (rev 146)
++++ sleep/src/sleep/console/ConsoleImplementation.java	2006-10-29 22:53:54 UTC (rev 147)
+@@ -180,6 +180,10 @@
+              {
+                 getProxy().consolePrintln(SleepUtils.SLEEP_VERSION + " (" + SleepUtils.SLEEP_RELEASE + ")");
+              }
++             else if (command.equals("help") && args != null)
++             {
++                help(args);
++             }
+              else if (command.equals("help"))
+              {
+                 help();
+@@ -192,6 +196,22 @@
+              {
+                 list();
+              }
++             else if (command.equals("debug") && args != null) 
++             {
++                String[] splits = args.split(" ");
++                if (splits.length == 2)
++                {
++                   debug(splits[0], Integer.parseInt(splits[1]));
++                }
++                else if (splits.length == 1)
++                {
++                   debug(null, Integer.parseInt(splits[0]));
++                }
++                else
++                {
++                   getProxy().consolePrintln("Invalid usage: debug [script] <level>");
++                }
++             }
+              else if (command.equals("load") && args != null)
+              {
+                 load(args);
+@@ -206,7 +226,7 @@
+              }
+              else if (command.equals("x") && args != null)
+              {
+-                eval("println(" + args + ");");
++                getProxy().consolePrintln(eval("return " + args + ";"));
+              }
+              else if (command.equals("quit") || command.equals("exit") || command.equals("done"))
+              {
+@@ -232,34 +252,95 @@
+ 
+    private void help()
+    {
++       getProxy().consolePrintln("debug [script] <level>");
+        getProxy().consolePrintln("env [functions/other] [regex filter]");
+-       getProxy().consolePrintln("   dumps the shared environment, filters output with specified regex");
+-       getProxy().consolePrintln("help");
+-       getProxy().consolePrintln("   displays this message");
++       getProxy().consolePrintln("help [command]");
+        getProxy().consolePrintln("interact");
+-       getProxy().consolePrintln("   enters the console into interactive mode.");
+        getProxy().consolePrintln("list");
+-       getProxy().consolePrintln("   lists all of the currently loaded scripts");
+        getProxy().consolePrintln("load <file>");
+-       getProxy().consolePrintln("   loads a script file into the script loader");
+        getProxy().consolePrintln("unload <file>");
+-       getProxy().consolePrintln("   unloads a script file from the script loader");
+        getProxy().consolePrintln("tree [key]");
+-       getProxy().consolePrintln("   displays the Abstract Syntax Tree for the specified key");
+        getProxy().consolePrintln("quit");
+-       getProxy().consolePrintln("   stops the console");
+        getProxy().consolePrintln("version");
+-       getProxy().consolePrintln("   display the current Sleep version");
+        getProxy().consolePrintln("x <expression>");
+-       getProxy().consolePrintln("   evaluates a sleep expression and displays the value");
+ 
+    }
+ 
++   private void help(String command)
++   {
++       if (command.equals("debug"))
++       {
++          getProxy().consolePrintln("debug [script] <level>");
++          getProxy().consolePrintln("   sets the debug level for the specified script");
++          getProxy().consolePrintln("   1 - show critical errors");
++          getProxy().consolePrintln("   2 - show warnings");
++          getProxy().consolePrintln("   4 - strict mode, complain about non-declared variables");
++          getProxy().consolePrintln("   8 - trace all function calls");
++          getProxy().consolePrintln("   to combine options, add their numbers together");
++       }
++       else if (command.equals("env"))
++       {
++          getProxy().consolePrintln("env [functions/other] [regex filter]");
++          getProxy().consolePrintln("   dumps the shared environment, filters output with specified regex");
++       }
++       else if (command.equals("interact"))
++       {
++          getProxy().consolePrintln("interact");
++          getProxy().consolePrintln("   enters the console into interactive mode.");
++       }
++       else if (command.equals("list"))
++       {
++          getProxy().consolePrintln("list");
++          getProxy().consolePrintln("   lists all of the currently loaded scripts");
++       }
++       else if (command.equals("load"))
++       {
++          getProxy().consolePrintln("load <file>");
++          getProxy().consolePrintln("   loads a script file into the script loader");
++       }
++       else if (command.equals("unload"))
++       {
++          getProxy().consolePrintln("unload <file>");
++          getProxy().consolePrintln("   unloads a script file from the script loader");
++       }
++       else if (command.equals("tree"))
++       {
++          getProxy().consolePrintln("tree [key]");
++          getProxy().consolePrintln("   displays the Abstract Syntax Tree for the specified key");
++       }
++       else if (command.equals("quit"))
++       {
++          getProxy().consolePrintln("quit");
++          getProxy().consolePrintln("   stops the console");
++       }
++       else if (command.equals("version"))
++       {
++          getProxy().consolePrintln("version");
++          getProxy().consolePrintln("   display the current Sleep version");
++       }
++       else if (command.equals("x"))
++       {
++          getProxy().consolePrintln("x <expression>");
++          getProxy().consolePrintln("   evaluates a sleep expression and displays the value");
++       }
++       else
++       {
++          getProxy().consolePrintln("help [command]");
++          getProxy().consolePrintln("   displays a help message for the specified command");
++       }
++   }
++
+    private void load(String file)
+    {
+        try
+        {
+           ScriptInstance script = loader.loadScript(file, sharedEnvironment);
++
++          if (System.getProperty("sleep.debug") != null)
++          {
++             script.setDebugFlags(Integer.parseInt(System.getProperty("sleep.debug")));
++          }
++
+           script.runScript();
+        }
+        catch (YourCodeSucksException yex)
+@@ -380,6 +461,29 @@
+        }
+    }
+ 
++   private void debug(String item, int level)
++   {
++       if (item == null)
++       {
++          System.setProperty("sleep.debug", ""+level);
++          getProxy().consolePrintln("Default debug level set");
++       }
++       else
++       {
++          HashMap temp = loader.getScriptsByKey();
++
++          if (temp.get(getFullScript(item)) != null)
++          {
++             ((ScriptInstance)temp.get(getFullScript(item))).setDebugFlags(level);
++             getProxy().consolePrintln("Debug level set for "+item);
++          }
++          else
++          {
++             getProxy().consolePrintln("Could not find script "+item+" to set debug level for");
++          }
++       }
++   }
++
+    private void interact()
+    {
+        interact = true;
+@@ -388,13 +492,19 @@
+        getProxy().consolePrintln("Type Ctrl+D or 'done' on a line by itself to leave interactive mode.");
+    }
+ 
+-   private void eval (String expression)
++   private Scalar eval (String expression)
+    {
+        try
+        {
+           Block parsed = SleepUtils.ParseCode(expression.toString());
+           script = loader.loadScript("<interact mode>", parsed, sharedEnvironment);
+-          script.runScript();
++
++          if (System.getProperty("sleep.debug") != null)
++          {
++             script.setDebugFlags(Integer.parseInt(System.getProperty("sleep.debug")));
++          }
++
++          return script.runScript();
+        }
+        catch (YourCodeSucksException yex)
+        {
+@@ -404,6 +514,8 @@
+        {
+           getProxy().consolePrintln("Oops, an error occured with " + expression + ": " + ex.toString());
+        }
++
++       return null;
+    }
+ 
+    /** a convienence method that formats and writes each syntax error to the proxy output */
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-10-29 22:23:19 UTC (rev 146)
++++ sleep/whatsnew.txt	2006-10-29 22:53:54 UTC (rev 147)
+@@ -19,6 +19,8 @@
+   environment => &closure - accepts a closure whose this scope is to be used
+      in lieu of the closures normal environment.  
+   message => "some string" - the message value to send to the called function
++- updated the sleep console with an ehanced 'help' command and a command 'debug'
++  to set the debug level of a script.
+ 
+ 2.1-beta 7  (15 Oct 06)
+ ===========
+
+
+
+From rsmudge at mail.berlios.de  Mon Oct 30 00:38:57 2006
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Mon, 30 Oct 2006 00:38:57 +0100
+Subject: [Sleep-svn] r148 - in sleep: . src/sleep/bridges tests tests/output
+Message-ID: <200610292338.k9TNcvsx010917@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-10-30 00:38:48 +0100 (Mon, 30 Oct 2006)
+New Revision: 148
+
+Added:
+   sleep/tests/lambdacs.sl
+   sleep/tests/output/lambdacs.sl
+   sleep/tests/output/sleepoo2.sl
+   sleep/tests/sleepoo2.sl
+Modified:
+   sleep/src/sleep/bridges/BasicUtilities.java
+   sleep/tests/invoke2.sl
+   sleep/whatsnew.txt
+Log:
+Updated &lambda to accept $this => &closure to allow the newly created closure to shared a "this" scope
+with the specified closure.  kind of kooky and probably not for every day use but it is better to open things
+up rather than restrict folks.
+
+
+
+Modified: sleep/src/sleep/bridges/BasicUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicUtilities.java	2006-10-29 22:53:54 UTC (rev 147)
++++ sleep/src/sleep/bridges/BasicUtilities.java	2006-10-29 23:38:48 UTC (rev 148)
+@@ -473,7 +473,16 @@
+           while (!l.isEmpty())
+           {
+              KeyValuePair kvp = BridgeUtilities.getKeyValuePair(l);
+-             vars.putScalar(kvp.getKey().toString(), SleepUtils.getScalar(kvp.getValue()));
++
++             if (kvp.getKey().toString().equals("$this"))
++             {
++                SleepClosure c = (SleepClosure)kvp.getValue().objectValue();
++                value.setVariables(c.getVariables());
++             }
++             else
++             {
++                vars.putScalar(kvp.getKey().toString(), SleepUtils.getScalar(kvp.getValue()));
++             }
+           }
+ 
+           return SleepUtils.getScalar(value);
+@@ -726,9 +735,9 @@
+           Variable old = c.getVariables();
+ 
+           /* environment option */
+-          if (params.containsKey("environment"))
++          if (params.containsKey("$this"))
+           {
+-             SleepClosure t = (SleepClosure)((Scalar)params.get("environment")).objectValue();
++             SleepClosure t = (SleepClosure)((Scalar)params.get("$this")).objectValue();
+              c.setVariables(t.getVariables());
+           }
+ 
+
+Modified: sleep/tests/invoke2.sl
+===================================================================
+--- sleep/tests/invoke2.sl	2006-10-29 22:53:54 UTC (rev 147)
++++ sleep/tests/invoke2.sl	2006-10-29 23:38:48 UTC (rev 148)
+@@ -24,9 +24,9 @@
+ bar();
+ bar();
+ 
+-invoke(&foo, @("a", "b", "c"), "test", environment => &bar, 
++invoke(&foo, @("a", "b", "c"), "test", $this => &bar, 
+                   message => "blah", parameters => %($foo => "foo!", $bar => "bar!"));
+-invoke(&foo, @("x", "y", "z"), "test", environment => &bar, 
++invoke(&foo, @("x", "y", "z"), "test", $this => &bar, 
+                   parameters => %($foo => "fool!", $bar => "barl!"));
+ 
+ bar();
+
+Added: sleep/tests/lambdacs.sl
+===================================================================
+--- sleep/tests/lambdacs.sl	2006-10-29 22:53:54 UTC (rev 147)
++++ sleep/tests/lambdacs.sl	2006-10-29 23:38:48 UTC (rev 148)
+@@ -0,0 +1,50 @@
++#
++# show lambda creating shared environments...
++#
++
++sub foo
++{
++   this('$count');
++   $count++;
++
++   println("I am foo! $count");
++}
++
++sub bar
++{
++   this('$count');
++   $count++;
++
++   println("I am bar! $count");
++}
++
++$far = lambda(&foo, $this => &bar);
++
++foo();
++foo();
++
++bar();
++bar();
++
++println("<far>");
++[$far];
++[$far];
++println("</far>");
++
++foo();
++foo();
++
++bar();
++bar();
++
++println("<far>");
++[$far];
++[$far];
++println("</far>");
++
++foo();
++foo();
++
++bar();
++bar();
++
+
+Added: sleep/tests/output/lambdacs.sl
+===================================================================
+--- sleep/tests/output/lambdacs.sl	2006-10-29 22:53:54 UTC (rev 147)
++++ sleep/tests/output/lambdacs.sl	2006-10-29 23:38:48 UTC (rev 148)
+@@ -0,0 +1,20 @@
++I am foo! 1
++I am foo! 2
++I am bar! 1
++I am bar! 2
++<far>
++I am foo! 3
++I am foo! 4
++</far>
++I am foo! 3
++I am foo! 4
++I am bar! 5
++I am bar! 6
++<far>
++I am foo! 7
++I am foo! 8
++</far>
++I am foo! 5
++I am foo! 6
++I am bar! 9
++I am bar! 10
+
+Added: sleep/tests/output/sleepoo2.sl
+===================================================================
+--- sleep/tests/output/sleepoo2.sl	2006-10-29 22:53:54 UTC (rev 147)
++++ sleep/tests/output/sleepoo2.sl	2006-10-29 23:38:48 UTC (rev 148)
+@@ -0,0 +1,8 @@
++<foo> my name is: foo default
++<foo> my name is: foo default
++<bar> my name is: bar default
++<bar> my name is: bar default
++<foo> my name is: ++ 1 ++ 
++<foo> my name is: foo default
++<bar> my name is: == y_bar! ==
++<bar> my name is: bar default
+
+Added: sleep/tests/sleepoo2.sl
+===================================================================
+--- sleep/tests/sleepoo2.sl	2006-10-29 22:53:54 UTC (rev 147)
++++ sleep/tests/sleepoo2.sl	2006-10-29 23:38:48 UTC (rev 148)
+@@ -0,0 +1,79 @@
++#
++# object oriented sleep part 2...  oooh...  
++# with some creativity multiple inheritance should be possible
++#
++
++sub object
++{
++   if ($0 !is $null)
++   {
++      if ($this[$0] is $null && $parent !is $null)
++      {
++         if (-isfunction $parent[$0])
++         {
++            invoke($parent[$0], @_, $0, $this => $this);
++         }
++         else
++         {
++            return $parent[$0];
++         }
++      }
++      else if (-isfunction $this[$0])
++      {
++         return invoke($this[$0], @_, $this => $this);
++      }
++      else
++      {
++         return $this[$0];
++      }
++   }  
++}
++
++#
++# setup our two "classes"
++# 
++
++sub class_foo 
++{ 
++   $this['name'] = "foo default";
++}
++
++sub class_bar 
++{ 
++   $this['name'] = "bar default";
++}
++
++class_foo();
++class_bar();
++
++# add a printme method to class_foo and class_bar
++&class_foo["printme"] = { println("<foo> my name is: " . [$this name]); };
++&class_bar["printme"] = { println("<bar> my name is: " . [$this name]); };
++
++# add a setName method to class_foo and class_bar...
++&class_foo["setName"] = { $this['name'] = "++ 1 ++ "; };
++&class_bar["setName"] = { $this['name'] = "== $1 =="; };
++
++#
++# test it all out
++#
++$x_foo = lambda(&object, $parent => &class_foo);
++$x_bar = lambda(&object, $parent => &class_bar);
++
++$y_foo = lambda(&object, $parent => &class_foo);
++$y_bar = lambda(&object, $parent => &class_bar);
++
++[$x_foo printme];
++[$y_foo printme];
++
++[$x_bar printme];
++[$y_bar printme];
++
++[$x_foo setName: "x_foo!"];
++[$x_foo printme];
++[$y_foo printme];
++
++[$x_bar setName: "y_bar!"];
++[$x_bar printme];
++[$y_bar printme];
++
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-10-29 22:53:54 UTC (rev 147)
++++ sleep/whatsnew.txt	2006-10-29 23:38:48 UTC (rev 148)
+@@ -16,11 +16,14 @@
+   and N-M represents the line range where the closure was declared
+ - updated &invoke to accept the following named parameters:
+   parameter => %() - accepts a hashmap of $scalars to send as named parameters
+-  environment => &closure - accepts a closure whose this scope is to be used
+-     in lieu of the closures normal environment.  
++  $this => &closure - accepts a closure to use as $this when executing the
++     function.  essentially forces the called function to share environments
++     with &closure for the duration of the execution.
+   message => "some string" - the message value to send to the called function
+ - updated the sleep console with an ehanced 'help' command and a command 'debug'
+   to set the debug level of a script.
++- one can now specify a $this => &closure with &lambda to force the new closure
++  to use the closure scope/environment of the specified &closure
+ 
+ 2.1-beta 7  (15 Oct 06)
+ ===========
+
+
+
+From rsmudge at mail.berlios.de  Mon Oct 30 00:58:47 2006
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Mon, 30 Oct 2006 00:58:47 +0100
+Subject: [Sleep-svn] r149 - in sleep: . src/sleep/bridges tests tests/output
+Message-ID: <200610292358.k9TNwlSt004770@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-10-30 00:58:47 +0100 (Mon, 30 Oct 2006)
+New Revision: 149
+
+Added:
+   sleep/tests/output/putAll.sl
+   sleep/tests/putAll.sl
+Modified:
+   sleep/src/sleep/bridges/BasicUtilities.java
+   sleep/whatsnew.txt
+Log:
+Added a &putAll function for populating hashes.
+
+
+
+Modified: sleep/src/sleep/bridges/BasicUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicUtilities.java	2006-10-29 23:38:48 UTC (rev 148)
++++ sleep/src/sleep/bridges/BasicUtilities.java	2006-10-29 23:58:47 UTC (rev 149)
+@@ -80,6 +80,8 @@
+         temp.put("&cast",    f_cast);
+         temp.put("&casti",   f_cast);
+ 
++        temp.put("&putAll", this);
++
+         temp.put("&addAll", this);
+         temp.put("&removeAll", this);
+         temp.put("&retainAll", this);
+@@ -955,6 +957,29 @@
+              return temp;
+           }
+        }
++       else if (n.equals("&putAll"))
++       {
++          if (value.getHash() != null)
++          {
++             Iterator keys   = BridgeUtilities.getIterator(l, i);
++             Iterator values = l.isEmpty() ? keys : BridgeUtilities.getIterator(l, i);
++
++             while (keys.hasNext())
++             {
++                Scalar blah = value.getHash().getAt((Scalar)keys.next());
++                if (values.hasNext())
++                {
++                   blah.setValue((Scalar)values.next());
++                }
++                else
++                {
++                   blah.setValue(SleepUtils.getEmptyScalar());
++                }
++             }
++          }
++
++          return value;
++       }
+        else if (n.equals("&values")) // &values(%hash)
+        {
+           if (value.getHash() != null)
+
+Added: sleep/tests/output/putAll.sl
+===================================================================
+--- sleep/tests/output/putAll.sl	2006-10-29 23:38:48 UTC (rev 148)
++++ sleep/tests/output/putAll.sl	2006-10-29 23:58:47 UTC (rev 149)
+@@ -0,0 +1,6 @@
++%hash is now: %(d => 'dog', aa => 'appreciative ardvark', a => 'apple', c => 'cat', b => 'boy', x => 'xenophobe')
++%hash2 is now: %(d => 'dog', a => 'apple', aa => 'appreciative ardvark', c => 'cat', b => 'boy', x => 'xenophobe')
++%hash2 is now: %()
++%hash2 is now: %(d => 1, a => 1, aa => 1, c => 1, b => 1, x => 1)
++%hash2 is now: %(d => 1, a => 1, aa => 1, c => 1, 2 => 3, 0 => 1, 4 => 5, 8 => 9, b => 1, 6 => 7, x => 1)
++%hash2 is now: %()
+
+Added: sleep/tests/putAll.sl
+===================================================================
+--- sleep/tests/putAll.sl	2006-10-29 23:38:48 UTC (rev 148)
++++ sleep/tests/putAll.sl	2006-10-29 23:58:47 UTC (rev 149)
+@@ -0,0 +1,35 @@
++#
++# a test of the putAll function...
++#
++
++# initialize a hash?
++ at a = @("a", "apple", "b", "boy", "c", "cat", "d", "dog", "x", "xenophobe", "aa", "appreciative ardvark");
++putAll(%hash, @a);
++
++println("%hash is now: " . %hash);
++
++# some easy way to copy a hash?
++putAll(%hash2, keys(%hash), values(%hash));
++println("%hash2 is now: " . %hash2);
++
++# some easy way to clear a hash... 
++putAll(%hash2, keys(%hash2), { return $null; });
++println("%hash2 is now: " . %hash2);
++
++# some easy way to set all values to something else...
++putAll(%hash2, keys(%hash), { return 1; });
++println("%hash2 is now: " . %hash2);
++
++# one more test...
++putAll(%hash2, {
++   this('$x');
++   for ($x = 0; $x < 10; $x++)
++   {
++      yield $x;
++   }
++});
++
++println("%hash2 is now: " . %hash2);
++
++clear(%hash2);
++println("%hash2 is now: " . %hash2);
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-10-29 23:38:48 UTC (rev 148)
++++ sleep/whatsnew.txt	2006-10-29 23:58:47 UTC (rev 149)
+@@ -24,6 +24,8 @@
+   to set the debug level of a script.
+ - one can now specify a $this => &closure with &lambda to force the new closure
+   to use the closure scope/environment of the specified &closure
++- added a &putAll(%hash, &/@, [&/@]) to populate the passed in hash from the
++  passed in iterator(s).
+ 
+ 2.1-beta 7  (15 Oct 06)
+ ===========
+
+
+
+From rsmudge at mail.berlios.de  Mon Oct 30 03:04:24 2006
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Mon, 30 Oct 2006 03:04:24 +0100
+Subject: [Sleep-svn] r150 - in sleep: . docs src/sleep/runtime
+Message-ID: <200610300204.k9U24OBO008596@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-10-30 03:04:21 +0100 (Mon, 30 Oct 2006)
+New Revision: 150
+
+Modified:
+   sleep/docs/console.txt
+   sleep/docs/sleeplang.html
+   sleep/readme.txt
+   sleep/src/sleep/runtime/SleepUtils.java
+Log:
+ready to release... beta 8
+
+
+
+Modified: sleep/docs/console.txt
+===================================================================
+--- sleep/docs/console.txt	2006-10-29 23:58:47 UTC (rev 149)
++++ sleep/docs/console.txt	2006-10-30 02:04:21 UTC (rev 150)
+@@ -26,6 +26,14 @@
+ Console Commands
+ -  ------------- -------- -   ---------------- --       -    -     -     - - -
+ 
++debug [script] <level>
++   Sets the default debug level or sets the debug level for the specified 
++   script.  Debug levels include:
++   1 - show all errors
++   2 - show all warnings normally available with checkError()
++   4 - flag a warning when an undeclared variable is used for the first time
++   8 - trace all function calls
++
+ env [functions/other] [regex filter]
+    Dumps the shared environment.  This includes all functions, operators, and
+    predicates and where they are registered too.  The regex filter allows one
+
+Modified: sleep/docs/sleeplang.html
+===================================================================
+--- sleep/docs/sleeplang.html	2006-10-29 23:58:47 UTC (rev 149)
++++ sleep/docs/sleeplang.html	2006-10-30 02:04:21 UTC (rev 150)
+@@ -1999,6 +1999,13 @@
+   <td>returns a sleep string array of all the keys in %hash</td>
+  </tr>
+  <tr>
++  <td>%</td>
++  <td>putAll(%hash, @|&amp;, [@|&amp;])</td>
++  <td>populates the hash with the specified iterators.  If only one iterator is specified then the second argument
++  is assumed to be the same as the first.  The first iterator is iterated over to obtain the keys for the hash
++  and the second iterator is iterated over to obtain the values.</td>
++ </tr>
++ <tr>
+   <td></td>
+   <td>remove(%hash, $key, ...)</td>
+   <td>removes all specified keys from %hash</td>
+@@ -2512,13 +2519,13 @@
+  </tr>
+  <tr>
+   <td>$</td>
+-  <td>invoke(&amp;closure, @args, ["message"])</td>
+-  <td>invokes the specified closure using the specified array for each individual argument.  the message parameter ($0) can be specified as well.</td>
++  <td>invoke(&amp;closure, @args, ["message"], ...)</td>
++  <td>invokes the specified closure using the specified array for each individual argument.  the message parameter ($0) can be specified as well.  Optional named parameters include <i>message</i>, <i>$this</i> which specifies the closure scope to execute with, and <i>parameter</i> which is a hash of all key/value pairs to pass to the function.</td>
+  </tr>
+  <tr> 
+   <td>&amp;</td>
+   <td>lambda(&amp;closure,&nbsp;$key&nbsp;=&gt;&nbsp;"value",&nbsp;...)</td>
+-  <td>copies &amp;closure into a new closure.  The closure environment is initialized with all of the key/value pair arguments.</td>
++  <td>copies &amp;closure into a new closure.  The closure environment is initialized with all of the key/value pair arguments.  If <var>$this</var> => &amp;closure is specified then the resulting closure will share a <var>$this</var> scope with the specified &amp;closure.</td>
+  </tr>
+  <tr>
+   <td></td>
+
+Modified: sleep/readme.txt
+===================================================================
+--- sleep/readme.txt	2006-10-29 23:58:47 UTC (rev 149)
++++ sleep/readme.txt	2006-10-30 02:04:21 UTC (rev 150)
+@@ -1,5 +1,5 @@
+  ------- -------------------- ---------   ---------------  ------- ---------
+-Sleep - 2.1 beta 7 - README   
++Sleep - 2.1 beta 8 - README   
+ -  ------------- -------- -   ---------------- --       -    -     -     - - -
+ 
+ "You got the language, all you need now is the O'Reilly book".  That is
+
+Modified: sleep/src/sleep/runtime/SleepUtils.java
+===================================================================
+--- sleep/src/sleep/runtime/SleepUtils.java	2006-10-29 23:58:47 UTC (rev 149)
++++ sleep/src/sleep/runtime/SleepUtils.java	2006-10-30 02:04:21 UTC (rev 150)
+@@ -49,7 +49,7 @@
+ public class SleepUtils
+ {
+    /** A date stamp of this Sleep release in YYYYMMDD format */
+-   public static final int    SLEEP_RELEASE = 20061015;
++   public static final int    SLEEP_RELEASE = 20061029;
+ 
+    /** A string description of this Sleep release */
+    public static final String SLEEP_VERSION = "Sleep 2.1";
+
+
+
+From rsmudge at mail.berlios.de  Mon Oct 30 04:00:01 2006
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Mon, 30 Oct 2006 04:00:01 +0100
+Subject: [Sleep-svn] r151 - in sleep: . docs src/sleep/bridges
+	src/sleep/bridges/io
+Message-ID: <200610300300.k9U301ks014395@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-10-30 04:00:00 +0100 (Mon, 30 Oct 2006)
+New Revision: 151
+
+Modified:
+   sleep/docs/sleeplang.html
+   sleep/src/sleep/bridges/BasicIO.java
+   sleep/src/sleep/bridges/io/ProcessObject.java
+   sleep/whatsnew.txt
+Log:
+enhancements to exec and readb
+
+
+
+Modified: sleep/docs/sleeplang.html
+===================================================================
+--- sleep/docs/sleeplang.html	2006-10-30 02:04:21 UTC (rev 150)
++++ sleep/docs/sleeplang.html	2006-10-30 03:00:00 UTC (rev 151)
+@@ -2067,8 +2067,8 @@
+  </tr>
+  <tr>
+   <td>$</td>
+-  <td>exec("command")</td>
+-  <td>executes the specified command and returns a $handle.  Check for issues executing a process with checkError()</td>
++  <td>exec("command", [%env], ["directory"])</td>
++  <td>executes the specified command and returns a $handle.  Check for issues executing a process with checkError().  If $null is specified for either the environment (%env) or the starting "directory" then the process will inherit the current processes settings.</td>
+  </tr>
+  <tr>
+   <td>$</td>
+@@ -2141,7 +2141,7 @@
+  <tr>
+   <td>$</td>
+   <td>readb([$handle], n)</td>
+-  <td>reads n bytes from $handle</td>
++  <td>reads n bytes from $handle.  If 0 bytes are read <var>$null</var> will be returned.</td>
+  </tr>
+  <tr>
+   <td>$</td>
+
+Modified: sleep/src/sleep/bridges/BasicIO.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicIO.java	2006-10-30 02:04:21 UTC (rev 150)
++++ sleep/src/sleep/bridges/BasicIO.java	2006-10-30 03:00:00 UTC (rev 151)
+@@ -263,10 +263,43 @@
+     {
+        public Scalar evaluate(String n, ScriptInstance i, Stack l)
+        {
+-          String a = ((Scalar)l.pop()).toString();
++          String   command  = BridgeUtilities.getString(l, null);
++          String[] envp     = null;
++          File     start    = null;
+ 
++          if (!l.isEmpty())
++          {
++             if (SleepUtils.isEmptyScalar((Scalar)l.peek()))
++             {
++                l.pop();
++             }
++             else
++             {
++                ScalarHash env  = BridgeUtilities.getHash(l);
++                Iterator   keys = env.keys().scalarIterator();
++                envp = new String[env.keys().size()];
++                for (int x = 0; x < envp.length; x++)
++                {
++                   Scalar key = (Scalar)keys.next();
++                   envp[x] = key.toString() + "=" + env.getAt(key);
++                }
++             }
++          }
++
++          if (!l.isEmpty() && !SleepUtils.isEmptyScalar((Scalar)l.peek()))
++          {
++             if (SleepUtils.isEmptyScalar((Scalar)l.peek()))
++             {
++                l.pop();
++             }
++             else
++             {
++                start = BridgeUtilities.getFile(l); 
++             }
++          }
++
+           ProcessObject temp = new ProcessObject();
+-          temp.open(a, i.getScriptEnvironment());
++          temp.open(command, envp, start, i.getScriptEnvironment());
+ 
+           return SleepUtils.getScalar(temp);
+        }
+@@ -1128,6 +1161,8 @@
+              i.getScriptEnvironment().flagError(ex.toString());
+           }
+ 
++          if (temp.length() == 0) { return SleepUtils.getEmptyScalar(); }
++
+           return SleepUtils.getScalar(temp.toString());
+        }
+     }
+
+Modified: sleep/src/sleep/bridges/io/ProcessObject.java
+===================================================================
+--- sleep/src/sleep/bridges/io/ProcessObject.java	2006-10-30 02:04:21 UTC (rev 150)
++++ sleep/src/sleep/bridges/io/ProcessObject.java	2006-10-30 03:00:00 UTC (rev 151)
+@@ -13,7 +13,7 @@
+       return process;
+    }
+ 
+-   public void open(String command, ScriptEnvironment env)
++   public void open(String command, String[] environment, File startDir, ScriptEnvironment env)
+    {
+       try
+       {
+@@ -25,13 +25,14 @@
+             command = command + args;
+          }
+ 
+-         process = Runtime.getRuntime().exec(command);
++         process = Runtime.getRuntime().exec(command, environment, startDir);
+ 
+          openRead(process.getInputStream());
+          openWrite(process.getOutputStream());
+       }
+       catch (Exception ex)
+       {
++         ex.printStackTrace();
+          env.flagError(ex.toString());
+       }
+    }
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-10-30 02:04:21 UTC (rev 150)
++++ sleep/whatsnew.txt	2006-10-30 03:00:00 UTC (rev 151)
+@@ -26,6 +26,7 @@
+   to use the closure scope/environment of the specified &closure
+ - added a &putAll(%hash, &/@, [&/@]) to populate the passed in hash from the
+   passed in iterator(s).
++- readb now returns a $null if the read failed to return any data
+ 
+ 2.1-beta 7  (15 Oct 06)
+ ===========
+
+
+
+From rsmudge at mail.berlios.de  Mon Oct 30 04:12:50 2006
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Mon, 30 Oct 2006 04:12:50 +0100
+Subject: [Sleep-svn] r152 - sleep
+Message-ID: <200610300312.k9U3CouJ015758@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-10-30 04:12:50 +0100 (Mon, 30 Oct 2006)
+New Revision: 152
+
+Modified:
+   sleep/whatsnew.txt
+Log:
+oops.
+
+
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-10-30 03:00:00 UTC (rev 151)
++++ sleep/whatsnew.txt	2006-10-30 03:12:50 UTC (rev 152)
+@@ -26,6 +26,8 @@
+   to use the closure scope/environment of the specified &closure
+ - added a &putAll(%hash, &/@, [&/@]) to populate the passed in hash from the
+   passed in iterator(s).
++- updated &exec to allow specification of a starting directory and environment:
++  $handle = &exec("command args", [%environment], ["starting directory/"]);
+ - readb now returns a $null if the read failed to return any data
+ 
+ 2.1-beta 7  (15 Oct 06)
+
+
+

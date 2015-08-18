@@ -1,0 +1,228 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r65 - in sleep: . src/sleep/bridges src/sleep/runtime tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2006-June/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r65%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20src/sleep/runtime%20tests%20tests/output&In-Reply-To=%3C200606150306.k5F36MiD026917%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000047.html">
+   <LINK REL="Next"  HREF="000049.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r65 - in sleep: . src/sleep/bridges src/sleep/runtime tests tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r65%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20src/sleep/runtime%20tests%20tests/output&In-Reply-To=%3C200606150306.k5F36MiD026917%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r65 - in sleep: . src/sleep/bridges src/sleep/runtime tests tests/output">rsmudge at berlios.de
+       </A><BR>
+    <I>Thu Jun 15 05:06:22 CEST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000047.html">[Sleep-svn] r64 - in sleep: . src/sleep/bridges tests tests/output
+</A></li>
+        <LI>Next message: <A HREF="000049.html">[Sleep-svn] r66 - in sleep: . src/sleep/parser tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#48">[ date ]</a>
+              <a href="thread.html#48">[ thread ]</a>
+              <a href="subject.html#48">[ subject ]</a>
+              <a href="author.html#48">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2006-06-15 05:06:21 +0200 (Thu, 15 Jun 2006)
+New Revision: 65
+
+Added:
+   sleep/tests/matcher.sl
+   sleep/tests/output/matcher.sl
+Modified:
+   sleep/src/sleep/bridges/RegexBridge.java
+   sleep/src/sleep/runtime/ScriptEnvironment.java
+   sleep/whatsnew.txt
+Log:
+Fixed a threading issue with ismatch/hasmatch/matched...  
+
+
+
+Modified: sleep/src/sleep/bridges/RegexBridge.java
+===================================================================
+--- sleep/src/sleep/bridges/RegexBridge.java	2006-06-15 02:31:50 UTC (rev 64)
++++ sleep/src/sleep/bridges/RegexBridge.java	2006-06-15 03:06:21 UTC (rev 65)
+@@ -84,41 +84,45 @@
+ 
+     private static class isMatch implements Predicate, Function
+     {
+-       protected Matcher matcher = null;
+-
+-       protected HashMap context = new HashMap(); // storing matcher contexts...
+-
+        public boolean decide(String n, ScriptInstance i, Stack l)
+        {
+           String b = ((Scalar)l.pop()).toString(); // PATTERN
+           String a = ((Scalar)l.pop()).toString(); // TEXT TO MATCH AGAINST
+ 
++          ScriptEnvironment env = i.getScriptEnvironment();
++          Matcher matcher;
++
+           Pattern pattern = RegexBridge.getPattern(b);
+           boolean rv;
+ 
+           if (n.equals(&quot;hasmatch&quot;))
+           {
+-              if (context.containsKey(a + b))
++              matcher = (Matcher)env.getContextMetadata(a + b);
++
++              if (matcher != null)
+               {
+-                 matcher = (Matcher)context.get(a + b);
++                 env.setContextMetadata(&quot;matcher&quot;, matcher);
+               }
+               else
+               {
+                  matcher = pattern.matcher(a);
+-                 context.put(a + b, matcher);
++                 env.setContextMetadata(a + b, matcher);
++                 env.setContextMetadata(&quot;matcher&quot;, matcher);
+               }
+               rv = matcher.find();
+           }
+           else
+           {
+               matcher = pattern.matcher(a);
++              env.setContextMetadata(&quot;matcher&quot;, matcher);
+               rv =  matcher.matches();
+           }
+ 
+           if (!rv) 
+           {
+              matcher  = null;           
+-             context.remove(a + b);
++             env.setContextMetadata(&quot;matcher&quot;, null);
++             env.setContextMetadata(a + b, null);
+           }
+ 
+           return rv;
+@@ -128,6 +132,9 @@
+        {
+           Scalar value = SleepUtils.getArrayScalar();            
+ 
++          ScriptEnvironment env = i.getScriptEnvironment();
++          Matcher matcher = (Matcher)env.getContextMetadata(&quot;matcher&quot;);
++
+           if (matcher != null)
+           {
+              int count = matcher.groupCount();  
+
+Modified: sleep/src/sleep/runtime/ScriptEnvironment.java
+===================================================================
+--- sleep/src/sleep/runtime/ScriptEnvironment.java	2006-06-15 02:31:50 UTC (rev 64)
++++ sleep/src/sleep/runtime/ScriptEnvironment.java	2006-06-15 03:06:21 UTC (rev 65)
+@@ -251,6 +251,19 @@
+        return metadata.get(key);
+     }
+ 
++    /** Returns the data associated with the particular key for this context. If the key value is null then the specified default_value is returned */
++    public Object getContextMetadata(Object key, Object default_value)
++    {
++       Object value = metadata.get(key);
++
++       if (value == null)
++       {
++          return default_value;
++       }
++ 
++       return metadata.get(key);
++    }
++
+     public void addToContext(Block b, Step s)
+     {
+        Context temp = new Context();
+
+Added: sleep/tests/matcher.sl
+===================================================================
+--- sleep/tests/matcher.sl	2006-06-15 02:31:50 UTC (rev 64)
++++ sleep/tests/matcher.sl	2006-06-15 03:06:21 UTC (rev 65)
+@@ -0,0 +1,20 @@
++$my_th = {
++   $mystr = &quot;[12324234] AAA BBBAAA AAA&quot;;
++
++   if ($mystr hasmatch '\[(\d+)\].+') 
++   {
++      println(&quot;CORRECT&quot;);
++   }
++   else
++   {
++      println(&quot;INCORRECT!&quot;);
++   }
++};
++
++while($ii &lt; 10) 
++{
++  $ii = $ii + 1;
++  fork($my_th, $iter =&gt; &quot;$ii&quot;);
++}
++
++
+
+Added: sleep/tests/output/matcher.sl
+===================================================================
+--- sleep/tests/output/matcher.sl	2006-06-15 02:31:50 UTC (rev 64)
++++ sleep/tests/output/matcher.sl	2006-06-15 03:06:21 UTC (rev 65)
+@@ -0,0 +1,10 @@
++CORRECT
++CORRECT
++CORRECT
++CORRECT
++CORRECT
++CORRECT
++CORRECT
++CORRECT
++CORRECT
++CORRECT
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-06-15 02:31:50 UTC (rev 64)
++++ sleep/whatsnew.txt	2006-06-15 03:06:21 UTC (rev 65)
+@@ -21,6 +21,9 @@
+   in a foreach loop (this only works on arrays, not hashes).
+ - fixed bugs with iswm algorithm when wildcard pattern is longer 
+   than the text it is being compared against.
++- updated isMatch/hasMatch/matched to use the new context meta
++  data feature to keep tracker of matchers (the old way was not
++  thread safe)
+ 
+ 2.0-release
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000047.html">[Sleep-svn] r64 - in sleep: . src/sleep/bridges tests tests/output
+</A></li>
+	<LI>Next message: <A HREF="000049.html">[Sleep-svn] r66 - in sleep: . src/sleep/parser tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#48">[ date ]</a>
+              <a href="thread.html#48">[ thread ]</a>
+              <a href="subject.html#48">[ subject ]</a>
+              <a href="author.html#48">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

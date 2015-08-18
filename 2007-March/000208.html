@@ -1,0 +1,254 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r229 - in sleep: . src/sleep/bridges src/sleep/runtime	tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2007-March/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r229%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20src/sleep/runtime%0A%09tests%20tests/output&In-Reply-To=%3C200703171535.l2HFZV5k001919%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000207.html">
+   <LINK REL="Next"  HREF="000209.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r229 - in sleep: . src/sleep/bridges src/sleep/runtime	tests tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r229%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20src/sleep/runtime%0A%09tests%20tests/output&In-Reply-To=%3C200703171535.l2HFZV5k001919%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r229 - in sleep: . src/sleep/bridges src/sleep/runtime	tests tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Sat Mar 17 16:35:31 CET 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000207.html">[Sleep-svn] r228 - in sleep: . src/sleep/bridges	src/sleep/engine/atoms tests tests/output
+</A></li>
+        <LI>Next message: <A HREF="000209.html">[Sleep-svn] r230 - in sleep: . docs src/sleep/runtime tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#208">[ date ]</a>
+              <a href="thread.html#208">[ thread ]</a>
+              <a href="subject.html#208">[ subject ]</a>
+              <a href="author.html#208">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2007-03-17 16:35:30 +0100 (Sat, 17 Mar 2007)
+New Revision: 229
+
+Added:
+   sleep/src/sleep/runtime/WatchScalar.java
+   sleep/tests/output/watch.sl
+   sleep/tests/watch.sl
+Modified:
+   sleep/build.xml
+   sleep/src/sleep/bridges/BasicUtilities.java
+   sleep/whatsnew.txt
+Log:
+added variable watching as well.
+
+
+Modified: sleep/build.xml
+===================================================================
+--- sleep/build.xml	2007-03-17 14:22:33 UTC (rev 228)
++++ sleep/build.xml	2007-03-17 15:35:30 UTC (rev 229)
+@@ -16,7 +16,7 @@
+            destdir=&quot;${project.build}&quot;
+            nowarn=&quot;yes&quot;
+            depend=&quot;yes&quot;
+-           debug=&quot;false&quot;
++           debug=&quot;true&quot;
+            source=&quot;1.4&quot;
+            target=&quot;1.4&quot;
+            optimize=&quot;yes&quot;
+
+Modified: sleep/src/sleep/bridges/BasicUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicUtilities.java	2007-03-17 14:22:33 UTC (rev 228)
++++ sleep/src/sleep/bridges/BasicUtilities.java	2007-03-17 15:35:30 UTC (rev 229)
+@@ -104,6 +104,8 @@
+         temp.put(&quot;&amp;this&quot;,     scopeFunctions);
+         temp.put(&quot;&amp;global&quot;,     scopeFunctions);
+ 
++        temp.put(&quot;&amp;watch&quot;, this);
++
+         temp.put(&quot;&amp;debug&quot;, this);
+         temp.put(&quot;&amp;profile&quot;, this);
+         temp.put(&quot;&amp;getStackTrace&quot;, this);
+@@ -740,6 +742,26 @@
+          
+           return SleepUtils.getEmptyScalar();
+        }
++       else if (n.equals(&quot;&amp;watch&quot;))
++       {
++          Variable level;
++          String temp = BridgeUtilities.getString(l, &quot;&quot;);       
++          String vars[] = temp.split(&quot; &quot;); 
++          for (int x = 0; x &lt; vars.length; x++)
++          {
++             level = i.getScriptVariables().getScalarLevel(vars[x], i);
++             if (level != null)
++             {
++                WatchScalar watch = new WatchScalar(vars[x], i.getScriptEnvironment());
++                watch.setValue(level.getScalar(vars[x]));
++                i.getScriptVariables().setScalarLevel(vars[x], watch, level);
++             }
++             else
++             {
++                throw new IllegalArgumentException(vars[x] + &quot; must already exist in a scope prior to watching&quot;);
++             }
++          }
++       }
+        else if (n.equals(&quot;&amp;invoke&quot;)) 
+        {
+           Map params = BridgeUtilities.extractNamedParameters(l);
+
+Added: sleep/src/sleep/runtime/WatchScalar.java
+===================================================================
+--- sleep/src/sleep/runtime/WatchScalar.java	2007-03-17 14:22:33 UTC (rev 228)
++++ sleep/src/sleep/runtime/WatchScalar.java	2007-03-17 15:35:30 UTC (rev 229)
+@@ -0,0 +1,67 @@
++package sleep.runtime;
++
++import java.io.*;
++
++public class WatchScalar extends Scalar
++{
++   protected ScriptEnvironment owner;
++   protected String            name;
++
++   public WatchScalar(String _name, ScriptEnvironment _owner)
++   {
++      name  = _name;
++      owner = _owner;
++   }
++
++   public void flagChange(Scalar valuez)
++   {
++      if (owner != null &amp;&amp; (value != null || array != null || hash != null))
++      {
++         owner.showDebugMessage(&quot;watch(): &quot; + name + &quot; = &quot; + SleepUtils.describe(valuez));
++      }
++   }
++
++   /** set the value of this scalar container to a scalar value of some type */
++   public void setValue(ScalarType _value)
++   {
++      Scalar blah = new Scalar();
++      blah.setValue(_value);
++      flagChange(blah);
++      
++      super.setValue(_value);
++   }
++
++   /** set the value of this scalar container to a scalar array */
++   public void setValue(ScalarArray _array)
++   {
++      Scalar blah = new Scalar();
++      blah.setValue(_array);
++      flagChange(blah);
++
++      super.setValue(_array);
++   }
++
++   /** set the value of this scalar container to a scalar hash */
++   public void setValue(ScalarHash _hash)
++   {
++      Scalar blah = new Scalar();
++      blah.setValue(_hash);
++      flagChange(blah);
++
++      super.setValue(_hash);
++   }
++
++   private void writeObject(ObjectOutputStream out) throws IOException
++   {
++       out.writeObject(value);
++       out.writeObject(array);
++       out.writeObject(hash);
++   }
++
++   private void readObject(ObjectInputStream in) throws IOException, ClassNotFoundException
++   {
++       value = (ScalarType)in.readObject();
++       array = (ScalarArray)in.readObject();
++       hash  = (ScalarHash)in.readObject();
++   }
++}
+
+Added: sleep/tests/output/watch.sl
+===================================================================
+--- sleep/tests/output/watch.sl	2007-03-17 14:22:33 UTC (rev 228)
++++ sleep/tests/output/watch.sl	2007-03-17 15:35:30 UTC (rev 229)
+@@ -0,0 +1,4 @@
++Warning: watch(): $x = 15 at watch.sl:12
++Warning: watch(): $y = 15 at watch.sl:16
++15
++Warning: watch(): $y = 'this is a string' at watch.sl:18
+
+Added: sleep/tests/watch.sl
+===================================================================
+--- sleep/tests/watch.sl	2007-03-17 14:22:33 UTC (rev 228)
++++ sleep/tests/watch.sl	2007-03-17 15:35:30 UTC (rev 229)
+@@ -0,0 +1,18 @@
++#
++# test of the new watch option...
++# 
++global('$x $y');
++
++$x = 3;
++
++watch('$x $y');
++
++sub foo
++{
++   $1 = $1 * 5;
++   return $1;
++}
++
++$y = foo($x);
++println($y);
++$y = &quot;this is a string&quot;;
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2007-03-17 14:22:33 UTC (rev 228)
++++ sleep/whatsnew.txt	2007-03-17 15:35:30 UTC (rev 229)
+@@ -42,6 +42,9 @@
+   scalar value transfer code.
+ - fixed frame leaks that can occur when a Java exception interrupts the 
+   calling of a function.
++- added yet another option to help with debugging: watch('$x $y $z')
++  this function will ensure a warning is fired every time the scalar
++  container held by the specified variables receives a new value.
+ 
+ 2.1-beta 12  (11 Mar 07)
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000207.html">[Sleep-svn] r228 - in sleep: . src/sleep/bridges	src/sleep/engine/atoms tests tests/output
+</A></li>
+	<LI>Next message: <A HREF="000209.html">[Sleep-svn] r230 - in sleep: . docs src/sleep/runtime tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#208">[ date ]</a>
+              <a href="thread.html#208">[ thread ]</a>
+              <a href="subject.html#208">[ subject ]</a>
+              <a href="author.html#208">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

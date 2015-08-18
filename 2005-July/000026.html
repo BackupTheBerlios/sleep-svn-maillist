@@ -1,0 +1,210 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r38 - in sleep: . src/sleep/bridges tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2005-July/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r38%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20tests%20tests/output&In-Reply-To=%3C200507121538.j6CFc3aG008598%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000025.html">
+   <LINK REL="Next"  HREF="000027.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r38 - in sleep: . src/sleep/bridges tests tests/output</H1>
+    <B>Raphael Mudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r38%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20tests%20tests/output&In-Reply-To=%3C200507121538.j6CFc3aG008598%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r38 - in sleep: . src/sleep/bridges tests tests/output">rsmudge at berlios.de
+       </A><BR>
+    <I>Tue Jul 12 17:38:03 CEST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000025.html">[Sleep-svn] r37 - in sleep: . src/sleep/bridges
+</A></li>
+        <LI>Next message: <A HREF="000027.html">[Sleep-svn] r45 - in sleep: . docs src/sleep/bridges src/sleep/engine tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#26">[ date ]</a>
+              <a href="thread.html#26">[ thread ]</a>
+              <a href="subject.html#26">[ subject ]</a>
+              <a href="author.html#26">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2005-07-12 17:38:02 +0200 (Tue, 12 Jul 2005)
+New Revision: 38
+
+Added:
+   sleep/tests/behavior.sl
+   sleep/tests/output/behavior.sl
+   sleep/tests/output/trans.sl
+   sleep/tests/trans.sl
+Modified:
+   sleep/src/sleep/bridges/RegexBridge.java
+   sleep/whatsnew.txt
+Log:
+More changes...
+
+
+Modified: sleep/src/sleep/bridges/RegexBridge.java
+===================================================================
+--- sleep/src/sleep/bridges/RegexBridge.java	2005-07-12 13:54:22 UTC (rev 37)
++++ sleep/src/sleep/bridges/RegexBridge.java	2005-07-12 15:38:02 UTC (rev 38)
+@@ -148,19 +148,30 @@
+        {
+           String a = ((Scalar)l.pop()).toString();
+           String b = ((Scalar)l.pop()).toString();
++          int    c = BridgeUtilities.getInt(l, -1);
++          int    d = BridgeUtilities.getInt(l, c);
+ 
+           Pattern pattern = RegexBridge.getPattern(b);
+           Matcher matcher = pattern.matcher(a);
+    
+           Scalar value = SleepUtils.getArrayScalar();            
+-          int    count = matcher.groupCount();  
+ 
+-          if (matcher.find())
++          int temp = 0;
++
++          while (matcher.find())
+           {
++             int    count = matcher.groupCount();  
++
++             if (temp == c) { value = SleepUtils.getArrayScalar(); }
++
+              for (int x = 1; x &lt;= count; x++)
+              {
+                 value.getArray().push(SleepUtils.getScalar(matcher.group(x)));
+              }
++
++             if (temp == d) { return value; }
++
++             temp++;
+           }
+ 
+           return value;
+
+Added: sleep/tests/behavior.sl
+===================================================================
+--- sleep/tests/behavior.sl	2005-07-12 13:54:22 UTC (rev 37)
++++ sleep/tests/behavior.sl	2005-07-12 15:38:02 UTC (rev 38)
+@@ -0,0 +1,11 @@
++while ('(654) 555-1212(248) 399-8219(734) 586-9912' hasmatch '\((\d\d\d)\) (\d\d\d-\d\d\d\d)')
++{
++   ($areaCode, $phoneNumber) = matched();
++   println(&quot;$areaCode and $phoneNumber&quot;);
++
++   while ('(123) 456-7890 sfdsdf (453) 443-3455' hasmatch '\((\d\d\d)\) (\d\d\d-\d\d\d\d)')
++   {
++      ($areaCode, $phoneNumber) = matched();
++      println(&quot;    $areaCode and $phoneNumber&quot;);
++   }
++}
+
+Added: sleep/tests/output/behavior.sl
+===================================================================
+--- sleep/tests/output/behavior.sl	2005-07-12 13:54:22 UTC (rev 37)
++++ sleep/tests/output/behavior.sl	2005-07-12 15:38:02 UTC (rev 38)
+@@ -0,0 +1,9 @@
++654 and 555-1212
++    123 and 456-7890
++    453 and 443-3455
++248 and 399-8219
++    123 and 456-7890
++    453 and 443-3455
++734 and 586-9912
++    123 and 456-7890
++    453 and 443-3455
+
+Added: sleep/tests/output/trans.sl
+===================================================================
+--- sleep/tests/output/trans.sl	2005-07-12 13:54:22 UTC (rev 37)
++++ sleep/tests/output/trans.sl	2005-07-12 15:38:02 UTC (rev 38)
+@@ -0,0 +1,6 @@
++Cipher text: guvf vf n grfg hAS 12345!!!!
++Plain  text: this is a test uNF 12345!!!!
++Swap: BBB ABAB AAA
++Numbers? Ths s  tst
++Complement? 1143
++Squeeze: B ABAB A
+
+Added: sleep/tests/trans.sl
+===================================================================
+--- sleep/tests/trans.sl	2005-07-12 13:54:22 UTC (rev 37)
++++ sleep/tests/trans.sl	2005-07-12 15:38:02 UTC (rev 38)
+@@ -0,0 +1,28 @@
++#
++# Test of translation tools...
++#
++
++# rot13 test
++
++$cipher = tr(&quot;this is a test uNF 12345!!!!&quot;, 'a-zA-Z', 'n-za-mN-ZA-M');
++println(&quot;Cipher text: &quot; . $cipher);
++
++$plain = tr($cipher, 'a-zA-Z', 'n-za-mN-ZA-M');
++println(&quot;Plain  text: &quot; . $plain);
++
++# swap test
++
++println(&quot;Swap: &quot; . tr(&quot;AAA BABA BBB&quot;, &quot;AB&quot;, &quot;BA&quot;));
++
++# delete all numbers
++
++println(&quot;Numbers? &quot; . tr(&quot;Th1s 1s 4 t3st&quot;, '\d', &quot;&quot;));
++
++# complement...
++
++println(&quot;Complement? &quot; . tr(&quot;Th1s 1s 4 t3st&quot;, '\d', &quot;&quot;, 'c'));
++
++# squeeze
++
++println(&quot;Squeeze: &quot; . tr(&quot;AAA BABA BBB&quot;, &quot;AB&quot;, &quot;BA&quot;, 's'));
++
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2005-07-12 13:54:22 UTC (rev 37)
++++ sleep/whatsnew.txt	2005-07-12 15:38:02 UTC (rev 38)
+@@ -22,8 +22,9 @@
+ - updated the matches() function to work a lot like hasmatch where
+   it will look for substrings and return all groupings for all
+   matching substrings...  
+-- added a &amp;tr() function similar to the UNIX command tr.  
+-  Transliteration is fun for the whole family...
++- added a transliteration function &amp;tr ala the UNIX command tr.  
++- updated &amp;matches to allow either a range of matching substring 
++  groups to be extracted or a single substring group.
+ 
+ 2.0-b10
+ =======
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000025.html">[Sleep-svn] r37 - in sleep: . src/sleep/bridges
+</A></li>
+	<LI>Next message: <A HREF="000027.html">[Sleep-svn] r45 - in sleep: . docs src/sleep/bridges src/sleep/engine tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#26">[ date ]</a>
+              <a href="thread.html#26">[ thread ]</a>
+              <a href="subject.html#26">[ subject ]</a>
+              <a href="author.html#26">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

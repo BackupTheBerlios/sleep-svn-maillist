@@ -1,0 +1,459 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r116 - in sleep: . src/sleep/bridges src/sleep/runtime	tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2006-September/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r116%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20src/sleep/runtime%0A%09tests%20tests/output&In-Reply-To=%3C200609152331.k8FNVXQH028267%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000097.html">
+   <LINK REL="Next"  HREF="000099.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r116 - in sleep: . src/sleep/bridges src/sleep/runtime	tests tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r116%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20src/sleep/runtime%0A%09tests%20tests/output&In-Reply-To=%3C200609152331.k8FNVXQH028267%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r116 - in sleep: . src/sleep/bridges src/sleep/runtime	tests tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Sat Sep 16 01:31:33 CEST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000097.html">[Sleep-svn] r115 - in sleep: . src/sleep/bridges	src/sleep/bridges/io tests tests/output
+</A></li>
+        <LI>Next message: <A HREF="000099.html">[Sleep-svn] r117 - in sleep: . src/sleep/engine tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#98">[ date ]</a>
+              <a href="thread.html#98">[ thread ]</a>
+              <a href="subject.html#98">[ subject ]</a>
+              <a href="author.html#98">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2006-09-16 01:31:29 +0200 (Sat, 16 Sep 2006)
+New Revision: 116
+
+Added:
+   sleep/tests/digest.sl
+   sleep/tests/output/digest.sl
+Modified:
+   sleep/src/sleep/bridges/BasicIO.java
+   sleep/src/sleep/runtime/SleepUtils.java
+   sleep/tests/output/fe_generatordb.sl
+   sleep/tests/output/trace.sl
+   sleep/tests/output/wrong.sl
+   sleep/whatsnew.txt
+Log:
+Lots of new stuff :)
+
+
+
+Modified: sleep/src/sleep/bridges/BasicIO.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicIO.java	2006-09-15 02:33:38 UTC (rev 115)
++++ sleep/src/sleep/bridges/BasicIO.java	2006-09-15 23:31:29 UTC (rev 116)
+@@ -36,6 +36,7 @@
+ 
+ import java.util.zip.*;
+ import javax.crypto.*;
++import java.security.*;
+ 
+ /** provides IO functions for the sleep language */
+ public class BasicIO implements Loadable, Function
+@@ -132,6 +133,67 @@
+ 
+           return a.wait(i.getScriptEnvironment(), to);
+        }
++       else if (n.equals(&quot;&amp;digest&quot;))
++       {
++          Scalar   s = BridgeUtilities.getScalar(l);
++          if (s.objectValue() != null &amp;&amp; s.objectValue() instanceof IOObject)
++          {
++             /* do our fun stuff to setup a checksum object */
++
++             boolean isRead  = true;
++
++             String temp = BridgeUtilities.getString(l, &quot;MD5&quot;);
++             if (temp.charAt(0) == '&gt;')
++             {
++                isRead  = false;
++                temp    = temp.substring(1);
++             }
++             
++             IOObject io = (IOObject)s.objectValue();
++
++             try
++             {
++                if (isRead)             {
++                   DigestInputStream cis = new DigestInputStream(io.getInputStream(), MessageDigest.getInstance(temp));
++                   io.openRead(cis);
++                   return SleepUtils.getScalar(cis.getMessageDigest());
++                }
++                else
++                {
++                   DigestOutputStream cos = new DigestOutputStream(io.getOutputStream(), MessageDigest.getInstance(temp));
++                   io.openWrite(cos);
++                   return SleepUtils.getScalar(cos.getMessageDigest());
++                }
++             }
++             catch (NoSuchAlgorithmException ex)
++             {
++                i.getScriptEnvironment().flagError(&quot;&amp;digest: no such algorithm: &quot; + temp);
++             }
++          }
++          else if (s.objectValue() != null &amp;&amp; s.objectValue() instanceof MessageDigest)
++          {
++             MessageDigest sum = (MessageDigest)s.objectValue();
++             return SleepUtils.getScalar(sum.digest());
++          }
++          else
++          {
++             String temp = s.toString();
++             String algo = BridgeUtilities.getString(l, &quot;MD5&quot;);
++             try
++             {
++
++                MessageDigest doit = MessageDigest.getInstance(algo);
++                doit.update(toByteArrayNoConversion(temp), 0, temp.length());
++                return SleepUtils.getScalar(doit.digest());
++             }
++             catch (NoSuchAlgorithmException ex)
++             {
++                i.getScriptEnvironment().flagError(&quot;&amp;digest: no such algorithm: &quot; + algo);
++             }
++          }
++
++          return SleepUtils.getEmptyScalar();
++       }
+        else if (n.equals(&quot;&amp;checksum&quot;))
+        {
+           Scalar   s = BridgeUtilities.getScalar(l);
+@@ -456,6 +518,7 @@
+        byte        bdata[] = new byte[8]; 
+        ByteBuffer  buffer  = ByteBuffer.wrap(bdata);
+        int         read    = 0;
++       int         early, later;
+ 
+        while (pattern != null)
+        {
+@@ -476,6 +539,42 @@
+              }
+              catch (Exception ex) { }
+           }
++          else if (pattern.value == 'h' || pattern.value == 'H')
++          {
++             StringBuffer temps = new StringBuffer();
++
++             try
++             {
++                for (int z = 0; (z &lt; pattern.count || pattern.count == -1); z++)
++                {
++                   read = in.read(bdata, 0, 1);
++
++                   if (read &lt; 1) throw new EOFException();
++ 
++                   early = (buffer.get(0) &amp; 0x00F0) &gt;&gt; 4;
++                   later = (buffer.get(0) &amp; 0x000F);
++
++                   if (pattern.value == 'h')
++                   {
++                      temps.append(Integer.toHexString(later));
++                      temps.append(Integer.toHexString(early));
++                   }
++                   else
++                   {
++                      temps.append(Integer.toHexString(early));
++                      temps.append(Integer.toHexString(later));
++                   }
++                }
++             }
++             catch (Exception fex) 
++             { 
++                if (control != null) control.close();
++                temp.getArray().push(SleepUtils.getScalar(temps.toString()));       
++                return temp;
++             }
++ 
++             temp.getArray().push( SleepUtils.getScalar(temps.toString()) ); // reads in a full on string :)
++          }
+           else if (pattern.value == 'z' || pattern.value == 'Z' || pattern.value == 'U' || pattern.value == 'u')
+           {
+              StringBuffer temps = new StringBuffer();
+@@ -722,6 +821,37 @@
+                 return;
+              }
+           }
++          else if (pattern.value == 'h' || pattern.value == 'H')
++          {
++             try
++             {
++                StringBuffer number = new StringBuffer(&quot;FF&quot;);
++                char[] tempchars = BridgeUtilities.getString(arguments, &quot;&quot;).toCharArray();
++
++                for (int y = 0; y &lt; tempchars.length; y += 2)
++                {
++                   if (pattern.value == 'H')
++                   {
++                      number.setCharAt(0, tempchars[y]);
++                      number.setCharAt(1, tempchars[y+1]);
++                   }
++                   else
++                   {
++                      number.setCharAt(0, tempchars[y+1]);
++                      number.setCharAt(1, tempchars[y]);
++                   }
++
++                   buffer.putInt(0, Integer.parseInt(number.toString(), 16));
++                   out.write(bdata, 3, 1);
++                }
++             }
++             catch (Exception ex)
++             {
++                ex.printStackTrace();
++                if (control != null) control.close();
++                return;
++             }
++          }
+           else
+           {
+              for (int z = 0; z != pattern.count &amp;&amp; !arguments.isEmpty(); z++)
+@@ -929,7 +1059,7 @@
+ 
+           for (int x = 0; x &lt; data.length; x++)
+           {
+-             value.append((char)data[x]);
++             value.append((char)(data[x] &amp; 0x00FF));
+           }
+ 
+           return SleepUtils.getScalar(value.toString());
+
+Modified: sleep/src/sleep/runtime/SleepUtils.java
+===================================================================
+--- sleep/src/sleep/runtime/SleepUtils.java	2006-09-15 02:33:38 UTC (rev 115)
++++ sleep/src/sleep/runtime/SleepUtils.java	2006-09-15 23:31:29 UTC (rev 116)
+@@ -500,6 +500,22 @@
+       return temp;
+    }
+ 
++   /** constructs a string scalar with value x interpreted as an array of unsigned bytes */
++   public static Scalar getScalar(byte[] x)
++   {
++      Scalar temp = new Scalar();
++      StringBuffer buff = new StringBuffer(x.length);
++      for (int y = 0; y &lt; x.length; y++)
++      {
++         char append = (char)(x[y] &amp; 0x00FF);
++         buff.append(append);
++      }
++
++      temp.setValue(new StringValue(buff.toString()));
++ 
++      return temp;
++   }
++
+    /** returns a string scalar with value x */
+    public static Scalar getScalar(String x)
+    {
+
+Added: sleep/tests/digest.sl
+===================================================================
+--- sleep/tests/digest.sl	2006-09-15 02:33:38 UTC (rev 115)
++++ sleep/tests/digest.sl	2006-09-15 23:31:29 UTC (rev 116)
+@@ -0,0 +1,40 @@
++#
++# test the digest API
++#
++
++$REAL = '17bc99c1ea48937e2f702c7ef1c5025c'; # output of UNIX md5 command for test.jar
++
++# first test... digest an I/O handle :)
++
++$handle = openf(&quot;data/test.jar&quot;);
++$summer = digest($handle);
++readAll($handle); 
++$bytes  = digest($summer);
++
++$sum    = unpack(&quot;H*&quot;, $bytes)[0];
++
++println(&quot;(1) Digest value of test.jar is: &quot; . $sum . &quot; good? &quot; . iff($sum eq $REAL, &quot;yes&quot;, &quot;no&quot;));
++closef($handle);
++
++println(&quot;(2) Another test of repacked data: &quot; . iff(pack(&quot;H&quot;, $sum) eq $bytes, &quot;good&quot;, &quot;broken&quot;));
++
++# second test... checksumming raw data
++
++$handle = openf(&quot;data/test.jar&quot;);
++$data   = readb($handle, lof(&quot;data/test.jar&quot;)); # read in the entire file
++$sum    = unpack(&quot;H*&quot;, digest($data, &quot;MD5&quot;))[0];
++println(&quot;(3) Digest value of test.jar is: &quot; . $sum . &quot; good? &quot; . iff($sum eq $REAL, &quot;yes&quot;, &quot;no&quot;));
++closef($handle);
++
++# third test.. the kewlest test of them all...
++
++$sumfork = fork({
++   readb($source, lof(&quot;data/test.jar&quot;));
++});
++
++$summer = digest($sumfork, &quot;&gt;MD5&quot;);
++writeb($sumfork, $data);
++closef($sumfork);
++wait($sumfork);
++println(&quot;Digest of written data is: &quot; . unpack(&quot;H*&quot;, digest($summer))[0]);
++
+
+Added: sleep/tests/output/digest.sl
+===================================================================
+--- sleep/tests/output/digest.sl	2006-09-15 02:33:38 UTC (rev 115)
++++ sleep/tests/output/digest.sl	2006-09-15 23:31:29 UTC (rev 116)
+@@ -0,0 +1,4 @@
++(1) Digest value of test.jar is: 17bc99c1ea48937e2f702c7ef1c5025c good? yes
++(2) Another test of repacked data: good
++(3) Digest value of test.jar is: 17bc99c1ea48937e2f702c7ef1c5025c good? yes
++Digest of written data is: 17bc99c1ea48937e2f702c7ef1c5025c
+
+Modified: sleep/tests/output/fe_generatordb.sl
+===================================================================
+--- sleep/tests/output/fe_generatordb.sl	2006-09-15 02:33:38 UTC (rev 115)
++++ sleep/tests/output/fe_generatordb.sl	2006-09-15 23:31:29 UTC (rev 116)
+@@ -19,7 +19,7 @@
+ Trace: &amp;println('8 =&gt; val: 8') at line 8
+ 9 =&gt; val: 9
+ Trace: &amp;println('9 =&gt; val: 9') at line 8
+-Trace: &amp;lambda(&amp;closure2881682, $start =&gt; 50, $stop =&gt; 60) = &amp;closure13389929 at line 22
++Trace: &amp;lambda(&amp;closure10481832, $start =&gt; 50, $stop =&gt; 60) = &amp;closure7388808 at line 22
+ Testing out range stuff: 0 =&gt; 50
+ Trace: &amp;println('Testing out range stuff: 0 =&gt; 50') at line 24
+ Testing out range stuff: 1 =&gt; 51
+@@ -41,7 +41,7 @@
+ Testing out range stuff: 9 =&gt; 59
+ Trace: &amp;println('Testing out range stuff: 9 =&gt; 59') at line 24
+ Trace: &amp;this('$start $stop') at line 29
+-Trace: &amp;_range2(70, 80) = &amp;closure11742932 at line 42
++Trace: &amp;_range2(70, 80) = &amp;closure15531527 at line 42
+ My third test: 0 =&gt; 70
+ Trace: &amp;println('My third test: 0 =&gt; 70') at line 44
+ My third test: 1 =&gt; 71
+
+Modified: sleep/tests/output/trace.sl
+===================================================================
+--- sleep/tests/output/trace.sl	2006-09-15 02:33:38 UTC (rev 115)
++++ sleep/tests/output/trace.sl	2006-09-15 23:31:29 UTC (rev 116)
+@@ -1,13 +1,13 @@
+ this is a test
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at d6b059</A> println: 'this is a test'] at line 6
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 94257f</A> println: 'this is a test'] at line 6
+ Trace: [java.lang.Math pow: 3, 4] = 81.0 at line 7
+ 81.0
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at d6b059</A> println: 81.0] at line 7
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 94257f</A> println: 81.0] at line 7
+ Trace: [java.lang.Math pow: 3, 5] = 243.0 at line 8
+ 243.0
+ Trace: &amp;println(243.0) at line 8
+ testing again...
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at d6b059</A> println: 'testing again...'] at line 10
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 94257f</A> println: 'testing again...'] at line 10
+ Trace: [sleep.runtime.SleepUtils getListFromArray: @('a', 'b', 'c')] = [a, b, c] at line 12
+ Trace: [new java.util.LinkedList: [a, b, c]] = [a, b, c] at line 12
+ Warning: variable '$list' not declared at line 12
+
+Modified: sleep/tests/output/wrong.sl
+===================================================================
+--- sleep/tests/output/wrong.sl	2006-09-15 02:33:38 UTC (rev 115)
++++ sleep/tests/output/wrong.sl	2006-09-15 23:31:29 UTC (rev 116)
+@@ -1,32 +1,32 @@
+ Trace: [java.lang.Math pow: 3, 4] = 81.0 at line 6
+ 81.0
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 94257f</A> println: 81.0] at line 6
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at a4488</A> println: 81.0] at line 6
+ Trace: &amp;casti(1, 'z') = true at line 9
+ true
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 94257f</A> println: true] at line 9
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at a4488</A> println: true] at line 9
+ Trace: &amp;casti(0, 'z') = false at line 10
+ false
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 94257f</A> println: false] at line 10
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at a4488</A> println: false] at line 10
+ Trace: &amp;casti(1, 'd') = 1.0 at line 13
+ 1.0
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 94257f</A> println: 1.0] at line 13
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at a4488</A> println: 1.0] at line 13
+ Trace: &amp;casti(1, 'b') = 1 at line 16
+ 1
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 94257f</A> println: 1] at line 16
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at a4488</A> println: 1] at line 16
+ Trace: &amp;casti(100, 'f') = 100.0 at line 19
+ 100.0
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 94257f</A> println: 100.0] at line 19
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at a4488</A> println: 100.0] at line 19
+ Trace: &amp;casti('b', 'c') = b at line 22
+ b
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 94257f</A> println: b] at line 22
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at a4488</A> println: b] at line 22
+ Trace: &amp;casti(63, 'i') = 63 at line 25
+ 63
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 94257f</A> println: 63] at line 25
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at a4488</A> println: 63] at line 25
+ this is a string y0
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 94257f</A> println: 'this is a string y0'] at line 28
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at a4488</A> println: 'this is a string y0'] at line 28
+ Trace: [new java.lang.StringBuilder: 'test'] = test at line 31
+ test
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 94257f</A> println: test] at line 31
+-Trace: &amp;cast(@('a', 'b', 'c', 'd'), 'c') = [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">C at f4bcf7</A> at line 34
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at a4488</A> println: test] at line 31
++Trace: &amp;cast(@('a', 'b', 'c', 'd'), 'c') = [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">C at 1d98a</A> at line 34
+ abcd
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 94257f</A> println: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">C at f4bcf7</A>] at line 34
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at a4488</A> println: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">C at 1d98a</A>] at line 34
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-09-15 02:33:38 UTC (rev 115)
++++ sleep/whatsnew.txt	2006-09-15 23:31:29 UTC (rev 116)
+@@ -27,6 +27,15 @@
+ 
+   The CRC32 and Adler32 algorithms are supported.  With an I/O handle specifying
+   a &gt; before the algorithm name indicates that written data should be checksummed.
++- added digest capability to sleep, the function is similar to checksum except
++  the function name is &amp;digest.  The MD5 and SHA-1 algorithms are supported.
++  This function returns a string of bytes (can be converted to hex using 
++  unpack(&quot;H*&quot;, $digest_data&quot;)[0]).
++- added H/h to the binary format templates to allow byte data to be converted
++  to/from hex characters.  The H puts the high nybble first and the h puts the
++  low nybble first.
++- fixed a bug with &amp;pack destroying the binary string thanks to Java's lack
++  of unsigned types.
+ 
+ 2.1-beta 4  (11 Sept 06)
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000097.html">[Sleep-svn] r115 - in sleep: . src/sleep/bridges	src/sleep/bridges/io tests tests/output
+</A></li>
+	<LI>Next message: <A HREF="000099.html">[Sleep-svn] r117 - in sleep: . src/sleep/engine tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#98">[ date ]</a>
+              <a href="thread.html#98">[ thread ]</a>
+              <a href="subject.html#98">[ subject ]</a>
+              <a href="author.html#98">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

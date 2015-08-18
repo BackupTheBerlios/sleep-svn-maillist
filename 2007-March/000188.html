@@ -1,0 +1,167 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r207 - in sleep: . src/sleep/console
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2007-March/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r207%20-%20in%20sleep%3A%20.%20src/sleep/console&In-Reply-To=%3C200703100036.l2A0aamg011408%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000187.html">
+   <LINK REL="Next"  HREF="000189.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r207 - in sleep: . src/sleep/console</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r207%20-%20in%20sleep%3A%20.%20src/sleep/console&In-Reply-To=%3C200703100036.l2A0aamg011408%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r207 - in sleep: . src/sleep/console">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Sat Mar 10 01:36:36 CET 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000187.html">[Sleep-svn] r206 - in sleep: . src/sleep/engine/atoms tests	tests/output
+</A></li>
+        <LI>Next message: <A HREF="000189.html">[Sleep-svn] r208 - in sleep: . src/sleep/bridges tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#188">[ date ]</a>
+              <a href="thread.html#188">[ thread ]</a>
+              <a href="subject.html#188">[ subject ]</a>
+              <a href="author.html#188">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2007-03-10 01:36:35 +0100 (Sat, 10 Mar 2007)
+New Revision: 207
+
+Modified:
+   sleep/src/sleep/console/TextConsole.java
+   sleep/whatsnew.txt
+Log:
+added some more command line options.
+
+
+
+Modified: sleep/src/sleep/console/TextConsole.java
+===================================================================
+--- sleep/src/sleep/console/TextConsole.java	2007-03-08 06:45:17 UTC (rev 206)
++++ sleep/src/sleep/console/TextConsole.java	2007-03-10 00:36:35 UTC (rev 207)
+@@ -22,6 +22,8 @@
+       {
+          boolean check = false;
+          boolean ast   = false;
++         boolean eval  = false;
++         boolean expr  = false;
+          int     start = 0;
+ 
+          if (args[0].equals(&quot;-version&quot;) || args[0].equals(&quot;--version&quot;) || args[0].equals(&quot;-v&quot;))
+@@ -32,15 +34,17 @@
+          else if (args[0].equals(&quot;-help&quot;) || args[0].equals(&quot;--help&quot;) || args[0].equals(&quot;-h&quot;))
+          {
+              System.out.println(SleepUtils.SLEEP_VERSION + &quot; (&quot; + SleepUtils.SLEEP_RELEASE + &quot;)&quot;);
+-             System.out.println(&quot;Usage: java [properties] -jar sleep.jar [options] [-|file]&quot;);
++             System.out.println(&quot;Usage: java [properties] -jar sleep.jar [options] [-|file|expression]&quot;);
+              System.out.println(&quot;       properties:&quot;);
+              System.out.println(&quot;         -Dsleep.debug=&lt;debug level&gt;&quot;);
+              System.out.println(&quot;         -Dsleep.classpath=&lt;path to locate 3rd party jars from&gt;&quot;);
+              System.out.println(&quot;       options:&quot;);
+-             System.out.println(&quot;         -a --ast       display the abstract syntax tree of the specified file&quot;);
++             System.out.println(&quot;         -a --ast       display the abstract syntax tree of the specified script&quot;);
+              System.out.println(&quot;         -c --check     check the syntax of the specified file&quot;);
++             System.out.println(&quot;         -e --eval      evaluate a script as specified on command line&quot;);
++             System.out.println(&quot;         -h --help      display this help message&quot;);
+              System.out.println(&quot;         -v --version   display version information&quot;);
+-             System.out.println(&quot;         -h --help      display this help message&quot;);
++             System.out.println(&quot;         -x --expr      evaluate an expression as specified on the command line&quot;);
+              System.out.println(&quot;       file:&quot;);
+              System.out.println(&quot;         specify a '-' to read script from STDIN&quot;);
+              return;
+@@ -55,6 +59,17 @@
+              start = 1;
+              ast   = true;
+          }
++
++         if (args[start].equals(&quot;--eval&quot;) || args[start].equals(&quot;-e&quot;))
++         {
++             start++;
++             eval  = true;
++         }
++         else if (args[start].equals(&quot;--expr&quot;) || args[start].equals(&quot;-x&quot;))
++         {
++             start++;
++             expr  = true;
++         }
+          
+          //
+          // put all of our command line arguments into an array scalar
+@@ -69,14 +84,24 @@
+          try
+          {
+             ScriptInstance script;
+-            if (args[start].equals(&quot;-&quot;))
++
++            if (eval)
+             {
++                script = loader.loadScript(args[start - 1], args[start], new Hashtable());
++            }
++            else if (expr)
++            {
++                script = loader.loadScript(args[start - 1], &quot;println(&quot; + args[start] + &quot;);&quot;, new Hashtable());
++            }
++            else if (args[start].equals(&quot;-&quot;))
++            {
+                 script = loader.loadScript(&quot;STDIN&quot;, System.in);
+             }
+             else
+             {
+                 script = loader.loadScript(args[start]);     // load the script, parse it, etc.
+             }
++
+             script.getScriptVariables().putScalar(&quot;@ARGV&quot;, array);  // set @ARGV to be our array of command line arguments
+ 
+             if (System.getProperty(&quot;sleep.debug&quot;) != null)
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2007-03-08 06:45:17 UTC (rev 206)
++++ sleep/whatsnew.txt	2007-03-10 00:36:35 UTC (rev 207)
+@@ -15,6 +15,9 @@
+ - SValue atomic step now returns a copy of the scalar literal and not a
+   reference to the scalar.  This prevents constants from being &quot;changed&quot;
+   on accident.
++- Added a -e|--eval and -x|--expr command line options to sleep.jar; these
++  options allow whole scripts/expressions to be specified on the command 
++  line for evaluation.
+ 
+ 2.1-beta 11  (3 Dec 06)
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000187.html">[Sleep-svn] r206 - in sleep: . src/sleep/engine/atoms tests	tests/output
+</A></li>
+	<LI>Next message: <A HREF="000189.html">[Sleep-svn] r208 - in sleep: . src/sleep/bridges tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#188">[ date ]</a>
+              <a href="thread.html#188">[ thread ]</a>
+              <a href="subject.html#188">[ subject ]</a>
+              <a href="author.html#188">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

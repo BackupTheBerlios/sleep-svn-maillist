@@ -1,0 +1,512 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r99 - in sleep: . src/sleep/bridges	src/sleep/engine/atoms tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2006-August/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r99%20-%20in%20sleep%3A%20.%20src/sleep/bridges%0A%09src/sleep/engine/atoms%20tests%20tests/output&In-Reply-To=%3C200608160128.k7G1SXPF008466%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000080.html">
+   <LINK REL="Next"  HREF="000082.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r99 - in sleep: . src/sleep/bridges	src/sleep/engine/atoms tests tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r99%20-%20in%20sleep%3A%20.%20src/sleep/bridges%0A%09src/sleep/engine/atoms%20tests%20tests/output&In-Reply-To=%3C200608160128.k7G1SXPF008466%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r99 - in sleep: . src/sleep/bridges	src/sleep/engine/atoms tests tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Wed Aug 16 03:28:33 CEST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000080.html">[Sleep-svn] r98 - in sleep: . src/sleep/bridges src/sleep/bridges/io
+</A></li>
+        <LI>Next message: <A HREF="000082.html">[Sleep-svn] r100 - in sleep: . docs
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#81">[ date ]</a>
+              <a href="thread.html#81">[ thread ]</a>
+              <a href="subject.html#81">[ subject ]</a>
+              <a href="author.html#81">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2006-08-16 03:28:14 +0200 (Wed, 16 Aug 2006)
+New Revision: 99
+
+Added:
+   sleep/tests/confused.sl
+   sleep/tests/genfun.sl
+   sleep/tests/output/confused.sl
+   sleep/tests/output/genfun.sl
+Modified:
+   sleep/src/sleep/bridges/BasicIO.java
+   sleep/src/sleep/bridges/BasicUtilities.java
+   sleep/src/sleep/bridges/BridgeUtilities.java
+   sleep/src/sleep/bridges/SleepClosure.java
+   sleep/src/sleep/engine/atoms/Iterate.java
+   sleep/whatsnew.txt
+Log:
+Lots of fun fixing this mess...
+
+
+
+Modified: sleep/src/sleep/bridges/BasicIO.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicIO.java	2006-08-09 02:27:05 UTC (rev 98)
++++ sleep/src/sleep/bridges/BasicIO.java	2006-08-16 01:28:14 UTC (rev 99)
+@@ -316,9 +316,8 @@
+        public Scalar evaluate(String n, ScriptInstance inst, Stack l)
+        {
+           IOObject a       = chooseSource(l, 2);
+-          ScalarArray   ar = BridgeUtilities.getArray(l);
+ 
+-          Iterator i = ar.scalarIterator();
++          Iterator i = BridgeUtilities.getIterator(l, inst);
+           while (i.hasNext())
+           {
+              a.printLine(i.next().toString());
+
+Modified: sleep/src/sleep/bridges/BasicUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicUtilities.java	2006-08-09 02:27:05 UTC (rev 98)
++++ sleep/src/sleep/bridges/BasicUtilities.java	2006-08-16 01:28:14 UTC (rev 99)
+@@ -231,7 +231,7 @@
+            
+           while (!l.isEmpty())
+           {
+-             value.getArray().push(BridgeUtilities.getScalar(l));
++             value.getArray().push(SleepUtils.getScalar(BridgeUtilities.getScalar(l)));
+           }
+ 
+           return value;
+@@ -419,12 +419,11 @@
+        public Scalar evaluate(String n, ScriptInstance si, Stack l)
+        {
+           SleepClosure temp  = BridgeUtilities.getFunction(l, si);           
+-          ScalarArray  value = BridgeUtilities.getArray(l); 
++          Iterator     i     = BridgeUtilities.getIterator(l, si);
+ 
+-          Scalar       rv    = SleepUtils.getArrayScalar();
++          Scalar       rv     = SleepUtils.getArrayScalar();
+           Stack        locals = new Stack();
+ 
+-          Iterator i = value.scalarIterator();
+           while (i.hasNext())
+           {
+              locals.push(i.next());
+@@ -433,7 +432,7 @@
+ 
+              if (!SleepUtils.isEmptyScalar(val) || n.equals(&quot;&amp;map&quot;))
+              {
+-                rv.getArray().push(val);
++                rv.getArray().push(SleepUtils.getScalar(val));
+              }
+ 
+              locals.clear();
+@@ -448,9 +447,8 @@
+        public Scalar evaluate(String n, ScriptInstance si, Stack l)
+        {
+           Scalar      value = SleepUtils.getArrayScalar();
+-          ScalarArray temp  = BridgeUtilities.getArray(l);           
++          Iterator    i     = BridgeUtilities.getIterator(l, si);
+ 
+-          Iterator i = temp.scalarIterator();
+           while (i.hasNext())
+           {
+              value.getArray().push(SleepUtils.getScalar((Scalar)i.next()));
+@@ -482,10 +480,9 @@
+     {
+        public Scalar evaluate(String n, ScriptInstance si, Stack l)
+        {
+-          ScalarArray temp  = BridgeUtilities.getArray(l);
+           Scalar value = SleepUtils.getArrayScalar();
++          Iterator  i  = BridgeUtilities.getIterator(l, si);
+ 
+-          Iterator i = temp.scalarIterator();
+           while (i.hasNext())
+           {
+              value.getArray().add(SleepUtils.getScalar((Scalar)i.next()), 0);
+@@ -695,7 +692,7 @@
+ 
+              if (!s.contains(temp.toString()))
+              {
+-                a.push(temp);
++                a.push(SleepUtils.getScalar(temp));
+              }
+           }
+ 
+@@ -705,7 +702,7 @@
+        {
+           Scalar item = BridgeUtilities.getScalar(l);
+           int index = BridgeUtilities.getInt(l, value.getArray().size());  
+-          return value.getArray().add(item, index);
++          return value.getArray().add(SleepUtils.getScalar(item), index);
+        }
+        else if (n.equals(&quot;&amp;pop&quot;))
+        {
+@@ -765,10 +762,9 @@
+        else if (n.equals(&quot;&amp;reduce&quot;) &amp;&amp; SleepUtils.isFunctionScalar(value))
+        {
+           SleepClosure f    = SleepUtils.getFunctionFromScalar(value, i); 
+-          ScalarArray array = BridgeUtilities.getArray(l);
+           Stack locals      = new Stack();
+ 
+-          Iterator iter = array.scalarIterator();
++          Iterator iter = BridgeUtilities.getIterator(l, i);
+ 
+           Scalar a      = iter.hasNext() ? (Scalar)iter.next() : SleepUtils.getEmptyScalar();
+           Scalar b      = iter.hasNext() ? (Scalar)iter.next() : SleepUtils.getEmptyScalar();
+@@ -808,7 +804,7 @@
+              Scalar rv = SleepUtils.getArrayScalar();
+              while (begin &lt; end)
+              {
+-                rv.getArray().push(value.getArray().getAt(begin));
++                rv.getArray().push(SleepUtils.getScalar(value.getArray().getAt(begin)));
+                 begin++;
+              }
+ 
+@@ -850,7 +846,7 @@
+ 
+              while (ih.hasNext())
+              {
+-                  temp.getArray().push(value.getHash().getAt((Scalar)ih.next()));
++                  temp.getArray().push(SleepUtils.getScalar(value.getHash().getAt((Scalar)ih.next())));
+              }
+ 
+              return temp;
+
+Modified: sleep/src/sleep/bridges/BridgeUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BridgeUtilities.java	2006-08-09 02:27:05 UTC (rev 98)
++++ sleep/src/sleep/bridges/BridgeUtilities.java	2006-08-16 01:28:14 UTC (rev 99)
+@@ -98,6 +98,22 @@
+       return ((Scalar)arguments.pop()).doubleValue();
+    }
+ 
++   /** grabs a scalar iterator, this can come from either an array or a closure called continuously until $null is returned. */
++   public static Iterator getIterator(Stack arguments, ScriptInstance script)
++   {
++      if (arguments.isEmpty())
++        return getArray(arguments).scalarIterator();
++
++      Scalar temp = (Scalar)arguments.pop();
++
++      if (temp.getArray() != null)
++      {
++         return temp.getArray().scalarIterator();
++      }      
++
++      return SleepUtils.getFunctionFromScalar(temp, script).scalarIterator();
++   }
++
+    /** grab a sleep array, if the stack is empty a scalar array with no elements will be returned. */
+    public static ScalarArray getArray(Stack arguments)
+    {
+
+Modified: sleep/src/sleep/bridges/SleepClosure.java
+===================================================================
+--- sleep/src/sleep/bridges/SleepClosure.java	2006-08-09 02:27:05 UTC (rev 98)
++++ sleep/src/sleep/bridges/SleepClosure.java	2006-08-16 01:28:14 UTC (rev 99)
+@@ -31,6 +31,32 @@
+ /** The Sleep Closure class.  This class represents a Function object that is also a self contained closure */
+ public class SleepClosure implements Function
+ {
++    private class ClosureIterator implements Iterator
++    {
++       protected Scalar            current;
++       protected Stack             locals = new Stack();
++
++       public boolean hasNext()
++       {
++          current = callClosure(&quot;eval&quot;, null, locals);
++          return !SleepUtils.isEmptyScalar(current);
++       }
++
++       public Object next()
++       {
++          return current;
++       }
++
++       public void remove()
++       {
++       }
++    }
++
++    public Iterator scalarIterator()
++    {
++       return new ClosureIterator();
++    }
++
+     public static Class CLOSURE_CLASS;
+ 
+     static
+
+Modified: sleep/src/sleep/engine/atoms/Iterate.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/Iterate.java	2006-08-09 02:27:05 UTC (rev 98)
++++ sleep/src/sleep/engine/atoms/Iterate.java	2006-08-16 01:28:14 UTC (rev 99)
+@@ -43,35 +43,6 @@
+       public int      count    = 0;
+    }
+ 
+-   private static class FunctionIterator implements Iterator
+-   {
+-      protected SleepClosure      closure;
+-      protected ScriptInstance    si;
+-      protected Scalar            current;
+-      protected Stack             locals = new Stack();
+-
+-      public FunctionIterator(SleepClosure c, ScriptInstance i)
+-      {
+-         closure = c;
+-         si      = i;
+-      }
+-
+-      public boolean hasNext()
+-      {
+-         current = closure.callClosure(&quot;eval&quot;, si, locals);
+-         return !SleepUtils.isEmptyScalar(current);
+-      }
+-
+-      public Object next()
+-      {
+-         return current;
+-      }
+-
+-      public void remove()
+-      {
+-      }
+-   }
+-
+    public static final int ITERATOR_CREATE   = 1;
+    public static final int ITERATOR_DESTROY  = 2;
+    public static final int ITERATOR_NEXT     = 3;
+@@ -152,7 +123,7 @@
+       }
+       else if (SleepUtils.isFunctionScalar(data.source))
+       {
+-         data.iterator = new FunctionIterator(SleepUtils.getFunctionFromScalar(data.source, e.getScriptInstance()), e.getScriptInstance()); 
++         data.iterator = SleepUtils.getFunctionFromScalar(data.source, e.getScriptInstance()).scalarIterator();
+       }
+       else
+       {
+
+Added: sleep/tests/confused.sl
+===================================================================
+--- sleep/tests/confused.sl	2006-08-09 02:27:05 UTC (rev 98)
++++ sleep/tests/confused.sl	2006-08-16 01:28:14 UTC (rev 99)
+@@ -0,0 +1,41 @@
++#
++# this file replicates a bug found in Sleep 2.1 where many array functions were not
++# creating a new scalar container with a reference to a scalar value rather they shared
++# the old scalar container they were passed resulting in all kinds of unpredictable behavior
++# 
++# push took the right measures to copy but functions like add and many others did not.
++#
++debug(7);
++global('@a @b $temp1 $temp2');
++
++#
++# test 1
++#
++$temp1 = &quot;this is a test&quot;;
++push(@a, $temp1);
++
++println(&quot;Before: Contents of @a (temp1 is $temp1 $+ )&quot;);
++printAll(@a);
++
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">+ at a</A>[0] = &quot;this is a changed value&quot;;
++
++println(&quot;After: Contents of @a (temp1 is $temp1 $+ )&quot;);
++printAll(@a);
++
++
++#
++# test 2
++#
++$temp2 = &quot;this is a test&quot;;
++add(@b, $temp2);
++
++println(&quot;Before: Contents of @b (temp2 is $temp2 $+ )&quot;);
++printAll(@b);
++
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">+ at b</A>[0] = &quot;this is a changed value&quot;;
++
++println(&quot;After: Contents of @b (temp2 is $temp2 $+ )&quot;);
++printAll(@b);
++
++
++
+
+Added: sleep/tests/genfun.sl
+===================================================================
+--- sleep/tests/genfun.sl	2006-08-09 02:27:05 UTC (rev 98)
++++ sleep/tests/genfun.sl	2006-08-16 01:28:14 UTC (rev 99)
+@@ -0,0 +1,39 @@
++#
++# testing out some fun with closures/arrays being semi-interchangeable
++# 
++debug(7); # a good habit I should try to fall into more often
++
++global('$r1 $r2 @temp @temp2 @output');
++
++sub generator
++{
++   this('$current');
++   $current = $start;
++
++   while ($current &lt; $end)
++   {
++      yield $current;
++      $current++;
++   }
++
++   return $null;
++}
++
++$r1 = lambda(&amp;generator, $start =&gt; 0, $end =&gt; 100);
++$r2 = lambda(&amp;generator, $start =&gt; 5, $end =&gt; 20);
++
++printAll($r2);
++
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">+ at temp</A> = copy($r1);
++println(&quot;Size of @temp is: &quot; . size(@temp));
++
++printAll(reverse($r2));
++
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">+ at temp2</A> = copy($r2);
++println(&quot;Size of @temp2 is: &quot;. size(@temp2));
++printAll(@temp2);
++
++println(&quot;All of the even numbered elements of @temp2 are: &quot;);
++
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">+ at output</A> = filter({ return iff(($1 % 2) == 0, $1, $null); }, $r2);
++printAll(@output);
+
+Added: sleep/tests/output/confused.sl
+===================================================================
+--- sleep/tests/output/confused.sl	2006-08-09 02:27:05 UTC (rev 98)
++++ sleep/tests/output/confused.sl	2006-08-16 01:28:14 UTC (rev 99)
+@@ -0,0 +1,8 @@
++Before: Contents of @a (temp1 is this is a test)
++this is a test
++After: Contents of @a (temp1 is this is a test)
++this is a changed value
++Before: Contents of @b (temp2 is this is a test)
++this is a test
++After: Contents of @b (temp2 is this is a test)
++this is a changed value
+
+Added: sleep/tests/output/genfun.sl
+===================================================================
+--- sleep/tests/output/genfun.sl	2006-08-09 02:27:05 UTC (rev 98)
++++ sleep/tests/output/genfun.sl	2006-08-16 01:28:14 UTC (rev 99)
+@@ -0,0 +1,55 @@
++5
++6
++7
++8
++9
++10
++11
++12
++13
++14
++15
++16
++17
++18
++19
++Size of @temp is: 100
++19
++18
++17
++16
++15
++14
++13
++12
++11
++10
++9
++8
++7
++6
++5
++Size of @temp2 is: 15
++5
++6
++7
++8
++9
++10
++11
++12
++13
++14
++15
++16
++17
++18
++19
++All of the even numbered elements of @temp2 are: 
++6
++8
++10
++12
++14
++16
++18
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-08-09 02:27:05 UTC (rev 98)
++++ sleep/whatsnew.txt	2006-08-16 01:28:14 UTC (rev 99)
+@@ -32,6 +32,16 @@
+   function
+ - &amp;wait when called on a process will now wait for that process to exit
+   and return the exit value of the process.
++- added a new function to BridgeUtilities to extract an &quot;iterator&quot; from the
++  argument stack, this iterator will be generated if the argument is an array
++  or generator function.  This allows certain functions to accept an array
++  or generator function interchangeably.
++- updated several functions in the sleep utility library to use this new
++  iterator extractor mechanism:
++  &amp;map, &amp;filter, &amp;copy, &amp;reverse, &amp;reduce, &amp;printAll
++- fixed a bug where several bridge utility functions were inadvertently 
++  causing arrays/hashes to share scalar references with passed in data. 
++  &amp;add, &amp;addAll, &amp;array, &amp;filter, &amp;map, &amp;subarray, and &amp;map.
+ 
+ 2.1-beta 2
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000080.html">[Sleep-svn] r98 - in sleep: . src/sleep/bridges src/sleep/bridges/io
+</A></li>
+	<LI>Next message: <A HREF="000082.html">[Sleep-svn] r100 - in sleep: . docs
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#81">[ date ]</a>
+              <a href="thread.html#81">[ thread ]</a>
+              <a href="subject.html#81">[ subject ]</a>
+              <a href="author.html#81">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,853 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r114 - in sleep: . src/sleep/bridges src/sleep/engine	src/sleep/engine/atoms src/sleep/engine/types tests	tests/data tests/data/src/org/hick/blah tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2006-September/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r114%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20src/sleep/engine%0A%09src/sleep/engine/atoms%20src/sleep/engine/types%20tests%0A%09tests/data%20tests/data/src/org/hick/blah%20tests/output&In-Reply-To=%3C200609122306.k8CN659G010770%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000095.html">
+   <LINK REL="Next"  HREF="000097.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r114 - in sleep: . src/sleep/bridges src/sleep/engine	src/sleep/engine/atoms src/sleep/engine/types tests	tests/data tests/data/src/org/hick/blah tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r114%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20src/sleep/engine%0A%09src/sleep/engine/atoms%20src/sleep/engine/types%20tests%0A%09tests/data%20tests/data/src/org/hick/blah%20tests/output&In-Reply-To=%3C200609122306.k8CN659G010770%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r114 - in sleep: . src/sleep/bridges src/sleep/engine	src/sleep/engine/atoms src/sleep/engine/types tests	tests/data tests/data/src/org/hick/blah tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Wed Sep 13 01:06:05 CEST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000095.html">[Sleep-svn] r113 - in sleep: . src/sleep/parser tests tests/output
+</A></li>
+        <LI>Next message: <A HREF="000097.html">[Sleep-svn] r115 - in sleep: . src/sleep/bridges	src/sleep/bridges/io tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#96">[ date ]</a>
+              <a href="thread.html#96">[ thread ]</a>
+              <a href="subject.html#96">[ subject ]</a>
+              <a href="author.html#96">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2006-09-13 01:06:03 +0200 (Wed, 13 Sep 2006)
+New Revision: 114
+
+Added:
+   sleep/tests/multih.sl
+   sleep/tests/output/multih.sl
+   sleep/tests/output/wrong.sl
+   sleep/tests/wrong.sl
+Modified:
+   sleep/src/sleep/bridges/BasicNumbers.java
+   sleep/src/sleep/bridges/BasicUtilities.java
+   sleep/src/sleep/engine/ObjectUtilities.java
+   sleep/src/sleep/engine/atoms/ObjectAccess.java
+   sleep/src/sleep/engine/types/ObjectValue.java
+   sleep/tests/data/src/org/hick/blah/SqueezeBox.java
+   sleep/tests/data/test.jar
+   sleep/tests/output/fe_generatordb.sl
+   sleep/tests/trace.sl
+   sleep/whatsnew.txt
+Log:
+Broke the language... or added lots of cool stuff... take your pick.
+
+
+
+Modified: sleep/src/sleep/bridges/BasicNumbers.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicNumbers.java	2006-09-11 23:36:12 UTC (rev 113)
++++ sleep/src/sleep/bridges/BasicNumbers.java	2006-09-12 23:06:03 UTC (rev 114)
+@@ -40,16 +40,9 @@
+   
+     public BasicNumbers()
+     {
+-       try
+-       {
+-          TYPE_LONG   = Class.forName(&quot;sleep.engine.types.LongValue&quot;);
+-          TYPE_INT    = Class.forName(&quot;sleep.engine.types.IntValue&quot;);
+-          TYPE_DOUBLE = Class.forName(&quot;sleep.engine.types.DoubleValue&quot;);
+-       }
+-       catch (Exception ex)
+-       {
+-          ex.printStackTrace();
+-       }
++       TYPE_LONG   = sleep.engine.types.LongValue.class;
++       TYPE_INT    = sleep.engine.types.IntValue.class;
++       TYPE_DOUBLE = sleep.engine.types.DoubleValue.class;
+     }
+ 
+     public boolean scriptUnloaded(ScriptInstance aScript)
+
+Modified: sleep/src/sleep/bridges/BasicUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicUtilities.java	2006-09-11 23:36:12 UTC (rev 113)
++++ sleep/src/sleep/bridges/BasicUtilities.java	2006-09-12 23:06:03 UTC (rev 114)
+@@ -75,8 +75,11 @@
+ 
+         temp.put(&quot;&amp;map&quot;,    map_f);
+         temp.put(&quot;&amp;filter&quot;,    map_f);
+-        temp.put(&quot;&amp;cast&quot;,   new f_cast());
+ 
++        Function f_cast = new f_cast();
++        temp.put(&quot;&amp;cast&quot;,    f_cast);
++        temp.put(&quot;&amp;casti&quot;,   f_cast);
++
+         temp.put(&quot;&amp;addAll&quot;, this);
+         temp.put(&quot;&amp;removeAll&quot;, this);
+         temp.put(&quot;&amp;retainAll&quot;, this);
+@@ -253,6 +256,21 @@
+ 
+           if (type.length() == 0) { type = &quot; &quot;; }
+ 
++          if (n.equals(&quot;&amp;casti&quot;))
++          {
++             Class  atype = ObjectUtilities.convertDescriptionToClass(type);
++
++             if (atype != null)
++             {
++                Object tempo = ObjectUtilities.buildArgument(atype, value, si);
++                return SleepUtils.getScalar(tempo);
++             }
++             else
++             {
++                throw new RuntimeException(&quot;&amp;casti: '&quot; + type + &quot;' is an invalid primitive cast identifier&quot;);
++             }
++          }
++
+           if (value.getArray() == null)
+           {
+              if (type.charAt(0) == 'c')
+@@ -291,37 +309,10 @@
+ 
+           Object rv;
+ 
+-          Class atype = null;
++          Class atype = ObjectUtilities.convertDescriptionToClass(type);
+ 
+-          switch (type.charAt(0))
+-          {
+-             case 'z':
+-                atype = Boolean.TYPE;
+-                break;
+-             case 'c':
+-                atype = Character.TYPE;
+-                break;
+-             case 'b':
+-                atype = Byte.TYPE;
+-                break;
+-             case 'h':
+-                atype = Short.TYPE;
+-                break;
+-             case 'i':
+-                atype = Integer.TYPE;
+-                break;
+-             case 'l':
+-                atype = Long.TYPE;
+-                break;
+-             case 'f':
+-                atype = Float.TYPE;
+-                break;
+-             case 'd':
+-                atype = Double.TYPE;
+-                break;
+-             default:
+-                atype = ObjectUtilities.getArrayType(value, ObjectUtilities.OBJECT_TYPE);
+-          }
++          if (atype == null)
++              atype = ObjectUtilities.getArrayType(value, ObjectUtilities.OBJECT_TYPE);
+ 
+           Scalar flat = BridgeUtilities.flattenArray(value, null);
+ 
+
+Modified: sleep/src/sleep/engine/ObjectUtilities.java
+===================================================================
+--- sleep/src/sleep/engine/ObjectUtilities.java	2006-09-11 23:36:12 UTC (rev 113)
++++ sleep/src/sleep/engine/ObjectUtilities.java	2006-09-12 23:06:03 UTC (rev 114)
+@@ -33,40 +33,48 @@
+ 
+ import sleep.bridges.*;
+ 
++/** This class is sort of the center of the HOES universe containing several methods for mapping 
++    between Sleep and Java and resolving which mappings make sense. */
+ public class ObjectUtilities
+ {
+    private static Class STRING_SCALAR;
+    private static Class INT_SCALAR; 
+    private static Class DOUBLE_SCALAR;
+    private static Class LONG_SCALAR;
+-   public  static Class BOOLEAN_TYPE, BYTE_TYPE, CHARACTER_TYPE, DOUBLE_TYPE, FLOAT_TYPE, INTEGER_TYPE, LONG_TYPE, STRING_TYPE, OBJECT_TYPE;
++   private static Class OBJECT_SCALAR;
+ 
++   /** various primitives... doo doo doo */
++   public static Class BOOLEAN_TYPE, BYTE_TYPE, CHARACTER_TYPE, DOUBLE_TYPE, FLOAT_TYPE, INTEGER_TYPE, LONG_TYPE, STRING_TYPE, OBJECT_TYPE;
++
+    static
+    {
+-      try
+-      {
+-         STRING_SCALAR = Class.forName(&quot;sleep.engine.types.StringValue&quot;);
+-         INT_SCALAR    = Class.forName(&quot;sleep.engine.types.IntValue&quot;);
+-         DOUBLE_SCALAR = Class.forName(&quot;sleep.engine.types.DoubleValue&quot;);
+-         LONG_SCALAR   = Class.forName(&quot;sleep.engine.types.LongValue&quot;);
++      STRING_SCALAR = sleep.engine.types.StringValue.class;
++      INT_SCALAR    = sleep.engine.types.IntValue.class;
++      DOUBLE_SCALAR = sleep.engine.types.DoubleValue.class;
++      LONG_SCALAR   = sleep.engine.types.LongValue.class;
++      OBJECT_SCALAR = sleep.engine.types.ObjectValue.class;
+ 
+-         BOOLEAN_TYPE    = Class.forName(&quot;java.lang.Boolean&quot;);
+-         BYTE_TYPE       = Class.forName(&quot;java.lang.Byte&quot;);
+-         CHARACTER_TYPE  = Class.forName(&quot;java.lang.Character&quot;);
+-         DOUBLE_TYPE     = Class.forName(&quot;java.lang.Double&quot;);
+-         FLOAT_TYPE      = Class.forName(&quot;java.lang.Float&quot;);
+-         INTEGER_TYPE    = Class.forName(&quot;java.lang.Integer&quot;);
+-         LONG_TYPE       = Class.forName(&quot;java.lang.Long&quot;);
+-         OBJECT_TYPE     = Class.forName(&quot;java.lang.Object&quot;);
+-         STRING_TYPE     = Class.forName(&quot;java.lang.String&quot;);
+-      }
+-      catch (Exception ex) { }
++      BOOLEAN_TYPE    = java.lang.Boolean.class;
++      BYTE_TYPE       = java.lang.Byte.class;
++      CHARACTER_TYPE  = java.lang.Character.class;
++      DOUBLE_TYPE     = java.lang.Double.class;
++      FLOAT_TYPE      = java.lang.Float.class;
++      INTEGER_TYPE    = java.lang.Integer.class;
++      LONG_TYPE       = java.lang.Long.class;
++      OBJECT_TYPE     = java.lang.Object.class;
++      STRING_TYPE     = java.lang.String.class;
+    }
+ 
+-   public static final int ARG_MATCH_YES   = 1;
+-   public static final int ARG_MATCH_NO    = 2;
+-   public static final int ARG_MATCH_MAYBE = 3;
++   /** when looking for a Java method that matches the sleep args, we use a Yes match immediately */
++   public static final int ARG_MATCH_YES   = 3;
++  
++   /** when looking for a Java method that matches the sleep args, we immediately drop all of the no answers. */
++   public static final int ARG_MATCH_NO    = 0;
+ 
++   /** when looking for a Java method that matches the sleep args, we save the maybes and use them as a last resort if no yes match is found */
++   public static final int ARG_MATCH_MAYBE = 1;
++
++   /** convienence method to determine wether or not the stack of values is a safe match for the specified method signature */
+    public static int isArgMatch(Class[] check, Stack arguments)
+    {
+       int value = ARG_MATCH_YES;
+@@ -74,79 +82,157 @@
+       for (int z = 0; z &lt; check.length; z++)
+       {
+          Scalar scalar = (Scalar)arguments.get(check.length - z - 1);
+-         Class stemp   = scalar.getClass();
+-         String sstring = scalar.toString();
+ 
+-         if (SleepUtils.isEmptyScalar(scalar))
++         value = value &amp; isArgMatch(check[z], scalar);
++
++//         System.out.println(&quot;Matching: &quot; + scalar + &quot;(&quot; + scalar.getValue().getClass() + &quot;): to &quot; + check[z] + &quot;: &quot; + value);
++ 
++         if (value == ARG_MATCH_NO)
+          {
+-             // do nothing, this argument is a give me
++            return ARG_MATCH_NO;
+          }
+-         else if (scalar.getArray() != null)
++      }
++
++      return value;
++   }
++
++   /** converts the primitive version of the specified class to a regular usable version */
++   private static Class normalizePrimitive(Class check)
++   {
++      if (check == Integer.TYPE) { check = Integer.class; }
++      else if (check == Double.TYPE)   { check = Double.class; }
++      else if (check == Long.TYPE)     { check = Long.class; }
++      else if (check == Float.TYPE)    { check = Float.class; }
++      else if (check == Boolean.TYPE)  { check = Boolean.class; }
++      else if (check == Byte.TYPE)     { check = Byte.class; }
++      else if (check == Character.TYPE) { check = Character.class; }
++      else if (check == Short.TYPE)    { check = Short.class; }
++
++      return check;
++   }
++
++   /** determined if the specified scalar can be rightfully cast to the specified class */
++   public static int isArgMatch(Class check, Scalar scalar)
++   {
++      if (SleepUtils.isEmptyScalar(scalar))
++      {
++         return ARG_MATCH_YES;
++      }
++      else if (scalar.getArray() != null)
++      {
++         if (check.isArray())
+          {
+-            if (check[z].isArray())
++            Class compType = check.getComponentType(); /* find the actual nuts and bolts component type so we can work with it */
++            while (compType.isArray())
+             {
+-               if (check[z].getComponentType() == OBJECT_TYPE)
++               compType = compType.getComponentType();
++            }
++
++            if (compType == OBJECT_TYPE)
++            {
++               return ARG_MATCH_MAYBE;
++            }
++            else
++            {
++               Class mytype = getArrayType(scalar, null);
++ 
++               if (mytype == compType)
+                {
+-                  value = ARG_MATCH_MAYBE;
++                  return ARG_MATCH_YES;
+                }
+                else
+                {
+-                  Class mytype = getArrayType(scalar, null);
+- 
+-                  if (mytype == check[z].getComponentType())
+-                  {
+-                     value = ARG_MATCH_YES;
+-                  }
+-                  else
+-                  {
+-                     // why are we not returning this?!? a test case should be devised to test the
+-                     // implications...
+-                     value = ARG_MATCH_NO;
+-                  }
++                  return ARG_MATCH_NO;
+                }
+             }
+-            else if (check[z].isAssignableFrom(java.util.List.class))
+-            {
+-               // would a java.util.List or java.util.Collection satisfy the argument?
+-               value = ARG_MATCH_YES;
+-            }
+-            else if (!check[z].isInstance(scalar.objectValue()))
+-            {
+-               return ARG_MATCH_NO;
+-            }
+          }
+-         else if (scalar.getHash() != null)
++         else if (check.isAssignableFrom(java.util.List.class))
+          {
+-            if (check[z].isAssignableFrom(java.util.Map.class))
+-            {
+-               // would a java.util.Map or java.util.Collection satisfy the argument?
+-               value = ARG_MATCH_YES;
+-            }
+-            else if (!check[z].isInstance(scalar.objectValue()))
+-            {
+-               return ARG_MATCH_NO;
+-            }
++            // would a java.util.List or java.util.Collection satisfy the argument?
++            return ARG_MATCH_YES;
+          }
+-         else if (check[z].isPrimitive() &amp;&amp; !(stemp == INT_SCALAR || stemp == DOUBLE_SCALAR || stemp == LONG_SCALAR))
++         else if (check.isInstance(scalar.objectValue()))
+          {
+-            value = ARG_MATCH_MAYBE;
++            return ARG_MATCH_YES;
+          }
+-         else if (check[z].isInterface())
++         else
+          {
+-            if (!SleepUtils.isFunctionScalar(scalar) &amp;&amp; !check[z].isInstance(scalar.objectValue()))
+-               return ARG_MATCH_NO;
++            return ARG_MATCH_NO;
+          }
+-         else if (check[z] == STRING_TYPE &amp;&amp; stemp != STRING_SCALAR)
++      }
++      else if (scalar.getHash() != null)
++      {
++         if (check.isAssignableFrom(java.util.Map.class))
+          {
+-            value = ARG_MATCH_MAYBE;
++            // would a java.util.Map or java.util.Collection satisfy the argument?
++            return ARG_MATCH_YES;
+          }
+-         else if (!check[z].isInstance(scalar.objectValue()))
++         else if (check.isInstance(scalar.objectValue()))
+          {
++            return ARG_MATCH_YES;
++         }
++         else
++         {
+             return ARG_MATCH_NO;
+          }
+       }
+- 
+-      return value;
++      else if (check.isPrimitive())
++      {
++         Class stemp = scalar.getValue().getClass();
++
++         if (stemp == INT_SCALAR &amp;&amp; check == Integer.TYPE)
++         {
++            return ARG_MATCH_YES;
++         }
++         else if (stemp == DOUBLE_SCALAR &amp;&amp; check == Double.TYPE)
++         {
++            return ARG_MATCH_YES;
++         }
++         else if (stemp == LONG_SCALAR &amp;&amp; check == Long.TYPE)
++         {
++            return ARG_MATCH_YES;
++         }
++         else if (stemp == OBJECT_SCALAR)
++         {
++            check = normalizePrimitive(check);
++            return (scalar.objectValue().getClass() == check) ? ARG_MATCH_YES : ARG_MATCH_NO;
++         }
++         else
++         {
++            /* this is my lazy way of saying allow Long, Int, and Double scalar types to be considered
++               maybes... */
++            return (stemp == STRING_SCALAR) ? ARG_MATCH_NO : ARG_MATCH_MAYBE;
++         }
++      }
++      else if (check.isInterface())
++      {
++         if (SleepUtils.isFunctionScalar(scalar) || check.isInstance(scalar.objectValue()))
++         {
++            return ARG_MATCH_YES;
++         }
++         else
++         {
++            return ARG_MATCH_NO;
++         }
++      }
++      else if (check == STRING_TYPE)
++      {
++         Class stemp = scalar.getValue().getClass();
++         return (stemp == STRING_SCALAR) ? ARG_MATCH_YES : ARG_MATCH_MAYBE;
++      }
++      else if (check == OBJECT_TYPE)
++      {
++         return ARG_MATCH_MAYBE; /* we're vying for anything and this will match anything */
++      }
++      else if (check.isInstance(scalar.objectValue()))
++      {
++         Class stemp = scalar.getValue().getClass();
++         return (stemp == OBJECT_SCALAR) ? ARG_MATCH_YES : ARG_MATCH_MAYBE;
++      }
++      else
++      {
++         return ARG_MATCH_NO;
++      }
+    }
+ 
+    public static Method findMethod(Class theClass, String method, Stack arguments)
+@@ -201,6 +287,42 @@
+       return temp;
+    }
+ 
++   /** converts the one character class description to the specified Class type, i.e. z = boolean, c = char, b = byte, i = integer, etc.. */
++   public static Class convertDescriptionToClass(String description)
++   {
++      Class atype = null;
++
++      switch (description.charAt(0))
++      {
++         case 'z':
++            atype = Boolean.TYPE;
++            break;
++         case 'c':
++            atype = Character.TYPE;
++            break;
++         case 'b':
++            atype = Byte.TYPE;
++            break;
++         case 'h':
++            atype = Short.TYPE;
++            break;
++         case 'i':
++            atype = Integer.TYPE;
++            break;
++         case 'l':
++            atype = Long.TYPE;
++            break;
++         case 'f':
++            atype = Float.TYPE;
++            break;
++         case 'd':
++            atype = Double.TYPE;
++            break;
++      }
++
++      return atype;
++   }
++
+    public static Object buildArgument(Class type, Scalar value, ScriptInstance script)
+    {
+       if (type == STRING_TYPE)
+@@ -211,19 +333,26 @@
+       {
+          if (type.isArray())
+          {
+-            Class atype = getArrayType(value, type.getComponentType());
++            try
++            {
++               Class atype = getArrayType(value, type.getComponentType());
+ 
+-            Object arrayV = Array.newInstance(atype, value.getArray().size());
+-            Iterator i = value.getArray().scalarIterator();
+-            int x = 0;
+-            while (i.hasNext())
++               Object arrayV = Array.newInstance(atype, value.getArray().size());
++               Iterator i = value.getArray().scalarIterator();
++               int x = 0;
++               while (i.hasNext())
++               {
++                   Scalar temp = (Scalar)i.next();
++                   Array.set(arrayV, x, buildArgument(atype, temp, script));
++                   x++;
++               }
++
++               return arrayV;
++            }
++            catch (Exception ex)
+             {
+-               Scalar temp = (Scalar)i.next();
+-               Array.set(arrayV, x, buildArgument(atype, temp, script));
+-               x++;
++               throw new RuntimeException(ex.getMessage() + &quot; - maybe the dimensions are wrong?&quot;);
+             }
+-
+-            return arrayV;
+          }
+          else if (type.isAssignableFrom(java.util.List.class))
+          {
+@@ -334,7 +463,6 @@
+       return parameters;
+    }
+ 
+-
+    public static Scalar BuildScalar(boolean primitives, Object value)
+    {
+       if (value == null)
+
+Modified: sleep/src/sleep/engine/atoms/ObjectAccess.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/ObjectAccess.java	2006-09-11 23:36:12 UTC (rev 113)
++++ sleep/src/sleep/engine/atoms/ObjectAccess.java	2006-09-12 23:06:03 UTC (rev 114)
+@@ -57,7 +57,7 @@
+ 
+    public Scalar evaluate(ScriptEnvironment e)
+    {
+-      boolean isTrace = (e.getScriptInstance().getDebugFlags() &amp; ScriptInstance.DEBUG_TRACE_CALLS) == ScriptInstance.DEBUG_TRACE_CALLS;
++      boolean isTrace   = (e.getScriptInstance().getDebugFlags() &amp; ScriptInstance.DEBUG_TRACE_CALLS) == ScriptInstance.DEBUG_TRACE_CALLS;
+ 
+       Scalar result = SleepUtils.getEmptyScalar();
+ 
+
+Modified: sleep/src/sleep/engine/types/ObjectValue.java
+===================================================================
+--- sleep/src/sleep/engine/types/ObjectValue.java	2006-09-11 23:36:12 UTC (rev 113)
++++ sleep/src/sleep/engine/types/ObjectValue.java	2006-09-12 23:06:03 UTC (rev 114)
+@@ -18,17 +18,56 @@
+ 
+    public int intValue()
+    {
+-      return value.hashCode();
++      String str = toString();
++
++      if (str.length() == 0) { return 0; }
++      if (str.equals(&quot;true&quot;)) { return 1; }
++      if (str.equals(&quot;false&quot;)) { return 0; }
++
++      try
++      {
++         return Integer.decode(str).intValue();
++      }
++      catch (Exception ex)
++      {
++         return 0;
++      }
+    }
+ 
+    public long longValue()
+    {
+-      return (long)intValue();
++      String str = toString();
++
++      if (str.length() == 0) { return 0L; }
++      if (str.equals(&quot;true&quot;)) { return 1L; }
++      if (str.equals(&quot;false&quot;)) { return 0L; }
++
++      try
++      {
++         return Long.decode(str).longValue();
++      }
++      catch (Exception ex)
++      {
++         return 0L;
++      }
+    }
+ 
+    public double doubleValue()
+    {
+-      return (double)intValue();
++      String str = toString();
++
++      if (str.length() == 0) { return 0.0; }
++      if (str.equals(&quot;true&quot;)) { return 1.0; }
++      if (str.equals(&quot;false&quot;)) { return 0.0; }
++
++      try
++      {
++         return Double.parseDouble(str);
++      }
++      catch (Exception ex)
++      {
++         return 0;
++      }
+    }
+ 
+    public String toString()
+
+Modified: sleep/tests/data/src/org/hick/blah/SqueezeBox.java
+===================================================================
+--- sleep/tests/data/src/org/hick/blah/SqueezeBox.java	2006-09-11 23:36:12 UTC (rev 113)
++++ sleep/tests/data/src/org/hick/blah/SqueezeBox.java	2006-09-12 23:06:03 UTC (rev 114)
+@@ -9,4 +9,19 @@
+       sq++;
+       return sq;
+    }
++
++   public void doStuff(double[][] matrix)
++   {
++      System.out.println(&quot;Printing the table:&quot;);
++
++      for (int x = 0; x &lt; matrix.length; x++)
++      {
++         for (int y = 0; y &lt; matrix[x].length; y++)
++         {
++            System.out.print(matrix[x][y] + &quot;; &quot;);
++         } 
++
++         System.out.println(&quot;&quot;);
++      }
++   } 
+ }
+
+Modified: sleep/tests/data/test.jar
+===================================================================
+(Binary files differ)
+
+Added: sleep/tests/multih.sl
+===================================================================
+--- sleep/tests/multih.sl	2006-09-11 23:36:12 UTC (rev 113)
++++ sleep/tests/multih.sl	2006-09-12 23:06:03 UTC (rev 114)
+@@ -0,0 +1,14 @@
++#
++# test passing of a multidim data structure as a sleep array
++#
++
++import org.hick.blah.SqueezeBox from: data/test.jar;
++
++$sb = [new SqueezeBox];
++[$sb doStuff: @(@(1.0, 2.0, 3.0), @(4.0, 5.0, 6.0, 6.5), @(7.0, 8.0, 9.0))];
++
++[$sb doStuff: cast(@(@(1.0, 2.0, 3.0), @(4.0, 5.0, 6.0, 6.5), @(7.0, 8.0, 9.0)), &quot;d&quot;, 2, 5)];
++[$sb doStuff: cast(@(@(1.0, 2.0, 3.0), @(4.0, 5.0, 6.0, 6.5), @(7.0, 8.0, 9.0)), &quot;d&quot;, 5, 2)];
++
++[$sb doStuff: @(1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0)];
++
+
+Modified: sleep/tests/output/fe_generatordb.sl
+===================================================================
+--- sleep/tests/output/fe_generatordb.sl	2006-09-11 23:36:12 UTC (rev 113)
++++ sleep/tests/output/fe_generatordb.sl	2006-09-12 23:06:03 UTC (rev 114)
+@@ -19,7 +19,7 @@
+ Trace: &amp;println('8 =&gt; val: 8') at line 8
+ 9 =&gt; val: 9
+ Trace: &amp;println('9 =&gt; val: 9') at line 8
+-Trace: &amp;lambda(&amp;closure5761610, $start =&gt; 50, $stop =&gt; 60) = &amp;closure14069849 at line 22
++Trace: &amp;lambda(&amp;closure1708953, $start =&gt; 50, $stop =&gt; 60) = &amp;closure16564386 at line 22
+ Testing out range stuff: 0 =&gt; 50
+ Trace: &amp;println('Testing out range stuff: 0 =&gt; 50') at line 24
+ Testing out range stuff: 1 =&gt; 51
+@@ -41,7 +41,7 @@
+ Testing out range stuff: 9 =&gt; 59
+ Trace: &amp;println('Testing out range stuff: 9 =&gt; 59') at line 24
+ Trace: &amp;this('$start $stop') at line 29
+-Trace: &amp;_range2(70, 80) = &amp;closure13878877 at line 42
++Trace: &amp;_range2(70, 80) = &amp;closure13301441 at line 42
+ My third test: 0 =&gt; 70
+ Trace: &amp;println('My third test: 0 =&gt; 70') at line 44
+ My third test: 1 =&gt; 71
+
+Added: sleep/tests/output/multih.sl
+===================================================================
+--- sleep/tests/output/multih.sl	2006-09-11 23:36:12 UTC (rev 113)
++++ sleep/tests/output/multih.sl	2006-09-12 23:06:03 UTC (rev 114)
+@@ -0,0 +1,14 @@
++Printing the table:
++1.0; 2.0; 3.0; 
++4.0; 5.0; 6.0; 6.5; 
++7.0; 8.0; 9.0; 
++Printing the table:
++1.0; 2.0; 3.0; 4.0; 5.0; 
++6.0; 6.5; 7.0; 8.0; 9.0; 
++Printing the table:
++1.0; 2.0; 
++3.0; 4.0; 
++5.0; 6.0; 
++6.5; 7.0; 
++8.0; 9.0; 
++Warning: array element type mismatch - maybe the dimensions are wrong? at line 13
+
+Added: sleep/tests/output/wrong.sl
+===================================================================
+--- sleep/tests/output/wrong.sl	2006-09-11 23:36:12 UTC (rev 113)
++++ sleep/tests/output/wrong.sl	2006-09-12 23:06:03 UTC (rev 114)
+@@ -0,0 +1,32 @@
++Trace: [java.lang.Math pow: 3, 4] = 81.0 at line 6
++81.0
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at d6b059</A> println: 81.0] at line 6
++Trace: &amp;casti(1, 'z') = true at line 9
++true
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at d6b059</A> println: true] at line 9
++Trace: &amp;casti(0, 'z') = false at line 10
++false
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at d6b059</A> println: false] at line 10
++Trace: &amp;casti(1, 'd') = 1.0 at line 13
++1.0
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at d6b059</A> println: 1.0] at line 13
++Trace: &amp;casti(1, 'b') = 1 at line 16
++1
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at d6b059</A> println: 1] at line 16
++Trace: &amp;casti(100, 'f') = 100.0 at line 19
++100.0
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at d6b059</A> println: 100.0] at line 19
++Trace: &amp;casti('b', 'c') = b at line 22
++b
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at d6b059</A> println: b] at line 22
++Trace: &amp;casti(63, 'i') = 63 at line 25
++63
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at d6b059</A> println: 63] at line 25
++this is a string y0
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at d6b059</A> println: 'this is a string y0'] at line 28
++Trace: [new java.lang.StringBuilder: 'test'] = test at line 31
++test
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at d6b059</A> println: test] at line 31
++Trace: &amp;cast(@('a', 'b', 'c', 'd'), 'c') = [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">C at b03c1a</A> at line 34
++abcd
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at d6b059</A> println: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">C at b03c1a</A>] at line 34
+
+Modified: sleep/tests/trace.sl
+===================================================================
+--- sleep/tests/trace.sl	2006-09-11 23:36:12 UTC (rev 113)
++++ sleep/tests/trace.sl	2006-09-12 23:06:03 UTC (rev 114)
+@@ -4,7 +4,7 @@
+ debug(15);
+ 
+ [[System out] println: &quot;this is a test&quot; ];
+-[[System out] println: [Math pow:3, 4]];
++[[System out] println: [Math pow: 3, 4]];
+ println([Math pow: 3, 5]);
+ 
+ [[java.lang.System out] println: &quot;testing again...&quot;];
+
+Added: sleep/tests/wrong.sl
+===================================================================
+--- sleep/tests/wrong.sl	2006-09-11 23:36:12 UTC (rev 113)
++++ sleep/tests/wrong.sl	2006-09-12 23:06:03 UTC (rev 114)
+@@ -0,0 +1,34 @@
++#
++# this should print out as 81.0
++
++debug(15);
++
++[[System out] println: [Math pow: 3, 4]];
++
++# boolean test
++[[System out] println: casti(1, &quot;z&quot;)];
++[[System out] println: casti(0, &quot;z&quot;)];
++
++# double test
++[[System out] println: casti(1, &quot;d&quot;)];
++
++# byte test
++[[System out] println: casti(1, &quot;b&quot;)];
++
++# float test
++[[System out] println: casti(100, &quot;f&quot;)];
++
++# char test
++[[System out] println: casti(&quot;b&quot;, &quot;c&quot;)];
++
++# int test
++[[System out] println: casti(63, &quot;i&quot;)];
++
++# string test
++[[System out] println: &quot;this is a string y0&quot;];
++
++# object test
++[[System out] println: [new StringBuilder: &quot;test&quot;]];
++
++# char array test
++[[System out] println: cast(@(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;, &quot;d&quot;), &quot;c&quot;)];
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-09-11 23:36:12 UTC (rev 113)
++++ sleep/whatsnew.txt	2006-09-12 23:06:03 UTC (rev 114)
+@@ -2,7 +2,22 @@
+ ===========
+ - fixed a bug with import [path] from: [jar] not working when a package.class
+   combination was specified.
++- fixed a bug where HOES was not recognizing sleep arrays as a valid argument
++  for methods/constructs expecting multidimensional arrays.
++- HOES mapping scalars to Java arguments is now a little bit stricter and more 
++  accurate.
++- added &amp;casti(value, &quot;t&quot;) to cast the specified value into a Java primitive type.
++- altered the semtantics for how Java Object values are converted to Sleep
++  scalar number values.  Essentially the Object is converted to a string and the
++  string is parsed with the following meaning:
++  &lt;not a number&gt; = 0
++  &quot;true&quot;         = 1
++  &quot;false&quot;        = 0
++  &quot;&quot;             = 0
++  &lt;a number&gt;     = &lt;a number&gt;
+ 
++  The old semantics (object hashcode) were worthless so I doubt there will be 
++  many complaints.
+ 
+ 2.1-beta 4
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000095.html">[Sleep-svn] r113 - in sleep: . src/sleep/parser tests tests/output
+</A></li>
+	<LI>Next message: <A HREF="000097.html">[Sleep-svn] r115 - in sleep: . src/sleep/bridges	src/sleep/bridges/io tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#96">[ date ]</a>
+              <a href="thread.html#96">[ thread ]</a>
+              <a href="subject.html#96">[ subject ]</a>
+              <a href="author.html#96">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

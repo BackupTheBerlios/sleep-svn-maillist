@@ -1,0 +1,192 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r133 - sleep/docs
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2006-October/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r133%20-%20sleep/docs&In-Reply-To=%3C200610020213.k922D3Jk009777%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000114.html">
+   <LINK REL="Next"  HREF="000116.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r133 - sleep/docs</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r133%20-%20sleep/docs&In-Reply-To=%3C200610020213.k922D3Jk009777%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r133 - sleep/docs">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Mon Oct  2 04:13:03 CEST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000114.html">[Sleep-svn] r132 - in sleep: . src/sleep/runtime
+</A></li>
+        <LI>Next message: <A HREF="000116.html">[Sleep-svn] r134 - sleep/docs
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#115">[ date ]</a>
+              <a href="thread.html#115">[ thread ]</a>
+              <a href="subject.html#115">[ subject ]</a>
+              <a href="author.html#115">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2006-10-02 04:13:03 +0200 (Mon, 02 Oct 2006)
+New Revision: 133
+
+Modified:
+   sleep/docs/sleeplang.html
+Log:
+updated documentation
+
+
+
+Modified: sleep/docs/sleeplang.html
+===================================================================
+--- sleep/docs/sleeplang.html	2006-10-02 02:12:14 UTC (rev 132)
++++ sleep/docs/sleeplang.html	2006-10-02 02:13:03 UTC (rev 133)
+@@ -881,10 +881,25 @@
+ 
+ &lt;pre&gt;%hash = %(key1 =&gt; &quot;this is a value&quot;, key2 =&gt; 3 * (9 % 7));&lt;/pre&gt;
+ 
+-&lt;p&gt;The =&gt; is the key/value pair operator.  Any time a key/value pair is required as a parameter it can be specified with =&gt; or 
+-as a string separating the key/value by an equal sign i.e. 'key=value'.  The =&gt; operator is special because the left hand side (key) is taken 
+-as-is with no evaluation by the sleep language.&lt;/p&gt;
++&lt;p&gt;The =&gt; is the key/value pair operator.  The key/value pair operator can be used with special functions to 
++specify a key/value pair.  The left hand side is never evaluated.&lt;/p&gt;
+ 
++&lt;p&gt;Sleep subroutines (and closures) can receive named parameters using the key/value operator.  When a named 
++parameter is specified the left hand side must be equivalent to the variable to be installed into the local
++environment of the called subroutine.  Within a subroutine @_ and $1, $2, ... are not affected by a key/value
++argument.  The named parameter is simply available for immediate use.&lt;/p&gt;
++
++&lt;pre&gt;sub blah
++{
++   println(&quot;My name is $first $last $+ , and I like $1&quot;);
++}
++
++blah($first =&gt; &quot;Raphael&quot;, $last =&gt; &quot;Mudge&quot;, &quot;ice cream!!!&quot;);
++blah(&quot;ice cream!!!&quot;, $first =&gt; &quot;Raphael&quot;, $last =&gt; &quot;Mudge&quot;);
++blah($first =&gt; &quot;Raphael&quot;, &quot;ice cream!!!&quot;, $last =&gt; &quot;Mudge&quot;);&lt;/pre&gt;
++
++&lt;p&gt;The example above prints 'My name is Raphael Mudge, and I like ice cream!!!' three times.&lt;/p&gt;
++
+ &lt;h3&gt;Multidimensional Hashes/Arrays&lt;/h3&gt;
+ 
+ &lt;p&gt;Multidimensional hashes work exactly the same as Sleep arrays.  It is also possible to have an array of hashes, or a hash of 
+@@ -1202,6 +1217,9 @@
+ compound things there is no synchronization to protect against both environments using the data at the same time.  In short,
+ if you pass an initial value to a fork, discipline yourself to only manipulate that data from one environment.&lt;/p&gt;
+ 
++&lt;p&gt;Sleep does provide semaphores as a synchronization primitive that can be used to lock critical sections of 
++code.  Semaphores can be used to control resources that forks attempt to access.&lt;/p&gt;
++
+ &lt;h3&gt;Working with Binary Data&lt;/h3&gt;
+ 
+ &lt;p&gt;Sleep also has the ability to work with binary data.  A byte of data is generally represented as a string of one character 
+@@ -1558,28 +1576,19 @@
+ 
+ &lt;h3&gt;Coroutines&lt;/h3&gt;
+ 
+-&lt;p&gt;Another nifty trick of Sleep closures is that they can also be used as coroutines.  A coroutine is a function with
+-multiple points of entry (rather than just a single point of entry as is common with subroutines).&lt;/p&gt;
++&lt;p&gt;Another nifty trick of Sleep closures is that they can also be used as coroutines.  A coroutine is a function
++with multiple points of entry (rather than just a single point of entry as is common with subroutines).&lt;/p&gt;
+ 
+ &lt;h4&gt;The Yield Command&lt;/h4&gt;
+ 
+-&lt;p&gt;Sleep implements coroutines with a &lt;b&gt;yield&lt;/b&gt; command.  The yield command causes the current closure to stop executing
+-and to return to where it started.  Just like return you can specify a scalar with yield that will be return value of
+-the current closure call.&lt;/p&gt;
++&lt;p&gt;Sleep implements coroutines with a &lt;b&gt;yield&lt;/b&gt; command.  The yield command causes the current closure to 
++stop executing, save its current execution state (including local variables) and to return a value.  In short
++yield works just like return except it saves the current execution state.&lt;/p&gt;
+ 
+-&lt;p&gt;What separates yield from return is next time the yielded closure is called, execution will resume from the place
+-where yield was last called.&lt;/p&gt;
++&lt;p&gt;What separates yield from return is next time the yielded closure is called, the saved execution state will be
++loaded (including local variables) and execution of the coroutine will resume from the place where yield was 
++last called.&lt;/p&gt;
+ 
+-&lt;p&gt;When execution is restored local variables are not preserved.  If you want to preserve variables you will need to 
+-place variables into the &lt;b&gt;this&lt;/b&gt; scope for the current closure.  Arguments passed to each call on the closure
+-will be available as local variables $1, $2, etc. during the current call.&lt;/p&gt;
+-
+-&lt;p&gt;It is important to note that while coroutines can call other coroutines, a coroutine should not recursively call
+-itself.  A closure turns into a coroutine once the yield keyword has been utilized.  The reason coroutines should not
+-call themselves is because when yield is used the context of the closure is saved.  Next time the closure is executed
+-the last used context is restored.  If a coroutine is trying to save its context while at the same time trying to 
+-restore from the last execution, bad things will happen.&lt;/p&gt;
+-
+ &lt;p&gt;When the return command is used or the end of the closure is reached, the saved context will be discarded.&lt;/p&gt;
+ 
+ &lt;h4&gt;Generators with Coroutines&lt;/h4&gt;
+@@ -2436,6 +2445,11 @@
+   &lt;th&gt;Description&lt;/th&gt;
+  &lt;/tr&gt;  
+  &lt;tr&gt;
++  &lt;td&gt;&lt;/td&gt;
++  &lt;td&gt;acquire($semaphore)&lt;/td&gt;
++  &lt;td&gt;blocks the current thread of execution until the semaphore count is &gt; 0, when that happens the semaphore count is decremented.&lt;/td&gt;
++ &lt;/tr&gt;
++ &lt;tr&gt;
+   &lt;td&gt;$&lt;/td&gt;
+   &lt;td&gt;checkError([$scalar])&lt;/td&gt;
+   &lt;td&gt;returns the last error message to occur.  if a $scalar is specified : $scalar is set to the error string.  Once chekError() is called the error message is cleared.  Functions that might flag an error will be documented.&lt;/td&gt;
+@@ -2488,6 +2502,26 @@
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td&gt;&lt;/td&gt;
++  &lt;td&gt;release($semaphore)&lt;/td&gt;
++  &lt;td&gt;increments the count value of the specified semaphore.&lt;/td&gt;
++ &lt;/tr&gt;
++ &lt;tr&gt;
++  &lt;td&gt;&lt;/td&gt;
++  &lt;td&gt;setf('&amp;func_name', &amp;closure)&lt;/td&gt;
++  &lt;td&gt;sets the specified function to be bound to the specified closure.&lt;/td&gt;
++ &lt;/tr&gt;
++ &lt;tr&gt;
++  &lt;td&gt;&lt;/td&gt;
++  &lt;td&gt;setField(class|$object, &quot;field&quot;, value)&lt;/td&gt;
++  &lt;td&gt;sets a public/protected field of the specified class or instance of $object to a specified value.&lt;/td&gt;
++ &lt;/tr&gt;
++ &lt;tr&gt;
++  &lt;td&gt;$&lt;/td&gt;
++  &lt;td&gt;semaphore([initial value])&lt;/td&gt;
++  &lt;td&gt;constructs a $semaphore suitable for use with &amp;acquire and &amp;release.&lt;/td&gt;
++ &lt;/tr&gt;
++ &lt;tr&gt;
++  &lt;td&gt;&lt;/td&gt;
+   &lt;td&gt;sleep(n)&lt;/td&gt;
+   &lt;td&gt;force the current executing thread to sleep for n milliseconds&lt;/td&gt;
+  &lt;/tr&gt;
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000114.html">[Sleep-svn] r132 - in sleep: . src/sleep/runtime
+</A></li>
+	<LI>Next message: <A HREF="000116.html">[Sleep-svn] r134 - sleep/docs
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#115">[ date ]</a>
+              <a href="thread.html#115">[ thread ]</a>
+              <a href="subject.html#115">[ subject ]</a>
+              <a href="author.html#115">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

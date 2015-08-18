@@ -1,0 +1,497 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r19 - in sleep: . src/sleep/bridges src/sleep/console src/sleep/engine src/sleep/engine/atoms src/sleep/parser tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2005-June/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r19%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20src/sleep/console%20src/sleep/engine%20src/sleep/engine/atoms%20src/sleep/parser%20tests%20tests/output&In-Reply-To=%3C200506061927.j56JR7aj025425%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000007.html">
+   <LINK REL="Next"  HREF="000009.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r19 - in sleep: . src/sleep/bridges src/sleep/console src/sleep/engine src/sleep/engine/atoms src/sleep/parser tests tests/output</H1>
+    <B>Raphael Mudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r19%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20src/sleep/console%20src/sleep/engine%20src/sleep/engine/atoms%20src/sleep/parser%20tests%20tests/output&In-Reply-To=%3C200506061927.j56JR7aj025425%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r19 - in sleep: . src/sleep/bridges src/sleep/console src/sleep/engine src/sleep/engine/atoms src/sleep/parser tests tests/output">rsmudge at sheep.berlios.de
+       </A><BR>
+    <I>Mon Jun  6 21:27:07 CEST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000007.html">[Sleep-svn] r18 - in sleep: . src/sleep/bridges src/sleep/bridges/io
+</A></li>
+        <LI>Next message: <A HREF="000009.html">[Sleep-svn] r20 - sleep/docs
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#8">[ date ]</a>
+              <a href="thread.html#8">[ thread ]</a>
+              <a href="subject.html#8">[ subject ]</a>
+              <a href="author.html#8">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2005-06-06 21:27:06 +0200 (Mon, 06 Jun 2005)
+New Revision: 19
+
+Added:
+   sleep/tests/newforeach.sl
+   sleep/tests/newnumbers.sl
+   sleep/tests/output/newforeach.sl
+   sleep/tests/output/newnumbers.sl
+Modified:
+   sleep/src/sleep/bridges/BasicUtilities.java
+   sleep/src/sleep/console/ConsoleImplementation.java
+   sleep/src/sleep/engine/GeneratedSteps.java
+   sleep/src/sleep/engine/atoms/Foreach.java
+   sleep/src/sleep/parser/Checkers.java
+   sleep/src/sleep/parser/CodeGenerator.java
+   sleep/src/sleep/parser/ParserConstants.java
+   sleep/src/sleep/parser/TokenParser.java
+   sleep/whatsnew.txt
+Log:
+Extended foreach syntax, new code for parsing number literals, etc.
+
+
+Modified: sleep/src/sleep/bridges/BasicUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicUtilities.java	2005-06-05 13:42:40 UTC (rev 18)
++++ sleep/src/sleep/bridges/BasicUtilities.java	2005-06-06 19:27:06 UTC (rev 19)
+@@ -526,16 +526,19 @@
+        }
+        else if (n.equals(&quot;&amp;remove&quot;))
+        {
+-          Scalar scalar = (Scalar)l.pop();
++          while (!l.isEmpty())
++          {
++             Scalar scalar = (Scalar)l.pop();
+ 
+-          if (value.getArray() != null)
+-          {
+-             value.getArray().remove(scalar);
++             if (value.getArray() != null)
++             {
++                value.getArray().remove(scalar);
++             }
++             else if (value.getHash() != null)
++             {
++                value.getHash().remove(scalar);
++             }
+           }
+-          else if (value.getHash() != null)
+-          {
+-             value.getHash().remove(scalar);
+-          }
+        }
+        else if (n.equals(&quot;&amp;keys&quot;)) // &amp;keys(%hash)
+        {
+
+Modified: sleep/src/sleep/console/ConsoleImplementation.java
+===================================================================
+--- sleep/src/sleep/console/ConsoleImplementation.java	2005-06-05 13:42:40 UTC (rev 18)
++++ sleep/src/sleep/console/ConsoleImplementation.java	2005-06-06 19:27:06 UTC (rev 19)
+@@ -394,6 +394,10 @@
+        {
+           processScriptErrors(yex);
+        }
++       catch (Exception ex)
++       {
++          getProxy().consolePrintln(&quot;Oops, an error occured with &quot; + expression + &quot;: &quot; + ex.toString());
++       }
+    }
+ 
+    /** a convienence method that formats and writes each syntax error to the proxy output */
+
+Modified: sleep/src/sleep/engine/GeneratedSteps.java
+===================================================================
+--- sleep/src/sleep/engine/GeneratedSteps.java	2005-06-05 13:42:40 UTC (rev 18)
++++ sleep/src/sleep/engine/GeneratedSteps.java	2005-06-06 19:27:06 UTC (rev 19)
+@@ -120,6 +120,12 @@
+        return temp;
+     }
+ 
++    public static Step Foreach(Block source, String key, String value, Block code)
++    {
++       Step temp = new Foreach(source, key, value, code);
++       return temp;
++    }
++
+     public static Step CreateClosure(Block code)
+     {
+        Step temp = new CreateClosure(code);
+
+Modified: sleep/src/sleep/engine/atoms/Foreach.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/Foreach.java	2005-06-05 13:42:40 UTC (rev 18)
++++ sleep/src/sleep/engine/atoms/Foreach.java	2005-06-06 19:27:06 UTC (rev 19)
+@@ -31,10 +31,17 @@
+    public Block  source;
+    public String value;
+    public Block  code;
++   public String key;
+  
+    public Foreach (Block _source, String _value, Block _code)
+    {
++       this(_source, null, _value, _code);
++   }
++
++   public Foreach (Block _source, String _key, String _value, Block _code)
++   {
+        source = _source;
++       key    = _key;
+        value  = _value;
+        code   = _code;
+    }
+@@ -44,7 +51,7 @@
+       StringBuffer temp = new StringBuffer();
+ 
+       temp.append(prefix);
+-      temp.append(&quot;[Foreach]: &quot; + value + &quot;\n&quot;);
++      temp.append(&quot;[Foreach]: &quot; + key + &quot; =&gt; &quot; + value + &quot;\n&quot;);
+       temp.append(prefix);
+ 
+       temp.append(&quot;  [Source Data]: \n&quot;);      
+@@ -71,20 +78,44 @@
+       source.evaluate(e);
+  
+       Scalar src = (Scalar)env.pop();
++      Iterator i;
+ 
+-      if (src.getArray() == null)
++      if (src.getHash() != null)
+       {
++         i = src.getHash().keys().scalarIterator();  
++      }
++      else if (src.getArray() != null)
++      {
++         i = src.getArray().scalarIterator();
++      }
++      else
++      {
+          e.getScriptInstance().fireWarning(&quot;Attempted to use foreach on non-array: '&quot; + src + &quot;'&quot;, getLineNumber());
+          return null;
+       }
+ 
+-      Iterator i = src.getArray().scalarIterator();
+-
++      int x = 0;
+       while (i.hasNext())
+       {
+          Scalar out = (Scalar)i.next();
+ 
+-         venv.putScalar(value, out);
++         if (key != null)
++         {
++            if (src.getHash() != null)
++            {
++               venv.putScalar(key, out);
++               venv.putScalar(value, src.getHash().getAt(out));
++            }
++            else
++            {
++               venv.putScalar(key, SleepUtils.getScalar(x));
++               venv.putScalar(value, out);
++            }
++         }
++         else
++         {
++            venv.putScalar(value, out);
++         }
+ 
+          code.evaluate(e);
+ 
+@@ -97,6 +128,8 @@
+          {
+             return e.getReturnValue();
+          }
++
++         x++;
+       }
+ 
+       e.flagBreak(false);
+
+Modified: sleep/src/sleep/parser/Checkers.java
+===================================================================
+--- sleep/src/sleep/parser/Checkers.java	2005-06-05 13:42:40 UTC (rev 18)
++++ sleep/src/sleep/parser/Checkers.java	2005-06-06 19:27:06 UTC (rev 19)
+@@ -216,9 +216,14 @@
+ 
+    public static final boolean isForeach (String a, String b, String c, String d)
+    {
+-       return (a.equals(&quot;foreach&quot;) &amp;&amp; isScalar(b) &amp;&amp; isExpression(c) &amp;&amp; isBlock(d));
++       return (a.equals(&quot;foreach&quot;) &amp;&amp; isVariable(b) &amp;&amp; isExpression(c) &amp;&amp; isBlock(d));
+    }
+ 
++   public static final boolean isSpecialForeach (String a, String b, String c, String d, String e, String f)
++   {
++       return (a.equals(&quot;foreach&quot;) &amp;&amp; isVariable(b) &amp;&amp; c.equals(&quot;=&gt;&quot;) &amp;&amp; isVariable(d) &amp;&amp; isExpression(e) &amp;&amp; isBlock(f));
++   }
++
+    public static final boolean isReturn (String temp)
+    {
+        // halt and done are kind of jIRC related... when you write the scripting language you
+@@ -248,22 +253,14 @@
+ 
+    public static final boolean isNumber (String temp)
+    {
+-      if (isHexNumber(temp))
+-         return true;
+-
+       if (temp.endsWith(&quot;L&quot;))
+       {
+-         try
+-         {
+-            Long.parseLong(temp.substring(0, temp.length() - 1));
+-         }
+-         catch (Exception lex) { return false; }
+-         return true;
++         temp = temp.substring(0, temp.length() - 1);
+       }
+ 
+       try
+       {
+-         Integer.parseInt(temp);
++         Long.decode(temp);
+       }
+       catch (Exception hex) 
+       {
+@@ -272,11 +269,6 @@
+       return true;
+    }
+ 
+-   public static final boolean isHexNumber(String temp)
+-   {
+-      return (temp.length() &gt;= 3 &amp;&amp; temp.substring(0, 2).equals(&quot;0x&quot;));
+-   }
+-
+    public static final boolean isDouble (String temp)
+    {
+       try
+
+Modified: sleep/src/sleep/parser/CodeGenerator.java
+===================================================================
+--- sleep/src/sleep/parser/CodeGenerator.java	2005-06-05 13:42:40 UTC (rev 18)
++++ sleep/src/sleep/parser/CodeGenerator.java	2005-06-06 19:27:06 UTC (rev 19)
+@@ -430,17 +430,13 @@
+            add(atom, tokens[0]);
+            break;
+          case IDEA_NUMBER:                         // implemented
+-           if (Checkers.isHexNumber(strings[0]))
++           if (strings[0].endsWith(&quot;L&quot;))
+            {
+-              ascalar = SleepUtils.getScalar(Integer.parseInt(strings[0].substring(2), 16));
++              ascalar = SleepUtils.getScalar(Long.decode(strings[0].substring(0, strings[0].length() - 1)));
+            }
+-           else if (strings[0].endsWith(&quot;L&quot;))
+-           {
+-              ascalar = SleepUtils.getScalar(Long.parseLong(strings[0].substring(0, strings[0].length() - 1)));
+-           }
+            else
+            {
+-              ascalar = SleepUtils.getScalar(Integer.parseInt(strings[0]));
++              ascalar = SleepUtils.getScalar(Integer.decode(strings[0]));
+            }
+ 
+            atom    = GeneratedSteps.SValue(ascalar);
+@@ -850,6 +846,26 @@
+            atom = GeneratedSteps.Goto(parsePredicate(ParserUtilities.extract(tokens[1])), a, b, false);
+            add(atom, tokens[1]); 
+            break;
++         case EXPR_FOREACH_SPECIAL:
++           // |foreach   0
++           // |$key      1
++           // |=&gt;        2
++           // |$value    3
++           // |(@temp)   4
++           // |{ &amp;printf(&quot;hi&quot;); } 5
++
++           backup(); 
++           parseIdea(ParserUtilities.extract(tokens[4])); // parse the &quot;source&quot; of the foreach
++           a = restore();
++
++           backup();
++           parseBlock(ParserUtilities.extract(tokens[5])); // parse the actual block of code to be executed.
++           b = restore();
++
++           atom = GeneratedSteps.Foreach(a, strings[1], strings[3], b);
++
++           add(atom, tokens[1]);
++           break;
+          case EXPR_FOREACH:
+            // |foreach
+            // |$var
+
+Modified: sleep/src/sleep/parser/ParserConstants.java
+===================================================================
+--- sleep/src/sleep/parser/ParserConstants.java	2005-06-05 13:42:40 UTC (rev 18)
++++ sleep/src/sleep/parser/ParserConstants.java	2005-06-06 19:27:06 UTC (rev 19)
+@@ -10,6 +10,7 @@
+    public static final int EXPR_IF_ELSE      = 301;
+    public static final int EXPR_FOREACH      = 400;
+    public static final int EXPR_FOR          = 401;
++   public static final int EXPR_FOREACH_SPECIAL = 402;
+    public static final int EXPR_RETURN       = 500;
+    public static final int EXPR_BREAK        = 501;
+    public static final int EXPR_BIND         = 502;
+
+Modified: sleep/src/sleep/parser/TokenParser.java
+===================================================================
+--- sleep/src/sleep/parser/TokenParser.java	2005-06-05 13:42:40 UTC (rev 18)
++++ sleep/src/sleep/parser/TokenParser.java	2005-06-06 19:27:06 UTC (rev 19)
+@@ -473,8 +473,19 @@
+     	 myToken = new Statement();
+ 
+          // a foreach loop
+-         if ((x + 3) &lt; tokens.length &amp;&amp; Checkers.isForeach(strings[x], strings[x+1], strings[x+2], strings[x+3]))
++         if ((x + 5) &lt; tokens.length &amp;&amp; Checkers.isSpecialForeach(strings[x], strings[x+1], strings[x+2], strings[x+3], strings[x+4], strings[x+5]))
+          {
++            myToken.setType(EXPR_FOREACH_SPECIAL);
++            myToken.add(tokens[x]);
++            myToken.add(tokens[x+1]);
++            myToken.add(tokens[x+2]);
++            myToken.add(tokens[x+3]);
++            myToken.add(tokens[x+4]);
++            myToken.add(tokens[x+5]);
++            x += 5;
++         }
++         else if ((x + 3) &lt; tokens.length &amp;&amp; Checkers.isForeach(strings[x], strings[x+1], strings[x+2], strings[x+3]))
++         {
+             myToken.setType(EXPR_FOREACH);
+             myToken.add(tokens[x]);
+             myToken.add(tokens[x+1]);
+
+Added: sleep/tests/newforeach.sl
+===================================================================
+--- sleep/tests/newforeach.sl	2005-06-05 13:42:40 UTC (rev 18)
++++ sleep/tests/newforeach.sl	2005-06-06 19:27:06 UTC (rev 19)
+@@ -0,0 +1,21 @@
++#
++# Test of the format for the new foreach loop...
++#
++
++%hash  = hash(x =&gt; &quot;x-men&quot;, s =&gt; &quot;spiderman&quot;, g =&gt; &quot;guardians of the galaxy&quot;, h =&gt; &quot;the incredible hulk&quot;);
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">+ at array</A> = array(&quot;The Incredible...&quot;, &quot;The Amazing...&quot;, &quot;The Lame...&quot;);
++
++foreach $key =&gt; $value (%hash)
++{
++   println(&quot;$[10]key = $value&quot;);
++}
++
++foreach $index =&gt; $data (@array)
++{
++   println(&quot;$[10]index = $data&quot;);
++}
++
++foreach $test (%hash)
++{
++   println(&quot;Iterate over hash: $test&quot;);
++}
+
+Added: sleep/tests/newnumbers.sl
+===================================================================
+--- sleep/tests/newnumbers.sl	2005-06-05 13:42:40 UTC (rev 18)
++++ sleep/tests/newnumbers.sl	2005-06-06 19:27:06 UTC (rev 19)
+@@ -0,0 +1,19 @@
++#
++# test of the new number formats
++#
++
++$a = 12345L;
++$b =  0xAAAABBBBBBBL;
++$c = -0xAAAABBBBBBBL;
++$d = 0123L; 
++
++println(&quot;$a $b $c | $d&quot;);
++
++$a = 12345;
++$b =  0xAAABBB;
++$c = -0xAAABBB;
++$d = -07123777777;
++
++println(&quot;$a $b $c | $d&quot;);
++
++
+
+Added: sleep/tests/output/newforeach.sl
+===================================================================
+--- sleep/tests/output/newforeach.sl	2005-06-05 13:42:40 UTC (rev 18)
++++ sleep/tests/output/newforeach.sl	2005-06-06 19:27:06 UTC (rev 19)
+@@ -0,0 +1,11 @@
++h          = the incredible hulk
++g          = guardians of the galaxy
++s          = spiderman
++x          = x-men
++0          = The Incredible...
++1          = The Amazing...
++2          = The Lame...
++Iterate over hash: h
++Iterate over hash: g
++Iterate over hash: s
++Iterate over hash: x
+
+Added: sleep/tests/output/newnumbers.sl
+===================================================================
+--- sleep/tests/output/newnumbers.sl	2005-06-05 13:42:40 UTC (rev 18)
++++ sleep/tests/output/newnumbers.sl	2005-06-06 19:27:06 UTC (rev 19)
+@@ -0,0 +1,2 @@
++12345 11728141925307 -11728141925307 | 83
++12345 11185083 -11185083 | -961544191
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2005-06-05 13:42:40 UTC (rev 18)
++++ sleep/whatsnew.txt	2005-06-06 19:27:06 UTC (rev 19)
+@@ -1,3 +1,23 @@
++2.0-b9
++======
++- foreach loops now automatically convert hash parameters into their keyset.
++- added a new foreach syntax:
++
++  foreach $index =&gt; $value (source) { }
++
++  in this case sleep will assign the index of the source (whether a number for
++  an array or a string for a hash) and the value as well.
++- sleep console now catches uncaught exceptions with evaluated expressions
++- redid the parsing for number literals to rely on Java's methods for doing s
++  so.  this means integer/long literals can now be specified in hex, decimal,
++  and octal formats.  Octal is indicated with a 0 (digit zero) following the
++  number.  Hex is indicated with 0x followed by the hex digits.  Anything
++  else is decimal.  Any of these formats can be signed.  Also any of these
++  formats can be followed by an L to specify a long scalar rather than an
++  int.
++- the remove() function now takes multiple parameters for multiple items to 
++  remove.
++
+ 2.0-b8
+ ======
+ - fixed a bug parsing tuple assignments in certain cases.
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000007.html">[Sleep-svn] r18 - in sleep: . src/sleep/bridges src/sleep/bridges/io
+</A></li>
+	<LI>Next message: <A HREF="000009.html">[Sleep-svn] r20 - sleep/docs
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#8">[ date ]</a>
+              <a href="thread.html#8">[ thread ]</a>
+              <a href="subject.html#8">[ subject ]</a>
+              <a href="author.html#8">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

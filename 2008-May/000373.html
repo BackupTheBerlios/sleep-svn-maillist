@@ -1,0 +1,222 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r397 - in sleep: . src/sleep/bridges src/sleep/engine	src/sleep/parser tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2008-May/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r397%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20src/sleep/engine%0A%09src/sleep/parser%20tests%20tests/output&In-Reply-To=%3C200805301744.m4UHiaYB016881%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000372.html">
+   <LINK REL="Next"  HREF="000374.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r397 - in sleep: . src/sleep/bridges src/sleep/engine	src/sleep/parser tests tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r397%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20src/sleep/engine%0A%09src/sleep/parser%20tests%20tests/output&In-Reply-To=%3C200805301744.m4UHiaYB016881%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r397 - in sleep: . src/sleep/bridges src/sleep/engine	src/sleep/parser tests tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Fri May 30 19:44:36 CEST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000372.html">[Sleep-svn] r396 - in sleep: . src/sleep/engine/types tests	tests/output
+</A></li>
+        <LI>Next message: <A HREF="000374.html">[Sleep-svn] r398 - in sleep: . src/sleep/bridges src/sleep/engine	src/sleep/parser src/sleep/runtime tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#373">[ date ]</a>
+              <a href="thread.html#373">[ thread ]</a>
+              <a href="subject.html#373">[ subject ]</a>
+              <a href="author.html#373">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2008-05-30 19:44:36 +0200 (Fri, 30 May 2008)
+New Revision: 397
+
+Added:
+   sleep/tests/functiondesc.sl
+   sleep/tests/functionerr.sl
+   sleep/tests/output/functiondesc.sl
+   sleep/tests/output/functionerr.sl
+Modified:
+   sleep/src/sleep/bridges/BasicUtilities.java
+   sleep/src/sleep/engine/Step.java
+   sleep/src/sleep/parser/CodeGenerator.java
+   sleep/whatsnew.txt
+Log:
+function description stuff.
+
+
+
+Modified: sleep/src/sleep/bridges/BasicUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicUtilities.java	2008-05-30 17:15:02 UTC (rev 396)
++++ sleep/src/sleep/bridges/BasicUtilities.java	2008-05-30 17:44:36 UTC (rev 397)
+@@ -517,6 +517,10 @@
+           if (n.equals(&quot;&amp;function&quot;))
+           {
+              String temp = BridgeUtilities.getString(l, &quot;&quot;);
++
++             if (temp.length() == 0 || temp.charAt(0) != '&amp;')
++                throw new IllegalArgumentException(n + &quot;: requested function name must begin with '&amp;'&quot;);
++
+              return SleepUtils.getScalar(si.getScriptEnvironment().getFunction(temp));
+           }
+           else if (n.equals(&quot;&amp;setf&quot;))
+
+Modified: sleep/src/sleep/engine/Step.java
+===================================================================
+--- sleep/src/sleep/engine/Step.java	2008-05-30 17:15:02 UTC (rev 396)
++++ sleep/src/sleep/engine/Step.java	2008-05-30 17:44:36 UTC (rev 397)
+@@ -30,7 +30,7 @@
+ &lt;/pre&gt; */
+ 
+ 
+-public abstract class Step implements Serializable
++public class Step implements Serializable
+ {
+    /** the script line number that this step was generated from */
+    protected int  line;
+@@ -41,7 +41,7 @@
+    /** returns a string representation of this atomic step */
+    public String toString(String prefix)
+    {
+-      return prefix+toString();
++      return prefix+&quot;[NOP]\n&quot;;
+    }
+  
+    /** convience method for the code generator to set the line number. */
+
+Modified: sleep/src/sleep/parser/CodeGenerator.java
+===================================================================
+--- sleep/src/sleep/parser/CodeGenerator.java	2008-05-30 17:15:02 UTC (rev 396)
++++ sleep/src/sleep/parser/CodeGenerator.java	2008-05-30 17:44:36 UTC (rev 397)
+@@ -313,7 +313,15 @@
+          return;
+       }
+ 
+-      parseBlock(allData);
++      if (allData.size() == 0)
++      {
++         Step temp = new Step();
++         add(temp, data);
++      }
++      else
++      {
++         parseBlock(allData);
++      }
+    }
+ 
+    public void parseBlock(LinkedList data)
+
+Added: sleep/tests/functiondesc.sl
+===================================================================
+--- sleep/tests/functiondesc.sl	2008-05-30 17:15:02 UTC (rev 396)
++++ sleep/tests/functiondesc.sl	2008-05-30 17:44:36 UTC (rev 397)
+@@ -0,0 +1,14 @@
++sub foo
++{
++   #...
++}
++
++println(&amp;foo);
++println({});
++
++sub bar
++{
++   println(&quot;bar&quot;);
++}
++
++println(&amp;bar);
+
+Added: sleep/tests/functionerr.sl
+===================================================================
+--- sleep/tests/functionerr.sl	2008-05-30 17:15:02 UTC (rev 396)
++++ sleep/tests/functionerr.sl	2008-05-30 17:44:36 UTC (rev 397)
+@@ -0,0 +1,10 @@
++sub foo
++{
++   println(&quot;hello world!&quot;);
++}
++
++$x = function('&amp;foo');
++println($x);
++
++$x = function('foo');
++println($x);
+
+Added: sleep/tests/output/functiondesc.sl
+===================================================================
+--- sleep/tests/output/functiondesc.sl	2008-05-30 17:15:02 UTC (rev 396)
++++ sleep/tests/output/functiondesc.sl	2008-05-30 17:44:36 UTC (rev 397)
+@@ -0,0 +1,3 @@
++&amp;closure[functiondesc.sl:2]#1
++&amp;closure[functiondesc.sl:7]#2
++&amp;closure[functiondesc.sl:11]#3
+
+Added: sleep/tests/output/functionerr.sl
+===================================================================
+--- sleep/tests/output/functionerr.sl	2008-05-30 17:15:02 UTC (rev 396)
++++ sleep/tests/output/functionerr.sl	2008-05-30 17:44:36 UTC (rev 397)
+@@ -0,0 +1,2 @@
++&amp;closure[functionerr.sl:3]#1
++Warning: &amp;function: requested function name must begin with '&amp;' at functionerr.sl:9
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2008-05-30 17:15:02 UTC (rev 396)
++++ sleep/whatsnew.txt	2008-05-30 17:44:36 UTC (rev 397)
+@@ -9,8 +9,7 @@
+ - created a java.util.List compatible data structure to back
+   Sleep arrays.  this data structure is similar to LinkedList
+   except it creates sublists with more desired performance
+-  characteristics--sublists of java.util.LinkedList traverse
+-  the entire parent list for each requested element.
++  characteristics
+ - added better error messages for ConcurrentModificationException's
+   thrown by Java
+ - foreach loops now break if a ConcurrentModificationException
+@@ -24,7 +23,11 @@
+ - bad index errors (IndexOutOfBoundsException) are now more
+   descriptive in some cases.
+ - sublists are now serializable--when serialized only the 
+-  sublist itself is serialized.
++  sublist contents is serialized.
++- function(&quot;blah&quot;) will now throw an error if argument does not
++  begin with &amp;
++- empty functions now retain proper line number information 
++  (compiler introduces a NOP into the body of an empty function)
+ 
+ 2.1-beta 26  (15 May 08)
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000372.html">[Sleep-svn] r396 - in sleep: . src/sleep/engine/types tests	tests/output
+</A></li>
+	<LI>Next message: <A HREF="000374.html">[Sleep-svn] r398 - in sleep: . src/sleep/bridges src/sleep/engine	src/sleep/parser src/sleep/runtime tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#373">[ date ]</a>
+              <a href="thread.html#373">[ thread ]</a>
+              <a href="subject.html#373">[ subject ]</a>
+              <a href="author.html#373">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

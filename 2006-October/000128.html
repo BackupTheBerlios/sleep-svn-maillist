@@ -1,0 +1,213 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r146 - in sleep: . src/sleep/bridges tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2006-October/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r146%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20tests%20tests/output&In-Reply-To=%3C200610292223.k9TMNJDG010931%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000127.html">
+   <LINK REL="Next"  HREF="000129.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r146 - in sleep: . src/sleep/bridges tests tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r146%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20tests%20tests/output&In-Reply-To=%3C200610292223.k9TMNJDG010931%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r146 - in sleep: . src/sleep/bridges tests tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Sun Oct 29 23:23:19 CET 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000127.html">[Sleep-svn] r145 - in sleep: . src/sleep/bridges tests/output
+</A></li>
+        <LI>Next message: <A HREF="000129.html">[Sleep-svn] r147 - in sleep: . src/sleep/console
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#128">[ date ]</a>
+              <a href="thread.html#128">[ thread ]</a>
+              <a href="subject.html#128">[ subject ]</a>
+              <a href="author.html#128">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2006-10-29 23:23:19 +0100 (Sun, 29 Oct 2006)
+New Revision: 146
+
+Added:
+   sleep/tests/invoke2.sl
+   sleep/tests/output/invoke2.sl
+Modified:
+   sleep/src/sleep/bridges/BasicUtilities.java
+   sleep/whatsnew.txt
+Log:
+Updated &amp;invoke to be more km-rad
+
+
+
+Modified: sleep/src/sleep/bridges/BasicUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicUtilities.java	2006-10-29 21:54:15 UTC (rev 145)
++++ sleep/src/sleep/bridges/BasicUtilities.java	2006-10-29 22:23:19 UTC (rev 146)
+@@ -694,15 +694,47 @@
+        }
+        else if (n.equals(&quot;&amp;invoke&quot;)) 
+        {
++          Map params = BridgeUtilities.extractNamedParameters(l);
++
+           SleepClosure c    = BridgeUtilities.getFunction(l, i);
+-
+           Stack        args = new Stack();
+           Iterator iter     = BridgeUtilities.getIterator(l, i);
+           while (iter.hasNext()) { args.add(0, iter.next()); }
+ 
+           String message    = BridgeUtilities.getString(l, null);
++
++          /* parameters option */
++          if (params.containsKey(&quot;parameters&quot;))
++          {
++             Scalar   h = (Scalar)params.get(&quot;parameters&quot;);
++
++             Iterator it = h.getHash().keys().scalarIterator();
++             while (it.hasNext())
++             {
++                Scalar key = (Scalar)it.next();
++                KeyValuePair temp = new KeyValuePair(key, h.getHash().getAt(key));
++                args.add(0, SleepUtils.getScalar(temp));
++             }
++          }
++
++          /* message option */
++          if (params.containsKey(&quot;message&quot;))
++          {
++             message = params.get(&quot;message&quot;).toString();
++          }
+  
+-          return c.callClosure(message, i, args);
++          Variable old = c.getVariables();
++
++          /* environment option */
++          if (params.containsKey(&quot;environment&quot;))
++          {
++             SleepClosure t = (SleepClosure)((Scalar)params.get(&quot;environment&quot;)).objectValue();
++             c.setVariables(t.getVariables());
++          }
++
++          Scalar rv = c.callClosure(message, i, args);
++          c.setVariables(old);
++          return rv;
+        }
+        else if (n.equals(&quot;&amp;debug&quot;))
+        {
+
+Added: sleep/tests/invoke2.sl
+===================================================================
+--- sleep/tests/invoke2.sl	2006-10-29 21:54:15 UTC (rev 145)
++++ sleep/tests/invoke2.sl	2006-10-29 22:23:19 UTC (rev 146)
+@@ -0,0 +1,34 @@
++#
++# updated version of &amp;invoke :)
++#
++
++sub foo
++{
++   println(&quot;Message: $0&quot;);
++   println(&quot;Args: &quot; . @_);
++   println(&quot;\$stuff is $stuff&quot;);
++   println(&quot;\$foo is $foo&quot;);
++   println(&quot;\$bar is $bar&quot;);
++
++   $stuff = &quot;fooified!&quot;;
++   $count++;
++}
++
++sub bar
++{
++   this('$stuff $count');
++   println($stuff);
++   $stuff = &quot;barified! $count&quot;;
++}
++
++bar();
++bar();
++
++invoke(&amp;foo, @(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;), &quot;test&quot;, environment =&gt; &amp;bar, 
++                  message =&gt; &quot;blah&quot;, parameters =&gt; %($foo =&gt; &quot;foo!&quot;, $bar =&gt; &quot;bar!&quot;));
++invoke(&amp;foo, @(&quot;x&quot;, &quot;y&quot;, &quot;z&quot;), &quot;test&quot;, environment =&gt; &amp;bar, 
++                  parameters =&gt; %($foo =&gt; &quot;fool!&quot;, $bar =&gt; &quot;barl!&quot;));
++
++bar();
++foo();
++bar();
+
+Added: sleep/tests/output/invoke2.sl
+===================================================================
+--- sleep/tests/output/invoke2.sl	2006-10-29 21:54:15 UTC (rev 145)
++++ sleep/tests/output/invoke2.sl	2006-10-29 22:23:19 UTC (rev 146)
+@@ -0,0 +1,19 @@
++
++barified! 
++Message: blah
++Args: @('a', 'b', 'c')
++$stuff is barified! 
++$foo is foo!
++$bar is bar!
++Message: test
++Args: @('x', 'y', 'z')
++$stuff is fooified!
++$foo is fool!
++$bar is barl!
++fooified!
++Message: &amp;foo
++Args: @()
++$stuff is 
++$foo is 
++$bar is 
++barified! 2
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-10-29 21:54:15 UTC (rev 145)
++++ sleep/whatsnew.txt	2006-10-29 22:23:19 UTC (rev 146)
+@@ -14,6 +14,11 @@
+ - changed string representation of closures to represent: 
+   &amp;closureX:N-M where X represents the instantiation number (i.e. closure 3)
+   and N-M represents the line range where the closure was declared
++- updated &amp;invoke to accept the following named parameters:
++  parameter =&gt; %() - accepts a hashmap of $scalars to send as named parameters
++  environment =&gt; &amp;closure - accepts a closure whose this scope is to be used
++     in lieu of the closures normal environment.  
++  message =&gt; &quot;some string&quot; - the message value to send to the called function
+ 
+ 2.1-beta 7  (15 Oct 06)
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000127.html">[Sleep-svn] r145 - in sleep: . src/sleep/bridges tests/output
+</A></li>
+	<LI>Next message: <A HREF="000129.html">[Sleep-svn] r147 - in sleep: . src/sleep/console
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#128">[ date ]</a>
+              <a href="thread.html#128">[ thread ]</a>
+              <a href="subject.html#128">[ subject ]</a>
+              <a href="author.html#128">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

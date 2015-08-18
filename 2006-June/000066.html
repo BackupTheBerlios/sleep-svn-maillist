@@ -1,0 +1,176 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r84 - in sleep: . src/sleep/runtime
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2006-June/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r84%20-%20in%20sleep%3A%20.%20src/sleep/runtime&In-Reply-To=%3C200606172259.k5HMxdm1019092%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000065.html">
+   <LINK REL="Next"  HREF="000067.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r84 - in sleep: . src/sleep/runtime</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r84%20-%20in%20sleep%3A%20.%20src/sleep/runtime&In-Reply-To=%3C200606172259.k5HMxdm1019092%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r84 - in sleep: . src/sleep/runtime">rsmudge at berlios.de
+       </A><BR>
+    <I>Sun Jun 18 00:59:39 CEST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000065.html">[Sleep-svn] r83 - sleep/docs
+</A></li>
+        <LI>Next message: <A HREF="000067.html">[Sleep-svn] r85 - sleep/src/sleep/runtime
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#66">[ date ]</a>
+              <a href="thread.html#66">[ thread ]</a>
+              <a href="subject.html#66">[ subject ]</a>
+              <a href="author.html#66">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2006-06-18 00:59:27 +0200 (Sun, 18 Jun 2006)
+New Revision: 84
+
+Modified:
+   sleep/src/sleep/runtime/SleepUtils.java
+   sleep/whatsnew.txt
+Log:
+Added API to generate Java Collection stuffs from sleep array/hash data structures.
+
+
+
+Modified: sleep/src/sleep/runtime/SleepUtils.java
+===================================================================
+--- sleep/src/sleep/runtime/SleepUtils.java	2006-06-17 22:40:26 UTC (rev 83)
++++ sleep/src/sleep/runtime/SleepUtils.java	2006-06-17 22:59:27 UTC (rev 84)
+@@ -34,6 +34,7 @@
+ 
+ import java.io.*;
+ 
++import sleep.bridges.BridgeUtilities;
+ import sleep.bridges.SleepClosure;
+ 
+ /** This class contains generalized utilities for instantiating/wrapping data into the sleep Scalar type. 
+@@ -211,6 +212,73 @@
+       return temp;
+    }
+ 
++   /** Generate a java.util.Map from a scalar hash.  Keys will be Java strings.  Values will be
++       the Java object equivalents of the data stored in the scalar hash. */
++   public static Map getMapFromHash(Scalar map)
++   { 
++      return getMapFromHash(map.getHash());
++   }
++
++   /** Generate a java.util.Map from a scalar hash.  Keys will be Java strings.  Values will be
++       the Java object equivalents of the data stored in the scalar hash. */
++   public static Map getMapFromHash(ScalarHash map)
++   {
++      HashMap dict = new HashMap();
++
++      if (map != null)
++      {
++         Iterator i = map.keys().scalarIterator();
++         while (i.hasNext())
++         {
++            Scalar key  = (Scalar)i.next();
++            Scalar val  = map.getAt(key);
++
++            if (val.getHash() != null)
++            {
++               dict.put(key.toString(), getMapFromHash(val.getHash()));
++            }
++            else if (val.getArray() != null)
++            {
++               dict.put(key.toString(), getListFromArray(val.getArray()));
++            }
++            else
++            {  
++               dict.put(key.toString(), val.objectValue());
++            }
++         }
++      }
++
++      return dict;
++   }
++
++   /** Generate a java.util.List from a scalar array.  Values will be the Java object 
++       equivalents of the data stored in the scalar array. */
++   public static List getListFromArray(Scalar array)
++   {
++      return getListFromArray(array.getArray());
++   }
++
++   /** Generate a java.util.List from a scalar array.  Values will be the Java object 
++       equivalents of the data stored in the scalar array. */
++   public static List getListFromArray(ScalarArray array)
++   {
++      LinkedList list = new LinkedList();
++       
++      if (array != null)
++      {
++         array = BridgeUtilities.flattenArray(SleepUtils.getArrayScalar(array), null).getArray();
++
++         Iterator i = array.scalarIterator();
++         while (i.hasNext())
++         {
++            Scalar temp = (Scalar)i.next();
++            list.add(temp.objectValue());
++         }
++      }
++
++      return list;
++   }
++
+    /** a shared instance of the dreaded null scalar... */
+    protected static ScalarType nullScalar = new NullValue();
+ 
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-06-17 22:40:26 UTC (rev 83)
++++ sleep/whatsnew.txt	2006-06-17 22:59:27 UTC (rev 84)
+@@ -35,8 +35,9 @@
+   @ removeAll(@a, @b) - modifies @a with the difference of @a - @b
+   @ addAll(@a, @b) - modifies @a with the union of @a + @b
+   @ retainAll(@a, @b) - modifies @a to contain the intersection of @a and @b
++- added methods to SleepUtils to generate a java.util.Map from a 
++  Sleep Hash scalar and to generate a java.util.List from a Sleep Array.
+ 
+-
+ 2.1-beta 1
+ ===========
+ - fixed the clean target in the sleep build.xml file
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000065.html">[Sleep-svn] r83 - sleep/docs
+</A></li>
+	<LI>Next message: <A HREF="000067.html">[Sleep-svn] r85 - sleep/src/sleep/runtime
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#66">[ date ]</a>
+              <a href="thread.html#66">[ thread ]</a>
+              <a href="subject.html#66">[ subject ]</a>
+              <a href="author.html#66">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

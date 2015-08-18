@@ -1,0 +1,774 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r385 - in sleep: . docs src/sleep/engine	src/sleep/engine/atoms src/sleep/engine/types tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2008-May/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r385%20-%20in%20sleep%3A%20.%20docs%20src/sleep/engine%0A%09src/sleep/engine/atoms%20src/sleep/engine/types%20tests%20tests/output&In-Reply-To=%3C200805290439.m4T4d3gq019518%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000360.html">
+   <LINK REL="Next"  HREF="000362.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r385 - in sleep: . docs src/sleep/engine	src/sleep/engine/atoms src/sleep/engine/types tests tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r385%20-%20in%20sleep%3A%20.%20docs%20src/sleep/engine%0A%09src/sleep/engine/atoms%20src/sleep/engine/types%20tests%20tests/output&In-Reply-To=%3C200805290439.m4T4d3gq019518%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r385 - in sleep: . docs src/sleep/engine	src/sleep/engine/atoms src/sleep/engine/types tests tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Thu May 29 06:39:03 CEST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000360.html">[Sleep-svn] r384 - in sleep: . src/sleep/engine
+</A></li>
+        <LI>Next message: <A HREF="000362.html">[Sleep-svn] r386 - in sleep: . src/sleep/bridges
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#361">[ date ]</a>
+              <a href="thread.html#361">[ thread ]</a>
+              <a href="subject.html#361">[ subject ]</a>
+              <a href="author.html#361">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2008-05-29 06:38:57 +0200 (Thu, 29 May 2008)
+New Revision: 385
+
+Added:
+   sleep/src/sleep/engine/types/MyLinkedList.java
+   sleep/tests/femod.sl
+   sleep/tests/listops2.sl
+   sleep/tests/output/femod.sl
+   sleep/tests/output/listops2.sl
+Modified:
+   sleep/docs/sleepmanual.url
+   sleep/src/sleep/engine/Block.java
+   sleep/src/sleep/engine/atoms/Iterate.java
+   sleep/src/sleep/engine/types/ListContainer.java
+   sleep/tests/arrmods.sl
+   sleep/whatsnew.txt
+Log:
+too many changes this close to a major release...
+
+
+Modified: sleep/docs/sleepmanual.url
+===================================================================
+--- sleep/docs/sleepmanual.url	2008-05-28 03:49:40 UTC (rev 384)
++++ sleep/docs/sleepmanual.url	2008-05-29 04:38:57 UTC (rev 385)
+@@ -1,2 +1,2 @@
+ [InternetShortcut]
+-URL=<A HREF="http://sleep.dashnine.org/manual">http://sleep.dashnine.org/manual</A>
++URL=<A HREF="http://sleep.dashnine.org/documentation.html">http://sleep.dashnine.org/documentation.html</A>
+
+Modified: sleep/src/sleep/engine/Block.java
+===================================================================
+--- sleep/src/sleep/engine/Block.java	2008-05-28 03:49:40 UTC (rev 384)
++++ sleep/src/sleep/engine/Block.java	2008-05-29 04:38:57 UTC (rev 385)
+@@ -245,8 +245,18 @@
+               else if (ex instanceof NullPointerException)
+               {
+                  environment.getScriptInstance().fireWarning(&quot;null value error&quot;, temp.getLineNumber());
+-                 ex.printStackTrace();
+               }
++              else if (ex instanceof ConcurrentModificationException)
++              {
++                 if (ex.getMessage()  != null)
++                 {
++                    environment.getScriptInstance().fireWarning(&quot;unsafe data modification: &quot; + ex.getMessage(), temp.getLineNumber());
++                 }
++                 else
++                 {
++                    environment.getScriptInstance().fireWarning(&quot;detected unsafe data modification&quot;, temp.getLineNumber());
++                 }
++              }    
+               else if (ex instanceof RuntimeException)
+               {
+                  if (ex.getMessage() == null)
+
+Modified: sleep/src/sleep/engine/atoms/Iterate.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/Iterate.java	2008-05-28 03:49:40 UTC (rev 384)
++++ sleep/src/sleep/engine/atoms/Iterate.java	2008-05-29 04:38:57 UTC (rev 385)
+@@ -159,9 +159,18 @@
+          e.getCurrentFrame().push(SleepUtils.getScalar(false));
+          return;
+       }
++     
++      Object next = null;
++      try
++      {
++         next = data.iterator.next();
++      }
++      catch (ConcurrentModificationException cmex)
++      {
++         data.iterator = null; /* force a break out of the loop */
++         throw (cmex);
++      }
+ 
+-      Object next = data.iterator.next();
+-
+       if (data.source.getHash() != null)
+       {
+          if (data.key != null)
+
+Modified: sleep/src/sleep/engine/types/ListContainer.java
+===================================================================
+--- sleep/src/sleep/engine/types/ListContainer.java	2008-05-28 03:49:40 UTC (rev 384)
++++ sleep/src/sleep/engine/types/ListContainer.java	2008-05-29 04:38:57 UTC (rev 385)
+@@ -10,7 +10,7 @@
+ 
+    public ListContainer()
+    {
+-      values = new LinkedList();
++      values = new MyLinkedList();
+    }
+ 
+    public ListContainer(List list)
+
+Added: sleep/src/sleep/engine/types/MyLinkedList.java
+===================================================================
+--- sleep/src/sleep/engine/types/MyLinkedList.java	2008-05-28 03:49:40 UTC (rev 384)
++++ sleep/src/sleep/engine/types/MyLinkedList.java	2008-05-29 04:38:57 UTC (rev 385)
+@@ -0,0 +1,475 @@
++package sleep.engine.types;
++
++import java.io.Serializable;
++import java.util.*;
++
++import sleep.runtime.*;
++
++public class MyLinkedList extends AbstractSequentialList implements Cloneable, Serializable, List
++{
++   private class MyListIterator implements ListIterator, Serializable
++   {
++      protected int       index; 
++      protected int       start;
++      protected ListEntry current;
++      protected int       modCountCheck = modCount;
++
++      public void checkSafety()
++      {
++         if (modCountCheck != modCount)
++         {
++            throw new ConcurrentModificationException(&quot;@array changed during iteration&quot;);
++         }
++      }
++
++      public MyListIterator(ListEntry entry, int index)
++      {
++         this.index   = index;
++         this.start   = index;
++         current      = entry;
++      }
++
++      public void add(Object o)
++      {
++         checkSafety();
++
++         /* add the new element after the current element */
++         current = current.addAfter(o);
++
++         /* increment the list so that the next element returned is
++            unaffected by this call */
++         index++;
++
++         modCountCheck++;
++      }
++
++      public boolean hasNext()
++      {
++         return index != size;
++      }
++
++      public boolean hasPrevious()
++      {
++         return index != 0;
++      }
++
++      public Object next()
++      {
++         checkSafety();
++         current = current.next();
++         index++;
++         return current.element();
++      }
++
++      public Object previous()
++      {
++         checkSafety();
++         current = current.previous();
++         index--;
++         return current.element();
++      }
++
++      public int nextIndex()
++      {
++         return index;
++      }
++
++      public int previousIndex()
++      {
++         return index - 1;
++      }
++
++      public void remove()
++      {
++         if (current == header)
++         {
++            throw new IllegalStateException(&quot;list is empty&quot;);
++         }
++
++         checkSafety();
++         current = current.remove().previous();
++
++         index--;
++
++         modCountCheck++;
++      }
++
++      public void set(Object o)
++      {
++         if (current == header)
++         {
++            throw new IllegalStateException(&quot;list is empty&quot;);
++         }
++
++         checkSafety();
++         current.setElement(o);
++      }
++   }
++
++   int size = 0;
++   private ListEntry header;
++
++   /* fields used by sublists */
++   private ListEntry    boundaryPrevious;
++   private ListEntry    boundaryNext;
++   private MyLinkedList parentList;
++
++   public int size()
++   {
++      return size;
++   }
++
++   private MyLinkedList(MyLinkedList plist, ListEntry begin, ListEntry end, int _size)
++   {
++      parentList = plist;
++      modCount = parentList.modCount;
++      header = new NormalListEntry(SleepUtils.getScalar(&quot;[:header:]&quot;), null, null);
++
++      boundaryPrevious = begin;
++      boundaryNext     = end;
++
++      ListEntryWrapper head = new ListEntryWrapper(begin);
++      ListEntryWrapper tail = new ListEntryWrapper(end);
++
++      /* set the entries into the header */
++      head.check();
++      tail.check();
++
++      size = _size;
++   }
++
++   public MyLinkedList()
++   {
++      header = new NormalListEntry(SleepUtils.getScalar(&quot;[:HEADER:]&quot;), null, null);
++      header.setNext(header);
++      header.setPrevious(header);
++   }   
++
++   public List subList(int beginAt, int endAt)
++   { 
++      checkSafety();
++
++      ListEntry begin;
++      ListEntry end;
++
++      begin = header.next();
++
++      int x = 0;
++      while (x &lt; beginAt)
++      {
++         begin = begin.next();
++         x++;
++      }
++
++      if (endAt == size)
++      {
++         end = header;
++      }
++      else
++      {
++         end = begin;
++
++         while (x &lt; endAt)
++         {
++            end = end.next();
++            x++;
++         }
++      }
++
++      if (begin instanceof ListEntryWrapper)
++      {
++         begin = ((ListEntryWrapper)begin).parent;
++      }
++
++      if (end instanceof ListEntryWrapper)
++      {
++         end = ((ListEntryWrapper)end).parent;
++      }
++
++      end = end.previous();
++      return new MyLinkedList(parentList == null ? this : parentList, begin, end, (endAt - beginAt));
++   }
++
++   public ListIterator listIterator(int index)
++   {
++      ListEntry entry = header;
++
++      if (index &lt; 0 || index &gt; size)
++         throw new IndexOutOfBoundsException(&quot;Index: &quot; + index + &quot;, Size: &quot; + size);
++
++      for (int x = 0; x &lt; index; x++)
++      {
++         entry = entry.next();
++      }
++
++//      System.out.println(&quot;listIterator(&quot; + index + &quot;): &quot; + entry.toString());
++      return new MyListIterator(entry, index); 
++   }
++
++   // code for the ListEntry //
++
++   private interface ListEntry extends Serializable
++   {
++      public ListEntry remove();
++      public ListEntry addBefore(Object o);
++      public ListEntry addAfter(Object o);
++
++      public ListEntry next();
++      public ListEntry previous();
++
++      public void setNext(ListEntry entry);
++      public void setPrevious(ListEntry entry);
++
++      public Object element();
++      public void setElement(Object o);
++   }
++
++   public void checkSafety()
++   {
++      if (parentList != null &amp;&amp; modCount != parentList.modCount)
++      {
++         throw new ConcurrentModificationException(&quot;parent @array changed after &amp;sublist creation&quot;);
++      }
++   }
++
++   private class ListEntryWrapper implements ListEntry
++   {
++      public ListEntry parent;
++
++      public ListEntryWrapper check()
++      {
++         if (parent == boundaryPrevious)
++         {
++            header.setNext(this);
++         }
++
++         if (parent == boundaryNext)
++         {
++            header.setPrevious(this);
++         }
++
++         return this;
++      }
++
++      public ListEntryWrapper(ListEntry _parent)
++      {
++         parent = _parent;
++      }
++
++      public ListEntry remove()
++      {
++         checkSafety();
++
++         ListEntry temp = parent.remove();
++
++         size--;
++         modCount++;
++
++         if (parent == boundaryPrevious)
++         {
++            boundaryPrevious = temp;
++         }
++
++         if (parent == boundaryNext)
++         {
++            boundaryNext = temp;
++         }
++
++         ListEntryWrapper r = new ListEntryWrapper(temp);
++         return r.check();
++      }
++
++      public ListEntry addBefore(Object o)
++      {
++         checkSafety();
++
++         ListEntry temp = parent.addBefore(o);
++
++         size++;
++         modCount++;
++
++         if (parent == boundaryPrevious)
++         {
++            boundaryPrevious = temp;
++         }
++
++         ListEntryWrapper r = new ListEntryWrapper(temp);
++         return r.check();
++      }
++
++      public ListEntry addAfter(Object o)
++      {
++         checkSafety();
++
++         ListEntry temp = parent.addAfter(o);
++
++         size++;
++         modCount++;
++
++         if (parent == boundaryNext)
++         {
++            boundaryNext = temp;
++         }
++
++         ListEntryWrapper r = new ListEntryWrapper(temp);
++         return r.check();
++      }
++
++      public void setNext(ListEntry entry)
++      {
++      }
++
++      public void setPrevious(ListEntry entry)
++      {
++      }
++
++      public Object element()
++      {
++         return parent.element();
++      }
++
++      public void setElement(Object o)
++      {
++         parent.setElement(o);
++      }
++
++      public ListEntry next()
++      {
++         checkSafety();
++
++         if (parent == boundaryNext)
++         {
++            return header;
++         }
++
++         ListEntryWrapper r = new ListEntryWrapper(parent.next());
++         return r;
++      }
++
++      public ListEntry previous()
++      {
++         checkSafety();
++
++         if (parent == boundaryPrevious)
++         {
++            return header;
++         }
++
++         ListEntryWrapper r = new ListEntryWrapper(parent.previous());
++         return r;
++      }
++   }
++
++   private class NormalListEntry implements ListEntry
++   {
++      public Object element;
++      public ListEntry previous;
++      public ListEntry next;
++
++      public NormalListEntry(Object _element, ListEntry _previous, ListEntry _next)
++      {
++         element  = _element;
++         previous = _previous;
++         next     = _next;
++
++         if (previous != null)
++         {
++            previous.setNext(this);
++         }
++
++         if (next != null)
++         {
++            next.setPrevious(this);
++         }
++      }
++
++      public void setNext(ListEntry entry) 
++      {
++         next = entry;
++      }
++
++      public void setPrevious(ListEntry entry)
++      {
++         previous = entry;
++      }
++
++      public ListEntry next()
++      {
++         return next;
++      }
++
++      public ListEntry previous()
++      {
++         return previous;
++      }
++
++      public ListEntry remove()
++      {
++         ListEntry prev = previous();
++         ListEntry nxt  = next();
++
++         nxt.setPrevious(prev);
++         prev.setNext(nxt);
++
++         size--;
++         modCount++;
++         return nxt;
++      }
++
++      public void setElement(Object o)
++      {
++         element = o;
++      }
++
++      public Object element()
++      {
++         return element;
++      }
++
++      public ListEntry addBefore(Object o)
++      {
++         ListEntry temp = new NormalListEntry(o, this.previous, this);
++
++         size++;
++         modCount++;
++
++         return temp;
++      }
++
++      public ListEntry addAfter(Object o)
++      {
++         ListEntry temp = new NormalListEntry(o, this, this.next);
++
++         size++;
++         modCount++;
++
++         return temp;
++      }
++
++      public String toString()
++      {
++         StringBuffer buffer = new StringBuffer(&quot;:[&quot; + element() + &quot;]:&quot;);
++
++         if (this == header)
++         {
++             buffer = new StringBuffer(&quot;:[HEADER]:&quot;);
++         }
++
++         ListEntry entry = this.previous();
++         while (entry != header)
++         {
++            buffer.insert(0, &quot;[&quot; + entry.element() + &quot;]-&gt; &quot;);
++            entry = entry.previous();
++         }
++         
++         entry = this.next();
++         while (entry != header)
++         {
++            buffer.append(&quot; -&gt;[&quot; + entry.element() + &quot;]&quot;);
++            entry = entry.next();
++         }
++
++         return buffer.toString();
++      }
++   }
++}
+
+Modified: sleep/tests/arrmods.sl
+===================================================================
+--- sleep/tests/arrmods.sl	2008-05-28 03:49:40 UTC (rev 384)
++++ sleep/tests/arrmods.sl	2008-05-29 04:38:57 UTC (rev 385)
+@@ -6,7 +6,9 @@
+ @b = @(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14);
+ @c = copy(@b);
+ 
+-println(splice(@c, subarray(@a, -4), 3));
++$a = subarray(@a, -4);
++$b = splice(@c, $a, 3);
++println($b);
+ 
+ @c = copy(@b);
+ println(splice(@c, subarray(@a, -4), 3, 0));
+
+Added: sleep/tests/femod.sl
+===================================================================
+--- sleep/tests/femod.sl	2008-05-28 03:49:40 UTC (rev 384)
++++ sleep/tests/femod.sl	2008-05-29 04:38:57 UTC (rev 385)
+@@ -0,0 +1,10 @@
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">+ at a</A> = @(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;, &quot;d&quot;);
++
++foreach $index =&gt; $value (@a)
++{
++   println(&quot;$index =&gt; $value&quot;);
++   if ($value eq &quot;c&quot;)
++   {
++      push(@a, &quot;d&quot;);
++   }
++}   
+
+Added: sleep/tests/listops2.sl
+===================================================================
+--- sleep/tests/listops2.sl	2008-05-28 03:49:40 UTC (rev 384)
++++ sleep/tests/listops2.sl	2008-05-29 04:38:57 UTC (rev 385)
+@@ -0,0 +1,43 @@
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">+ at a</A> = @(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;, &quot;d&quot;);
++println(@a);
++
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">+ at a</A>[2] = &quot;pHEAR&quot;;
++println(@a);
++
++removeAt(@a, 2);
++println(@a);
++
++add(@a, &quot;???&quot;, 2);
++println(@a);
++
++foreach $index =&gt; $temp (@a)
++{
++   println(&quot;$index =&gt; $temp&quot;);
++}
++
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">+ at c</A> = sublist(@a, 1);
++println(@c);
++
++shift(@c);
++println(@c);
++println(@a);
++
++push(@c, &quot;phearz&quot;);
++println(@c);
++println(@a);
++
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">+ at a</A> = @(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;, &quot;d&quot;, &quot;e&quot;, &quot;f&quot;, &quot;g&quot;, &quot;h&quot;, &quot;i&quot;, &quot;j&quot;, &quot;k&quot;, &quot;l&quot;, &quot;m&quot;, &quot;n&quot;, &quot;o&quot;, &quot;p&quot;);
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">+ at b</A> = sublist(@a, 3, 12);
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">+ at c</A> = sublist(@b, 2, 6);
++removeAt(@c, 2);
++println(@a);
++println(@c);
++
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">+ at a</A> = @(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;, &quot;d&quot;, &quot;e&quot;, &quot;f&quot;, &quot;g&quot;, &quot;h&quot;, &quot;i&quot;, &quot;j&quot;, &quot;k&quot;, &quot;l&quot;, &quot;m&quot;, &quot;n&quot;, &quot;o&quot;, &quot;p&quot;);
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">+ at b</A> = sublist(@a, 3, 12);
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">+ at c</A> = sublist(@b, 2, 6);
++removeAt(@c, 3);
++println(@a);
++println(@c);
++println(@b);
++
+
+Added: sleep/tests/output/femod.sl
+===================================================================
+--- sleep/tests/output/femod.sl	2008-05-28 03:49:40 UTC (rev 384)
++++ sleep/tests/output/femod.sl	2008-05-29 04:38:57 UTC (rev 385)
+@@ -0,0 +1,5 @@
++0 =&gt; a
++1 =&gt; b
++2 =&gt; c
++Warning: unsafe data modification: @array changed during iteration at femod.sl:3
++2 =&gt; c
+
+Added: sleep/tests/output/listops2.sl
+===================================================================
+--- sleep/tests/output/listops2.sl	2008-05-28 03:49:40 UTC (rev 384)
++++ sleep/tests/output/listops2.sl	2008-05-29 04:38:57 UTC (rev 385)
+@@ -0,0 +1,18 @@
++@('a', 'b', 'c', 'd')
++@('a', 'b', 'pHEAR', 'd')
++@('a', 'b', 'd')
++@('a', 'b', '???', 'd')
++0 =&gt; a
++1 =&gt; b
++2 =&gt; ???
++3 =&gt; d
++@('b', '???', 'd')
++@('???', 'd')
++@('a', '???', 'd')
++@('???', 'd', 'phearz')
++@('a', '???', 'd', 'phearz')
++@('a', 'b', 'c', 'd', 'e', 'f', 'g', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p')
++@('f', 'g', 'i')
++@('a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'j', 'k', 'l', 'm', 'n', 'o', 'p')
++@('f', 'g', 'h')
++Warning: unsafe data modification: parent @array changed after &amp;sublist creation at listops2.sl:42
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2008-05-28 03:49:40 UTC (rev 384)
++++ sleep/whatsnew.txt	2008-05-29 04:38:57 UTC (rev 385)
+@@ -6,6 +6,15 @@
+ - SleepClosure now implements the Runnable interface.
+ - fixed a null pointer exception for assertions triggered
+   with no preceeding statements.
++- created a java.util.List compatible data structure to back
++  Sleep arrays.  this data structure is similar to LinkedList
++  except it creates sublists with more desired performance
++  characteristics--sublists of java.util.LinkedList traverse
++  the entire parent list for each requested element.
++- added better error messages for ConcurrentModificationException's
++  thrown by Java
++- foreach loops now break if a ConcurrentModificationException
++  is thrown.
+ 
+ 2.1-beta 26  (15 May 08)
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000360.html">[Sleep-svn] r384 - in sleep: . src/sleep/engine
+</A></li>
+	<LI>Next message: <A HREF="000362.html">[Sleep-svn] r386 - in sleep: . src/sleep/bridges
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#361">[ date ]</a>
+              <a href="thread.html#361">[ thread ]</a>
+              <a href="subject.html#361">[ subject ]</a>
+              <a href="author.html#361">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

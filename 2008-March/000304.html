@@ -1,0 +1,244 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r326 - in sleep: docs src/sleep/bridges	src/sleep/runtime
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2008-March/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r326%20-%20in%20sleep%3A%20docs%20src/sleep/bridges%0A%09src/sleep/runtime&In-Reply-To=%3C200803220002.m2M02lNS026484%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000303.html">
+   <LINK REL="Next"  HREF="000305.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r326 - in sleep: docs src/sleep/bridges	src/sleep/runtime</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r326%20-%20in%20sleep%3A%20docs%20src/sleep/bridges%0A%09src/sleep/runtime&In-Reply-To=%3C200803220002.m2M02lNS026484%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r326 - in sleep: docs src/sleep/bridges	src/sleep/runtime">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Sat Mar 22 01:02:47 CET 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000303.html">[Sleep-svn] r325 - in sleep: . src/sleep/bridges src/sleep/runtime	tests/output
+</A></li>
+        <LI>Next message: <A HREF="000305.html">[Sleep-svn] r327 - in sleep: . src/sleep/engine/atoms
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#304">[ date ]</a>
+              <a href="thread.html#304">[ thread ]</a>
+              <a href="subject.html#304">[ subject ]</a>
+              <a href="author.html#304">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2008-03-22 01:02:45 +0100 (Sat, 22 Mar 2008)
+New Revision: 326
+
+Modified:
+   sleep/docs/sleeplang.html
+   sleep/src/sleep/bridges/BasicIO.java
+   sleep/src/sleep/runtime/ScriptInstance.java
+Log:
+blah...
+
+
+Modified: sleep/docs/sleeplang.html
+===================================================================
+--- sleep/docs/sleeplang.html	2008-03-21 23:45:14 UTC (rev 325)
++++ sleep/docs/sleeplang.html	2008-03-22 00:02:45 UTC (rev 326)
+@@ -458,13 +458,15 @@
+ 
+ &lt;pre&gt;iff(comparison, expression_if_true, expression_if_false)&lt;/pre&gt;
+ 
++&lt;p&gt;The second and third parameters for iff are optional.&lt;/p&gt;
++
+ &lt;p&gt;An example:&lt;/p&gt;
+ 
+-&lt;pre&gt;$value = &quot;Calculation took&quot; . $x . &quot; second&quot; . iff($x &gt; 1, &quot;s&quot;, &quot;&quot;);&lt;/pre&gt;
++&lt;pre&gt;$value = &quot;Calculation took&quot; . $x . &quot; second&quot; . iff($x &gt; 1, &quot;s&quot;);&lt;/pre&gt;
+ 
+ &lt;p&gt;&lt;var&gt;$value&lt;/var&gt; would be &quot;Calculation took 2 seconds&quot; if $x is equal to 2.  If &lt;var&gt;$x&lt;/var&gt; was equal to 0 then 
+ &lt;var&gt;$value&lt;/var&gt; would be &quot;Calculation took 1 second&quot;.  The iff example above checks if &lt;var&gt;$x&lt;/var&gt; is greater than 1.  If it 
+-is then &quot;s&quot; is returned.  Otherwise &quot;&quot; is returned.&lt;/p&gt;
++is then &quot;s&quot; is returned.  Otherwise &lt;var&gt;$null&lt;/var&gt; (the default when no false value is specified) is returned.&lt;/p&gt;
+ 
+ &lt;h3&gt;Assertions&lt;/h3&gt;
+ 
+@@ -2097,8 +2099,8 @@
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td&gt;@&lt;/td&gt;
+-  &lt;td&gt;copy(@|&amp;)&lt;/td&gt;
+-  &lt;td&gt;returns an array with copies of the elements of @array or &amp;generator&lt;/td&gt;
++  &lt;td&gt;copy(@|&amp;|$|%)&lt;/td&gt;
++  &lt;td&gt;returns an array with copies of the elements of @array or &amp;generator (can also copy hashes or individual scalars)&lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td&gt;@&lt;/td&gt;
+@@ -2568,6 +2570,11 @@
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td&gt;$&lt;/td&gt;
++  &lt;td&gt;readAsObject([$handle])&lt;/td&gt;
++  &lt;td&gt;reads a serialized Java object from the specified handle&lt;/td&gt;
++ &lt;/tr&gt;
++ &lt;tr&gt;
++  &lt;td&gt;$&lt;/td&gt;
+   &lt;td&gt;readb([$handle], n)&lt;/td&gt;
+   &lt;td&gt;reads n bytes from $handle.  If 0 bytes are read &lt;var&gt;$null&lt;/var&gt; will be returned.&lt;/td&gt;
+  &lt;/tr&gt;
+@@ -2602,10 +2609,13 @@
+   &lt;td&gt;using the specified data format string, calculates an estimated size of the data.&lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
++ &lt;tr&gt;
+   &lt;td&gt;$&lt;/td&gt;
+-  &lt;td&gt;skip([$handle], n)&lt;/td&gt;
+-  &lt;td&gt;tells the handle to skip the next n bytes&lt;/td&gt;
++  &lt;td&gt;skip($handle, n, [buffer size])&lt;/td&gt;
++  &lt;td&gt;reads and discards up to n bytes from the specified handle.  this is useful for causing data to be read and processed without the expensive conversion process
++      to sleep strings (i.e. when one wants to digest or checksum a file)&lt;/td&gt;
+  &lt;/tr&gt;
++ &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td&gt;@&lt;/td&gt;
+   &lt;td&gt;unpack('format', &quot;string&quot;)&lt;/td&gt;
+@@ -2620,6 +2630,11 @@
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td&gt;&lt;/td&gt;
++  &lt;td&gt;writeAsObject([$handle], $scalar, ...)&lt;/td&gt;
++  &lt;td&gt;serializes and writes Java objects to the specified handle&lt;/td&gt;
++ &lt;/tr&gt;
++ &lt;tr&gt;
++  &lt;td&gt;&lt;/td&gt;
+   &lt;td&gt;writeb([$handle], &quot;string&quot;)&lt;/td&gt;
+   &lt;td&gt;writes the byte data of &quot;string&quot; to $handle&lt;/td&gt;
+  &lt;/tr&gt;
+@@ -3038,17 +3053,32 @@
+   &lt;td&gt;Creates a sleep closure backed instance of the specified java interface class (or classes if an array is used).&lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
++  &lt;td&gt;&lt;/td&gt;
++  &lt;td&gt;popl($key =&gt; $value, ...)&lt;/td&gt;
++  &lt;td&gt;pops current local scope, returning to previous local scope.  Populates resulting scope with specified key/value pairs.&lt;/td&gt;
++ &lt;/tr&gt;
++ &lt;tr&gt;
+   &lt;td&gt;@&lt;/td&gt;
+   &lt;td&gt;profile()&lt;/td&gt;
+   &lt;td&gt;returns the profiler statistics for the current script environment.  Profile statistics will only be collected if DEBUG_TRACE_CALLS (8) or DEBUG_TRACE_PROFILE_ONLY (24) is set.&lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td&gt;&lt;/td&gt;
++  &lt;td&gt;pushl($key =&gt; $value, ...)&lt;/td&gt;
++  &lt;td&gt;creates a new local scope populated with specified key/value pairs.&lt;/td&gt;
++ &lt;/tr&gt;
++ &lt;tr&gt;
++  &lt;td&gt;&lt;/td&gt;
+   &lt;td&gt;release($semaphore)&lt;/td&gt;
+   &lt;td&gt;increments the count value of the specified semaphore.&lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td&gt;&lt;/td&gt;
++  &lt;td&gt;scalar($object)&lt;/td&gt;
++  &lt;td&gt;forces the specified object through the Java Object to Sleep scalar conversion process.&lt;/td&gt;
++ &lt;/tr&gt;
++ &lt;tr&gt;
++  &lt;td&gt;&lt;/td&gt;
+   &lt;td&gt;setf('&amp;func_name', &amp;closure)&lt;/td&gt;
+   &lt;td&gt;sets the specified function to be bound to the specified closure.&lt;/td&gt;
+  &lt;/tr&gt;
+@@ -3094,6 +3124,11 @@
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td&gt;&lt;/td&gt;
++  &lt;td&gt;warn(&quot;message&quot;)&lt;/td&gt;
++  &lt;td&gt;prints specified warning message using the install runtime warning watcher&lt;/td&gt;
++ &lt;/tr&gt; 
++ &lt;tr&gt;
++  &lt;td&gt;&lt;/td&gt;
+   &lt;td&gt;watch('$x $y')&lt;/td&gt;
+   &lt;td&gt;A useful debug function for tracking variable changes.  parses the specified string and declares all variables in the string as &quot;watch&quot; variables.  Any attempt to update the container *referenced* by a watch variable will print out a warning.&lt;/td&gt;
+  &lt;/tr&gt;
+@@ -3883,7 +3918,7 @@
+  &lt;tr&gt;
+   &lt;td&gt;Z&lt;/td&gt;
+   &lt;td&gt;variable&lt;/td&gt;
+-  &lt;td&gt;read/write the specified number of characters (consumes the whole field)&lt;/td&gt;
++  &lt;td&gt;read/write the specified number of characters (&lt;consumes the whole field)&lt;/td&gt;
+  &lt;/tr&gt;
+ &lt;/table&gt;
+ 
+
+Modified: sleep/src/sleep/bridges/BasicIO.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicIO.java	2008-03-21 23:45:14 UTC (rev 325)
++++ sleep/src/sleep/bridges/BasicIO.java	2008-03-22 00:02:45 UTC (rev 326)
+@@ -482,7 +482,7 @@
+           
+              child.getScriptVariables().putScalar(&quot;$source&quot;, SleepUtils.getScalar(child_io));
+ 
+-             Thread temp = new Thread(child, &quot;fork of &quot; + child.getRunnableBlock().getRunnableCode().getSourceLocation());
++             Thread temp = new Thread(child, &quot;fork of &quot; + child.getRunnableBlock().getSourceLocation());
+ 
+              parent_io.setThread(temp);
+              child_io.setThread(temp);
+
+Modified: sleep/src/sleep/runtime/ScriptInstance.java
+===================================================================
+--- sleep/src/sleep/runtime/ScriptInstance.java	2008-03-21 23:45:14 UTC (rev 325)
++++ sleep/src/sleep/runtime/ScriptInstance.java	2008-03-22 00:02:45 UTC (rev 326)
+@@ -373,12 +373,20 @@
+         parent = p;
+     }
+ 
+-    /** Returns the compiled form of this script */
+-    public SleepClosure getRunnableBlock()
++    /** Returns the compiled form of this script 
++     *  @see #getRunnableScript
++     */
++    public Block getRunnableBlock()
+     {
+-        return script;
++       return script.getRunnableCode();
+     }
+ 
++    /** Returns this toplevel script as a Sleep closure. */
++    public SleepClosure getRunnableScript()
++    {
++       return script;
++    }
++
+     /** Calls a subroutine/built-in function using this script. */
+     public Scalar callFunction(String funcName, Stack parameters)
+     {
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000303.html">[Sleep-svn] r325 - in sleep: . src/sleep/bridges src/sleep/runtime	tests/output
+</A></li>
+	<LI>Next message: <A HREF="000305.html">[Sleep-svn] r327 - in sleep: . src/sleep/engine/atoms
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#304">[ date ]</a>
+              <a href="thread.html#304">[ thread ]</a>
+              <a href="subject.html#304">[ subject ]</a>
+              <a href="author.html#304">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

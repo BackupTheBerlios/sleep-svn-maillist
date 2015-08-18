@@ -1,0 +1,142 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r430 - sleep/src/sleep/runtime
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2008-August/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r430%20-%20sleep/src/sleep/runtime&In-Reply-To=%3C200808051500.m75F0178014029%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000405.html">
+   <LINK REL="Next"  HREF="000407.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r430 - sleep/src/sleep/runtime</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r430%20-%20sleep/src/sleep/runtime&In-Reply-To=%3C200808051500.m75F0178014029%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r430 - sleep/src/sleep/runtime">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Tue Aug  5 17:00:01 CEST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000405.html">[Sleep-svn] r429 - in sleep: . src/sleep/bridges src/sleep/runtime	tests tests/output
+</A></li>
+        <LI>Next message: <A HREF="000407.html">[Sleep-svn] r431 - sleep
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#406">[ date ]</a>
+              <a href="thread.html#406">[ thread ]</a>
+              <a href="subject.html#406">[ subject ]</a>
+              <a href="author.html#406">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2008-08-05 17:00:01 +0200 (Tue, 05 Aug 2008)
+New Revision: 430
+
+Modified:
+   sleep/src/sleep/runtime/ScriptLoader.java
+Log:
+..
+
+
+Modified: sleep/src/sleep/runtime/ScriptLoader.java
+===================================================================
+--- sleep/src/sleep/runtime/ScriptLoader.java	2008-08-05 00:14:54 UTC (rev 429)
++++ sleep/src/sleep/runtime/ScriptLoader.java	2008-08-05 15:00:01 UTC (rev 430)
+@@ -268,10 +268,10 @@
+     }
+ 
+     /**
+-     * Process the newly loaded script.  Setup its name, add it to the data structures, and load the bridges into the environment
+-     * assuming this hasn't been done before.
++     * Process the newly loaded script.  Setup its name and load the bridges into the environment
++     * assuming this hasn't been done before.  
+      */
+-    private void inProcessScript(String name, ScriptInstance si)
++    protected void inProcessScript(String name, ScriptInstance si)
+     {
+         si.setName(name);
+ 
+@@ -291,13 +291,6 @@
+             }
+             si.getScriptEnvironment().getEnvironment().put(&quot;(isloaded)&quot;, this);
+         }
+-
+-        // add script to our loaded scripts data structure
+-
+-        if (! name.equals(&quot;&lt;interact mode&gt;&quot;)) {
+-            loadedScripts.add(si);
+-            scripts.put(name, si);
+-        }
+     }
+ 
+     /**
+@@ -349,14 +342,36 @@
+         o.writeObject(si.getRunnableBlock());
+     }
+ 
+-    public ScriptInstance loadScript(String name, Block code, Hashtable env)
++    /** creates a Sleep script instance using the precompiled code, name, and shared environment.  This function also
++        processes the script using the global and specific bridges registered with this script loader.  No reference
++        to the newly created script is kept by the script loader */
++    public ScriptInstance loadScriptNoReference(String name, Block code, Hashtable env)
+     {
+         ScriptInstance si = new ScriptInstance(env);
+         si.installBlock(code);
+         inProcessScript(name, si);
++
+         return si;
+     }
+ 
++    /** creates a Sleep script instance using the precompiled code, name, and shared environment.  This function also
++        processes the script using the global and specific bridges registered with this script loader.  The script is
++        also referened by this loader so it can be processed again (during the unload phase) when unloadScript is
++        called. */
++    public ScriptInstance loadScript(String name, Block code, Hashtable env)
++    {
++        ScriptInstance si = loadScriptNoReference(name, code, env);
++
++        // add script to our loaded scripts data structure
++
++        if (! name.equals(&quot;&lt;interact mode&gt;&quot;)) {
++            loadedScripts.add(si);
++            scripts.put(name, si);
++        }
++
++        return si;
++    }
++
+     /** loads the specified script */
+     public ScriptInstance loadScript(String name, String code, Hashtable env) throws YourCodeSucksException
+     {
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000405.html">[Sleep-svn] r429 - in sleep: . src/sleep/bridges src/sleep/runtime	tests tests/output
+</A></li>
+	<LI>Next message: <A HREF="000407.html">[Sleep-svn] r431 - sleep
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#406">[ date ]</a>
+              <a href="thread.html#406">[ thread ]</a>
+              <a href="subject.html#406">[ subject ]</a>
+              <a href="author.html#406">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

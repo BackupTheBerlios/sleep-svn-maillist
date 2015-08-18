@@ -1,0 +1,207 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r348 - in sleep/src/sleep: bridges engine parser
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2008-April/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r348%20-%20in%20sleep/src/sleep%3A%20bridges%20engine%20parser&In-Reply-To=%3C200804252002.m3PK259B028071%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000325.html">
+   <LINK REL="Next"  HREF="000327.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r348 - in sleep/src/sleep: bridges engine parser</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r348%20-%20in%20sleep/src/sleep%3A%20bridges%20engine%20parser&In-Reply-To=%3C200804252002.m3PK259B028071%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r348 - in sleep/src/sleep: bridges engine parser">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Fri Apr 25 22:02:05 CEST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000325.html">[Sleep-svn] r347 - in sleep/src/sleep: engine/atoms parser
+</A></li>
+        <LI>Next message: <A HREF="000327.html">[Sleep-svn] r350 - in sleep: . src/sleep/runtime
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#326">[ date ]</a>
+              <a href="thread.html#326">[ thread ]</a>
+              <a href="subject.html#326">[ subject ]</a>
+              <a href="author.html#326">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2008-04-25 22:02:05 +0200 (Fri, 25 Apr 2008)
+New Revision: 348
+
+Modified:
+   sleep/src/sleep/bridges/BasicIO.java
+   sleep/src/sleep/engine/GeneratedSteps.java
+   sleep/src/sleep/parser/CodeGenerator.java
+Log:
+eliminated evaluation bridge... 
+
+
+Modified: sleep/src/sleep/bridges/BasicIO.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicIO.java	2008-04-25 19:30:31 UTC (rev 347)
++++ sleep/src/sleep/bridges/BasicIO.java	2008-04-25 20:02:05 UTC (rev 348)
+@@ -39,45 +39,17 @@
+ import java.security.*;
+ 
+ /** provides IO functions for the sleep language */
+-public class BasicIO implements Loadable, Function, Evaluation
++public class BasicIO implements Loadable, Function
+ {
+     public void scriptUnloaded(ScriptInstance aScript)
+     {
+     }
+ 
+-    public Scalar evaluateString(ScriptInstance script, String value)
+-    {
+-       Scalar rv = SleepUtils.getArrayScalar();
+-
+-       try
+-       { 
+-          Process proc  = Runtime.getRuntime().exec(value);
+-          BufferedReader reader    = new BufferedReader(new InputStreamReader(proc.getInputStream()));
+-
+-          String text = null;
+-          while ((text = reader.readLine()) != null)
+-          {
+-             rv.getArray().push(SleepUtils.getScalar(text));
+-          }
+-
+-          if (proc.waitFor() != 0)
+-          {
+-             script.getScriptEnvironment().flagError(&quot;abnormal termination: &quot; + proc.exitValue());
+-          }
+-       }
+-       catch (Exception ex)
+-       {
+-          script.getScriptEnvironment().flagError(ex);
+-       }
+-
+-       return rv;
+-    }
+-
+     public void scriptLoaded (ScriptInstance aScript)
+     {
+         Hashtable temp = aScript.getScriptEnvironment().getEnvironment();
+ 
+-        temp.put(&quot;%BACKQUOTE%&quot;, this);
++        temp.put(&quot;__EXEC__&quot;, this);
+ 
+         // predicates
+         temp.put(&quot;-eof&quot;,     new iseof());
+@@ -161,6 +133,33 @@
+ 
+           return a.wait(i.getScriptEnvironment(), to);
+        }
++       else if (n.equals(&quot;__EXEC__&quot;))
++       {
++          Scalar rv = SleepUtils.getArrayScalar();
++
++          try
++          { 
++             Process proc  = Runtime.getRuntime().exec(BridgeUtilities.getString(l, &quot;&quot;));
++             BufferedReader reader    = new BufferedReader(new InputStreamReader(proc.getInputStream()));
++
++             String text = null;
++             while ((text = reader.readLine()) != null)
++             {
++                rv.getArray().push(SleepUtils.getScalar(text));
++             }
++
++             if (proc.waitFor() != 0)
++             {
++                i.getScriptEnvironment().flagError(&quot;abnormal termination: &quot; + proc.exitValue());
++             }
++          }
++          catch (Exception ex)
++          {
++             i.getScriptEnvironment().flagError(ex);
++          }
++
++          return rv;
++       }
+        else if (n.equals(&quot;&amp;writeObject&quot;) || n.equals(&quot;&amp;writeAsObject&quot;))
+        {
+           IOObject a = chooseSource(l, 2, i);
+
+Modified: sleep/src/sleep/engine/GeneratedSteps.java
+===================================================================
+--- sleep/src/sleep/engine/GeneratedSteps.java	2008-04-25 19:30:31 UTC (rev 347)
++++ sleep/src/sleep/engine/GeneratedSteps.java	2008-04-25 20:02:05 UTC (rev 348)
+@@ -76,9 +76,9 @@
+        return temp;
+     }
+  
+-    public Step PLiteral(String evaluator)
++    public Step PLiteral()
+     {
+-       Step temp = new PLiteral(evaluator);
++       Step temp = new PLiteral();
+        return temp;
+     }
+ 
+
+Modified: sleep/src/sleep/parser/CodeGenerator.java
+===================================================================
+--- sleep/src/sleep/parser/CodeGenerator.java	2008-04-25 19:30:31 UTC (rev 347)
++++ sleep/src/sleep/parser/CodeGenerator.java	2008-04-25 20:02:05 UTC (rev 348)
+@@ -513,6 +513,15 @@
+            parseIdea(ParserUtilities.extract(tokens[0]));
+            break;
+          case EXPR_EVAL_STRING:
++           atom = factory.CreateFrame();
++           add(atom, tokens[0]);
++
++           datum.setType(IDEA_STRING);
++           parse(datum);
++
++           atom = factory.Call(&quot;__EXEC__&quot;);
++           add(atom, tokens[0]);
++           break;
+          case IDEA_STRING: // implemented -- parsed literals, one of my favorite features in sleep
+ 
+            /** create a frame, we assume the PLiteral machine will destroy it */
+@@ -526,7 +535,7 @@
+            StringBuffer d = new StringBuffer(); // the string buffer where we will dump our results.
+ 
+            PLiteral  machine;
+-           machine = (PLiteral)(datum.getType() == EXPR_EVAL_STRING ? factory.PLiteral(&quot;%BACKQUOTE%&quot;) : factory.PLiteral(null));
++           machine = (PLiteral)factory.PLiteral();
+  
+            StringIterator si = new StringIterator(ParserUtilities.extract(strings[0]), tokens[0].getHint());
+    
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000325.html">[Sleep-svn] r347 - in sleep/src/sleep: engine/atoms parser
+</A></li>
+	<LI>Next message: <A HREF="000327.html">[Sleep-svn] r350 - in sleep: . src/sleep/runtime
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#326">[ date ]</a>
+              <a href="thread.html#326">[ thread ]</a>
+              <a href="subject.html#326">[ subject ]</a>
+              <a href="author.html#326">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

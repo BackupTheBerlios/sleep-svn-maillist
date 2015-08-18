@@ -1,0 +1,132 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r130 - in sleep/tests: . output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2006-October/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r130%20-%20in%20sleep/tests%3A%20.%20output&In-Reply-To=%3C200610020149.k921n8T6008491%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000111.html">
+   <LINK REL="Next"  HREF="000113.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r130 - in sleep/tests: . output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r130%20-%20in%20sleep/tests%3A%20.%20output&In-Reply-To=%3C200610020149.k921n8T6008491%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r130 - in sleep/tests: . output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Mon Oct  2 03:49:08 CEST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000111.html">[Sleep-svn] r129 - in sleep: . src/sleep/bridges tests/output
+</A></li>
+        <LI>Next message: <A HREF="000113.html">[Sleep-svn] r131 - in sleep: . src/sleep/bridges
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#112">[ date ]</a>
+              <a href="thread.html#112">[ thread ]</a>
+              <a href="subject.html#112">[ subject ]</a>
+              <a href="author.html#112">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2006-10-02 03:49:07 +0200 (Mon, 02 Oct 2006)
+New Revision: 130
+
+Added:
+   sleep/tests/output/sync.sl
+   sleep/tests/sync.sl
+Log:
+tests of the semaphores...
+
+
+
+Added: sleep/tests/output/sync.sl
+===================================================================
+--- sleep/tests/output/sync.sl	2006-10-02 01:48:45 UTC (rev 129)
++++ sleep/tests/output/sync.sl	2006-10-02 01:49:07 UTC (rev 130)
+@@ -0,0 +1,20 @@
++fork: 0
++fork: 1
++fork: 2
++fork: 3
++fork: 4
++fork: 5
++fork: 6
++fork: 7
++fork: 8
++fork: 9
++main: 0
++main: 1
++main: 2
++main: 3
++main: 4
++main: 5
++main: 6
++main: 7
++main: 8
++main: 9
+
+Added: sleep/tests/sync.sl
+===================================================================
+--- sleep/tests/sync.sl	2006-10-02 01:48:45 UTC (rev 129)
++++ sleep/tests/sync.sl	2006-10-02 01:49:07 UTC (rev 130)
+@@ -0,0 +1,27 @@
++#
++# test of synchronization primitive...
++#
++
++$mutex = semaphore();
++
++$handle = fork({
++
++  acquire($mutex);
++  for ($x = 0; $x &lt; 10; $x++)
++  {
++     println(&quot;fork: $x&quot;);
++     [Thread yield];
++  } 
++  release($mutex);
++}, $mutex =&gt; $mutex);
++
++acquire($mutex);
++
++for ($x = 0; $x &lt; 10; $x++)
++{
++   println(&quot;main: $x&quot;);
++   [Thread yield];
++}
++
++release($mutex);
++
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000111.html">[Sleep-svn] r129 - in sleep: . src/sleep/bridges tests/output
+</A></li>
+	<LI>Next message: <A HREF="000113.html">[Sleep-svn] r131 - in sleep: . src/sleep/bridges
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#112">[ date ]</a>
+              <a href="thread.html#112">[ thread ]</a>
+              <a href="subject.html#112">[ subject ]</a>
+              <a href="author.html#112">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

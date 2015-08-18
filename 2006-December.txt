@@ -1,0 +1,2280 @@
+From rsmudge at mail.berlios.de  Fri Dec  1 02:56:18 2006
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Fri, 1 Dec 2006 02:56:18 +0100
+Subject: [Sleep-svn] r189 - in sleep: . src/sleep/bridges src/sleep/console
+	src/sleep/engine/atoms src/sleep/runtime tests/output
+Message-ID: <200612010156.kB11uIkl001976@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-12-01 02:56:16 +0100 (Fri, 01 Dec 2006)
+New Revision: 189
+
+Modified:
+   sleep/src/sleep/bridges/BasicUtilities.java
+   sleep/src/sleep/console/TextConsole.java
+   sleep/src/sleep/engine/atoms/Call.java
+   sleep/src/sleep/engine/atoms/ObjectAccess.java
+   sleep/src/sleep/engine/atoms/ObjectNew.java
+   sleep/src/sleep/runtime/ScriptInstance.java
+   sleep/tests/output/forker.sl
+   sleep/tests/output/wrong.sl
+   sleep/whatsnew.txt
+Log:
+for reasons that even I don't understand at the moment, I have added a profiler to sleep.
+
+
+
+Modified: sleep/src/sleep/bridges/BasicUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicUtilities.java	2006-11-30 04:00:05 UTC (rev 188)
++++ sleep/src/sleep/bridges/BasicUtilities.java	2006-12-01 01:56:16 UTC (rev 189)
+@@ -103,6 +103,7 @@
+         temp.put("&global",     scopeFunctions);
+ 
+         temp.put("&debug", this);
++        temp.put("&profile", this);
+ 
+         temp.put("&reverse",  new reverse());      // @array2 = &reverse(@array) 
+         temp.put("&removeAt", new removeAt());   // not safe within foreach loops yada yada yada...
+@@ -762,6 +763,10 @@
+           c.setVariables(old);
+           return rv;
+        }
++       else if (n.equals("&profile"))
++       {
++          return SleepUtils.getArrayWrapper(i.getProfilerStatistics());
++       }
+        else if (n.equals("&debug"))
+        {
+           /* allow the script to programatically set the debug level */
+
+Modified: sleep/src/sleep/console/TextConsole.java
+===================================================================
+--- sleep/src/sleep/console/TextConsole.java	2006-11-30 04:00:05 UTC (rev 188)
++++ sleep/src/sleep/console/TextConsole.java	2006-12-01 01:56:16 UTC (rev 189)
+@@ -56,7 +56,6 @@
+          Scalar array = SleepUtils.getArrayScalar();
+          for (int x = start + 1; x < args.length; x++)
+          {
+-
+             array.getArray().push(SleepUtils.getScalar(args[x]));
+          }
+ 
+@@ -86,7 +85,7 @@
+             {
+                script.runScript();                                     // run the script...
+             }
+-         } 
++         }
+          catch (YourCodeSucksException yex)
+          {
+             // deal with all of our syntax errors, I'm using the console as a convienence
+
+Modified: sleep/src/sleep/engine/atoms/Call.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/Call.java	2006-11-30 04:00:05 UTC (rev 188)
++++ sleep/src/sleep/engine/atoms/Call.java	2006-12-01 01:56:16 UTC (rev 189)
+@@ -58,27 +58,41 @@
+       {
+          if ((e.getScriptInstance().getDebugFlags() & ScriptInstance.DEBUG_TRACE_CALLS) == ScriptInstance.DEBUG_TRACE_CALLS && !function.equals("&@") && !function.equals("&%"))
+          {
+-             String args = SleepUtils.describe(e.getCurrentFrame());
+-
+-             try
++             if (e.getScriptInstance().isProfileOnly())
+              {
++                long stat = System.currentTimeMillis();
+                 temp = callme.evaluate(function, e.getScriptInstance(), e.getCurrentFrame());
+                 e.clearReturn();
+-              
+-                if (SleepUtils.isEmptyScalar(temp))
++                stat = System.currentTimeMillis() - stat;
++                e.getScriptInstance().collect(function, getLineNumber(), stat); 
++             }
++             else
++             {
++                String args = SleepUtils.describe(e.getCurrentFrame());
++
++                try
+                 {
+-                   e.getScriptInstance().fireWarning(function + "(" + args + ")", getLineNumber(), true);
++                   long stat = System.currentTimeMillis();
++                   temp = callme.evaluate(function, e.getScriptInstance(), e.getCurrentFrame());
++                   e.clearReturn();
++                   stat = System.currentTimeMillis() - stat;
++                   e.getScriptInstance().collect(function, getLineNumber(), stat); /* add to the profiler, plz */
++                
++                   if (SleepUtils.isEmptyScalar(temp))
++                   {
++                      e.getScriptInstance().fireWarning(function + "(" + args + ")", getLineNumber(), true);
++                   }
++                   else
++                   {
++                      e.getScriptInstance().fireWarning(function + "(" + args + ") = " + SleepUtils.describe(temp), getLineNumber(), true);
++                   }
+                 }
+-                else
++                catch (RuntimeException rex)
+                 {
+-                   e.getScriptInstance().fireWarning(function + "(" + args + ") = " + SleepUtils.describe(temp), getLineNumber(), true);
++                   e.getScriptInstance().fireWarning(function + "(" + args + ") - FAILED!", getLineNumber(), true);
++                   throw(rex);
+                 }
+              }
+-             catch (RuntimeException rex)
+-             {
+-                e.getScriptInstance().fireWarning(function + "(" + args + ") - FAILED!", getLineNumber(), true);
+-                throw(rex);
+-             }
+          }
+          else
+          {
+
+Modified: sleep/src/sleep/engine/atoms/ObjectAccess.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/ObjectAccess.java	2006-11-30 04:00:05 UTC (rev 188)
++++ sleep/src/sleep/engine/atoms/ObjectAccess.java	2006-12-01 01:56:16 UTC (rev 189)
+@@ -97,43 +97,56 @@
+ 
+          if (isTrace)
+          {
+-            String args = SleepUtils.describe(e.getCurrentFrame());
+-
+-            /* construct the actual trace message */
+-
+-            StringBuffer trace = new StringBuffer("[" + SleepUtils.describe(scalar));
+-           
+-            if (name != null && name.length() > 0)
++            if (e.getScriptInstance().isProfileOnly())
+             {
+-               trace.append(" " + name);
++               long stat = System.currentTimeMillis();
++               result = func.evaluate(name, e.getScriptInstance(), e.getCurrentFrame());
++               stat = System.currentTimeMillis() - stat;
++               e.getScriptInstance().collect(SleepUtils.describe(scalar), getLineNumber(), stat);
+             }
+-
+-            if (args.length() > 0)
+-            {
+-               trace.append(": " + args + "]");
+-            }
+             else
+             {
+-               trace.append("]");
+-            }
++               String args = SleepUtils.describe(e.getCurrentFrame());
+ 
+-            try
+-            {
+-               result = func.evaluate(name, e.getScriptInstance(), e.getCurrentFrame());
++               /* construct the actual trace message */
++   
++               StringBuffer trace = new StringBuffer("[" + SleepUtils.describe(scalar));
++            
++               if (name != null && name.length() > 0)
++               {
++                  trace.append(" " + name);
++               }
+ 
+-               if (!SleepUtils.isEmptyScalar(result))
++               if (args.length() > 0)
+                {
+-                  trace.append(" = " + SleepUtils.describe(result));
++                  trace.append(": " + args + "]");
+                }
++               else
++               {
++                  trace.append("]");
++               }
+ 
+-               e.getScriptInstance().fireWarning(trace.toString(), getLineNumber(), true); 
++               try
++               {
++                  long stat = System.currentTimeMillis();
++                  result = func.evaluate(name, e.getScriptInstance(), e.getCurrentFrame());
++                  stat = System.currentTimeMillis() - stat;
++                  e.getScriptInstance().collect(SleepUtils.describe(scalar), getLineNumber(), stat);
++
++                  if (!SleepUtils.isEmptyScalar(result))
++                  {
++                     trace.append(" = " + SleepUtils.describe(result));
++                  }
++
++                  e.getScriptInstance().fireWarning(trace.toString(), getLineNumber(), true); 
++               }
++               catch (RuntimeException rex)
++               {
++                  trace.append(" - FAILED!");
++                  e.getScriptInstance().fireWarning(trace.toString(), getLineNumber(), true); 
++                  throw(rex);
++               }
+             }
+-            catch (RuntimeException rex)
+-            {
+-               trace.append(" - FAILED!");
+-               e.getScriptInstance().fireWarning(trace.toString(), getLineNumber(), true); 
+-               throw(rex);
+-            }
+          }
+          else
+          {
+@@ -176,42 +189,60 @@
+ 
+             if (isTrace)
+             {
+-               String args = SleepUtils.describe(e.getCurrentFrame());
++               if (e.getScriptInstance().isProfileOnly())
++               {
++                  long stat = System.currentTimeMillis();
+ 
+-               if (args.length() > 0) { args = ": " + args; }
++                  parameters = ObjectUtilities.buildArgumentArray(theMethod.getParameterTypes(), e.getCurrentFrame(), e.getScriptInstance());
++                  result = ObjectUtilities.BuildScalar(true, theMethod.invoke(accessMe, parameters));
+ 
+-               parameters = ObjectUtilities.buildArgumentArray(theMethod.getParameterTypes(), e.getCurrentFrame(), e.getScriptInstance());
+-
+-               /* construct the actual trace message */
+-
+-               StringBuffer trace = new StringBuffer("[");
+-
+-               if (scalar == null)
+-               {
+-                  trace.append(theClass.getName() + " " + name + args + "]");
++                  stat = System.currentTimeMillis() - stat;
++                  e.getScriptInstance().collect(theMethod.toString(), getLineNumber(), stat);
+                }
+                else
+                {
+-                  trace.append(SleepUtils.describe(scalar) + " " + name + args + "]");
+-               }
++                  String args = SleepUtils.describe(e.getCurrentFrame());
+ 
+-               try
+-               {
+-                  result = ObjectUtilities.BuildScalar(true, theMethod.invoke(accessMe, parameters));
++                  if (args.length() > 0) { args = ": " + args; }
+ 
+-                  if (!SleepUtils.isEmptyScalar(result))
++                  parameters = ObjectUtilities.buildArgumentArray(theMethod.getParameterTypes(), e.getCurrentFrame(), e.getScriptInstance());
++
++                  long stat = System.currentTimeMillis();
++
++                  /* construct the actual trace message */
++
++                  StringBuffer trace = new StringBuffer("[");
++
++                  if (scalar == null)
+                   {
+-                     trace.append(" = " + SleepUtils.describe(result));
++                     trace.append(theClass.getName() + " " + name + args + "]");
+                   }
++                  else
++                  {
++                     trace.append(SleepUtils.describe(scalar) + " " + name + args + "]");
++                  }
+ 
+-                  e.getScriptInstance().fireWarning(trace.toString(), getLineNumber(), true); 
++                  try
++                  {
++                     result = ObjectUtilities.BuildScalar(true, theMethod.invoke(accessMe, parameters));
++
++                     stat = System.currentTimeMillis() - stat;
++                     e.getScriptInstance().collect(theMethod.toString(), getLineNumber(), stat);
++
++                     if (!SleepUtils.isEmptyScalar(result))
++                     {
++                        trace.append(" = " + SleepUtils.describe(result));
++                     }
++
++                     e.getScriptInstance().fireWarning(trace.toString(), getLineNumber(), true); 
++                  }
++                  catch (RuntimeException rex)
++                  {
++                     trace.append(" - FAILED!");
++                     e.getScriptInstance().fireWarning(trace.toString(), getLineNumber(), true); 
++                     throw(rex);
++                  }
+                }
+-               catch (RuntimeException rex)
+-               {
+-                  trace.append(" - FAILED!");
+-                  e.getScriptInstance().fireWarning(trace.toString(), getLineNumber(), true); 
+-                  throw(rex);
+-               }
+             }
+             else
+             {
+
+Modified: sleep/src/sleep/engine/atoms/ObjectNew.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/ObjectNew.java	2006-11-30 04:00:05 UTC (rev 188)
++++ sleep/src/sleep/engine/atoms/ObjectNew.java	2006-12-01 01:56:16 UTC (rev 189)
+@@ -74,39 +74,56 @@
+ 
+             if (isTrace)
+             {
+-               String args = SleepUtils.describe(e.getCurrentFrame());
++               if (e.getScriptInstance().isProfileOnly())
++               {
++                  long stat = System.currentTimeMillis();
+ 
+-               parameters = ObjectUtilities.buildArgumentArray(theConstructor.getParameterTypes(), e.getCurrentFrame(), e.getScriptInstance());
++                  parameters = ObjectUtilities.buildArgumentArray(theConstructor.getParameterTypes(), e.getCurrentFrame(), e.getScriptInstance());
++                  result = ObjectUtilities.BuildScalar(false, theConstructor.newInstance(parameters));
+ 
+-               StringBuffer trace = new StringBuffer("[new " + name.getName());
+-
+-               if (args.length() > 0)
++                  stat = System.currentTimeMillis() - stat;
++                  e.getScriptInstance().collect(theConstructor.toString(), getLineNumber(), stat);
++               }
++               else
+                {
+-                  trace.append(": " + args);
+-               }
++                  String args = SleepUtils.describe(e.getCurrentFrame());
+ 
+-               trace.append("]");
++                  long stat = System.currentTimeMillis();
++                  parameters = ObjectUtilities.buildArgumentArray(theConstructor.getParameterTypes(), e.getCurrentFrame(), e.getScriptInstance());
++ 
++                  StringBuffer trace = new StringBuffer("[new " + name.getName());
+ 
+-               try
+-               {
+-                  result = ObjectUtilities.BuildScalar(false, theConstructor.newInstance(parameters));
++                  if (args.length() > 0)
++                  {
++                     trace.append(": " + args);
++                  }
+ 
+-                  if (!SleepUtils.isEmptyScalar(result))
++                  trace.append("]");
++
++                  try
+                   {
+-                     trace.append(" = " + SleepUtils.describe(result));
++                     result = ObjectUtilities.BuildScalar(false, theConstructor.newInstance(parameters));
++
++                     stat = System.currentTimeMillis() - stat;
++                     e.getScriptInstance().collect(theConstructor.toString(), getLineNumber(), stat);
++
++                     if (!SleepUtils.isEmptyScalar(result))
++                     {
++                        trace.append(" = " + SleepUtils.describe(result));
++                     }
++
++                     e.getScriptInstance().fireWarning(trace.toString(), getLineNumber(), true);
+                   }
+-
+-                  e.getScriptInstance().fireWarning(trace.toString(), getLineNumber(), true);
++                  catch (RuntimeException rex)
++                  {
++                     trace.append(" - FAILED!");
++                     e.getScriptInstance().fireWarning(trace.toString(), getLineNumber(), true);
++                     throw(rex);
++                  }
+                }
+-               catch (RuntimeException rex)
+-               {
+-                  trace.append(" - FAILED!");
+-                  e.getScriptInstance().fireWarning(trace.toString(), getLineNumber(), true);
+-                  throw(rex);
+-               }
+             }
+             else
+-            {
++            { 
+                parameters = ObjectUtilities.buildArgumentArray(theConstructor.getParameterTypes(), e.getCurrentFrame(), e.getScriptInstance());
+                result = ObjectUtilities.BuildScalar(false, theConstructor.newInstance(parameters));
+             }
+
+Modified: sleep/src/sleep/runtime/ScriptInstance.java
+===================================================================
+--- sleep/src/sleep/runtime/ScriptInstance.java	2006-11-30 04:00:05 UTC (rev 188)
++++ sleep/src/sleep/runtime/ScriptInstance.java	2006-12-01 01:56:16 UTC (rev 189)
+@@ -23,8 +23,6 @@
+ 
+ package sleep.runtime;
+ 
+-import java.io.Serializable;
+-
+ import sleep.runtime.Scalar;
+ import sleep.engine.Block;
+ 
+@@ -42,10 +40,8 @@
+ import sleep.parser.Parser;
+ import sleep.parser.ParserUtilities;
+ 
+-import java.util.Hashtable;
+-import java.util.Stack;
+-import java.util.LinkedList;
+-import java.util.Iterator;
++import java.util.*;
++import java.io.*;
+ 
+ /** Every piece of information related to a loaded script.  This includes the scripts runtime environment, code in compiled 
+   * form, variable information, and listeners for runtime issues.
+@@ -86,6 +82,10 @@
+     /** fire a runtime warning describing each function call */
+     public static final int DEBUG_TRACE_CALLS    = 8;
+ 
++    /** forces function call tracing to occur (for the sake of profiling a script) but supresses
++        all runtime warnings as a result of the tracing */
++    public static final int DEBUG_TRACE_PROFILE_ONLY  = 8 | 16;
++
+     /** track all of the flagged debug options for this script (set to DEBUG_SHOW_ERRORS by default) */
+     protected int debug = DEBUG_SHOW_ERRORS;
+ 
+@@ -101,6 +101,9 @@
+         return debug;
+     }
+ 
++    /** Constructs a script instance, if the parameter is null a default implementation will be used.
++        By specifying the same shared Hashtable container for all scripts, such scripts can be made to
++        environment information */
+     public ScriptInstance(Hashtable environmentToShare)
+     {
+         this((Variable)null, environmentToShare);
+@@ -182,6 +185,95 @@
+         return temp;
+     }
+  
++    /** A container for a profile statistic about a sleep function */
++    public static class ProfilerStatistic implements Comparable
++    {
++        /** the line number within the script this information is valid for */
++        public int lineNo;
++
++        /** the name of the function call */
++        public String functionName;
++
++        /** the total number of ticks consumed by this function call */
++        public long ticks = 0;
++
++        /** the total number of times this function has been called */
++        public long calls = 0;
++
++        /** used to compare this statistic to other statistics for the sake of sorting */
++        public int compareTo(Object o)
++        {
++           return (int)(((ProfilerStatistic)o).ticks - ticks);
++        }
++
++        /** returns a string in the form of (total time used in seconds)s (total calls made) @(line number) (function description) */ 
++        public String toString()
++        {
++           return (ticks / 1000.0) + "s " + calls + " " + functionName;
++        }
++    }
++
++    /** A container for profile statistics */
++    protected Map statistics;
++
++    /** this function is used internally by the sleep interpreter to collect profiler statistics
++        when DEBUG_TRACE_CALLS or DEBUG_TRACE_PROFILE_ONLY is enabled */
++    public void collect(String function, int lineNo, long ticks)
++    {
++       if (statistics == null) { statistics = new HashMap(); }
++
++       ProfilerStatistic stats = (ProfilerStatistic)statistics.get(function);
++
++       if (stats == null)
++       {
++          stats = new ProfilerStatistic();
++//          stats.lineNo = lineNo;
++          stats.functionName = function;
++
++          statistics.put(function, stats);
++       }
++
++       stats.ticks += ticks;
++       stats.calls ++;
++    }
++
++    /** a quick way to check if we are profiling and not tracing the script steps */
++    public boolean isProfileOnly()
++    {
++       return (getDebugFlags() & DEBUG_TRACE_PROFILE_ONLY) == DEBUG_TRACE_PROFILE_ONLY;
++    }
++
++    /** Returns a sorted (in order of total ticks used) list of function call statistics for this
++        script environment.  The list contains ScriptInstance.ProfileStatistic objects. 
++        Note!!! For Sleep to provide profiler statistics, DEBUG_TRACE_CALLS or DEBUG_TRACE_PROFILE_ONLY must be enabled! */
++    public List getProfilerStatistics()
++    {
++        if (statistics != null)
++        {
++           List values = new LinkedList(statistics.values());
++           Collections.sort(values);
++
++           return values;
++        }
++        else
++        {
++           return new LinkedList();
++        }
++    }
++
++    /** Dumps the profiler statistics to the specified stream */
++    public void printProfileStatistics(OutputStream out)
++    {
++        PrintWriter pout = new PrintWriter(out, true);
++
++        Iterator i = getProfilerStatistics().iterator();
++        while (i.hasNext())
++        {
++           String temp = i.next().toString();
++           pout.println(temp);
++        }
++    }
++
+     /** Creates a forked script instance.  This does not work like fork in an operating system.  Variables are not copied, period.
+         The idea is to create a fork that shares the same environment as this script instance. */
+     public ScriptInstance fork()
+@@ -270,7 +362,7 @@
+     /** Fire a runtime script warning */
+     public void fireWarning(String message, int line, boolean isTrace)
+     {
+-       if (debug != DEBUG_NONE)
++       if (debug != DEBUG_NONE && (!isTrace || (getDebugFlags() & DEBUG_TRACE_PROFILE_ONLY) != DEBUG_TRACE_PROFILE_ONLY))
+        {
+           ScriptWarning temp = new ScriptWarning(this, message, line, isTrace);
+ 
+@@ -284,3 +376,4 @@
+ }
+ 
+ 
++
+
+Modified: sleep/tests/output/forker.sl
+===================================================================
+--- sleep/tests/output/forker.sl	2006-11-30 04:00:05 UTC (rev 188)
++++ sleep/tests/output/forker.sl	2006-12-01 01:56:16 UTC (rev 189)
+@@ -1,3 +1,3 @@
+ Trace: &check('within fork') at line 9
+-Trace: &fork(&closure2:9) = sleep.bridges.io.IOObject at 97d026 at line 8
++Trace: &fork(&closure2:9) = sleep.bridges.io.IOObject at bf053f at line 8
+ Trace: &check('outside of fork') at line 12
+
+Modified: sleep/tests/output/wrong.sl
+===================================================================
+--- sleep/tests/output/wrong.sl	2006-11-30 04:00:05 UTC (rev 188)
++++ sleep/tests/output/wrong.sl	2006-12-01 01:56:16 UTC (rev 189)
+@@ -1,32 +1,32 @@
+ Trace: [java.lang.Math pow: 3, 4] = 81.0 at line 6
+ 81.0
+-Trace: [java.io.PrintStream at 49105b println: 81.0] at line 6
++Trace: [java.io.PrintStream at 843a75 println: 81.0] at line 6
+ Trace: &casti(1, 'z') = true at line 9
+ true
+-Trace: [java.io.PrintStream at 49105b println: true] at line 9
++Trace: [java.io.PrintStream at 843a75 println: true] at line 9
+ Trace: &casti(0, 'z') = false at line 10
+ false
+-Trace: [java.io.PrintStream at 49105b println: false] at line 10
++Trace: [java.io.PrintStream at 843a75 println: false] at line 10
+ Trace: &casti(1, 'd') = 1.0 at line 13
+ 1.0
+-Trace: [java.io.PrintStream at 49105b println: 1.0] at line 13
++Trace: [java.io.PrintStream at 843a75 println: 1.0] at line 13
+ Trace: &casti(1, 'b') = 1 at line 16
+ 1
+-Trace: [java.io.PrintStream at 49105b println: 1] at line 16
++Trace: [java.io.PrintStream at 843a75 println: 1] at line 16
+ Trace: &casti(100, 'f') = 100.0 at line 19
+ 100.0
+-Trace: [java.io.PrintStream at 49105b println: 100.0] at line 19
++Trace: [java.io.PrintStream at 843a75 println: 100.0] at line 19
+ Trace: &casti('b', 'c') = b at line 22
+ b
+-Trace: [java.io.PrintStream at 49105b println: b] at line 22
++Trace: [java.io.PrintStream at 843a75 println: b] at line 22
+ Trace: &casti(63, 'i') = 63 at line 25
+ 63
+-Trace: [java.io.PrintStream at 49105b println: 63] at line 25
++Trace: [java.io.PrintStream at 843a75 println: 63] at line 25
+ this is a string y0
+-Trace: [java.io.PrintStream at 49105b println: 'this is a string y0'] at line 28
++Trace: [java.io.PrintStream at 843a75 println: 'this is a string y0'] at line 28
+ Trace: [new java.lang.StringBuilder: 'test'] = test at line 31
+ test
+-Trace: [java.io.PrintStream at 49105b println: test] at line 31
+-Trace: &cast(@('a', 'b', 'c', 'd'), 'c') = [C at 608760 at line 34
++Trace: [java.io.PrintStream at 843a75 println: test] at line 31
++Trace: &cast(@('a', 'b', 'c', 'd'), 'c') = [C at 578aab at line 34
+ abcd
+-Trace: [java.io.PrintStream at 49105b println: [C at 608760] at line 34
++Trace: [java.io.PrintStream at 843a75 println: [C at 578aab] at line 34
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-11-30 04:00:05 UTC (rev 188)
++++ sleep/whatsnew.txt	2006-12-01 01:56:16 UTC (rev 189)
+@@ -9,6 +9,11 @@
+ - added &unlambda function that works exactly like &lambda except it does
+   not create a new closure (rather it manipulates the this scope of the
+   passed in closure and returns the passed in closure).
++- added a profiler to sleep...  I know, you should be scared.  Use the
++  DEBUG_TRACE_CALLS (8) or DEBUG_TRACE_PROFILE_ONLY (24) debug options to
++  enable it.  Profiler statistics are available in the ScriptInstance class
++  with the getProfilerStatistics method.  Scripts can access their profiler
++  statistics with the &profile() function which returns an array.  
+ 
+ 2.1-beta 10 (20 Nov 06)
+ ===========
+
+
+
+From rsmudge at mail.berlios.de  Fri Dec  1 03:19:31 2006
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Fri, 1 Dec 2006 03:19:31 +0100
+Subject: [Sleep-svn] r190 - in sleep: src/sleep/runtime tests tests/output
+Message-ID: <200612010219.kB12JVfg004404@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-12-01 03:19:30 +0100 (Fri, 01 Dec 2006)
+New Revision: 190
+
+Added:
+   sleep/tests/output/profiler.sl
+   sleep/tests/profiler.sl
+Modified:
+   sleep/src/sleep/runtime/ScriptInstance.java
+Log:
+a few more adjustments to our lovely profiler...  pHEAR
+
+
+
+Modified: sleep/src/sleep/runtime/ScriptInstance.java
+===================================================================
+--- sleep/src/sleep/runtime/ScriptInstance.java	2006-12-01 01:56:16 UTC (rev 189)
++++ sleep/src/sleep/runtime/ScriptInstance.java	2006-12-01 02:19:30 UTC (rev 190)
+@@ -188,9 +188,6 @@
+     /** A container for a profile statistic about a sleep function */
+     public static class ProfilerStatistic implements Comparable
+     {
+-        /** the line number within the script this information is valid for */
+-        public int lineNo;
+-
+         /** the name of the function call */
+         public String functionName;
+ 
+@@ -213,21 +210,23 @@
+         }
+     }
+ 
+-    /** A container for profile statistics */
+-    protected Map statistics;
+-
+     /** this function is used internally by the sleep interpreter to collect profiler statistics
+         when DEBUG_TRACE_CALLS or DEBUG_TRACE_PROFILE_ONLY is enabled */
+     public void collect(String function, int lineNo, long ticks)
+     {
+-       if (statistics == null) { statistics = new HashMap(); }
++       Map statistics = (Map)getScriptEnvironment().getEnvironment().get("%statistics%");
+ 
++       if (statistics == null) 
++       {
++          statistics = new HashMap();
++          getScriptEnvironment().getEnvironment().put("%statistics%", statistics);
++       }
++
+        ProfilerStatistic stats = (ProfilerStatistic)statistics.get(function);
+ 
+        if (stats == null)
+        {
+           stats = new ProfilerStatistic();
+-//          stats.lineNo = lineNo;
+           stats.functionName = function;
+ 
+           statistics.put(function, stats);
+@@ -248,6 +247,8 @@
+         Note!!! For Sleep to provide profiler statistics, DEBUG_TRACE_CALLS or DEBUG_TRACE_PROFILE_ONLY must be enabled! */
+     public List getProfilerStatistics()
+     {
++        Map statistics = (Map)getScriptEnvironment().getEnvironment().get("%statistics%");
++
+         if (statistics != null)
+         {
+            List values = new LinkedList(statistics.values());
+
+Added: sleep/tests/output/profiler.sl
+===================================================================
+--- sleep/tests/output/profiler.sl	2006-12-01 01:56:16 UTC (rev 189)
++++ sleep/tests/output/profiler.sl	2006-12-01 02:19:30 UTC (rev 190)
+@@ -0,0 +1,8 @@
++Hello World
++string length is: 4
++this is a closure call!: 3628800.0
++10  &closure1:7
++1   &closure2:16
++5   &println
++1   &fact
++1   public int java.lang.String.length()
+
+Added: sleep/tests/profiler.sl
+===================================================================
+--- sleep/tests/profiler.sl	2006-12-01 01:56:16 UTC (rev 189)
++++ sleep/tests/profiler.sl	2006-12-01 02:19:30 UTC (rev 190)
+@@ -0,0 +1,29 @@
++#
++# a simple test of the profiler...
++#   
++
++sub fact
++{
++   return iff($1 == 0, 1, $1 * [$this : $1 - 1]); 
++}
++
++debug(24);
++
++println("Hello World");
++$x = ["test" length];
++println("string length is: $x");
++
++println([{ return "this is a closure call!: " . fact(10.0); }]);
++
++ at stats = profile();
++foreach $var (@stats)
++{
++   # $var is a ScriptInstance.ProfilerStatistic object, it accepts
++   # the following messages:
++   # [$var calls] - number of calls for the function
++   # [$var ticks] - total number of ticks used by the function
++   # [$var functionName] - the function name...
++
++   ($count, $name) = @([$var calls], [$var functionName]);
++   println("$[3]count $name");
++}
+
+
+
+From rsmudge at mail.berlios.de  Fri Dec  1 04:35:23 2006
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Fri, 1 Dec 2006 04:35:23 +0100
+Subject: [Sleep-svn] r191 - in sleep: src/sleep/bridges
+	src/sleep/engine/atoms tests tests/output
+Message-ID: <200612010335.kB13ZNck010770@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-12-01 04:35:23 +0100 (Fri, 01 Dec 2006)
+New Revision: 191
+
+Modified:
+   sleep/src/sleep/bridges/Semaphore.java
+   sleep/src/sleep/bridges/SleepClosure.java
+   sleep/src/sleep/engine/atoms/ObjectAccess.java
+   sleep/tests/output/profiler.sl
+   sleep/tests/profiler.sl
+Log:
+more changes..
+
+
+
+Modified: sleep/src/sleep/bridges/Semaphore.java
+===================================================================
+--- sleep/src/sleep/bridges/Semaphore.java	2006-12-01 02:19:30 UTC (rev 190)
++++ sleep/src/sleep/bridges/Semaphore.java	2006-12-01 03:35:23 UTC (rev 191)
+@@ -49,4 +49,10 @@
+          notify();
+       }
+    }
++
++   /** returns a nice string representation of this semaphore */
++   public String toString()
++   {
++      return "[Semaphore: " + count + "]";
++   } 
+ }
+
+Modified: sleep/src/sleep/bridges/SleepClosure.java
+===================================================================
+--- sleep/src/sleep/bridges/SleepClosure.java	2006-12-01 02:19:30 UTC (rev 190)
++++ sleep/src/sleep/bridges/SleepClosure.java	2006-12-01 03:35:23 UTC (rev 191)
+@@ -97,6 +97,16 @@
+        return (Stack)context.pop();
+     }
+ 
++    public String toStringGeneric()
++    {
++       if (owner != null)
++       {
++          return "&closure[" + new File(owner.getName()).getName() + ":" + code.getApproximateLineRange() + "]";
++       }
++
++       return "&closure[unknown:" + code.getApproximateLineRange() + "]";
++    }
++
+     public String toString()
+     {
+        return "&closure" + id + ":" + code.getApproximateLineRange();
+
+Modified: sleep/src/sleep/engine/atoms/ObjectAccess.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/ObjectAccess.java	2006-12-01 02:19:30 UTC (rev 190)
++++ sleep/src/sleep/engine/atoms/ObjectAccess.java	2006-12-01 03:35:23 UTC (rev 191)
+@@ -102,7 +102,7 @@
+                long stat = System.currentTimeMillis();
+                result = func.evaluate(name, e.getScriptInstance(), e.getCurrentFrame());
+                stat = System.currentTimeMillis() - stat;
+-               e.getScriptInstance().collect(SleepUtils.describe(scalar), getLineNumber(), stat);
++               e.getScriptInstance().collect(((SleepClosure)scalar.objectValue()).toStringGeneric(), getLineNumber(), stat);
+             }
+             else
+             {
+@@ -131,7 +131,7 @@
+                   long stat = System.currentTimeMillis();
+                   result = func.evaluate(name, e.getScriptInstance(), e.getCurrentFrame());
+                   stat = System.currentTimeMillis() - stat;
+-                  e.getScriptInstance().collect(SleepUtils.describe(scalar), getLineNumber(), stat);
++                  e.getScriptInstance().collect(((SleepClosure)scalar.objectValue()).toStringGeneric(), getLineNumber(), stat);
+ 
+                   if (!SleepUtils.isEmptyScalar(result))
+                   {
+
+Modified: sleep/tests/output/profiler.sl
+===================================================================
+--- sleep/tests/output/profiler.sl	2006-12-01 02:19:30 UTC (rev 190)
++++ sleep/tests/output/profiler.sl	2006-12-01 03:35:23 UTC (rev 191)
+@@ -1,8 +1,8 @@
+ Hello World
+ string length is: 4
+ this is a closure call!: 3628800.0
+-10  &closure1:7
+-1   &closure2:16
+-5   &println
++10  &closure[profiler.sl:7]
++4   &println
++1   public int java.lang.String.length()
+ 1   &fact
+-1   public int java.lang.String.length()
++1   &closure[profiler.sl:16]
+
+Modified: sleep/tests/profiler.sl
+===================================================================
+--- sleep/tests/profiler.sl	2006-12-01 02:19:30 UTC (rev 190)
++++ sleep/tests/profiler.sl	2006-12-01 03:35:23 UTC (rev 191)
+@@ -16,6 +16,9 @@
+ println([{ return "this is a closure call!: " . fact(10.0); }]);
+ 
+ @stats = profile();
++
++ at stats = reverse(sort({ return [$1 calls] <=> [$2 calls]; }, copy(@stats)));
++
+ foreach $var (@stats)
+ {
+    # $var is a ScriptInstance.ProfilerStatistic object, it accepts
+
+
+
+From rsmudge at mail.berlios.de  Sun Dec  3 00:35:12 2006
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Sun, 3 Dec 2006 00:35:12 +0100
+Subject: [Sleep-svn] r192 - in sleep: . src/sleep/parser tests tests/output
+Message-ID: <200612022335.kB2NZCTk028498@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-12-03 00:35:11 +0100 (Sun, 03 Dec 2006)
+New Revision: 192
+
+Added:
+   sleep/tests/output/skew.sl
+   sleep/tests/skew.sl
+Modified:
+   sleep/src/sleep/parser/ParserUtilities.java
+   sleep/whatsnew.txt
+Log:
+fixed a line number skew issue with multi-line tokens passed as parameters...
+
+
+
+Modified: sleep/src/sleep/parser/ParserUtilities.java
+===================================================================
+--- sleep/src/sleep/parser/ParserUtilities.java	2006-12-01 03:35:23 UTC (rev 191)
++++ sleep/src/sleep/parser/ParserUtilities.java	2006-12-02 23:35:11 UTC (rev 192)
+@@ -87,12 +87,13 @@
+        while (i.hasNext())
+        {
+           Token temp = (Token)i.next();
+-          hint       = temp.getHint();
++          hint       = hint == -1 ? temp.getHint() : hint;
+ 
+           if (temp.toString().equals("EOT"))
+           {
+              rv.add(new Token(current.toString(), hint));
+              current = new StringBuffer();
++             hint    = -1; /* reset hint to prevent line # skew */
+           }
+           else
+           {
+
+Added: sleep/tests/output/skew.sl
+===================================================================
+--- sleep/tests/output/skew.sl	2006-12-01 03:35:23 UTC (rev 191)
++++ sleep/tests/output/skew.sl	2006-12-02 23:35:11 UTC (rev 192)
+@@ -0,0 +1,11 @@
++Warning: variable '$2' not declared at line 14
++Warning: variable '$1' not declared at line 10
++
++   some stuff here: 
++   some more stuff
++   and more stuff
++   and even more stuff...
++   
++
++   
++Warning: variable '$x' not declared at line 21
+
+Added: sleep/tests/skew.sl
+===================================================================
+--- sleep/tests/skew.sl	2006-12-01 03:35:23 UTC (rev 191)
++++ sleep/tests/skew.sl	2006-12-02 23:35:11 UTC (rev 192)
+@@ -0,0 +1,23 @@
++#
++# a test of more line number skew...
++#
++
++debug(7);
++
++sub funky
++{
++   println("
++   some stuff here: " . $1 . "
++   some more stuff
++   and more stuff
++   and even more stuff...
++   " . $2 . "
++
++   ");
++}
++
++funky();
++
++$x = '
++
++  this is a  test';
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-12-01 03:35:23 UTC (rev 191)
++++ sleep/whatsnew.txt	2006-12-02 23:35:11 UTC (rev 192)
+@@ -14,6 +14,8 @@
+   enable it.  Profiler statistics are available in the ScriptInstance class
+   with the getProfilerStatistics method.  Scripts can access their profiler
+   statistics with the &profile() function which returns an array.  
++- fixed a line number skew issue with multi-line tokens passed as parameters
++  to a function/expression.  
+ 
+ 2.1-beta 10 (20 Nov 06)
+ ===========
+
+
+
+From rsmudge at mail.berlios.de  Sun Dec  3 01:33:22 2006
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Sun, 3 Dec 2006 01:33:22 +0100
+Subject: [Sleep-svn] r193 - in sleep: . src/sleep/engine
+	src/sleep/engine/atoms tests tests/output
+Message-ID: <200612030033.kB30XMCD000654@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-12-03 01:33:22 +0100 (Sun, 03 Dec 2006)
+New Revision: 193
+
+Added:
+   sleep/tests/blockskew.sl
+   sleep/tests/operorder.sl
+   sleep/tests/output/blockskew.sl
+   sleep/tests/output/operorder.sl
+Modified:
+   sleep/src/sleep/engine/Block.java
+   sleep/src/sleep/engine/Step.java
+   sleep/src/sleep/engine/atoms/Decide.java
+   sleep/src/sleep/engine/atoms/Goto.java
+   sleep/tests/output/fe_generatordb.sl
+   sleep/whatsnew.txt
+Log:
+fixed another line number skew issue.
+
+
+
+Modified: sleep/src/sleep/engine/Block.java
+===================================================================
+--- sleep/src/sleep/engine/Block.java	2006-12-02 23:35:11 UTC (rev 192)
++++ sleep/src/sleep/engine/Block.java	2006-12-03 00:33:22 UTC (rev 193)
+@@ -79,26 +79,52 @@
+        return -1;
+     }
+ 
+-    /** Returns an approximate range of line numbers for the steps in this block object.  Useful for formatting error messages in script warnings and such. */
+-    public String getApproximateLineRange()
++    /** return the highest line number associated with this block */
++    public int getHighLineNumber()
+     {
+        int high = 0;
+-       int low  = Integer.MAX_VALUE;
+  
+-       int n;
++       int m;
+        Step temp = first;
+        while (temp != null)
+        {
+-          n = temp.getLineNumber();
+-          if (n < low)
+-              low = n;
++          m = temp.getHighLineNumber();
+ 
+-          if (n > high)
+-              high = n;
++          if (m > high)
++              high = m;
+ 
+           temp = temp.next;
+        }
+ 
++       return high;
++    }
++
++    /** return the lowest line number associated with this block */
++    public int getLowLineNumber()
++    {
++       int low = Integer.MAX_VALUE;
++ 
++       int m;
++       Step temp = first;
++       while (temp != null)
++       {
++          m = temp.getHighLineNumber();
++
++          if (m < low)
++              low = m;
++
++          temp = temp.next;
++       }
++
++       return low;
++    }
++
++    /** Returns an approximate range of line numbers for the steps in this block object.  Useful for formatting error messages in script warnings and such. */
++    public String getApproximateLineRange()
++    {
++       int low  = getLowLineNumber();
++       int high = getHighLineNumber();
++
+        if (low == high)
+           return low + "";
+ 
+
+Modified: sleep/src/sleep/engine/Step.java
+===================================================================
+--- sleep/src/sleep/engine/Step.java	2006-12-02 23:35:11 UTC (rev 192)
++++ sleep/src/sleep/engine/Step.java	2006-12-03 00:33:22 UTC (rev 193)
+@@ -50,6 +50,20 @@
+       line = _line;
+    }
+ 
++   /** returns the last line number that this step is associated with (assuming it is
++       associated with multiple lines */
++   public int getHighLineNumber()
++   {
++      return getLineNumber();
++   }
++
++   /** returns the first line number that this step is associated with (assuming it is
++       associated with multiple lines */
++   public int getLowLineNumber()
++   {
++      return getLineNumber();
++   }
++
+    /** returns the line number this step is associated with */
+    public int getLineNumber()
+    {
+
+Modified: sleep/src/sleep/engine/atoms/Decide.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/Decide.java	2006-12-02 23:35:11 UTC (rev 192)
++++ sleep/src/sleep/engine/atoms/Decide.java	2006-12-03 00:33:22 UTC (rev 193)
+@@ -64,6 +64,13 @@
+       return temp.toString();
+    }
+ 
++   public int getHighLineNumber()
++   {
++      int x = iftrue.getHighLineNumber(); 
++      int y = iffalse.getHighLineNumber();
++      return x > y ? x : y;
++   }
++
+    public void setChoices(Block t, Block f)
+    {
+       iftrue  = t;
+
+Modified: sleep/src/sleep/engine/atoms/Goto.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/Goto.java	2006-12-02 23:35:11 UTC (rev 192)
++++ sleep/src/sleep/engine/atoms/Goto.java	2006-12-03 00:33:22 UTC (rev 193)
+@@ -74,6 +74,11 @@
+       iftrue = t;
+    }
+ 
++   public int getHighLineNumber()
++   {
++      return iftrue.getHighLineNumber();
++   }
++
+    public Scalar evaluate(ScriptEnvironment e)
+    {
+       while (!e.isReturn() && start.check(e))
+
+Added: sleep/tests/blockskew.sl
+===================================================================
+--- sleep/tests/blockskew.sl	2006-12-02 23:35:11 UTC (rev 192)
++++ sleep/tests/blockskew.sl	2006-12-03 00:33:22 UTC (rev 193)
+@@ -0,0 +1,36 @@
++#
++# preventing block skew... maybe?!?
++#
++
++$x = {
++  println("this is a test");
++  if (1 == 2)
++  {
++     println("this won't ever happen");
++  }
++};
++
++$y = {
++  println("this is a test");
++  while (1 == 2)
++  {
++     println("this won't ever happen");
++  }
++};
++
++$z = {
++  println("this is a test");
++  if (1 == 2)
++  {
++     println("this won't ever happen");
++  }
++  else
++  {
++     println("this will though");
++  }
++};
++
++println($x);
++println($y);
++println($z);
++
+
+Added: sleep/tests/operorder.sl
+===================================================================
+--- sleep/tests/operorder.sl	2006-12-02 23:35:11 UTC (rev 192)
++++ sleep/tests/operorder.sl	2006-12-03 00:33:22 UTC (rev 193)
+@@ -0,0 +1,54 @@
++#
++#  this is a unit test locking in place what the current behavior is for evaluation
++#  order of operands/arguments...
++#
++#  for better or worse here is what we are stuck with:
++#  1. predicate operators evaluate the left hand side first, then the right hand side
++#  2. functions evaluate their last argument first, and their first argument last
++#     (so in reverse order)
++#  3. operators evaluate their right hand side first, then their left hand side
++#
++#  to "fix" this behavior would require work within the interpreter and every bridge used
++#  to grabbing their arguments off of a stack.  I've investigated changing this but
++#  to change it now could break too many things.  For now I've opted to not make the
++#  change.
++#
++
++sub buildArray
++{
++   return @(1, 2, 3, 4, 5, 6, 7, 8, 9, 0);
++}
++
++println(buildArray());
++
++ at test = buildArray();
++println(shift(@test) . shift(@test) . shift(@test) . shift(@test));
++
++sub fun1
++{
++   println("Function 1 called!");
++   return $null;
++}
++
++sub fun2
++{
++   println("Function 2 called!");
++   return $null;
++}
++
++if (fun1() eq fun2())
++{
++   println("IF test 1");
++}
++
++if (fun1() || fun2())
++{
++   println("IF test 2");
++}
++
++ at test = buildArray();
++println("Test: " . @(shift(@test), shift(@test), shift(@test), shift(@test)));
++
++sub foo { }
++
++foo(fun1(), fun2());
+
+Added: sleep/tests/output/blockskew.sl
+===================================================================
+--- sleep/tests/output/blockskew.sl	2006-12-02 23:35:11 UTC (rev 192)
++++ sleep/tests/output/blockskew.sl	2006-12-03 00:33:22 UTC (rev 193)
+@@ -0,0 +1,3 @@
++&closure1:6-9
++&closure2:14-17
++&closure3:22-29
+
+Modified: sleep/tests/output/fe_generatordb.sl
+===================================================================
+--- sleep/tests/output/fe_generatordb.sl	2006-12-02 23:35:11 UTC (rev 192)
++++ sleep/tests/output/fe_generatordb.sl	2006-12-03 00:33:22 UTC (rev 193)
+@@ -19,7 +19,7 @@
+ Trace: &println('8 => val: 8') at line 8
+ 9 => val: 9
+ Trace: &println('9 => val: 9') at line 8
+-Trace: &lambda(&closure2:13-19, $start => 50, $stop => 60) = &closure3:13-19 at line 22
++Trace: &lambda(&closure2:16-19, $start => 50, $stop => 60) = &closure3:16-19 at line 22
+ Testing out range stuff: 0 => 50
+ Trace: &println('Testing out range stuff: 0 => 50') at line 24
+ Testing out range stuff: 1 => 51
+
+Added: sleep/tests/output/operorder.sl
+===================================================================
+--- sleep/tests/output/operorder.sl	2006-12-02 23:35:11 UTC (rev 192)
++++ sleep/tests/output/operorder.sl	2006-12-03 00:33:22 UTC (rev 193)
+@@ -0,0 +1,10 @@
++@(1, 2, 3, 4, 5, 6, 7, 8, 9, 0)
++4321
++Function 1 called!
++Function 2 called!
++IF test 1
++Function 1 called!
++Function 2 called!
++Test: @(4, 3, 2, 1)
++Function 2 called!
++Function 1 called!
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-12-02 23:35:11 UTC (rev 192)
++++ sleep/whatsnew.txt	2006-12-03 00:33:22 UTC (rev 193)
+@@ -16,6 +16,8 @@
+   statistics with the &profile() function which returns an array.  
+ - fixed a line number skew issue with multi-line tokens passed as parameters
+   to a function/expression.  
++- fixed a line number skew issue when approximating the line numbers where
++  a closure originated.
+ 
+ 2.1-beta 10 (20 Nov 06)
+ ===========
+
+
+
+From rsmudge at mail.berlios.de  Sun Dec  3 06:34:50 2006
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Sun, 3 Dec 2006 06:34:50 +0100
+Subject: [Sleep-svn] r194 - in sleep: . src/sleep/console src/sleep/engine
+Message-ID: <200612030534.kB35Yosd013154@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-12-03 06:34:49 +0100 (Sun, 03 Dec 2006)
+New Revision: 194
+
+Modified:
+   sleep/src/sleep/console/TextConsole.java
+   sleep/src/sleep/engine/Step.java
+   sleep/whatsnew.txt
+Log:
+added a -a/--ast command line option
+
+
+Modified: sleep/src/sleep/console/TextConsole.java
+===================================================================
+--- sleep/src/sleep/console/TextConsole.java	2006-12-03 00:33:22 UTC (rev 193)
++++ sleep/src/sleep/console/TextConsole.java	2006-12-03 05:34:49 UTC (rev 194)
+@@ -21,6 +21,7 @@
+       if (args.length > 0)
+       {
+          boolean check = false;
++         boolean ast   = false;
+          int     start = 0;
+ 
+          if (args[0].equals("-version") || args[0].equals("--version") || args[0].equals("-v"))
+@@ -36,6 +37,7 @@
+              System.out.println("         -Dsleep.debug=<debug level>");
+              System.out.println("         -Dsleep.classpath=<path to locate 3rd party jars from>");
+              System.out.println("       options:");
++             System.out.println("         -a --ast       display the abstract syntax tree of the specified file");
+              System.out.println("         -c --check     check the syntax of the specified file");
+              System.out.println("         -v --version   display version information");
+              System.out.println("         -h --help      display this help message");
+@@ -48,6 +50,11 @@
+              start = 1;
+              check = true;
+          }
++         else if (args[0].equals("--ast") || args[0].equals("-a"))
++         {
++             start = 1;
++             ast   = true;
++         }
+          
+          //
+          // put all of our command line arguments into an array scalar
+@@ -81,6 +88,10 @@
+             {
+                System.out.println(args[start] + " syntax OK");    
+             }
++            else if (ast)
++            {
++               System.out.println(script.getRunnableBlock());
++            } 
+             else
+             {
+                script.runScript();                                     // run the script...
+
+Modified: sleep/src/sleep/engine/Step.java
+===================================================================
+--- sleep/src/sleep/engine/Step.java	2006-12-03 00:33:22 UTC (rev 193)
++++ sleep/src/sleep/engine/Step.java	2006-12-03 05:34:49 UTC (rev 194)
+@@ -75,5 +75,10 @@
+    {
+       return SleepUtils.getEmptyScalar();
+    }
++
++   public String toString()
++   {
++      return "[null op]\n";
++   }
+ }
+ 
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-12-03 00:33:22 UTC (rev 193)
++++ sleep/whatsnew.txt	2006-12-03 05:34:49 UTC (rev 194)
+@@ -18,6 +18,8 @@
+   to a function/expression.  
+ - fixed a line number skew issue when approximating the line numbers where
+   a closure originated.
++- added a -a/--ast command line option to dump the abstract syntax tree
++  for the specified script.  
+ 
+ 2.1-beta 10 (20 Nov 06)
+ ===========
+
+
+
+From rsmudge at mail.berlios.de  Sun Dec  3 07:07:11 2006
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Sun, 3 Dec 2006 07:07:11 +0100
+Subject: [Sleep-svn] r195 - in sleep: . src/sleep/runtime tests tests/output
+Message-ID: <200612030607.kB367BKg025541@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-12-03 07:07:10 +0100 (Sun, 03 Dec 2006)
+New Revision: 195
+
+Added:
+   sleep/tests/output/traverse.sl
+   sleep/tests/traverse.sl
+Modified:
+   sleep/src/sleep/runtime/ScriptEnvironment.java
+   sleep/whatsnew.txt
+Log:
+fixed a coroutine bug (I can't believe it, but I actually fixed it!!!!!)
+
+
+
+Modified: sleep/src/sleep/runtime/ScriptEnvironment.java
+===================================================================
+--- sleep/src/sleep/runtime/ScriptEnvironment.java	2006-12-03 05:34:49 UTC (rev 194)
++++ sleep/src/sleep/runtime/ScriptEnvironment.java	2006-12-03 06:07:10 UTC (rev 195)
+@@ -288,6 +288,14 @@
+        {
+           Context temp = (Context)i.next();
+           rv = temp.block.evaluate(this, temp.last);
++
++          if (isReturn() && getFlowControlRequest() == FLOW_CONTROL_YIELD)
++          {
++             while (i.hasNext())
++             {
++                context.add(i.next()); /* adding the remaining context so it doesn't get lost */
++             } 
++          }
+        }
+ 
+        return rv;
+
+Added: sleep/tests/output/traverse.sl
+===================================================================
+--- sleep/tests/output/traverse.sl	2006-12-03 05:34:49 UTC (rev 194)
++++ sleep/tests/output/traverse.sl	2006-12-03 06:07:10 UTC (rev 195)
+@@ -0,0 +1,50 @@
++test
++uNF
++0
++1
++2
++blah
++test
++uNF
++0
++1
++2
++blah
++test
++uNF
++0
++1
++2
++blah
++test
++uNF
++0
++1
++2
++blah
++test
++uNF
++0
++1
++2
++blah
++test
++uNF
++0
++1
++2
++blah
++test
++uNF
++0
++1
++2
++blah
++test
++uNF
++0
++1
++2
++blah
++test
++uNF
+
+Added: sleep/tests/traverse.sl
+===================================================================
+--- sleep/tests/traverse.sl	2006-12-03 05:34:49 UTC (rev 194)
++++ sleep/tests/traverse.sl	2006-12-03 06:07:10 UTC (rev 195)
+@@ -0,0 +1,19 @@
++sub traverse
++{
++   local('$z');
++
++   while (1)
++   {
++      yield "test";
++      yield "uNF";
++
++      for ($z = 0; $z < 3; $z++) { yield $z; }
++
++      yield "blah";
++   }
++}
++
++for ($x = 0; $x < 50; $x++)
++{
++   println(traverse());
++}
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-12-03 05:34:49 UTC (rev 194)
++++ sleep/whatsnew.txt	2006-12-03 06:07:10 UTC (rev 195)
+@@ -20,6 +20,8 @@
+   a closure originated.
+ - added a -a/--ast command line option to dump the abstract syntax tree
+   for the specified script.  
++- fixed a coroutine bug where consecutive yields happening within a nested
++  block were not properly saving the nested context.
+ 
+ 2.1-beta 10 (20 Nov 06)
+ ===========
+
+
+
+From rsmudge at mail.berlios.de  Sun Dec  3 07:14:29 2006
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Sun, 3 Dec 2006 07:14:29 +0100
+Subject: [Sleep-svn] r196 - in sleep: . src/sleep/parser
+Message-ID: <200612030614.kB36ETdA011745@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-12-03 07:14:28 +0100 (Sun, 03 Dec 2006)
+New Revision: 196
+
+Modified:
+   sleep/src/sleep/parser/CodeGenerator.java
+   sleep/whatsnew.txt
+Log:
+eliminated the null operator from the yield... apparently it is not needed anymore
+
+
+
+Modified: sleep/src/sleep/parser/CodeGenerator.java
+===================================================================
+--- sleep/src/sleep/parser/CodeGenerator.java	2006-12-03 06:07:10 UTC (rev 195)
++++ sleep/src/sleep/parser/CodeGenerator.java	2006-12-03 06:14:28 UTC (rev 196)
+@@ -1154,8 +1154,17 @@
+                  to combat the problem I've opted to introduce a null operation
+                  after each yield, this fixes the problem.  hopefully it doesn't
+                  show itself in some other way in the future.  :~( *cry* */
+-              atom = GeneratedSteps.NullOperation();
+-              add(atom, tokens[0]);
++//              atom = GeneratedSteps.NullOperation();
++//              add(atom, tokens[0]);
++
++              /* I've modified the evaluateOldContext method of ScriptEnvironment
++                 to realize when the current script is being interrupted in the
++                 middle of evaluating an old context, when this happens the 
++                 unevaluated portions of the old context are saved along with the
++                 current context.  I think this eliminates the need for the null
++                 operation.  If coroutines break for some reason in the future feel
++                 free to uncomment the two lines above (my original hacky fix for
++                 the situation described in this comment */
+            }
+            else
+            {
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-12-03 06:07:10 UTC (rev 195)
++++ sleep/whatsnew.txt	2006-12-03 06:14:28 UTC (rev 196)
+@@ -1,9 +1,9 @@
+ 2.1-beta 11
+ ===========
+-- multline parsed literals now make a more sincere effort to track which 
++- multi-line parsed literals now make a more sincere effort to track which 
+   line number a variable was encountered at.
+ - fixed a bug with multi-line parsed literals where a variable followed 
+-  immediately by a newline was not being "terminated"
++  immediately by a tab or newline was not being "terminated"
+ - fixed a bug with && and & followed by a HOES expression being mistaken 
+   for a function reference token.
+ - added &unlambda function that works exactly like &lambda except it does
+
+
+
+From rsmudge at mail.berlios.de  Mon Dec  4 00:21:58 2006
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Mon, 4 Dec 2006 00:21:58 +0100
+Subject: [Sleep-svn] r197 - in sleep: . docs src/sleep/runtime
+Message-ID: <200612032321.kB3NLweh025344@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-12-04 00:21:57 +0100 (Mon, 04 Dec 2006)
+New Revision: 197
+
+Modified:
+   sleep/docs/sleeplang.html
+   sleep/readme.txt
+   sleep/src/sleep/runtime/SleepUtils.java
+   sleep/whatsnew.txt
+Log:
+preparing for the 2.1-b11 release...
+
+
+Modified: sleep/docs/sleeplang.html
+===================================================================
+--- sleep/docs/sleeplang.html	2006-12-03 06:14:28 UTC (rev 196)
++++ sleep/docs/sleeplang.html	2006-12-03 23:21:57 UTC (rev 197)
+@@ -2568,7 +2568,7 @@
+  <tr>
+   <td>$</td>
+   <td>debug(level)</td>
+-  <td>explicitly enables the specified debug level for this script: 0 - no debugging; 1 - show only critical errors (default); 2 - show all warnings; 4 - show first time use of non-declared variables; 8 - trace all function calls.  any of the levels can be |'d together.</td>
++  <td>explicitly enables the specified debug level for this script: 0 - no debugging; 1 - show only critical errors (default); 2 - show all warnings; 4 - show first time use of non-declared variables; 8 - trace all function calls (collects profiler statistics) or 24 - trace only for the purpose of collecting profiler statistics.  any of the levels can be |'d together.</td>
+  </tr>
+  <tr>
+   <td>$</td>
+@@ -2606,6 +2606,11 @@
+   <td>parses the specified string and declares all variables in the string as local variables.</td>
+  </tr>
+  <tr>
++  <td>@</td>
++  <td>profile()</td>
++  <td>returns the profiler statistics for the current script environment.  Profile statistics will only be collected if DEBUG_TRACE_CALLS (8) or DEBUG_TRACE_PROFILE_ONLY (24) is set.</td>
++ </tr>
++ <tr>
+   <td></td>
+   <td>release($semaphore)</td>
+   <td>increments the count value of the specified semaphore.</td>
+@@ -2640,6 +2645,11 @@
+   <td>this('$x $y')</td>
+   <td>parses the specified string and declares all variables in the string as variables specific to the current closure.</td>
+  </tr>
++ <tr> 
++  <td>&amp;</td>
++  <td>unlambda(&amp;closure,&nbsp;$key&nbsp;=&gt;&nbsp;"value",&nbsp;...)</td>
++  <td>The specified closure's environment is updated with all of the key/value pair arguments.  Returns the specified closure.</td>
++ </tr>
+  <tr>
+   <td></td>
+   <td>use("Loadable class")</td>
+
+Modified: sleep/readme.txt
+===================================================================
+--- sleep/readme.txt	2006-12-03 06:14:28 UTC (rev 196)
++++ sleep/readme.txt	2006-12-03 23:21:57 UTC (rev 197)
+@@ -1,5 +1,5 @@
+  ------- -------------------- ---------   ---------------  ------- ---------
+-Sleep - 2.1 beta 10 - README   
++Sleep - 2.1 beta 11 - README   
+ -  ------------- -------- -   ---------------- --       -    -     -     - - -
+ 
+ "You got the language, all you need now is the O'Reilly book".  That is
+
+Modified: sleep/src/sleep/runtime/SleepUtils.java
+===================================================================
+--- sleep/src/sleep/runtime/SleepUtils.java	2006-12-03 06:14:28 UTC (rev 196)
++++ sleep/src/sleep/runtime/SleepUtils.java	2006-12-03 23:21:57 UTC (rev 197)
+@@ -49,7 +49,7 @@
+ public class SleepUtils
+ {
+    /** A date stamp of this Sleep release in YYYYMMDD format */
+-   public static final int    SLEEP_RELEASE = 20061120;
++   public static final int    SLEEP_RELEASE = 20061203;
+ 
+    /** A string description of this Sleep release */
+    public static final String SLEEP_VERSION = "Sleep 2.1";
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-12-03 06:14:28 UTC (rev 196)
++++ sleep/whatsnew.txt	2006-12-03 23:21:57 UTC (rev 197)
+@@ -1,4 +1,4 @@
+-2.1-beta 11
++2.1-beta 11  (3 Dec 06)
+ ===========
+ - multi-line parsed literals now make a more sincere effort to track which 
+   line number a variable was encountered at.
+
+
+
+From rsmudge at mail.berlios.de  Mon Dec  4 05:45:11 2006
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Mon, 4 Dec 2006 05:45:11 +0100
+Subject: [Sleep-svn] r198 - in sleep: . src/sleep/parser tests tests/output
+Message-ID: <200612040445.kB44jBEq032555@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-12-04 05:45:11 +0100 (Mon, 04 Dec 2006)
+New Revision: 198
+
+Added:
+   sleep/tests/output/skew2.sl
+   sleep/tests/skew2.sl
+Modified:
+   sleep/src/sleep/parser/TokenParser.java
+   sleep/whatsnew.txt
+Log:
+fixed more line number skew issues... grrrr!!!
+
+
+Modified: sleep/src/sleep/parser/TokenParser.java
+===================================================================
+--- sleep/src/sleep/parser/TokenParser.java	2006-12-03 23:21:57 UTC (rev 197)
++++ sleep/src/sleep/parser/TokenParser.java	2006-12-04 04:45:11 UTC (rev 198)
+@@ -305,9 +305,9 @@
+                }
+  
+                // make our nice new tokens...  and ship it off.
+-               statement.add(new Token(lhs.toString(), tokens[x].getHint()));
++               statement.add(new Token(lhs.toString(), tokens[start].getHint()));
+                statement.add(tokens[x]);
+-               statement.add(new Token(rhs.toString(), tokens[x].getHint()));
++               statement.add(new Token(rhs.toString(), tokens[x + 1].getHint()));
+ 
+                return r;
+            }
+@@ -349,6 +349,7 @@
+                   myToken.add(tokens[x]);
+                   myToken.add(tokens[x+1]);
+   
++                  int hint = tokens[x+2].getHint();
+                   StringBuffer otherTerms = new StringBuffer(strings[x+2]);
+                   x += 3;
+                   while ((x < tokens.length) && !strings[x].equals("EOT"))
+@@ -357,7 +358,7 @@
+                      otherTerms.append(strings[x]);
+                      x++;
+                   }
+-                  myToken.add(new Token(otherTerms.toString(), tokens[x-1].getHint()));
++                  myToken.add(new Token(otherTerms.toString(), hint));
+                }
+                else
+                {
+@@ -560,6 +561,8 @@
+                return null;
+             }
+            
++            int hint = tokens[x].getHint();
++
+             /* keep looping until we reach an end of term clause */
+             while (x < strings.length && !strings[x].equals("EOT"))
+             {
+@@ -575,7 +578,7 @@
+             }
+ 
+             if (newExpr.length() > 0)
+-               myToken.add(new Token(newExpr.toString(), tokens[x].getHint()));
++               myToken.add(new Token(newExpr.toString(), hint));
+          }
+          // import statement :)
+          else if ( (x + 1) < tokens.length && Checkers.isImportStatement(strings[x], strings[x+1])  )
+
+Added: sleep/tests/output/skew2.sl
+===================================================================
+--- sleep/tests/output/skew2.sl	2006-12-03 23:21:57 UTC (rev 197)
++++ sleep/tests/output/skew2.sl	2006-12-04 04:45:11 UTC (rev 198)
+@@ -0,0 +1 @@
++Closure is at: &closure1:6-9
+
+Added: sleep/tests/skew2.sl
+===================================================================
+--- sleep/tests/skew2.sl	2006-12-03 23:21:57 UTC (rev 197)
++++ sleep/tests/skew2.sl	2006-12-04 04:45:11 UTC (rev 198)
+@@ -0,0 +1,12 @@
++# 
++# blah..
++# 
++
++$x = {
++   return '
++
++
++'.'test?';
++};
++
++println("Closure is at: " . $x);
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-12-03 23:21:57 UTC (rev 197)
++++ sleep/whatsnew.txt	2006-12-04 04:45:11 UTC (rev 198)
+@@ -1,3 +1,7 @@
++2.1-beta 12
++===========
++- fixed yet another flurry of line number skew issues.  argh, make it stop!
++
+ 2.1-beta 11  (3 Dec 06)
+ ===========
+ - multi-line parsed literals now make a more sincere effort to track which 
+
+
+
+From rsmudge at mail.berlios.de  Mon Dec  4 06:04:47 2006
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Mon, 4 Dec 2006 06:04:47 +0100
+Subject: [Sleep-svn] r199 - in sleep: src/sleep/engine tests/output
+Message-ID: <200612040504.kB454lbX001091@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-12-04 06:04:46 +0100 (Mon, 04 Dec 2006)
+New Revision: 199
+
+Modified:
+   sleep/src/sleep/engine/Block.java
+   sleep/tests/output/fe_generatordb.sl
+Log:
+more line skew fixes...
+
+
+Modified: sleep/src/sleep/engine/Block.java
+===================================================================
+--- sleep/src/sleep/engine/Block.java	2006-12-04 04:45:11 UTC (rev 198)
++++ sleep/src/sleep/engine/Block.java	2006-12-04 05:04:46 UTC (rev 199)
+@@ -108,7 +108,7 @@
+        Step temp = first;
+        while (temp != null)
+        {
+-          m = temp.getHighLineNumber();
++          m = temp.getLowLineNumber();
+ 
+           if (m < low)
+               low = m;
+
+Modified: sleep/tests/output/fe_generatordb.sl
+===================================================================
+--- sleep/tests/output/fe_generatordb.sl	2006-12-04 04:45:11 UTC (rev 198)
++++ sleep/tests/output/fe_generatordb.sl	2006-12-04 05:04:46 UTC (rev 199)
+@@ -19,7 +19,7 @@
+ Trace: &println('8 => val: 8') at line 8
+ 9 => val: 9
+ Trace: &println('9 => val: 9') at line 8
+-Trace: &lambda(&closure2:16-19, $start => 50, $stop => 60) = &closure3:16-19 at line 22
++Trace: &lambda(&closure2:13-19, $start => 50, $stop => 60) = &closure3:13-19 at line 22
+ Testing out range stuff: 0 => 50
+ Trace: &println('Testing out range stuff: 0 => 50') at line 24
+ Testing out range stuff: 1 => 51
+
+
+
+From rsmudge at mail.berlios.de  Wed Dec  6 01:38:00 2006
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Wed, 6 Dec 2006 01:38:00 +0100
+Subject: [Sleep-svn] r200 - sleep/src/sleep/bridges
+Message-ID: <200612060038.kB60c0f9011766@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-12-06 01:37:59 +0100 (Wed, 06 Dec 2006)
+New Revision: 200
+
+Modified:
+   sleep/src/sleep/bridges/BasicUtilities.java
+Log:
+started work on an include() function.
+
+
+
+Modified: sleep/src/sleep/bridges/BasicUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicUtilities.java	2006-12-04 05:04:46 UTC (rev 199)
++++ sleep/src/sleep/bridges/BasicUtilities.java	2006-12-06 00:37:59 UTC (rev 200)
+@@ -110,7 +110,8 @@
+         temp.put("&shift",    new shift());   // not safe within foreach loops yada yada yada...
+ 
+         temp.put("&systemProperties",    new systemProperties());
+-        temp.put("&use",    new f_use());
++        temp.put("&use",     new f_use());
++        temp.put("&include", temp.get("&use"));
+         temp.put("&checkError",    new checkError());
+ 
+         // closure / function handle type stuff
+@@ -241,36 +242,60 @@
+ 
+           if (parent != null && !parent.exists())
+           {
+-             throw new IllegalArgumentException("&use: could not locate jar file '" + parent + "'");
++             throw new IllegalArgumentException(n + ": could not locate jar file '" + parent + "'");
+           }
+ 
+-          Class bridge;
+-
+           try
+           {
+-             if (parent != null)
++             if (n.equals("&use"))
+              {
+-                URLClassLoader loader = new URLClassLoader(new URL[] { parent.toURL() });
+-                bridge = Class.forName(className, true, loader);
++                Class bridge;
++
++                if (parent != null)
++                {
++                   URLClassLoader loader = new URLClassLoader(new URL[] { parent.toURL() });
++                   bridge = Class.forName(className, true, loader);
++                }
++                else
++                {
++                   bridge = Class.forName(className);
++                }
++
++                Loadable temp;
++
++                if (bridges.get(bridge) == null)
++                {
++                   temp = (Loadable)bridge.newInstance();
++                   bridges.put(bridge, temp);
++                }
++                else
++                {
++                   temp = (Loadable)bridges.get(bridge);
++                }
++
++                temp.scriptLoaded(si);
+              }
+              else
+              {
+-                bridge = Class.forName(className);
+-             }
++                ScriptInstance script;
++                ScriptLoader   sloader = (ScriptLoader)si.getScriptEnvironment().getEnvironment().get("(isloaded)");
+ 
+-             Loadable temp;
++                System.out.println(sloader);
+ 
+-             if (bridges.get(bridge) == null)
+-             {
+-                temp = (Loadable)bridge.newInstance();
+-                bridges.put(bridge, temp);
++                if (parent != null)
++                {
++                   URLClassLoader loader = new URLClassLoader(new URL[] { parent.toURL() });
++                   script = sloader.loadScript(new File(parent, className).getAbsolutePath(), loader.getResourceAsStream(className), si.getScriptEnvironment().getEnvironment());
++                }
++                else
++                {
++                   script = sloader.loadScript(new File(className), si.getScriptEnvironment().getEnvironment());
++                }
++
++                script.setScriptVariables(si.getScriptVariables()); /* ensure included scripts share vars */
++          
++                script.runScript();
+              }
+-             else
+-             {
+-                temp = (Loadable)bridges.get(bridge);
+-             }
+-
+-             temp.scriptLoaded(si);
+           }
+           catch (Exception ex)
+           {
+
+
+
+From rsmudge at mail.berlios.de  Wed Dec 13 03:51:13 2006
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Wed, 13 Dec 2006 03:51:13 +0100
+Subject: [Sleep-svn] r201 - in sleep: . src/sleep/bridges tests
+Message-ID: <200612130251.kBD2pDRN026422@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-12-13 03:51:10 +0100 (Wed, 13 Dec 2006)
+New Revision: 201
+
+Modified:
+   sleep/src/sleep/bridges/BasicUtilities.java
+   sleep/tests/unlambdacs.sl
+   sleep/whatsnew.txt
+Log:
+renamed &unlambda to &let
+
+
+
+Modified: sleep/src/sleep/bridges/BasicUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicUtilities.java	2006-12-06 00:37:59 UTC (rev 200)
++++ sleep/src/sleep/bridges/BasicUtilities.java	2006-12-13 02:51:10 UTC (rev 201)
+@@ -116,7 +116,7 @@
+ 
+         // closure / function handle type stuff
+         temp.put("&lambda",    new lambda());
+-        temp.put("&unlambda",    temp.get("&lambda"));
++        temp.put("&let",    temp.get("&lambda"));
+ 
+         function funcs = new function();
+         temp.put("&function",  funcs);
+
+Modified: sleep/tests/unlambdacs.sl
+===================================================================
+--- sleep/tests/unlambdacs.sl	2006-12-06 00:37:59 UTC (rev 200)
++++ sleep/tests/unlambdacs.sl	2006-12-13 02:51:10 UTC (rev 201)
+@@ -7,8 +7,8 @@
+    println("Value: $bar");
+ }
+ 
+-unlambda(&foo, $bar => "example 1");
++let(&foo, $bar => "example 1");
+ foo();
+ 
+-[unlambda(&foo, $bar => "example 2")];
++[let(&foo, $bar => "example 2")];
+ foo();
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-12-06 00:37:59 UTC (rev 200)
++++ sleep/whatsnew.txt	2006-12-13 02:51:10 UTC (rev 201)
+@@ -1,6 +1,7 @@
+ 2.1-beta 12
+ ===========
+ - fixed yet another flurry of line number skew issues.  argh, make it stop!
++- renamed &unlambda to &let, this name makes much more sense
+ 
+ 2.1-beta 11  (3 Dec 06)
+ ===========
+
+
+
+From rsmudge at mail.berlios.de  Wed Dec 13 04:19:55 2006
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Wed, 13 Dec 2006 04:19:55 +0100
+Subject: [Sleep-svn] r202 - in sleep: . src/sleep/bridges src/sleep/runtime
+Message-ID: <200612130319.kBD3JtGj029384@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-12-13 04:19:54 +0100 (Wed, 13 Dec 2006)
+New Revision: 202
+
+Modified:
+   sleep/src/sleep/bridges/BasicUtilities.java
+   sleep/src/sleep/runtime/ScriptLoader.java
+   sleep/whatsnew.txt
+Log:
+updated the scriptloader API to have more fun stuff... 
+
+
+Modified: sleep/src/sleep/bridges/BasicUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicUtilities.java	2006-12-13 02:51:10 UTC (rev 201)
++++ sleep/src/sleep/bridges/BasicUtilities.java	2006-12-13 03:19:54 UTC (rev 202)
+@@ -285,16 +285,14 @@
+                 if (parent != null)
+                 {
+                    URLClassLoader loader = new URLClassLoader(new URL[] { parent.toURL() });
+-                   script = sloader.loadScript(new File(parent, className).getAbsolutePath(), loader.getResourceAsStream(className), si.getScriptEnvironment().getEnvironment());
++                   script = sloader.loadScript(new File(parent, className).getAbsolutePath(), loader.getResourceAsStream(className));
+                 }
+                 else
+                 {
+-                   script = sloader.loadScript(new File(className), si.getScriptEnvironment().getEnvironment());
++                   script = sloader.loadScript(new File(className));
+                 }
+ 
+-                script.setScriptVariables(si.getScriptVariables()); /* ensure included scripts share vars */
+-          
+-                script.runScript();
++                SleepUtils.runCode(script.getRunnableBlock(), si.getScriptEnvironment());
+              }
+           }
+           catch (Exception ex)
+
+Modified: sleep/src/sleep/runtime/ScriptLoader.java
+===================================================================
+--- sleep/src/sleep/runtime/ScriptLoader.java	2006-12-13 02:51:10 UTC (rev 201)
++++ sleep/src/sleep/runtime/ScriptLoader.java	2006-12-13 03:19:54 UTC (rev 202)
+@@ -40,7 +40,7 @@
+ /**
+  * <p>The ScriptLoader is a convienence container for instantiating and managing ScriptInstances.</p>
+  *
+- * <p>To load a script from a file and run it:</P
++ * <h2>To load a script from a file and run it:</h2>
+  *
+  * <pre>
+  * ScriptLoader   loader = new ScriptLoader();
+@@ -69,6 +69,19 @@
+  * loader.addSpecificBridge(new MyLoadableBridge());
+  * </pre>
+  *
++ * <h2>There is a difference between "loading" and "compiling" a script:</h2>
++ *
++ * <p>This class contains several methods to either load or compile a script.  Loading a script instantiates a script environment,
++ * registers the script with the script loader, and registers all of the appropriate bridges with the script on top of compiling
++ * the script.</p>
++ *
++ * <p>To compile a script means to produce a runnable Block of code.  On its own a Block is not really runnable as a script 
++ * environment is needed.  For functions like eval(), include(), etc.. it makes sense to compile a script as one may want to run
++ * the block of code within the environment of the calling script.  Using the compile method saves on the overhead of unnecessary
++ * script environment creation and bridge registration.</p>
++ *
++ * <p>Hopefully this helped to clarify things. :)</p>
++ *
+  * @see sleep.interfaces.Loadable
+  * @see ScriptInstance
+  */
+@@ -297,32 +310,18 @@
+         return BLOCK_CACHE != null && BLOCK_CACHE.containsKey(name);
+     }
+ 
++    /** loads the specified script */
+     public ScriptInstance loadScript(String name, String code, Hashtable env) throws YourCodeSucksException
+     {
+-        if (isCacheHit(name)) {
+-            //System.out.println("BLOCK CACHE HIT FOR: " + name);
+-            return loadScript(name, (Block) BLOCK_CACHE.get(name), env);
+-        } else {
+-            Parser temp = new Parser(code);
+-            temp.parse();
+-
+-            if (BLOCK_CACHE != null)
+-                BLOCK_CACHE.put(name, temp.getRunnableBlock());
+-
+-            return loadScript(name, temp.getRunnableBlock(), env);
+-        }
++        return loadScript(name, compileScript(name, code), env);
+     }
+ 
+-    public ScriptInstance loadScript(String name, InputStream stream) throws YourCodeSucksException, IOException
++    /** compiles a script using the specified stream as a source */
++    public Block compileScript(String name, InputStream stream) throws YourCodeSucksException, IOException
+     {
+-        return loadScript(name, stream, null);
+-    }
+-
+-    public ScriptInstance loadScript(String name, InputStream stream, Hashtable env) throws YourCodeSucksException, IOException
+-    {
+         if (isCacheHit(name)) {
+             stream.close();
+-            return loadScript(name, "", env);
++            return compileScript(name, "");
+         }
+ 
+         StringBuffer code = new StringBuffer("");
+@@ -338,10 +337,58 @@
+         in.close();
+         stream.close();
+ 
+-        return loadScript(name, code.toString(), env);
++        return compileScript(name, code.toString());
+     }
+ 
+     /**
++     * compiles the specified script file
++     */
++    public Block compileScript(File file) throws IOException, YourCodeSucksException
++    {
++        return compileScript(file.getAbsolutePath(), new FileInputStream(file));
++    }
++
++    /**
++     * compiles the specified script file
++     */
++    public Block compileScript(String fileName) throws IOException, YourCodeSucksException
++    {
++        return compileScript(new File(fileName));
++    }
++
++    /** compiles the specified script into a runnable block */
++    public Block compileScript(String name, String code) throws YourCodeSucksException
++    {
++        if (isCacheHit(name)) 
++        {
++            //System.out.println("BLOCK CACHE HIT FOR: " + name);
++            return (Block) BLOCK_CACHE.get(name);
++        } 
++        else 
++        {
++            Parser temp = new Parser(code);
++            temp.parse();
++
++            if (BLOCK_CACHE != null)
++                BLOCK_CACHE.put(name, temp.getRunnableBlock());
++
++            return temp.getRunnableBlock();
++        }
++    }
++
++    /** loads a script from the specified inputstream */
++    public ScriptInstance loadScript(String name, InputStream stream) throws YourCodeSucksException, IOException
++    {
++        return loadScript(name, stream, null);
++    }
++
++    /** loads a script from the specified input stream using the specified hashtable as a shared environment */
++    public ScriptInstance loadScript(String name, InputStream stream, Hashtable env) throws YourCodeSucksException, IOException
++    {
++        return loadScript(name, compileScript(name, stream), env);
++    }
++
++    /**
+      * Loads the specified script file
+      */
+     public ScriptInstance loadScript(String fileName) throws IOException, YourCodeSucksException
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-12-13 02:51:10 UTC (rev 201)
++++ sleep/whatsnew.txt	2006-12-13 03:19:54 UTC (rev 202)
+@@ -2,6 +2,9 @@
+ ===========
+ - fixed yet another flurry of line number skew issues.  argh, make it stop!
+ - renamed &unlambda to &let, this name makes much more sense
++- added APIs to the script loader class to compile a script without the
++  overhead related to loading the script.  This is useful when a script is
++  going to be run in the environment of another script.
+ 
+ 2.1-beta 11  (3 Dec 06)
+ ===========
+
+
+
+From rsmudge at mail.berlios.de  Wed Dec 13 04:27:28 2006
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Wed, 13 Dec 2006 04:27:28 +0100
+Subject: [Sleep-svn] r203 - in sleep/src/sleep: bridges runtime
+Message-ID: <200612130327.kBD3RS0Z029949@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-12-13 04:27:27 +0100 (Wed, 13 Dec 2006)
+New Revision: 203
+
+Modified:
+   sleep/src/sleep/bridges/BasicUtilities.java
+   sleep/src/sleep/runtime/ScriptLoader.java
+Log:
+more fun...
+
+
+Modified: sleep/src/sleep/bridges/BasicUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicUtilities.java	2006-12-13 03:19:54 UTC (rev 202)
++++ sleep/src/sleep/bridges/BasicUtilities.java	2006-12-13 03:27:27 UTC (rev 203)
+@@ -277,7 +277,7 @@
+              }
+              else
+              {
+-                ScriptInstance script;
++                Block          script;
+                 ScriptLoader   sloader = (ScriptLoader)si.getScriptEnvironment().getEnvironment().get("(isloaded)");
+ 
+                 System.out.println(sloader);
+@@ -285,14 +285,14 @@
+                 if (parent != null)
+                 {
+                    URLClassLoader loader = new URLClassLoader(new URL[] { parent.toURL() });
+-                   script = sloader.loadScript(new File(parent, className).getAbsolutePath(), loader.getResourceAsStream(className));
++                   script = sloader.compileScript(new File(parent, className).getAbsolutePath(), loader.getResourceAsStream(className));
+                 }
+                 else
+                 {
+-                   script = sloader.loadScript(new File(className));
++                   script = sloader.compileScript(new File(className));
+                 }
+ 
+-                SleepUtils.runCode(script.getRunnableBlock(), si.getScriptEnvironment());
++                SleepUtils.runCode(script, si.getScriptEnvironment());
+              }
+           }
+           catch (Exception ex)
+
+Modified: sleep/src/sleep/runtime/ScriptLoader.java
+===================================================================
+--- sleep/src/sleep/runtime/ScriptLoader.java	2006-12-13 03:19:54 UTC (rev 202)
++++ sleep/src/sleep/runtime/ScriptLoader.java	2006-12-13 03:27:27 UTC (rev 203)
+@@ -40,7 +40,7 @@
+ /**
+  * <p>The ScriptLoader is a convienence container for instantiating and managing ScriptInstances.</p>
+  *
+- * <h2>To load a script from a file and run it:</h2>
++ * <h3>To load a script from a file and run it:</h3>
+  *
+  * <pre>
+  * ScriptLoader   loader = new ScriptLoader();
+@@ -69,7 +69,7 @@
+  * loader.addSpecificBridge(new MyLoadableBridge());
+  * </pre>
+  *
+- * <h2>There is a difference between "loading" and "compiling" a script:</h2>
++ * <h3>There is a difference between "loading" and "compiling" a script:</h3>
+  *
+  * <p>This class contains several methods to either load or compile a script.  Loading a script instantiates a script environment,
+  * registers the script with the script loader, and registers all of the appropriate bridges with the script on top of compiling
+
+
+

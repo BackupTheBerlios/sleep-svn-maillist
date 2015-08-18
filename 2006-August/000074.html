@@ -1,0 +1,98 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r92 - sleep/src/sleep/bridges/io
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2006-August/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r92%20-%20sleep/src/sleep/bridges/io&In-Reply-To=%3C200608061716.k76HGuph031150%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000073.html">
+   <LINK REL="Next"  HREF="000075.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r92 - sleep/src/sleep/bridges/io</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r92%20-%20sleep/src/sleep/bridges/io&In-Reply-To=%3C200608061716.k76HGuph031150%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r92 - sleep/src/sleep/bridges/io">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Sun Aug  6 19:16:56 CEST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000073.html">[Sleep-svn] r91 - in sleep: . src/sleep/bridges src/sleep/bridges/io
+</A></li>
+        <LI>Next message: <A HREF="000075.html">[Sleep-svn] r93 - sleep/src/sleep/bridges/io
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#74">[ date ]</a>
+              <a href="thread.html#74">[ thread ]</a>
+              <a href="subject.html#74">[ subject ]</a>
+              <a href="author.html#74">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2006-08-06 19:16:55 +0200 (Sun, 06 Aug 2006)
+New Revision: 92
+
+Modified:
+   sleep/src/sleep/bridges/io/SocketObject.java
+Log:
+Fixed issues with listen, the listen call now immediately releases the listening port once a connection has been accepted.
+
+
+
+Modified: sleep/src/sleep/bridges/io/SocketObject.java
+===================================================================
+--- sleep/src/sleep/bridges/io/SocketObject.java	2006-08-06 16:27:14 UTC (rev 91)
++++ sleep/src/sleep/bridges/io/SocketObject.java	2006-08-06 17:16:55 UTC (rev 92)
+@@ -33,14 +33,19 @@
+ 
+    public void listen(int port, int timeout, Scalar data, ScriptEnvironment env)
+    {
++      ServerSocket server = null;
++
+       try
+       {
+-         ServerSocket server = new ServerSocket(port);
++         server = new ServerSocket(port);
+          server.setSoTimeout(timeout);
+         
+          socket = server.accept();
+          socket.setSoLinger(true, 5);
+ 
++         server.close(); /* releases the bound and listening port, probably not a good idea for a massive server but for a scripting
++                            lang API who cares */
++
+          data.setValue(SleepUtils.getScalar(socket.getInetAddress().getHostAddress()));
+ 
+          openRead(socket.getInputStream());
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000073.html">[Sleep-svn] r91 - in sleep: . src/sleep/bridges src/sleep/bridges/io
+</A></li>
+	<LI>Next message: <A HREF="000075.html">[Sleep-svn] r93 - sleep/src/sleep/bridges/io
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#74">[ date ]</a>
+              <a href="thread.html#74">[ thread ]</a>
+              <a href="subject.html#74">[ subject ]</a>
+              <a href="author.html#74">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

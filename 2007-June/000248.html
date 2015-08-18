@@ -1,0 +1,279 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r269 - in sleep: . src/sleep/parser tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2007-June/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r269%20-%20in%20sleep%3A%20.%20src/sleep/parser%20tests%20tests/output&In-Reply-To=%3C200706120317.l5C3HlhJ031188%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000247.html">
+   <LINK REL="Next"  HREF="000249.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r269 - in sleep: . src/sleep/parser tests tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r269%20-%20in%20sleep%3A%20.%20src/sleep/parser%20tests%20tests/output&In-Reply-To=%3C200706120317.l5C3HlhJ031188%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r269 - in sleep: . src/sleep/parser tests tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Tue Jun 12 05:17:47 CEST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000247.html">[Sleep-svn] r268 - in sleep: . src/sleep/parser tests/output
+</A></li>
+        <LI>Next message: <A HREF="000249.html">[Sleep-svn] r270 - in sleep: . src/sleep/bridges src/sleep/engine	tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#248">[ date ]</a>
+              <a href="thread.html#248">[ thread ]</a>
+              <a href="subject.html#248">[ subject ]</a>
+              <a href="author.html#248">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2007-06-12 05:17:46 +0200 (Tue, 12 Jun 2007)
+New Revision: 269
+
+Added:
+   sleep/tests/clazz.sl
+   sleep/tests/output/clazz.sl
+Modified:
+   sleep/src/sleep/parser/Checkers.java
+   sleep/src/sleep/parser/CodeGenerator.java
+   sleep/src/sleep/parser/LexicalAnalyzer.java
+   sleep/src/sleep/parser/ParserConstants.java
+   sleep/src/sleep/parser/TokenParser.java
+   sleep/whatsnew.txt
+Log:
+added a new class literal thing, it is pretty km-rad.
+
+
+
+Modified: sleep/src/sleep/parser/Checkers.java
+===================================================================
+--- sleep/src/sleep/parser/Checkers.java	2007-06-12 02:01:35 UTC (rev 268)
++++ sleep/src/sleep/parser/Checkers.java	2007-06-12 03:17:46 UTC (rev 269)
+@@ -103,8 +103,13 @@
+        return (a.equals(&quot;import&quot;));
+    }
+ 
+-   public static final boolean isClassIdentifier(Parser parser, String a)
++   public static final boolean isClassLiteral(String a)
+    {
++       return a.length() &gt;= 2 &amp;&amp; a.charAt(0) == '^';
++   }
++
++   public static final boolean isClassPiece(String a)
++   {
+        if (a.length() &gt;= 1 &amp;&amp; !isVariable(a) &amp;&amp; Character.isJavaIdentifierStart(a.charAt(0)))
+        {
+           for (int x = 1; x &lt; a.length(); x++)
+@@ -114,13 +119,16 @@
+                 return false;
+              }
+           }
+-
+-          return parser.findImportedClass(a) != null;
++          return true;
+        }
+-
+        return false;
+    }
+ 
++   public static final boolean isClassIdentifier(Parser parser, String a)
++   {
++       return isClassPiece(a) &amp;&amp; parser.findImportedClass(a) != null;
++   }
++
+    public static final boolean isBindFilter(String a, String b, String c, String d)
+    {
+       return (isBlock(d));
+
+Modified: sleep/src/sleep/parser/CodeGenerator.java
+===================================================================
+--- sleep/src/sleep/parser/CodeGenerator.java	2007-06-12 02:01:35 UTC (rev 268)
++++ sleep/src/sleep/parser/CodeGenerator.java	2007-06-12 03:17:46 UTC (rev 269)
+@@ -446,6 +446,20 @@
+            atom    = GeneratedSteps.SValue(ascalar);
+            add(atom, tokens[0]);
+            break;
++         case IDEA_CLASS:
++           Class claz = parser.findImportedClass(strings[0].substring(1));
++ 
++           if (claz == null)
++           {
++              parser.reportError(&quot;unable to resolve class: &quot; + strings[0].substring(1), tokens[0]);
++           } 
++           else
++           {          
++              ascalar = SleepUtils.getScalar(parser.findImportedClass(strings[0].substring(1)));
++              atom    = GeneratedSteps.SValue(ascalar);
++              add(atom, tokens[0]);
++           }
++           break;
+          case VALUE_SCALAR:                       //   implemented
+            if (strings[0].equals(&quot;$null&quot;))
+            {
+
+Modified: sleep/src/sleep/parser/LexicalAnalyzer.java
+===================================================================
+--- sleep/src/sleep/parser/LexicalAnalyzer.java	2007-06-12 02:01:35 UTC (rev 268)
++++ sleep/src/sleep/parser/LexicalAnalyzer.java	2007-06-12 03:17:46 UTC (rev 269)
+@@ -113,8 +113,20 @@
+ 
+             tok = x;
+ 
+-            if (Checkers.isFunctionCall(a, b) || Checkers.isIndexableItem(a, b))
++            if ((x + 2) &lt; terms.length &amp;&amp; Checkers.isClassLiteral(a) &amp;&amp; b.equals(&quot;.&quot;))
+             {
++               rhs.append(terms[x]);
++
++               /** collapse a literal class string plz */
++               while ((x + 2) &lt; terms.length &amp;&amp; terms[x+1].toString().equals(&quot;.&quot;) &amp;&amp; Checkers.isClassPiece(terms[x+2].toString()))
++               {
++                  rhs.append(&quot;.&quot;);
++                  rhs.append(terms[x+2]);
++                  x += 2;
++               }
++            }
++            else if (Checkers.isFunctionCall(a, b) || Checkers.isIndexableItem(a, b))
++            {
+                rhs.append(a.toString());
+                rhs.append(b.toString());
+ 
+
+Modified: sleep/src/sleep/parser/ParserConstants.java
+===================================================================
+--- sleep/src/sleep/parser/ParserConstants.java	2007-06-12 02:01:35 UTC (rev 268)
++++ sleep/src/sleep/parser/ParserConstants.java	2007-06-12 03:17:46 UTC (rev 269)
+@@ -37,6 +37,7 @@
+    public static final int IDEA_EXPR_I     = 611;
+    public static final int IDEA_HASH_PAIR  = 612;
+    public static final int IDEA_BLOCK      = 613;
++   public static final int IDEA_CLASS      = 614;
+   
+    public static final int OBJECT_NEW      = 441;
+    public static final int OBJECT_ACCESS   = 442;
+
+Modified: sleep/src/sleep/parser/TokenParser.java
+===================================================================
+--- sleep/src/sleep/parser/TokenParser.java	2007-06-12 02:01:35 UTC (rev 268)
++++ sleep/src/sleep/parser/TokenParser.java	2007-06-12 03:17:46 UTC (rev 269)
+@@ -465,6 +465,11 @@
+             myToken.setType(IDEA_BLOCK);
+             myToken.add(tokens[x]);
+          }
++         else if (Checkers.isClassLiteral(strings[x]))
++         {
++            myToken.setType(IDEA_CLASS);
++            myToken.add(tokens[x]);
++         }
+          else
+          {
+             parser.reportError(&quot;Unknown expression&quot;, new Token(data.toString(), tokens[x].getHint()));
+
+Added: sleep/tests/clazz.sl
+===================================================================
+--- sleep/tests/clazz.sl	2007-06-12 02:01:35 UTC (rev 268)
++++ sleep/tests/clazz.sl	2007-06-12 03:17:46 UTC (rev 269)
+@@ -0,0 +1,23 @@
++#
++# class literals...
++#
++
++println(^System);
++println(^LinkedList);
++println(^java.util.LinkedList);
++println(^java.util.LinkedList.&quot;this is a string :)&quot;);
++println(^java.util.LinkedList.&quot;this is a string :)&quot;);
++println(^java.util.LinkedList.&quot;this is a string :)&quot;);
++println(^java.lang.Character$Subset.&quot;another string...&quot;);
++
++$data = &quot;HEllo World&quot;;
++
++println(^java.lang.Character$Subset.$data);
++
++$var = ^java.lang.Character$Subset x 4;
++println($var);
++
++expr('^java.lang.Characte$Subset');
++println([checkError() formatErrors]);
++
++printAll([^Map getMethods]);
+
+Added: sleep/tests/output/clazz.sl
+===================================================================
+--- sleep/tests/output/clazz.sl	2007-06-12 02:01:35 UTC (rev 268)
++++ sleep/tests/output/clazz.sl	2007-06-12 03:17:46 UTC (rev 269)
+@@ -0,0 +1,26 @@
++class java.lang.System
++class java.util.LinkedList
++class java.util.LinkedList
++class java.util.LinkedListthis is a string :)
++class java.util.LinkedListthis is a string :)
++class java.util.LinkedListthis is a string :)
++class java.lang.Character$Subsetanother string...
++class java.lang.Character$SubsetHEllo World
++class java.lang.Character$Subsetclass java.lang.Character$Subsetclass java.lang.Character$Subsetclass java.lang.Character$Subset
++Error: unable to resolve class: java.lang.Characte$Subset at line 0
++       ^java.lang.Characte$Subset
++
++public abstract int java.util.Map.hashCode()
++public abstract boolean java.util.Map.equals(java.lang.Object)
++public abstract java.lang.Object java.util.Map.get(java.lang.Object)
++public abstract java.lang.Object java.util.Map.put(java.lang.Object,java.lang.Object)
++public abstract void java.util.Map.clear()
++public abstract java.util.Collection java.util.Map.values()
++public abstract int java.util.Map.size()
++public abstract java.util.Set java.util.Map.entrySet()
++public abstract void java.util.Map.putAll(java.util.Map)
++public abstract java.lang.Object java.util.Map.remove(java.lang.Object)
++public abstract java.util.Set java.util.Map.keySet()
++public abstract boolean java.util.Map.isEmpty()
++public abstract boolean java.util.Map.containsValue(java.lang.Object)
++public abstract boolean java.util.Map.containsKey(java.lang.Object)
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2007-06-12 02:01:35 UTC (rev 268)
++++ sleep/whatsnew.txt	2007-06-12 03:17:46 UTC (rev 269)
+@@ -3,6 +3,9 @@
+ - reduced number of Class.forName calls made when parsing scripts...
+   should help those using Sleep in Java applets ;) 
+   [p.s. sorry I wasn't able to take care of this sooner]
++- added a new type of literal for resolving a Java class i.e.:
++  ^java.util.LinkedList resolves to java.util.LinkedList.class
++  ^Map$Entry would resolve to java.util.Map$Entry.class  etc..
+ 
+ 2.1-beta 16  (11 Jun 07)
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000247.html">[Sleep-svn] r268 - in sleep: . src/sleep/parser tests/output
+</A></li>
+	<LI>Next message: <A HREF="000249.html">[Sleep-svn] r270 - in sleep: . src/sleep/bridges src/sleep/engine	tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#248">[ date ]</a>
+              <a href="thread.html#248">[ thread ]</a>
+              <a href="subject.html#248">[ subject ]</a>
+              <a href="author.html#248">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,194 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r296 - in sleep: . src/sleep/runtime tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2007-July/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r296%20-%20in%20sleep%3A%20.%20src/sleep/runtime%20tests%20tests/output&In-Reply-To=%3C200707090142.l691gKvi013192%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000274.html">
+   
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r296 - in sleep: . src/sleep/runtime tests tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r296%20-%20in%20sleep%3A%20.%20src/sleep/runtime%20tests%20tests/output&In-Reply-To=%3C200707090142.l691gKvi013192%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r296 - in sleep: . src/sleep/runtime tests tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Mon Jul  9 03:42:20 CEST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000274.html">[Sleep-svn] r295 - sleep/src/sleep/engine/atoms
+</A></li>
+        
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#275">[ date ]</a>
+              <a href="thread.html#275">[ thread ]</a>
+              <a href="subject.html#275">[ subject ]</a>
+              <a href="author.html#275">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2007-07-09 03:42:19 +0200 (Mon, 09 Jul 2007)
+New Revision: 296
+
+Added:
+   sleep/tests/odd.sl
+   sleep/tests/output/odd.sl
+Modified:
+   sleep/src/sleep/runtime/Scalar.java
+   sleep/src/sleep/runtime/WatchScalar.java
+   sleep/whatsnew.txt
+Log:
+..
+
+
+Modified: sleep/src/sleep/runtime/Scalar.java
+===================================================================
+--- sleep/src/sleep/runtime/Scalar.java	2007-07-08 23:57:37 UTC (rev 295)
++++ sleep/src/sleep/runtime/Scalar.java	2007-07-09 01:42:19 UTC (rev 296)
+@@ -1,6 +1,6 @@
+ package sleep.runtime;
+ 
+-import java.io.Serializable;
++import java.io.*;
+ 
+ /**
+  * &lt;p&gt;A scalar is the universal data type for sleep variables.  Scalars can have numerical values of integer, double, or 
+@@ -227,4 +227,30 @@
+       if (newValue.getHash()  != null) { setValue(newValue.getHash()); return; }
+       if (newValue.getValue() != null) { setValue(newValue.getValue()); return; }
+    }
++
++   private void writeObject(ObjectOutputStream out) throws IOException
++   {
++       if (SleepUtils.isEmptyScalar(this))
++       {
++          out.writeObject(null);
++       }
++       else
++       {
++          out.writeObject(value);
++       }
++       out.writeObject(array);       
++       out.writeObject(hash);       
++   }
++
++   private void readObject(ObjectInputStream in) throws IOException, ClassNotFoundException
++   {
++       value = (ScalarType)in.readObject();
++       array = (ScalarArray)in.readObject();
++       hash  = (ScalarHash)in.readObject();
++   
++       if (value == null &amp;&amp; array == null &amp;&amp; hash == null)
++       {
++          setValue(SleepUtils.getEmptyScalar());
++       }
++   }
+ }
+
+Modified: sleep/src/sleep/runtime/WatchScalar.java
+===================================================================
+--- sleep/src/sleep/runtime/WatchScalar.java	2007-07-08 23:57:37 UTC (rev 295)
++++ sleep/src/sleep/runtime/WatchScalar.java	2007-07-09 01:42:19 UTC (rev 296)
+@@ -53,7 +53,14 @@
+ 
+    private void writeObject(ObjectOutputStream out) throws IOException
+    {
+-       out.writeObject(value);
++       if (SleepUtils.isEmptyScalar(this))
++       {
++          out.writeObject(null);
++       }
++       else
++       {
++          out.writeObject(value);
++       }
+        out.writeObject(array);
+        out.writeObject(hash);
+    }
+@@ -63,5 +70,10 @@
+        value = (ScalarType)in.readObject();
+        array = (ScalarArray)in.readObject();
+        hash  = (ScalarHash)in.readObject();
++
++       if (value == null &amp;&amp; array == null &amp;&amp; hash == null)
++       {
++          setValue(SleepUtils.getEmptyScalar());
++       }
+    }
+ }
+
+Added: sleep/tests/odd.sl
+===================================================================
+--- sleep/tests/odd.sl	2007-07-08 23:57:37 UTC (rev 295)
++++ sleep/tests/odd.sl	2007-07-09 01:42:19 UTC (rev 296)
+@@ -0,0 +1,16 @@
++#
++# this recreates a  bug with serializing $null.  Basically a deserialized $null was not seen as
++# being the singleton $null associated with the current script environment.  This tended to create
++# some problems in serialized/deserialized scripts.  I fixed it though :)
++#
++
++$f = {
++  local('$handle');
++  $handle = [SleepUtils getIOHandle: $null, [System out]];
++  println($handle, &quot;test passed!&quot;);
++  closef($handle);
++};
++
++$object = unpack('o', pack('o', $f))[0];
++invoke($object);
++
+
+Added: sleep/tests/output/odd.sl
+===================================================================
+--- sleep/tests/output/odd.sl	2007-07-08 23:57:37 UTC (rev 295)
++++ sleep/tests/output/odd.sl	2007-07-09 01:42:19 UTC (rev 296)
+@@ -0,0 +1 @@
++test passed!
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2007-07-08 23:57:37 UTC (rev 295)
++++ sleep/whatsnew.txt	2007-07-09 01:42:19 UTC (rev 296)
+@@ -2,6 +2,9 @@
+ ===========
+ - sleep interpreter now performs better stack hygeine to prevent 
+   exceptions and errors from corrupting the stack inadvertently.
++- $null now deserializes as its singleton value.  this fixes a lot of
++  potential pitfalls for scripts that rely heavily on serializing and
++  deserializing Sleep functions.  
+ 
+ 2.1-beta 18  (5 Jul 07)
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000274.html">[Sleep-svn] r295 - sleep/src/sleep/engine/atoms
+</A></li>
+	
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#275">[ date ]</a>
+              <a href="thread.html#275">[ thread ]</a>
+              <a href="subject.html#275">[ subject ]</a>
+              <a href="author.html#275">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

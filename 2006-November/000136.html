@@ -1,0 +1,123 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r154 - in sleep: . src/sleep/runtime
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2006-November/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r154%20-%20in%20sleep%3A%20.%20src/sleep/runtime&In-Reply-To=%3C200611050450.kA54oi8A019693%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000135.html">
+   <LINK REL="Next"  HREF="000137.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r154 - in sleep: . src/sleep/runtime</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r154%20-%20in%20sleep%3A%20.%20src/sleep/runtime&In-Reply-To=%3C200611050450.kA54oi8A019693%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r154 - in sleep: . src/sleep/runtime">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Sun Nov  5 05:50:44 CET 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000135.html">[Sleep-svn] r153 - in sleep: . src/sleep/bridges	src/sleep/interfaces src/sleep/runtime tests/output
+</A></li>
+        <LI>Next message: <A HREF="000137.html">[Sleep-svn] r155 - sleep
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#136">[ date ]</a>
+              <a href="thread.html#136">[ thread ]</a>
+              <a href="subject.html#136">[ subject ]</a>
+              <a href="author.html#136">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2006-11-05 05:50:44 +0100 (Sun, 05 Nov 2006)
+New Revision: 154
+
+Modified:
+   sleep/build.xml
+   sleep/src/sleep/runtime/Scalar.java
+   sleep/src/sleep/runtime/SleepUtils.java
+Log:
+fixed an incredibly nasty performance issue with multidimensional data structures...  essentially there was a bug
+converting the parent datastructure to a string with each hit (thanks to an obscure interaction between hash/array scalars
+and SleepUtils.isEmptyScalar)
+
+
+
+Modified: sleep/build.xml
+===================================================================
+--- sleep/build.xml	2006-11-02 01:14:40 UTC (rev 153)
++++ sleep/build.xml	2006-11-05 04:50:44 UTC (rev 154)
+@@ -16,7 +16,7 @@
+            destdir=&quot;${project.build}&quot;
+            nowarn=&quot;yes&quot;
+            depend=&quot;yes&quot;
+-           debug=&quot;false&quot;
++           debug=&quot;true&quot;
+            source=&quot;1.4&quot;
+            target=&quot;1.4&quot;
+            optimize=&quot;yes&quot;
+
+Modified: sleep/src/sleep/runtime/Scalar.java
+===================================================================
+--- sleep/src/sleep/runtime/Scalar.java	2006-11-02 01:14:40 UTC (rev 153)
++++ sleep/src/sleep/runtime/Scalar.java	2006-11-05 04:50:44 UTC (rev 154)
+@@ -78,6 +78,13 @@
+    protected ScalarArray array = null;
+    protected ScalarHash  hash  = null;
+ 
++   /** Returns the actual non-array/non-hash value this scalar contains.  This is mainly for use by internal sleep
++       classes that do not want to accidentally convert a hash/array to a string. */
++   public ScalarType getActualValue()
++   {
++      return value;
++   }
++
+    /** Returns the container for the scalars value.  If this is an array or hash scalar then they will be converted to a string 
+        scalar and returned.  If this scalar is completely null then null will be returned which will mess up the interpreter 
+        somewhere */
+
+Modified: sleep/src/sleep/runtime/SleepUtils.java
+===================================================================
+--- sleep/src/sleep/runtime/SleepUtils.java	2006-11-02 01:14:40 UTC (rev 153)
++++ sleep/src/sleep/runtime/SleepUtils.java	2006-11-05 04:50:44 UTC (rev 154)
+@@ -304,7 +304,7 @@
+    /** returns true if the passed in scalar value is equivalent to the empty scalar or null */
+    public static boolean isEmptyScalar(Scalar value)
+    {
+-      return (value == null || value.getValue() == nullScalar);
++      return (value == null || value.getActualValue() == nullScalar);
+    }
+ 
+    /** Determines if the passed in scalar represents a &quot;function&quot; value.  True iff the scalar contains a closure reference. */
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000135.html">[Sleep-svn] r153 - in sleep: . src/sleep/bridges	src/sleep/interfaces src/sleep/runtime tests/output
+</A></li>
+	<LI>Next message: <A HREF="000137.html">[Sleep-svn] r155 - sleep
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#136">[ date ]</a>
+              <a href="thread.html#136">[ thread ]</a>
+              <a href="subject.html#136">[ subject ]</a>
+              <a href="author.html#136">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

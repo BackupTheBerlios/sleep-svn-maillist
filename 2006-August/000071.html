@@ -1,0 +1,129 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r89 - sleep/tests
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2006-August/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r89%20-%20sleep/tests&In-Reply-To=%3C200608060023.k760Nm1o026404%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000070.html">
+   <LINK REL="Next"  HREF="000072.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r89 - sleep/tests</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r89%20-%20sleep/tests&In-Reply-To=%3C200608060023.k760Nm1o026404%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r89 - sleep/tests">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Sun Aug  6 02:23:48 CEST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000070.html">[Sleep-svn] r88 - sleep
+</A></li>
+        <LI>Next message: <A HREF="000072.html">[Sleep-svn] r90 - sleep/src/sleep/runtime
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#71">[ date ]</a>
+              <a href="thread.html#71">[ thread ]</a>
+              <a href="subject.html#71">[ subject ]</a>
+              <a href="author.html#71">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2006-08-06 02:23:41 +0200 (Sun, 06 Aug 2006)
+New Revision: 89
+
+Modified:
+   sleep/tests/test.pl
+   sleep/tests/use.sl
+Log:
+smoothed some issues out with the test script.
+
+
+
+Modified: sleep/tests/test.pl
+===================================================================
+--- sleep/tests/test.pl	2006-08-06 00:08:28 UTC (rev 88)
++++ sleep/tests/test.pl	2006-08-06 00:23:41 UTC (rev 89)
+@@ -23,23 +23,21 @@
+    `mkdir output`;
+ }
+ 
+-chdir(&quot;..&quot;);
+-
+ foreach $var (@files)
+ {
+    $PROPS = &quot;&quot;;
+    if ($var eq &quot;debugce.sl&quot;) { $PROPS = &quot;-Dsleep.debug=3&quot;; }
+ 
+-   if (!-e &quot;./tests/output/$var&quot;)
++   if (!-e &quot;./output/$var&quot;)
+    {
+-      `java $PROPS -jar sleep.jar ./tests/$var &gt;./tests/output/$var`;
++      `java $PROPS -jar ../sleep.jar ./$var &gt;./output/$var`;
+       push @errors, &quot;$var output does not exist, creating it&quot;;
+    }
+    else
+    {
+-      $expected_value = join(&quot;&quot;, `cat ./tests/output/$var`);
++      $expected_value = join(&quot;&quot;, `cat ./output/$var`);
+ 
+-      $script_value   = join(&quot;&quot;, `java $PROPS -jar sleep.jar ./tests/$var`);
++      $script_value   = join(&quot;&quot;, `java $PROPS -jar ../sleep.jar ./$var`);
+ 
+       if ($expected_value ne $script_value)
+       {
+@@ -47,7 +45,7 @@
+ 
+          if ($ARGV[0] eq &quot;-dump&quot;)
+          {
+-            print &quot;\njava -classpath . sleep.console.TextConsole ../tests/$var\n&quot;;
++            print &quot;\njava $PROPS -jar ../sleep.jar ./$var\n&quot;;
+             print &quot;\n&quot;.$script_value.&quot;\n&quot;;
+          }
+       }  
+
+Modified: sleep/tests/use.sl
+===================================================================
+--- sleep/tests/use.sl	2006-08-06 00:08:28 UTC (rev 88)
++++ sleep/tests/use.sl	2006-08-06 00:23:41 UTC (rev 89)
+@@ -4,7 +4,7 @@
+ 
+ # assume we're running this from the toplevel sleep directory.
+ 
+-use(&quot;tests/data/test.jar&quot;, &quot;org.hick.tests.TestLoadable&quot;);
++use(&quot;./data/test.jar&quot;, &quot;org.hick.tests.TestLoadable&quot;);
+ 
+ if (checkError($error))
+ {
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000070.html">[Sleep-svn] r88 - sleep
+</A></li>
+	<LI>Next message: <A HREF="000072.html">[Sleep-svn] r90 - sleep/src/sleep/runtime
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#71">[ date ]</a>
+              <a href="thread.html#71">[ thread ]</a>
+              <a href="subject.html#71">[ subject ]</a>
+              <a href="author.html#71">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

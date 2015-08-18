@@ -1,0 +1,460 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r14 - in sleep: . src/sleep/bridges src/sleep/error
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2005-June/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r14%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20src/sleep/error&In-Reply-To=%3C200506050830.j558URA7025459%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000002.html">
+   <LINK REL="Next"  HREF="000004.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r14 - in sleep: . src/sleep/bridges src/sleep/error</H1>
+    <B>Raphael Mudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r14%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20src/sleep/error&In-Reply-To=%3C200506050830.j558URA7025459%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r14 - in sleep: . src/sleep/bridges src/sleep/error">rsmudge at sheep.berlios.de
+       </A><BR>
+    <I>Sun Jun  5 10:30:27 CEST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000002.html">[Sleep-svn] r13 - in sleep: . src/sleep/bridges
+</A></li>
+        <LI>Next message: <A HREF="000004.html">[Sleep-svn] r15 - in sleep: . docs src/sleep/bridges src/sleep/console src/sleep/runtime tests
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3">[ date ]</a>
+              <a href="thread.html#3">[ thread ]</a>
+              <a href="subject.html#3">[ subject ]</a>
+              <a href="author.html#3">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2005-06-05 10:30:27 +0200 (Sun, 05 Jun 2005)
+New Revision: 14
+
+Modified:
+   sleep/src/sleep/bridges/BasicIO.java
+   sleep/src/sleep/error/YourCodeSucksException.java
+   sleep/whatsnew.txt
+Log:
+Reworked pack/unpack templates
+
+
+Modified: sleep/src/sleep/bridges/BasicIO.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicIO.java	2005-06-03 18:11:20 UTC (rev 13)
++++ sleep/src/sleep/bridges/BasicIO.java	2005-06-05 08:30:27 UTC (rev 14)
+@@ -288,96 +288,112 @@
+              }
+              catch (Exception ex) { }
+           }
++          else if (pattern.value == 'z' || pattern.value == 'Z')
++          {
++             StringBuffer temps = new StringBuffer();
++             int tempval;
++
++             try
++             {
++                tempval = in.readUnsignedByte();
++             
++                int z = 0;
++
++                for (; tempval != 0 &amp;&amp; z &lt; pattern.count; z++)
++                {
++                   temps.append((char)tempval);
++                   tempval = in.readUnsignedByte();
++                } 
++
++                if (pattern.value == 'Z' &amp;&amp; z &lt; pattern.count)
++                {
++                   in.skip((pattern.count - z) - 1);
++                }
++             }
++             catch (Exception fex) 
++             { 
++                if (control != null) control.close();
++                temp.getArray().push(SleepUtils.getScalar(temps.toString()));       
++                return temp;
++             }
++ 
++             temp.getArray().push( SleepUtils.getScalar(temps.toString()) ); // reads in a full on string :)
++          }
+           else
+           {
+-          for (int z = 0; z != pattern.count; z++)
+-          {
+-             Scalar value = null;
++             for (int z = 0; z != pattern.count; z++) // pattern.count is the integer specified &quot;AFTER&quot; the letter
++             {
++                Scalar value = null;
+  
+-             if (pattern.value == 'S')
+-             {
+-                StringBuffer temps = new StringBuffer();
+-                int tempval;
+-
+                 try
+                 {
+-                   tempval = in.readUnsignedByte();
+-                   while (tempval != 0 &amp;&amp; z &lt; pattern.count)
++                   switch (pattern.value)
+                    {
+-                      temps.append((char)tempval);
+-                      tempval = in.readUnsignedByte();
+-                      z++;
+-                   } 
++                      case 'R':
++                        in.reset();
++                        break;
++                      case 'c':
++                        value = SleepUtils.getScalar(in.readChar() + &quot;&quot;); // turns the char into a string
++                        break;
++                      case 'C':
++                        value = SleepUtils.getScalar(((char)in.readUnsignedByte()) + &quot;&quot;); // turns the char into a string
++                        break;
++                      case 'b':
++                        value = SleepUtils.getScalar((int)in.readByte()); // turns the byte into an int
++                        break;
++                      case 'B':
++                        value = SleepUtils.getScalar((int)in.readUnsignedByte()); // turns the byte into an int
++                        break;
++                      case 's':
++                        value = SleepUtils.getScalar((int)in.readShort()); // turns the byte into an int
++                        break;
++                      case 'S':
++                        value = SleepUtils.getScalar((int)in.readUnsignedShort()); // turns the byte into an int
++                        break;
++                      case 'i':
++                        value = SleepUtils.getScalar(in.readInt()); // turns the byte into an int
++                        break;
++                      case 'I':
++                        int ch1 = in.read();
++                        int ch2 = in.read();
++                        int ch3 = in.read();
++                        int ch4 = in.read();
++
++                        if ((ch1 | ch2 | ch3 | ch4) &lt; 0)
++                             throw new EOFException();
++
++                        long templ = ((ch1 &lt;&lt; 24) + (ch2 &lt;&lt; 16) + (ch3 &lt;&lt; 8) + (ch4 &lt;&lt; 0));
++
++                        value = SleepUtils.getScalar(templ); // turns the byte into an int
++                        break;
++                      case 'f':
++                        value = SleepUtils.getScalar(in.readFloat()); // turns the byte into an int
++                        break;
++                      case 'd':
++                        value = SleepUtils.getScalar(in.readDouble()); // turns the byte into an int
++                        break;
++                      case 'l':
++                        value = SleepUtils.getScalar(in.readLong()); // turns the byte into an int
++                        break;
++                      case 'u':
++                        value = SleepUtils.getScalar(in.readUTF()); // turns the byte into an int
++                        break;
++                      default:
++                        env.getScriptInstance().fireWarning(&quot;Erroneous file pattern character: &quot; + pattern.value, -1);
++                   }
+                 }
+-                catch (Exception fex) 
++                catch (Exception ex) 
+                 { 
+                    if (control != null) control.close();
+-                   temp.getArray().push(SleepUtils.getScalar(temps.toString()));       
++                   if (value != null)   
++                      temp.getArray().push(value);       
+                    return temp;
+                 }
+  
+-                value = SleepUtils.getScalar(temps.toString()); // reads in a full on string :)
+-                z = pattern.count - 1; // make the loop stop on the next iteration
+-             }
+-
+-             try
+-             {
+-                switch (pattern.value)
+-                {
+-                   case 'R':
+-                     in.reset();
+-                     break; 
+-                   case 'c':
+-                     value = SleepUtils.getScalar(in.readChar() + &quot;&quot;); // turns the char into a string
+-                     break;
+-                   case 'C':
+-                     value = SleepUtils.getScalar(((char)in.readUnsignedByte()) + &quot;&quot;); // turns the char into a string
+-                     break;
+-                   case 'b':
+-                     value = SleepUtils.getScalar((int)in.readByte()); // turns the byte into an int
+-                     break;
+-                   case 'B':
+-                     value = SleepUtils.getScalar((int)in.readUnsignedByte()); // turns the byte into an int
+-                     break;
+-                   case 'h':
+-                     value = SleepUtils.getScalar((int)in.readShort()); // turns the byte into an int
+-                     break;
+-                   case 'H':
+-                     value = SleepUtils.getScalar((int)in.readUnsignedShort()); // turns the byte into an int
+-                     break;
+-                   case 'i':
+-                     value = SleepUtils.getScalar(in.readInt()); // turns the byte into an int
+-                     break;
+-                   case 'f':
+-                     value = SleepUtils.getScalar(in.readFloat()); // turns the byte into an int
+-                     break;
+-                   case 'd':
+-                     value = SleepUtils.getScalar(in.readDouble()); // turns the byte into an int
+-                     break;
+-                   case 'l':
+-                     value = SleepUtils.getScalar(in.readLong()); // turns the byte into an int
+-                     break;
+-                   case 's':
+-                     value = SleepUtils.getScalar(in.readUTF()); // turns the byte into an int
+-                     break;
+-                   case 'S':
+-                     break;
+-                   default:
+-                     env.getScriptInstance().fireWarning(&quot;Erroneous file pattern character: &quot; + pattern.value, -1);
+-                }
+-             }
+-             catch (Exception ex) 
+-             { 
+-                if (control != null) control.close();
+                 if (value != null)   
+                    temp.getArray().push(value);       
+-                return temp;
+              }
+-
+-             if (value != null)   
+-                temp.getArray().push(value);       
+           }
+-          }
+ 
+           pattern = pattern.next;
+        }
+@@ -402,72 +418,93 @@
+ 
+        while (pattern != null)
+        {
+-          for (int z = 0; z != pattern.count &amp;&amp; !arguments.isEmpty(); z++)
++          if (pattern.value == 'z' || pattern.value == 'Z')
+           {
+-             Scalar temp = null;
+-
+-             if (pattern.value != 'x')
++             try
+              {
+-                temp = BridgeUtilities.getScalar(arguments);
+-             }
++                char[] tempchars = BridgeUtilities.getString(arguments, &quot;&quot;).toCharArray();
+ 
+-             try
+-             {
+-                switch (pattern.value)
++                for (int y = 0; y &lt; tempchars.length; y++)
+                 {
+-                   case 'x':
+-                     out.writeByte(0);
+-                     break;
+-                   case 'c':
+-                     out.writeChar(temp.toString().charAt(0));
+-                     break;
+-                   case 'C':
+-                     out.writeByte((byte)temp.toString().charAt(0));
+-                     break;
+-                   case 'b':
+-                   case 'B':
+-                     out.writeByte(temp.intValue());
+-                     break;
+-                   case 'h':
+-                   case 'H':
+-                     out.writeShort(temp.intValue());
+-                     break;
+-                   case 'i':
+-                     out.writeInt(temp.intValue());
+-                     break;
+-                   case 'f':
+-                     out.writeFloat((float)temp.doubleValue());
+-                     break;
+-                   case 'd':
+-                     out.writeDouble(temp.doubleValue());
+-                     break;
+-                   case 'l':
+-                     out.writeLong(temp.longValue());
+-                     break;
+-                   case 's':
+-                     out.writeUTF(temp.toString());
+-                     break;
+-                   case 'S':
+-                     char[] tempchars = temp.toString().toCharArray();
++                   out.writeByte((byte)tempchars[y]);
++                }
+ 
+-                     for (int y = 0; y &lt; tempchars.length; y++)
+-                     {
+-                        out.writeByte((byte)tempchars[y]);
+-                     }
+-
+-                     out.writeByte(0); // string null terminator.
+-
+-                     break;
+-                   default:
++                out.writeByte(0); // output the null terminator
++   
++                if (pattern.value == 'Z')
++                {
++                   // the +1 for the start of this loop is to account for the outputted null character
++                   for (int z = tempchars.length + 1; z &lt; pattern.count; z++)
++                   {
++                      out.writeByte(0); // in the case of Z, keep padding the field length with nulls.
++                   }
+                 }
+              }
+-             catch (Exception ex) 
+-             { 
++             catch (Exception ex)
++             {
+                 if (control != null) control.close();
+                 return;
+              }
+           }
++          else
++          {
++             for (int z = 0; z != pattern.count &amp;&amp; !arguments.isEmpty(); z++)
++             {
++                Scalar temp = null;
+ 
++                if (pattern.value != 'x')
++                {
++                   temp = BridgeUtilities.getScalar(arguments);
++                }
++
++                try
++                {
++                   switch (pattern.value)
++                   {
++                      case 'x':
++                        out.writeByte(0);
++                        break;
++                      case 'c':
++                        out.writeChar(temp.toString().charAt(0));
++                        break;
++                      case 'C':
++                        out.writeByte((byte)temp.toString().charAt(0));
++                        break;
++                      case 'b':
++                      case 'B':
++                        out.writeByte(temp.intValue());
++                        break;
++                      case 's':
++                      case 'S':
++                        out.writeShort(temp.intValue());
++                        break;
++                      case 'i':
++                      case 'I':
++                        out.writeInt(temp.intValue());
++                        break;
++                      case 'f':
++                        out.writeFloat((float)temp.doubleValue());
++                        break;
++                      case 'd':
++                        out.writeDouble(temp.doubleValue());
++                        break;
++                      case 'l':
++                        out.writeLong(temp.longValue());
++                        break;
++                      case 'u':
++                        out.writeUTF(temp.toString());
++                        break;
++                      default:
++                   }
++                }
++                catch (Exception ex) 
++                { 
++                   if (control != null) control.close();
++                   return;
++                }
++             }
++          }
++
+           pattern = pattern.next;
+        }
+     }
+
+Modified: sleep/src/sleep/error/YourCodeSucksException.java
+===================================================================
+--- sleep/src/sleep/error/YourCodeSucksException.java	2005-06-03 18:11:20 UTC (rev 13)
++++ sleep/src/sleep/error/YourCodeSucksException.java	2005-06-05 08:30:27 UTC (rev 14)
+@@ -50,11 +50,13 @@
+ {
+     LinkedList allErrors;
+ 
++    /** Initialize the exception (sleep parser) */
+     public YourCodeSucksException(LinkedList myErrors)
+     {
+        allErrors = myErrors;
+     }
+ 
++    /** Returns a minimal string representation of the errors within this exception */
+     public String getMessage()
+     {
+        StringBuffer buf = new StringBuffer(allErrors.size() + &quot; error(s): &quot;);
+@@ -74,6 +76,7 @@
+        return buf.toString();
+     }
+ 
++    /** Returns a string representation of the errors within this exception */
+     public String toString()
+     {
+        return &quot;YourCodeSucksException: &quot; + getMessage();
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2005-06-03 18:11:20 UTC (rev 13)
++++ sleep/whatsnew.txt	2005-06-05 08:30:27 UTC (rev 14)
+@@ -2,6 +2,14 @@
+ ======
+ - fixed a bug parsing tuple assignments in certain cases.
+ - added a &amp;subarray(@array, n, [m]) function for extracting an array slice
++- reworked the pack/unpack format strings to make them more useful, noteable
++  changes include:
++  s/S | are for short/unsigned short respectively
++  I   | will now read in an unsigned integer
++  z/Z | are for reading/writing ascii characters, Z will make sure the 
++      | specified field length is used to its fullest.
++  u   | is for reading a UTF-8 format string
++- 
+ 
+ 2.0-b7
+ ======
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000002.html">[Sleep-svn] r13 - in sleep: . src/sleep/bridges
+</A></li>
+	<LI>Next message: <A HREF="000004.html">[Sleep-svn] r15 - in sleep: . docs src/sleep/bridges src/sleep/console src/sleep/runtime tests
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3">[ date ]</a>
+              <a href="thread.html#3">[ thread ]</a>
+              <a href="subject.html#3">[ subject ]</a>
+              <a href="author.html#3">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

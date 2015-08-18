@@ -1,0 +1,234 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r409 - in sleep: . src/sleep/engine/atoms	src/sleep/runtime tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2008-June/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r409%20-%20in%20sleep%3A%20.%20src/sleep/engine/atoms%0A%09src/sleep/runtime%20tests%20tests/output&In-Reply-To=%3C200806161033.m5GAXCHI007270%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   
+   <LINK REL="Next"  HREF="000386.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r409 - in sleep: . src/sleep/engine/atoms	src/sleep/runtime tests tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r409%20-%20in%20sleep%3A%20.%20src/sleep/engine/atoms%0A%09src/sleep/runtime%20tests%20tests/output&In-Reply-To=%3C200806161033.m5GAXCHI007270%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r409 - in sleep: . src/sleep/engine/atoms	src/sleep/runtime tests tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Mon Jun 16 12:33:12 CEST 2008</I>
+    <P><UL>
+        
+        <LI>Next message: <A HREF="000386.html">[Sleep-svn] r410 - in sleep: . src/sleep/bridges/io src/sleep/engine
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#385">[ date ]</a>
+              <a href="thread.html#385">[ thread ]</a>
+              <a href="subject.html#385">[ subject ]</a>
+              <a href="author.html#385">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2008-06-16 12:33:08 +0200 (Mon, 16 Jun 2008)
+New Revision: 409
+
+Added:
+   sleep/tests/output/slist2.sl
+   sleep/tests/slist2.sl
+Modified:
+   sleep/readme.txt
+   sleep/src/sleep/engine/atoms/Index.java
+   sleep/src/sleep/runtime/SleepUtils.java
+   sleep/whatsnew.txt
+Log:
+Sleep 2.1-release
+
+
+
+Modified: sleep/readme.txt
+===================================================================
+--- sleep/readme.txt	2008-05-30 21:55:20 UTC (rev 408)
++++ sleep/readme.txt	2008-06-16 10:33:08 UTC (rev 409)
+@@ -1,5 +1,5 @@
+  ------- -------------------- ---------   ---------------  ------- ---------
+-Sleep - 2.1 beta 27 - README   
++Sleep 2.1 - README   
+ -  ------------- -------- -   ---------------- --       -    -     -     - - -
+ 
+ &quot;You got the language, all you need now is the O'Reilly book&quot;.  That is
+@@ -10,16 +10,16 @@
+ the Scripting Language for Easily Enhancing Programs.  It is a small 
+ scripting language with perl inspired syntax implemented in Java.
+ 
+-Sleep is primarily a glue language.  Included with Sleep is everything 
+-required to embed and extend the language to fit into new applications and
+-problem domains.  
+-
+ The core of sleep was produced in one weekend in early April of 2002.  
+ I just wanted something I could integrate into an application I was 
+-writing.  Specifically I wanted something I could integrate the way *I 
+-wanted* to integrate it.  Since then, Sleep has been revised, expanded, 
+-and stabilized.  
++writing.  Sometime in 2004 (or 2005?) I was possessed to expand the language
++to include closures and access to the Java class library. 
+ 
++After Sleep 2.0 I let the project sit and collect bug reports for about a 
++year.   At some point I added coroutines into Sleep 2.0 and thus Sleep 2.1 was
++born.  This release is the result of a 2 year polishing effort on the Sleep 
++2.0 codebase.  I hope you enjoy it.
++
+ Sleep Project Homepage: <A HREF="http://sleep.dashnine.org/">http://sleep.dashnine.org/</A>
+ 
+  ------- -------------------- ---------   ---------------  ------- ---------
+@@ -35,6 +35,9 @@
+    The Sleep 2.1 Manual is both a tutorial and reference for the Sleep language.
+    The manual is available at <A HREF="http://sleep.dashnine.org/manual/">http://sleep.dashnine.org/manual/</A>
+ 
++   You can also support this project and purchase the Manual online at:
++   <A HREF="http://www.amazon.com/dp/143822723X/">http://www.amazon.com/dp/143822723X/</A>
++
+ sleepguide.htm
+    This document is a guide to integrating the sleep language into your
+    application.  Part 1 of this document is an absolute must read if you plan 
+@@ -110,7 +113,7 @@
+ -  ------------- -------- -   ---------------- --       -    -     -     - - -
+ 
+ Feedback is always welcome.  Suggestions/comments/questions can directed to
+-me via email: <A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">raffi at hick.org</A>
++me via email: <A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">rsmudge at gmail.com</A>
+ 
+ I do respond to most feedback.  For example, this message posted to a public
+ forum:
+
+Modified: sleep/src/sleep/engine/atoms/Index.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/Index.java	2008-05-30 21:55:20 UTC (rev 408)
++++ sleep/src/sleep/engine/atoms/Index.java	2008-06-16 10:33:08 UTC (rev 409)
+@@ -80,10 +80,10 @@
+           }
+       }
+ 
+-      e.CreateFrame();
++//      e.CreateFrame();
+          index.evaluate(e);
+          pos = (Scalar)(e.getCurrentFrame().pop());
+-      e.KillFrame();
++//      e.KillFrame();
+ 
+       if (structure.getArray() != null) 
+       { 
+@@ -113,6 +113,7 @@
+       }
+       else 
+       { 
++         e.KillFrame();
+          throw new IllegalArgumentException(&quot;invalid use of index operator: &quot; + SleepUtils.describe(structure) + &quot;[&quot; + SleepUtils.describe(pos) + &quot;]&quot;);
+       } 
+ 
+
+Modified: sleep/src/sleep/runtime/SleepUtils.java
+===================================================================
+--- sleep/src/sleep/runtime/SleepUtils.java	2008-05-30 21:55:20 UTC (rev 408)
++++ sleep/src/sleep/runtime/SleepUtils.java	2008-06-16 10:33:08 UTC (rev 409)
+@@ -26,7 +26,7 @@
+ public class SleepUtils
+ {
+    /** A date stamp of this Sleep release in YYYYMMDD format */
+-   public static final int    SLEEP_RELEASE = 20080530;
++   public static final int    SLEEP_RELEASE = 20080616;
+ 
+    /** A string description of this Sleep release */
+    public static final String SLEEP_VERSION = &quot;Sleep 2.1&quot;;
+@@ -124,6 +124,11 @@
+     */
+    public static Scalar runCode(SleepClosure closure, String message, ScriptInstance script, Stack locals)
+    {
++       if (script == null)
++       {
++          script = closure.getOwner();
++       }
++
+        CallRequest request = new CallRequest.ClosureCallRequest(script.getScriptEnvironment(), Integer.MIN_VALUE, SleepUtils.getScalar(closure), message);
+        return runCode(request, script, locals);
+    }
+
+Added: sleep/tests/output/slist2.sl
+===================================================================
+--- sleep/tests/output/slist2.sl	2008-05-30 21:55:20 UTC (rev 408)
++++ sleep/tests/output/slist2.sl	2008-06-16 10:33:08 UTC (rev 409)
+@@ -0,0 +1,6 @@
++@('a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j')
++@('c', 'd', 'e', 'f', 'g', 'h')
++@('e', 'f')
++@('a', 'b', 'c', 'd', 'e', 'f', 'pHEAR', 'g', 'h', 'i', 'j')
++@('e', 'f', 'pHEAR')
++Warning: unsafe data modification: parent @array changed after &amp;sublist creation at slist2.sl:16
+
+Added: sleep/tests/slist2.sl
+===================================================================
+--- sleep/tests/slist2.sl	2008-05-30 21:55:20 UTC (rev 408)
++++ sleep/tests/slist2.sl	2008-06-16 10:33:08 UTC (rev 409)
+@@ -0,0 +1,16 @@
++#
++# test a sublist of a sublist of a sublist changes..
++#
++
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">+ at a</A> = @(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;, &quot;d&quot;, &quot;e&quot;, &quot;f&quot;, &quot;g&quot;, &quot;h&quot;, &quot;i&quot;, &quot;j&quot;);
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">+ at b</A> = subarray(@a, 2, 8);
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">+ at c</A> = subarray(@b, 2, 4);
++
++println(@a);
++println(@b);
++println(@c);
++
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">+ at c</A>[2] = &quot;pHEAR&quot;;
++println(@a);
++println(@c);
++println(@b);
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2008-05-30 21:55:20 UTC (rev 408)
++++ sleep/whatsnew.txt	2008-06-16 10:33:08 UTC (rev 409)
+@@ -1,3 +1,11 @@
++2.1-release  (16 Jun 08)
++===========
++- SleepUtils#runCode(SleepClosure, ...) now accepts a null value
++  for the ScriptInstance parameter.
++- eliminated unnecessary frame creation within the Index operator
++- added a check to cleanup the current frame when a bad index 
++  error occurs.
++
+ 2.1-beta 27  (30 May 08)
+ ===========
+ - Virtual machine errors (stack overflow, out of memory) etc.
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	
+	<LI>Next message: <A HREF="000386.html">[Sleep-svn] r410 - in sleep: . src/sleep/bridges/io src/sleep/engine
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#385">[ date ]</a>
+              <a href="thread.html#385">[ thread ]</a>
+              <a href="subject.html#385">[ subject ]</a>
+              <a href="author.html#385">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

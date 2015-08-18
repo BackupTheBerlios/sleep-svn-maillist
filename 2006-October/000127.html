@@ -1,0 +1,164 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r145 - in sleep: . src/sleep/bridges tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2006-October/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r145%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20tests/output&In-Reply-To=%3C200610292154.k9TLsGFr007077%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000126.html">
+   <LINK REL="Next"  HREF="000128.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r145 - in sleep: . src/sleep/bridges tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r145%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20tests/output&In-Reply-To=%3C200610292154.k9TLsGFr007077%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r145 - in sleep: . src/sleep/bridges tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Sun Oct 29 22:54:16 CET 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000126.html">[Sleep-svn] r144 - sleep
+</A></li>
+        <LI>Next message: <A HREF="000128.html">[Sleep-svn] r146 - in sleep: . src/sleep/bridges tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#127">[ date ]</a>
+              <a href="thread.html#127">[ thread ]</a>
+              <a href="subject.html#127">[ subject ]</a>
+              <a href="author.html#127">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2006-10-29 22:54:15 +0100 (Sun, 29 Oct 2006)
+New Revision: 145
+
+Modified:
+   sleep/src/sleep/bridges/SleepClosure.java
+   sleep/tests/output/fe_generatordb.sl
+   sleep/tests/output/nparams.sl
+   sleep/whatsnew.txt
+Log:
+created a new string representation for closures.
+
+
+
+Modified: sleep/src/sleep/bridges/SleepClosure.java
+===================================================================
+--- sleep/src/sleep/bridges/SleepClosure.java	2006-10-29 18:38:52 UTC (rev 144)
++++ sleep/src/sleep/bridges/SleepClosure.java	2006-10-29 21:54:15 UTC (rev 145)
+@@ -32,6 +32,9 @@
+ /** The Sleep Closure class.  This class represents a Function object that is also a self contained closure */
+ public class SleepClosure implements Function
+ {
++    private static int ccount;
++    private int id;
++
+     private class ClosureIterator implements Iterator
+     {
+        protected Scalar            current;
+@@ -107,7 +110,7 @@
+ 
+     public String toString()
+     {
+-       return &quot;&amp;closure&quot; + hashCode();
++       return &quot;&amp;closure&quot; + id + &quot;:&quot; + code.getApproximateLineRange();
+     }
+ 
+     /** Creates a new Sleep Closure, with a brand new set of internal variables.  Don't be afraid, you can call this constructor from your code. */
+@@ -126,6 +129,10 @@
+ 
+        _var.putScalar(&quot;$this&quot;, SleepUtils.getScalar(this));
+        setVariables(_var);
++
++       ccount = (ccount + 1) % Short.MAX_VALUE;
++
++       id = ccount;
+     }
+ 
+     /** Returns the owning script instance */
+
+Modified: sleep/tests/output/fe_generatordb.sl
+===================================================================
+--- sleep/tests/output/fe_generatordb.sl	2006-10-29 18:38:52 UTC (rev 144)
++++ sleep/tests/output/fe_generatordb.sl	2006-10-29 21:54:15 UTC (rev 145)
+@@ -19,7 +19,7 @@
+ Trace: &amp;println('8 =&gt; val: 8') at line 8
+ 9 =&gt; val: 9
+ Trace: &amp;println('9 =&gt; val: 9') at line 8
+-Trace: &amp;lambda(&amp;closure9087808, $start =&gt; 50, $stop =&gt; 60) = &amp;closure15794899 at line 22
++Trace: &amp;lambda(&amp;closure2:13-19, $start =&gt; 50, $stop =&gt; 60) = &amp;closure3:13-19 at line 22
+ Testing out range stuff: 0 =&gt; 50
+ Trace: &amp;println('Testing out range stuff: 0 =&gt; 50') at line 24
+ Testing out range stuff: 1 =&gt; 51
+@@ -41,7 +41,7 @@
+ Testing out range stuff: 9 =&gt; 59
+ Trace: &amp;println('Testing out range stuff: 9 =&gt; 59') at line 24
+ Trace: &amp;this('$start $stop') at line 29
+-Trace: &amp;_range2(70, 80) = &amp;closure2355643 at line 42
++Trace: &amp;_range2(70, 80) = &amp;closure4:29-39 at line 42
+ My third test: 0 =&gt; 70
+ Trace: &amp;println('My third test: 0 =&gt; 70') at line 44
+ My third test: 1 =&gt; 71
+
+Modified: sleep/tests/output/nparams.sl
+===================================================================
+--- sleep/tests/output/nparams.sl	2006-10-29 18:38:52 UTC (rev 144)
++++ sleep/tests/output/nparams.sl	2006-10-29 21:54:15 UTC (rev 145)
+@@ -41,7 +41,7 @@
+ Trace: &amp;println('Test 5 has been called, executing action:') at line 51
+ The passed in closure has been called
+ Trace: &amp;println('The passed in closure has been called') at line 55
+-Trace: [&amp;closure10481832] at line 52
+-Trace: &amp;test5($action =&gt; &amp;closure10481832) at line 55
+-Trace: &amp;test5(action =&gt; &amp;closure7388808) - FAILED! at line 56
++Trace: [&amp;closure6:55] at line 52
++Trace: &amp;test5($action =&gt; &amp;closure6:55) at line 55
++Trace: &amp;test5(action =&gt; &amp;closure7:56) - FAILED! at line 56
+ Warning: unreachable named parameter: action at line 56
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-10-29 18:38:52 UTC (rev 144)
++++ sleep/whatsnew.txt	2006-10-29 21:54:15 UTC (rev 145)
+@@ -11,6 +11,9 @@
+   assigned expression with a semicolon.
+ - added BridgeUtilities.extractNamedParameters(Stack args) to extract all
+   named parameters from a stack of arguments.
++- changed string representation of closures to represent: 
++  &amp;closureX:N-M where X represents the instantiation number (i.e. closure 3)
++  and N-M represents the line range where the closure was declared
+ 
+ 2.1-beta 7  (15 Oct 06)
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000126.html">[Sleep-svn] r144 - sleep
+</A></li>
+	<LI>Next message: <A HREF="000128.html">[Sleep-svn] r146 - in sleep: . src/sleep/bridges tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#127">[ date ]</a>
+              <a href="thread.html#127">[ thread ]</a>
+              <a href="subject.html#127">[ subject ]</a>
+              <a href="author.html#127">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

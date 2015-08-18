@@ -1,0 +1,182 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r249 - in sleep: . src/sleep/bridges tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2007-April/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r249%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20tests%20tests/output&In-Reply-To=%3C200704082303.l38N3eW9006408%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000227.html">
+   <LINK REL="Next"  HREF="000229.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r249 - in sleep: . src/sleep/bridges tests tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r249%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20tests%20tests/output&In-Reply-To=%3C200704082303.l38N3eW9006408%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r249 - in sleep: . src/sleep/bridges tests tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Mon Apr  9 01:03:40 CEST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000227.html">[Sleep-svn] r248 - sleep
+</A></li>
+        <LI>Next message: <A HREF="000229.html">[Sleep-svn] r250 - in sleep: . src/sleep/engine tests tests/data2	tests/data2/src tests/data2/src/sleep tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#228">[ date ]</a>
+              <a href="thread.html#228">[ thread ]</a>
+              <a href="subject.html#228">[ subject ]</a>
+              <a href="author.html#228">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2007-04-09 01:03:39 +0200 (Mon, 09 Apr 2007)
+New Revision: 249
+
+Added:
+   sleep/tests/iswm3.sl
+   sleep/tests/output/iswm3.sl
+Modified:
+   sleep/src/sleep/bridges/BasicStrings.java
+   sleep/whatsnew.txt
+Log:
+whirred.
+
+
+
+Modified: sleep/src/sleep/bridges/BasicStrings.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicStrings.java	2007-04-07 05:34:21 UTC (rev 248)
++++ sleep/src/sleep/bridges/BasicStrings.java	2007-04-08 23:03:39 UTC (rev 249)
+@@ -235,7 +235,7 @@
+                     }
+                  }
+ 
+-                 for (cptr = aptr; cptr &lt; a.length() &amp;&amp; a.charAt(cptr) != '?' &amp;&amp; a.charAt(cptr) != '*'; cptr++) { } // body intentionally left empty.
++                 for (cptr = aptr; cptr &lt; a.length() &amp;&amp; a.charAt(cptr) != '?' &amp;&amp; a.charAt(cptr) != '\\' &amp;&amp; a.charAt(cptr) != '*'; cptr++) { } // body intentionally left empty.
+ 
+                  if (cptr != aptr) // don't advance our bptr unless there is some non-wildcard pattern to look for next in the string
+                  {
+@@ -280,6 +280,7 @@
+            }
+            catch (Exception ex) { ex.printStackTrace(); }
+      
++
+            return false;
+         }
+      
+
+Added: sleep/tests/iswm3.sl
+===================================================================
+--- sleep/tests/iswm3.sl	2007-04-07 05:34:21 UTC (rev 248)
++++ sleep/tests/iswm3.sl	2007-04-08 23:03:39 UTC (rev 249)
+@@ -0,0 +1,44 @@
++sub foo 
++{
++   if ($1 iswm $2)
++   {
++      println(&quot;true&quot;);
++   }
++   else
++   {
++      println(&quot;false&quot;);
++   }
++
++   println(&quot;a: $1 b: $2&quot;);
++}
++
++$a = &quot;**at\\\\est&quot;;
++$b = &quot;bat\\est&quot;;
++foo($a, $b);
++
++$a = &quot;*at\\\\est&quot;;
++$b = &quot;bat\\est&quot;;
++foo($a, $b);
++
++$a = &quot;?at\\\\est&quot;;
++$b = &quot;bat\\est&quot;;
++foo($a, $b);
++
++$a = &quot;?at\\\\est\\\\&quot;;
++$b = &quot;bat\\est\\&quot;;
++foo($a, $b);
++
++# fringe case, this comes up true which is ok with me... \ followed by nothing
++$a = &quot;?at\\\\est\\&quot;;
++$b = &quot;bat\\est\\&quot;;
++foo($a, $b);
++
++$a = &quot;?at\\\\est\\aa&quot;;
++$b = &quot;bat\\est\\aa&quot;;
++foo($a, $b);
++
++$a = &quot;?at\\\\est\\\\aa&quot;;
++$b = &quot;bat\\est\\aa&quot;;
++foo($a, $b);
++
++
+
+Added: sleep/tests/output/iswm3.sl
+===================================================================
+--- sleep/tests/output/iswm3.sl	2007-04-07 05:34:21 UTC (rev 248)
++++ sleep/tests/output/iswm3.sl	2007-04-08 23:03:39 UTC (rev 249)
+@@ -0,0 +1,14 @@
++true
++a: **at\\est b: bat\est
++true
++a: *at\\est b: bat\est
++true
++a: ?at\\est b: bat\est
++true
++a: ?at\\est\\ b: bat\est\
++true
++a: ?at\\est\ b: bat\est\
++false
++a: ?at\\est\aa b: bat\est\aa
++true
++a: ?at\\est\\aa b: bat\est\aa
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2007-04-07 05:34:21 UTC (rev 248)
++++ sleep/whatsnew.txt	2007-04-08 23:03:39 UTC (rev 249)
+@@ -27,6 +27,8 @@
+ - unloading a script through ScriptLoader now causes the entire block
+   cache to be cleared.  This will ensure that external files loaded
+   with include() will be purged from the cache as well.
++- fixed a bug with iswm and using \ as a character literal in the match
++  pattern, use \\ to specifiy a literal \
+ 
+ 2.1-beta 14  (24 Mar 07)
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000227.html">[Sleep-svn] r248 - sleep
+</A></li>
+	<LI>Next message: <A HREF="000229.html">[Sleep-svn] r250 - in sleep: . src/sleep/engine tests tests/data2	tests/data2/src tests/data2/src/sleep tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#228">[ date ]</a>
+              <a href="thread.html#228">[ thread ]</a>
+              <a href="subject.html#228">[ subject ]</a>
+              <a href="author.html#228">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

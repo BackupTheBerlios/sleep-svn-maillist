@@ -1,0 +1,344 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r108 - in sleep: . src/sleep/engine tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2006-September/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r108%20-%20in%20sleep%3A%20.%20src/sleep/engine%20tests%20tests/output&In-Reply-To=%3C200609101832.k8AIWYKq024508%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000089.html">
+   <LINK REL="Next"  HREF="000091.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r108 - in sleep: . src/sleep/engine tests tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r108%20-%20in%20sleep%3A%20.%20src/sleep/engine%20tests%20tests/output&In-Reply-To=%3C200609101832.k8AIWYKq024508%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r108 - in sleep: . src/sleep/engine tests tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Sun Sep 10 20:32:34 CEST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000089.html">[Sleep-svn] r107 - in sleep: . src/sleep/bridges src/sleep/console	src/sleep/engine/atoms src/sleep/error src/sleep/parser	src/sleep/runtime tests tests/output
+</A></li>
+        <LI>Next message: <A HREF="000091.html">[Sleep-svn] r109 - in sleep: . src/sleep/runtime tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#90">[ date ]</a>
+              <a href="thread.html#90">[ thread ]</a>
+              <a href="subject.html#90">[ subject ]</a>
+              <a href="author.html#90">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2006-09-10 20:32:33 +0200 (Sun, 10 Sep 2006)
+New Revision: 108
+
+Added:
+   sleep/tests/convertds.sl
+   sleep/tests/output/convertds.sl
+Modified:
+   sleep/build.xml
+   sleep/src/sleep/engine/ObjectUtilities.java
+   sleep/tests/output/trace.sl
+   sleep/whatsnew.txt
+Log:
+HOES now allows Sleep data structures to be passed as Java List or Map data.
+
+
+
+Modified: sleep/build.xml
+===================================================================
+--- sleep/build.xml	2006-09-08 02:05:32 UTC (rev 107)
++++ sleep/build.xml	2006-09-10 18:32:33 UTC (rev 108)
+@@ -18,6 +18,7 @@
+            depend=&quot;yes&quot;
+            debug=&quot;false&quot;
+            source=&quot;1.4&quot;
++           target=&quot;1.4&quot;
+            optimize=&quot;yes&quot;
+     &gt;
+     &lt;/javac&gt;
+
+Modified: sleep/src/sleep/engine/ObjectUtilities.java
+===================================================================
+--- sleep/src/sleep/engine/ObjectUtilities.java	2006-09-08 02:05:32 UTC (rev 107)
++++ sleep/src/sleep/engine/ObjectUtilities.java	2006-09-10 18:32:33 UTC (rev 108)
+@@ -81,42 +81,68 @@
+          {
+              // do nothing, this argument is a give me
+          }
+-         else if (check[z].isArray() &amp;&amp; scalar.getArray() != null)
++         else if (scalar.getArray() != null)
+          {
+-             if (check[z].getComponentType() == OBJECT_TYPE)
+-             {
+-                value = ARG_MATCH_MAYBE;
+-             }
+-             else
+-             {
+-                Class mytype = getArrayType(scalar, null);
++            if (check[z].isArray())
++            {
++               if (check[z].getComponentType() == OBJECT_TYPE)
++               {
++                  value = ARG_MATCH_MAYBE;
++               }
++               else
++               {
++                  Class mytype = getArrayType(scalar, null);
+  
+-                if (mytype == check[z].getComponentType())
+-                {
+-                   value = ARG_MATCH_YES;
+-                }
+-                else
+-                {
+-                   value = ARG_MATCH_NO;
+-                }
+-             }
++                  if (mytype == check[z].getComponentType())
++                  {
++                     value = ARG_MATCH_YES;
++                  }
++                  else
++                  {
++                     // why are we not returning this?!? a test case should be devised to test the
++                     // implications...
++                     value = ARG_MATCH_NO;
++                  }
++               }
++            }
++            else if (check[z].isAssignableFrom(java.util.List.class))
++            {
++               // would a java.util.List or java.util.Collection satisfy the argument?
++               value = ARG_MATCH_YES;
++            }
++            else if (!check[z].isInstance(scalar.objectValue()))
++            {
++               return ARG_MATCH_NO;
++            }
+          }
++         else if (scalar.getHash() != null)
++         {
++            if (check[z].isAssignableFrom(java.util.Map.class))
++            {
++               // would a java.util.Map or java.util.Collection satisfy the argument?
++               value = ARG_MATCH_YES;
++            }
++            else if (!check[z].isInstance(scalar.objectValue()))
++            {
++               return ARG_MATCH_NO;
++            }
++         }
+          else if (check[z].isPrimitive() &amp;&amp; !(stemp == INT_SCALAR || stemp == DOUBLE_SCALAR || stemp == LONG_SCALAR))
+          {
+-             value = ARG_MATCH_MAYBE;
++            value = ARG_MATCH_MAYBE;
+          }
+          else if (check[z].isInterface())
+          {
+-             if (!SleepUtils.isFunctionScalar(scalar) &amp;&amp; !check[z].isInstance(scalar.objectValue()))
+-                  return ARG_MATCH_NO;
++            if (!SleepUtils.isFunctionScalar(scalar) &amp;&amp; !check[z].isInstance(scalar.objectValue()))
++               return ARG_MATCH_NO;
+          }
+          else if (check[z] == STRING_TYPE &amp;&amp; stemp != STRING_SCALAR)
+          {
+-             value = ARG_MATCH_MAYBE;
++            value = ARG_MATCH_MAYBE;
+          }
+          else if (!check[z].isInstance(scalar.objectValue()))
+          {
+-             return ARG_MATCH_NO;
++            return ARG_MATCH_NO;
+          }
+       }
+  
+@@ -177,22 +203,48 @@
+ 
+    public static Object buildArgument(Class type, Scalar value, ScriptInstance script)
+    {
+-      if (type.isArray() &amp;&amp; value.getArray() != null)
++      if (type == STRING_TYPE)
+       {
+-         Class atype = getArrayType(value, type.getComponentType());
++         return value.toString();
++      }
++      else if (value.getArray() != null)
++      {
++         if (type.isArray())
++         {
++            Class atype = getArrayType(value, type.getComponentType());
+ 
+-         Object arrayV = Array.newInstance(atype, value.getArray().size());
+-         Iterator i = value.getArray().scalarIterator();
+-         int x = 0;
+-         while (i.hasNext())
++            Object arrayV = Array.newInstance(atype, value.getArray().size());
++            Iterator i = value.getArray().scalarIterator();
++            int x = 0;
++            while (i.hasNext())
++            {
++               Scalar temp = (Scalar)i.next();
++               Array.set(arrayV, x, buildArgument(atype, temp, script));
++               x++;
++            }
++
++            return arrayV;
++         }
++         else if (type.isAssignableFrom(java.util.List.class))
+          {
+-            Scalar temp = (Scalar)i.next();
+-            Array.set(arrayV, x, buildArgument(atype, temp, script));
+-            x++;
++            return SleepUtils.getListFromArray(value);
+          }
+-
+-         return arrayV;
++         else
++         {
++            return value.objectValue();
++         }
+       }
++      else if (value.getHash() != null)
++      {
++         if (type.isAssignableFrom(java.util.Map.class))
++         {
++            return SleepUtils.getMapFromHash(value);
++         }
++         else
++         {
++            return value.objectValue();
++         }
++      }
+       else if (type.isPrimitive())
+       {
+          if (type == Boolean.TYPE)
+@@ -236,10 +288,6 @@
+       {
+          return BuildInterface(type, SleepUtils.getFunctionFromScalar(value, script), script);
+       }
+-      else if (type == STRING_TYPE)
+-      {
+-         return value.toString();
+-      }
+ 
+       return value.objectValue();
+    }
+
+Added: sleep/tests/convertds.sl
+===================================================================
+--- sleep/tests/convertds.sl	2006-09-08 02:05:32 UTC (rev 107)
++++ sleep/tests/convertds.sl	2006-09-10 18:32:33 UTC (rev 108)
+@@ -0,0 +1,32 @@
++#
++# a test of converting sleep data structures to java data structures
++# (no vice versa)
++#
++
++#
++# Scalar Arrays
++#
++
++# convert to a java.util.List
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">+ at test</A> = @(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;, &quot;d&quot;);
++
++println(&quot;b4 - @test is: &quot; . @test);
++
++$x = [Collections binarySearch: @test, &quot;c&quot;];
++
++println(&quot;Found element 'c' at $x&quot;);
++
++# convert to a java.util.Collection
++
++$set = [new TreeSet: @(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;, &quot;d&quot;, &quot;e&quot;, &quot;f&quot;, &quot;b1&quot;, &quot;c1&quot;, &quot;a1&quot;)];
++println(&quot;A treeset: $set&quot;);
++
++#
++# Scalar Hashes (eeh :))
++# 
++
++# convert to a java.util.Map
++
++$sortedmap = [new TreeMap: %(z =&gt; &quot;zebra&quot;, a =&gt; &quot;apple&quot;, b =&gt; &quot;bannana&quot;, c =&gt; &quot;cod&quot;)];
++println(&quot;A sortedmap: $sortedmap&quot;);
++
+
+Added: sleep/tests/output/convertds.sl
+===================================================================
+--- sleep/tests/output/convertds.sl	2006-09-08 02:05:32 UTC (rev 107)
++++ sleep/tests/output/convertds.sl	2006-09-10 18:32:33 UTC (rev 108)
+@@ -0,0 +1,4 @@
++b4 - @test is: @('a', 'b', 'c', 'd')
++Found element 'c' at 2
++A treeset: [a, a1, b, b1, c, c1, d, e, f]
++A sortedmap: {a=apple, b=bannana, c=cod, z=zebra}
+
+Modified: sleep/tests/output/trace.sl
+===================================================================
+--- sleep/tests/output/trace.sl	2006-09-08 02:05:32 UTC (rev 107)
++++ sleep/tests/output/trace.sl	2006-09-10 18:32:33 UTC (rev 108)
+@@ -1,13 +1,13 @@
+ this is a test
+-Trace: [[<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 884a40</A>] println: 'this is a test'] at line 6
++Trace: [[<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at d4d66b</A>] println: 'this is a test'] at line 6
+ Trace: [java.lang.Math pow: 3, 4] = 81.0 at line 7
+ 81.0
+-Trace: [[<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 884a40</A>] println: 81.0] at line 7
++Trace: [[<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at d4d66b</A>] println: 81.0] at line 7
+ Trace: [java.lang.Math pow: 3, 5] = 243.0 at line 8
+ 243.0
+ Trace: &amp;println(243.0) at line 8
+ testing again...
+-Trace: [[<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 884a40</A>] println: 'testing again...'] at line 9
++Trace: [[<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at d4d66b</A>] println: 'testing again...'] at line 9
+ Trace: [sleep.runtime.SleepUtils getListFromArray: @('a', 'b', 'c')] = [[a, b, c]] at line 11
+ Trace: [new java.util.LinkedList: [[a, b, c]]] = [[a, b, c]] at line 11
+ Warning: variable '$list' not declared at line 11
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-09-08 02:05:32 UTC (rev 107)
++++ sleep/whatsnew.txt	2006-09-10 18:32:33 UTC (rev 108)
+@@ -10,6 +10,10 @@
+ - added another debug level (8) for function call tracing.  while this
+   flag is set all function calls with their arguments and return value
+   will be displayed to the user as a runtime warning.  
++- HOES will now allow sleep data structures (arrays and hashes) to be passed
++  as java.util.List and java.util.Map data structures (via an expensive
++  conversion process).  This conversion only applies one way i.e. a Java List
++  or Java Map can not be used as a Sleep array or hash.
+ 
+ 2.1-beta 3
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000089.html">[Sleep-svn] r107 - in sleep: . src/sleep/bridges src/sleep/console	src/sleep/engine/atoms src/sleep/error src/sleep/parser	src/sleep/runtime tests tests/output
+</A></li>
+	<LI>Next message: <A HREF="000091.html">[Sleep-svn] r109 - in sleep: . src/sleep/runtime tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#90">[ date ]</a>
+              <a href="thread.html#90">[ thread ]</a>
+              <a href="subject.html#90">[ subject ]</a>
+              <a href="author.html#90">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

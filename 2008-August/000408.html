@@ -1,0 +1,247 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r432 - in sleep: . src/sleep/engine src/sleep/runtime	tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2008-August/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r432%20-%20in%20sleep%3A%20.%20src/sleep/engine%20src/sleep/runtime%0A%09tests%20tests/output&In-Reply-To=%3C200808062054.m76KsaWu009741%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000407.html">
+   <LINK REL="Next"  HREF="000409.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r432 - in sleep: . src/sleep/engine src/sleep/runtime	tests tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r432%20-%20in%20sleep%3A%20.%20src/sleep/engine%20src/sleep/runtime%0A%09tests%20tests/output&In-Reply-To=%3C200808062054.m76KsaWu009741%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r432 - in sleep: . src/sleep/engine src/sleep/runtime	tests tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Wed Aug  6 22:54:36 CEST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000407.html">[Sleep-svn] r431 - sleep
+</A></li>
+        <LI>Next message: <A HREF="000409.html">[Sleep-svn] r433 - in sleep: . src/sleep/runtime
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#408">[ date ]</a>
+              <a href="thread.html#408">[ thread ]</a>
+              <a href="subject.html#408">[ subject ]</a>
+              <a href="author.html#408">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2008-08-06 22:54:35 +0200 (Wed, 06 Aug 2008)
+New Revision: 432
+
+Added:
+   sleep/tests/output/slist3.sl
+   sleep/tests/slist3.sl
+Modified:
+   sleep/src/sleep/engine/CallRequest.java
+   sleep/src/sleep/runtime/CollectionWrapper.java
+   sleep/src/sleep/runtime/SleepUtils.java
+   sleep/whatsnew.txt
+Log:
+la la la... fixing bugs
+
+
+Modified: sleep/src/sleep/engine/CallRequest.java
+===================================================================
+--- sleep/src/sleep/engine/CallRequest.java	2008-08-05 15:08:14 UTC (rev 431)
++++ sleep/src/sleep/engine/CallRequest.java	2008-08-06 20:54:35 UTC (rev 432)
+@@ -334,7 +334,7 @@
+             Scalar eval = inline.evaluate(getScriptEnvironment());
+     
+             /* restore the argument variables */
+-            if (oldargs != null)
++            if (oldargs != null &amp;&amp; oldargs.getArray() != null)
+             {
+                localLevel.putScalar(&quot;@_&quot;, oldargs);
+                if (targs &gt; 0)
+
+Modified: sleep/src/sleep/runtime/CollectionWrapper.java
+===================================================================
+--- sleep/src/sleep/runtime/CollectionWrapper.java	2008-08-05 15:08:14 UTC (rev 431)
++++ sleep/src/sleep/runtime/CollectionWrapper.java	2008-08-06 20:54:35 UTC (rev 432)
+@@ -18,9 +18,11 @@
+       int count = 0;
+       while (i.hasNext() &amp;&amp; count &lt; end)
+       {
++         Object tempo = i.next();
++
+          if (count &gt;= begin)
+          {
+-            temp.add(i.next());
++            temp.add(tempo);
+          }
+          count++;
+       }
+
+Modified: sleep/src/sleep/runtime/SleepUtils.java
+===================================================================
+--- sleep/src/sleep/runtime/SleepUtils.java	2008-08-05 15:08:14 UTC (rev 431)
++++ sleep/src/sleep/runtime/SleepUtils.java	2008-08-06 20:54:35 UTC (rev 432)
+@@ -26,7 +26,7 @@
+ public class SleepUtils
+ {
+    /** A date stamp of this Sleep release in YYYYMMDD format */
+-   public static final int    SLEEP_RELEASE = 20080805;
++   public static final int    SLEEP_RELEASE = 20080806;
+ 
+    /** A string description of this Sleep release */
+    public static final String SLEEP_VERSION = &quot;Sleep 2.1&quot;;
+
+Added: sleep/tests/output/slist3.sl
+===================================================================
+--- sleep/tests/output/slist3.sl	2008-08-05 15:08:14 UTC (rev 431)
++++ sleep/tests/output/slist3.sl	2008-08-06 20:54:35 UTC (rev 432)
+@@ -0,0 +1,67 @@
++@('a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k')
++sublist($array, 0, 0):    @()
++sublist($array, 0, 1):    @('a')
++sublist($array, 0, 2):    @('a', 'b')
++sublist($array, 0, 3):    @('a', 'b', 'c')
++sublist($array, 0, 4):    @('a', 'b', 'c', 'd')
++sublist($array, 0, 5):    @('a', 'b', 'c', 'd', 'e')
++sublist($array, 0, 6):    @('a', 'b', 'c', 'd', 'e', 'f')
++sublist($array, 0, 7):    @('a', 'b', 'c', 'd', 'e', 'f', 'g')
++sublist($array, 0, 8):    @('a', 'b', 'c', 'd', 'e', 'f', 'g', 'h')
++sublist($array, 0, 9):    @('a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i')
++sublist($array, 0, 10):   @('a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j')
++sublist($array, 1, 1):    @()
++sublist($array, 1, 2):    @('b')
++sublist($array, 1, 3):    @('b', 'c')
++sublist($array, 1, 4):    @('b', 'c', 'd')
++sublist($array, 1, 5):    @('b', 'c', 'd', 'e')
++sublist($array, 1, 6):    @('b', 'c', 'd', 'e', 'f')
++sublist($array, 1, 7):    @('b', 'c', 'd', 'e', 'f', 'g')
++sublist($array, 1, 8):    @('b', 'c', 'd', 'e', 'f', 'g', 'h')
++sublist($array, 1, 9):    @('b', 'c', 'd', 'e', 'f', 'g', 'h', 'i')
++sublist($array, 1, 10):   @('b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j')
++sublist($array, 2, 2):    @()
++sublist($array, 2, 3):    @('c')
++sublist($array, 2, 4):    @('c', 'd')
++sublist($array, 2, 5):    @('c', 'd', 'e')
++sublist($array, 2, 6):    @('c', 'd', 'e', 'f')
++sublist($array, 2, 7):    @('c', 'd', 'e', 'f', 'g')
++sublist($array, 2, 8):    @('c', 'd', 'e', 'f', 'g', 'h')
++sublist($array, 2, 9):    @('c', 'd', 'e', 'f', 'g', 'h', 'i')
++sublist($array, 2, 10):   @('c', 'd', 'e', 'f', 'g', 'h', 'i', 'j')
++sublist($array, 3, 3):    @()
++sublist($array, 3, 4):    @('d')
++sublist($array, 3, 5):    @('d', 'e')
++sublist($array, 3, 6):    @('d', 'e', 'f')
++sublist($array, 3, 7):    @('d', 'e', 'f', 'g')
++sublist($array, 3, 8):    @('d', 'e', 'f', 'g', 'h')
++sublist($array, 3, 9):    @('d', 'e', 'f', 'g', 'h', 'i')
++sublist($array, 3, 10):   @('d', 'e', 'f', 'g', 'h', 'i', 'j')
++sublist($array, 4, 4):    @()
++sublist($array, 4, 5):    @('e')
++sublist($array, 4, 6):    @('e', 'f')
++sublist($array, 4, 7):    @('e', 'f', 'g')
++sublist($array, 4, 8):    @('e', 'f', 'g', 'h')
++sublist($array, 4, 9):    @('e', 'f', 'g', 'h', 'i')
++sublist($array, 4, 10):   @('e', 'f', 'g', 'h', 'i', 'j')
++sublist($array, 5, 5):    @()
++sublist($array, 5, 6):    @('f')
++sublist($array, 5, 7):    @('f', 'g')
++sublist($array, 5, 8):    @('f', 'g', 'h')
++sublist($array, 5, 9):    @('f', 'g', 'h', 'i')
++sublist($array, 5, 10):   @('f', 'g', 'h', 'i', 'j')
++sublist($array, 6, 6):    @()
++sublist($array, 6, 7):    @('g')
++sublist($array, 6, 8):    @('g', 'h')
++sublist($array, 6, 9):    @('g', 'h', 'i')
++sublist($array, 6, 10):   @('g', 'h', 'i', 'j')
++sublist($array, 7, 7):    @()
++sublist($array, 7, 8):    @('h')
++sublist($array, 7, 9):    @('h', 'i')
++sublist($array, 7, 10):   @('h', 'i', 'j')
++sublist($array, 8, 8):    @()
++sublist($array, 8, 9):    @('i')
++sublist($array, 8, 10):   @('i', 'j')
++sublist($array, 9, 9):    @()
++sublist($array, 9, 10):   @('j')
++sublist($array, 10, 10):  @()
+
+Added: sleep/tests/slist3.sl
+===================================================================
+--- sleep/tests/slist3.sl	2008-08-05 15:08:14 UTC (rev 431)
++++ sleep/tests/slist3.sl	2008-08-06 20:54:35 UTC (rev 432)
+@@ -0,0 +1,29 @@
++#
++# test sublist on read only arrays.
++#
++
++$list = [new LinkedList];
++[$list add: &quot;a&quot;];
++[$list add: &quot;b&quot;];
++[$list add: &quot;c&quot;];
++[$list add: &quot;d&quot;];
++[$list add: &quot;e&quot;];
++[$list add: &quot;f&quot;];
++[$list add: &quot;g&quot;];
++[$list add: &quot;h&quot;];
++[$list add: &quot;i&quot;];
++[$list add: &quot;j&quot;];
++[$list add: &quot;k&quot;];
++
++$array = [SleepUtils getArrayWrapper: $list];
++
++println($array);
++
++for ($x = 0; $x &lt; size($array); $x++)
++{
++   for ($y = $x; $y &lt; size($array); $y++)
++   {
++      $p = 'sublist($array, ' . $x . ', ' . $y . '):';
++      println(&quot;$[25]p &quot; . sublist($array, $x, $y));
++   }
++}
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2008-08-05 15:08:14 UTC (rev 431)
++++ sleep/whatsnew.txt	2008-08-06 20:54:35 UTC (rev 432)
+@@ -1,3 +1,10 @@
++2.1-release  (6 Aug 08) [update 2]
++===========
++- made a sanity check with inline function execution to keep jIRCii
++  compatability
++- fixed &amp;sublist only front elements of read-only arrays. (another
++  find from the jIRCii scripting community)
++
+ 2.1-release  (5 Aug 08) [update 2]
+ ===========
+ - modified import from to add jar file to system classpath.  This
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000407.html">[Sleep-svn] r431 - sleep
+</A></li>
+	<LI>Next message: <A HREF="000409.html">[Sleep-svn] r433 - in sleep: . src/sleep/runtime
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#408">[ date ]</a>
+              <a href="thread.html#408">[ thread ]</a>
+              <a href="subject.html#408">[ subject ]</a>
+              <a href="author.html#408">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

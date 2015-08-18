@@ -1,0 +1,164 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r74 - in sleep: . src/sleep/bridges/io
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2006-June/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r74%20-%20in%20sleep%3A%20.%20src/sleep/bridges/io&In-Reply-To=%3C200606170700.k5H70hM5022710%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000055.html">
+   <LINK REL="Next"  HREF="000057.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r74 - in sleep: . src/sleep/bridges/io</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r74%20-%20in%20sleep%3A%20.%20src/sleep/bridges/io&In-Reply-To=%3C200606170700.k5H70hM5022710%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r74 - in sleep: . src/sleep/bridges/io">rsmudge at berlios.de
+       </A><BR>
+    <I>Sat Jun 17 09:00:43 CEST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000055.html">[Sleep-svn] r73 - in sleep: . src/sleep/bridges tests tests/output
+</A></li>
+        <LI>Next message: <A HREF="000057.html">[Sleep-svn] r75 - in sleep: . src/sleep/runtime
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#56">[ date ]</a>
+              <a href="thread.html#56">[ thread ]</a>
+              <a href="subject.html#56">[ subject ]</a>
+              <a href="author.html#56">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2006-06-17 09:00:40 +0200 (Sat, 17 Jun 2006)
+New Revision: 74
+
+Modified:
+   sleep/src/sleep/bridges/io/FileObject.java
+   sleep/src/sleep/bridges/io/IOObject.java
+   sleep/src/sleep/bridges/io/ProcessObject.java
+   sleep/src/sleep/bridges/io/SocketObject.java
+   sleep/whatsnew.txt
+Log:
+Exposed the actual IO source objects in the IO API with a new method getSource
+
+
+
+Modified: sleep/src/sleep/bridges/io/FileObject.java
+===================================================================
+--- sleep/src/sleep/bridges/io/FileObject.java	2006-06-17 06:43:19 UTC (rev 73)
++++ sleep/src/sleep/bridges/io/FileObject.java	2006-06-17 07:00:40 UTC (rev 74)
+@@ -8,6 +8,12 @@
+ {
+    protected File file;
+ 
++   /** returns the file referenced by this IOObject */
++   public Object getSource()
++   {
++      return file;
++   }
++
+    /** opens a file and references it to this file object.  the descriptor parameter is a filename */
+    public void open(String descriptor, ScriptEnvironment env)
+    {
+
+Modified: sleep/src/sleep/bridges/io/IOObject.java
+===================================================================
+--- sleep/src/sleep/bridges/io/IOObject.java	2006-06-17 06:43:19 UTC (rev 73)
++++ sleep/src/sleep/bridges/io/IOObject.java	2006-06-17 07:00:40 UTC (rev 74)
+@@ -36,6 +36,12 @@
+    protected Thread           thread  = null;
+    protected Scalar           token   = null;
+ 
++   /** return the actual source of this IO for scripters to query using HOES */
++   public Object getSource()
++   {
++      return null;
++   }
++
+    /** set the thread used for this IOObject (currently used to allow a script to wait() on the threads completion) */
+    public void setThread(Thread t)
+    {
+
+Modified: sleep/src/sleep/bridges/io/ProcessObject.java
+===================================================================
+--- sleep/src/sleep/bridges/io/ProcessObject.java	2006-06-17 06:43:19 UTC (rev 73)
++++ sleep/src/sleep/bridges/io/ProcessObject.java	2006-06-17 07:00:40 UTC (rev 74)
+@@ -7,6 +7,12 @@
+ {
+    protected Process process;
+ 
++   /** returns the Process object used by this IO implementation */
++   public Object getSource()
++   {
++      return process;
++   }
++
+    public void open(String command, ScriptEnvironment env)
+    {
+       try
+
+Modified: sleep/src/sleep/bridges/io/SocketObject.java
+===================================================================
+--- sleep/src/sleep/bridges/io/SocketObject.java	2006-06-17 06:43:19 UTC (rev 73)
++++ sleep/src/sleep/bridges/io/SocketObject.java	2006-06-17 07:00:40 UTC (rev 74)
+@@ -8,6 +8,12 @@
+ {
+    protected Socket socket;
+ 
++   /** returns the socket used for this connection */
++   public Object getSource()
++   {
++      return socket;
++   }
++
+    public void open(String server, int port, ScriptEnvironment env)
+    {
+       try
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-06-17 06:43:19 UTC (rev 73)
++++ sleep/whatsnew.txt	2006-06-17 07:00:40 UTC (rev 74)
+@@ -7,6 +7,10 @@
+ - added &amp;replaceAt(&quot;original&quot;, &quot;new&quot;, index, [chars to delete]);
+ - added &amp;mid(&quot;string&quot;, index, n chars) to extract a substring
+   equivalent to &amp;substr(&quot;string&quot;, index, index + n chars) 
++- exposed the IO Process, File, and Socket using a new method
++  added to IOObject: getSource().  This will allow scripters to
++  query the IO source using HOES if there is some API Sleep does
++  not bridge. (i.e. exit value of a process)
+ 
+ 2.1-beta 1
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000055.html">[Sleep-svn] r73 - in sleep: . src/sleep/bridges tests tests/output
+</A></li>
+	<LI>Next message: <A HREF="000057.html">[Sleep-svn] r75 - in sleep: . src/sleep/runtime
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#56">[ date ]</a>
+              <a href="thread.html#56">[ thread ]</a>
+              <a href="subject.html#56">[ subject ]</a>
+              <a href="author.html#56">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

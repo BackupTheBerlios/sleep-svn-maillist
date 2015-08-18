@@ -1,0 +1,296 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r127 - in sleep: . src/sleep/bridges tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2006-September/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r127%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20tests%20tests/output&In-Reply-To=%3C200609300810.k8U8ABAD000550%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000108.html">
+   
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r127 - in sleep: . src/sleep/bridges tests tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r127%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20tests%20tests/output&In-Reply-To=%3C200609300810.k8U8ABAD000550%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r127 - in sleep: . src/sleep/bridges tests tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Sat Sep 30 10:10:11 CEST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000108.html">[Sleep-svn] r126 - in sleep: . src/sleep/bridges src/sleep/parser	tests tests/data tests/data/src/org/hick/blah	tests/data/src/org/hick/tests tests/output
+</A></li>
+        
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#109">[ date ]</a>
+              <a href="thread.html#109">[ thread ]</a>
+              <a href="subject.html#109">[ subject ]</a>
+              <a href="author.html#109">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2006-09-30 10:10:11 +0200 (Sat, 30 Sep 2006)
+New Revision: 127
+
+Added:
+   sleep/tests/output/setf.sl
+   sleep/tests/setf.sl
+Modified:
+   sleep/src/sleep/bridges/BasicUtilities.java
+   sleep/tests/output/fe_generatordb.sl
+   sleep/tests/output/setfield.sl
+   sleep/tests/setfield.sl
+   sleep/whatsnew.txt
+Log:
+Added setf for setting functions on the fly.
+
+
+
+Modified: sleep/src/sleep/bridges/BasicUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicUtilities.java	2006-09-30 07:22:21 UTC (rev 126)
++++ sleep/src/sleep/bridges/BasicUtilities.java	2006-09-30 08:10:11 UTC (rev 127)
+@@ -111,7 +111,10 @@
+ 
+         // closure / function handle type stuff
+         temp.put(&quot;&amp;lambda&quot;,    new lambda());
+-        temp.put(&quot;&amp;function&quot;,  new function());
++
++        function funcs = new function();
++        temp.put(&quot;&amp;function&quot;,  funcs);
++        temp.put(&quot;&amp;setf&quot;,      funcs);
+         temp.put(&quot;&amp;compile_closure&quot;,    new compile_closure());
+         temp.put(&quot;&amp;eval&quot;,     new eval());
+         temp.put(&quot;&amp;expr&quot;,     new expr());
+@@ -368,8 +371,38 @@
+     {
+        public Scalar evaluate(String n, ScriptInstance si, Stack l)
+        {
+-          String temp = BridgeUtilities.getString(l, &quot;&quot;);
+-          return SleepUtils.getScalar(si.getScriptEnvironment().getFunction(temp));
++          if (n.equals(&quot;&amp;function&quot;))
++          {
++             String temp = BridgeUtilities.getString(l, &quot;&quot;);
++             return SleepUtils.getScalar(si.getScriptEnvironment().getFunction(temp));
++          }
++          else if (n.equals(&quot;&amp;setf&quot;))
++          {
++             String   temp = BridgeUtilities.getString(l, &quot;&amp;eh&quot;);
++             Object   o    = BridgeUtilities.getObject(l);
++
++             if (temp.charAt(0) == '&amp;' &amp;&amp; (o == null || o instanceof Function))
++             {
++                if (o == null)
++                {
++                   si.getScriptEnvironment().getEnvironment().remove(temp);
++                }
++                else
++                {
++                   si.getScriptEnvironment().getEnvironment().put(temp, o);
++                }
++             }
++             else if (temp.charAt(0) != '&amp;')
++             {
++                throw new IllegalArgumentException(&quot;&amp;setf: invalid function name '&quot; + temp + &quot;'&quot;);
++             }
++             else if (o != null)
++             {
++                throw new IllegalArgumentException(&quot;&amp;setf: can not set function &quot; + temp + &quot; to a &quot; + o.getClass());
++             }
++          }
++
++          return SleepUtils.getEmptyScalar();
+        }
+     }
+ 
+
+Modified: sleep/tests/output/fe_generatordb.sl
+===================================================================
+--- sleep/tests/output/fe_generatordb.sl	2006-09-30 07:22:21 UTC (rev 126)
++++ sleep/tests/output/fe_generatordb.sl	2006-09-30 08:10:11 UTC (rev 127)
+@@ -19,7 +19,7 @@
+ Trace: &amp;println('8 =&gt; val: 8') at line 8
+ 9 =&gt; val: 9
+ Trace: &amp;println('9 =&gt; val: 9') at line 8
+-Trace: &amp;lambda(&amp;closure7415377, $start =&gt; 50, $stop =&gt; 60) = &amp;closure9087808 at line 22
++Trace: &amp;lambda(&amp;closure10132325, $start =&gt; 50, $stop =&gt; 60) = &amp;closure5253145 at line 22
+ Testing out range stuff: 0 =&gt; 50
+ Trace: &amp;println('Testing out range stuff: 0 =&gt; 50') at line 24
+ Testing out range stuff: 1 =&gt; 51
+@@ -41,7 +41,7 @@
+ Testing out range stuff: 9 =&gt; 59
+ Trace: &amp;println('Testing out range stuff: 9 =&gt; 59') at line 24
+ Trace: &amp;this('$start $stop') at line 29
+-Trace: &amp;_range2(70, 80) = &amp;closure15794899 at line 42
++Trace: &amp;_range2(70, 80) = &amp;closure7907968 at line 42
+ My third test: 0 =&gt; 70
+ Trace: &amp;println('My third test: 0 =&gt; 70') at line 44
+ My third test: 1 =&gt; 71
+
+Added: sleep/tests/output/setf.sl
+===================================================================
+--- sleep/tests/output/setf.sl	2006-09-30 07:22:21 UTC (rev 126)
++++ sleep/tests/output/setf.sl	2006-09-30 08:10:11 UTC (rev 127)
+@@ -0,0 +1,10 @@
++foo
++Warning: Attempted to call non-existent function &amp;foo at line 9
++bar
++Warning: &amp;setf: can not set function &amp;foo to a class java.lang.String at line 19
++Warning: &amp;setf: invalid function name foo at line 20
++bar
++bar
++bar
++not foo
++bar
+
+Modified: sleep/tests/output/setfield.sl
+===================================================================
+--- sleep/tests/output/setfield.sl	2006-09-30 07:22:21 UTC (rev 126)
++++ sleep/tests/output/setfield.sl	2006-09-30 08:10:11 UTC (rev 127)
+@@ -1,2 +1,46 @@
+-Error: jar file to import package from was not found! at line 5
+-       import org.hick.blah.SqueezeBox from: tests/data/test.jar
++Pre change:
++static members:
++aStringField 'this is a string field' and aDoubleField = 3.0
++instance members:
++instanceStringField 'this is also a string field' instanceBooleanField = true
++static members:
++aStringField 'this is a string field' and aDoubleField = 4.0
++instance members:
++instanceStringField 'this is also a string field' instanceBooleanField = true
++static members:
++aStringField 'this is a string field' and aDoubleField = 4.0
++instance members:
++instanceStringField 'this is also a string field' instanceBooleanField = true
++------------------------------------------------------------
++static members:
++aStringField 'this is a string field' and aDoubleField = 4.0
++instance members:
++instanceStringField 'squeeze box 1' instanceBooleanField = true
++static members:
++aStringField 'this is a string field' and aDoubleField = 4.0
++instance members:
++instanceStringField 'squeeze box 2' instanceBooleanField = true
++------------------------------------------------------------
++static members:
++aStringField 'this is a string field' and aDoubleField = 4.0
++instance members:
++instanceStringField 'squeeze box 1' instanceBooleanField = false
++static members:
++aStringField 'this is a string field' and aDoubleField = 4.0
++instance members:
++instanceStringField 'squeeze box 2' instanceBooleanField = true
++------------------------------------------------------------
++static members:
++aStringField 'the rain in spain, falls mainly on the plain' and aDoubleField = 4.0
++instance members:
++instanceStringField 'squeeze box 1' instanceBooleanField = false
++static members:
++aStringField 'the rain in spain, falls mainly on the plain' and aDoubleField = 4.0
++instance members:
++instanceStringField 'squeeze box 2' instanceBooleanField = true
++------------------------------------------------------------
++Warning: no field named nofield in class org.hick.blah.SqueezeBox at line 39
++Warning: unable to convert 'false and true?' to a boolean at line 43
++34
++56
++Done?
+
+Added: sleep/tests/setf.sl
+===================================================================
+--- sleep/tests/setf.sl	2006-09-30 07:22:21 UTC (rev 126)
++++ sleep/tests/setf.sl	2006-09-30 08:10:11 UTC (rev 127)
+@@ -0,0 +1,34 @@
++#
++# test setting named closures...
++#
++
++setf('&amp;foo', { println(&quot;foo&quot;); });
++foo();
++
++setf('&amp;foo', $null);
++foo();
++
++sub bar
++{ 
++   println(&quot;bar&quot;);
++}
++
++setf('&amp;foo', &amp;bar);
++foo();
++
++[{ setf('&amp;foo', &quot;ninja moves&quot;); }];
++[{ setf('foo', { println(&quot;eh?!?&quot;); }); }];
++
++foo();
++
++[function('&amp;foo')];
++
++$x = &foo;
++
++setf('&amp;foo', { println(&quot;not foo&quot;); });
++
++[$x];
++foo();
++
++setf('&amp;foo', $x);
++foo();
+
+Modified: sleep/tests/setfield.sl
+===================================================================
+--- sleep/tests/setfield.sl	2006-09-30 07:22:21 UTC (rev 126)
++++ sleep/tests/setfield.sl	2006-09-30 08:10:11 UTC (rev 127)
+@@ -2,7 +2,7 @@
+ # test setting of fields...
+ #
+ 
+-import org.hick.blah.SqueezeBox from: tests/data/test.jar;
++import org.hick.blah.SqueezeBox from: data/test.jar;
+ 
+ $sb1 = [new SqueezeBox];
+ $sb2 = [new SqueezeBox];
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-09-30 07:22:21 UTC (rev 126)
++++ sleep/whatsnew.txt	2006-09-30 08:10:11 UTC (rev 127)
+@@ -15,6 +15,8 @@
+   found.
+ - added a &amp;setField(class|$object, &quot;field&quot;, value) function for setting the 
+   value of a field in a Java class or object.
++- added &amp;setf('&amp;function', { closure }) for setting a named closure (i.e. a 
++  subroutine).
+ 
+ 2.1-beta 5  (17 Sept 06)
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000108.html">[Sleep-svn] r126 - in sleep: . src/sleep/bridges src/sleep/parser	tests tests/data tests/data/src/org/hick/blah	tests/data/src/org/hick/tests tests/output
+</A></li>
+	
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#109">[ date ]</a>
+              <a href="thread.html#109">[ thread ]</a>
+              <a href="subject.html#109">[ subject ]</a>
+              <a href="author.html#109">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

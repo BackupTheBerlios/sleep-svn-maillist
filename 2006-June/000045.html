@@ -1,0 +1,171 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r62 - in sleep: . src/sleep/bridges tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2006-June/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r62%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20tests%20tests/output&In-Reply-To=%3C200606142225.k5EMPka9004648%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000044.html">
+   <LINK REL="Next"  HREF="000046.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r62 - in sleep: . src/sleep/bridges tests tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r62%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20tests%20tests/output&In-Reply-To=%3C200606142225.k5EMPka9004648%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r62 - in sleep: . src/sleep/bridges tests tests/output">rsmudge at berlios.de
+       </A><BR>
+    <I>Thu Jun 15 00:25:46 CEST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000044.html">[Sleep-svn] r61 - sleep
+</A></li>
+        <LI>Next message: <A HREF="000046.html">[Sleep-svn] r63 - in sleep: . src/sleep/bridges src/sleep/engine/atoms tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#45">[ date ]</a>
+              <a href="thread.html#45">[ thread ]</a>
+              <a href="subject.html#45">[ subject ]</a>
+              <a href="author.html#45">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2006-06-15 00:25:46 +0200 (Thu, 15 Jun 2006)
+New Revision: 62
+
+Added:
+   sleep/tests/breakfirst.sl
+   sleep/tests/output/breakfirst.sl
+   sleep/tests/output/xor.sl
+   sleep/tests/xor.sl
+Modified:
+   sleep/src/sleep/bridges/BasicNumbers.java
+   sleep/whatsnew.txt
+Log:
+Fixed broken xor operator and added some more unit tests...
+
+
+
+Modified: sleep/src/sleep/bridges/BasicNumbers.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicNumbers.java	2006-06-12 21:39:22 UTC (rev 61)
++++ sleep/src/sleep/bridges/BasicNumbers.java	2006-06-14 22:25:46 UTC (rev 62)
+@@ -309,7 +309,7 @@
+           if (o.equals(&quot;&lt;&lt;&quot;))  { return SleepUtils.getScalar(a &lt;&lt; b); }
+           if (o.equals(&quot;&amp;&quot;))  { return SleepUtils.getScalar(a &amp; b); }
+           if (o.equals(&quot;|&quot;))  { return SleepUtils.getScalar(a | b); }
+-          if (o.equals(&quot;^&quot;))  { return SleepUtils.getScalar(a &amp; b); }
++          if (o.equals(&quot;^&quot;))  { return SleepUtils.getScalar(a ^ b); }
+        }
+        else
+        {
+@@ -326,7 +326,7 @@
+           if (o.equals(&quot;&lt;&lt;&quot;))  { return SleepUtils.getScalar(a &lt;&lt; b); }
+           if (o.equals(&quot;&amp;&quot;))  { return SleepUtils.getScalar(a &amp; b); }
+           if (o.equals(&quot;|&quot;))  { return SleepUtils.getScalar(a | b); }
+-          if (o.equals(&quot;^&quot;))  { return SleepUtils.getScalar(a &amp; b); }
++          if (o.equals(&quot;^&quot;))  { return SleepUtils.getScalar(a ^ b); }
+        }
+ 
+        return SleepUtils.getEmptyScalar();
+
+Added: sleep/tests/breakfirst.sl
+===================================================================
+--- sleep/tests/breakfirst.sl	2006-06-12 21:39:22 UTC (rev 61)
++++ sleep/tests/breakfirst.sl	2006-06-14 22:25:46 UTC (rev 62)
+@@ -0,0 +1,15 @@
++#
++# another test of break to make sure it breaks right away...
++#
++
++println(&quot;Blah...&quot;);
++
++for ($x = 0; $x &lt; 100; $x++)
++{
++   if ($x == 0)
++   {
++      break;
++   }
++ 
++   echo(&quot;$x&quot;);
++}
+
+Added: sleep/tests/output/breakfirst.sl
+===================================================================
+--- sleep/tests/output/breakfirst.sl	2006-06-12 21:39:22 UTC (rev 61)
++++ sleep/tests/output/breakfirst.sl	2006-06-14 22:25:46 UTC (rev 62)
+@@ -0,0 +1 @@
++Blah...
+
+Added: sleep/tests/output/xor.sl
+===================================================================
+--- sleep/tests/output/xor.sl	2006-06-12 21:39:22 UTC (rev 61)
++++ sleep/tests/output/xor.sl	2006-06-14 22:25:46 UTC (rev 62)
+@@ -0,0 +1,6 @@
++test1: pass
++test2: pass
++test3: pass
++test4: pass
++test5: pass
++test6: pass
+
+Added: sleep/tests/xor.sl
+===================================================================
+--- sleep/tests/xor.sl	2006-06-12 21:39:22 UTC (rev 61)
++++ sleep/tests/xor.sl	2006-06-14 22:25:46 UTC (rev 62)
+@@ -0,0 +1,10 @@
++#
++# oops, I had broken the xor operatopr
++#
++
++println(&quot;test1: &quot; . iff((2L ^ 2L) == 0, &quot;pass&quot;, &quot;fail&quot;));
++println(&quot;test2: &quot; . iff((4L ^ 2L) != 0, &quot;pass&quot;, &quot;fail&quot;));
++println(&quot;test3: &quot; . iff((2 ^ 2) == 0, &quot;pass&quot;, &quot;fail&quot;));
++println(&quot;test4: &quot; . iff((4 ^ 2) != 0, &quot;pass&quot;, &quot;fail&quot;));
++println(&quot;test5: &quot; . iff((4 ^ 2) == 6, &quot;pass&quot;, &quot;fail&quot;));
++println(&quot;test6: &quot; . iff((4L ^ 2L) == 6, &quot;pass&quot;, &quot;fail&quot;));
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-06-12 21:39:22 UTC (rev 61)
++++ sleep/whatsnew.txt	2006-06-14 22:25:46 UTC (rev 62)
+@@ -15,6 +15,8 @@
+ - did massive reworking of the sleep interpreter to allow for
+   coroutines (this had some benefits as well including the ability
+   for bridge writers to track bridge data by script context).
++- oops, fixed broken ^ operator (bridge was written wrong, thanks
++  to Ralph Becker for catching this one).
+ 
+ 2.0-release
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000044.html">[Sleep-svn] r61 - sleep
+</A></li>
+	<LI>Next message: <A HREF="000046.html">[Sleep-svn] r63 - in sleep: . src/sleep/bridges src/sleep/engine/atoms tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#45">[ date ]</a>
+              <a href="thread.html#45">[ thread ]</a>
+              <a href="subject.html#45">[ subject ]</a>
+              <a href="author.html#45">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

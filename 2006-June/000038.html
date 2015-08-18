@@ -1,0 +1,147 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r55 - in sleep/tests: . output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2006-June/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r55%20-%20in%20sleep/tests%3A%20.%20output&In-Reply-To=%3C200606112143.k5BLh2Al006020%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000037.html">
+   <LINK REL="Next"  HREF="000039.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r55 - in sleep/tests: . output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r55%20-%20in%20sleep/tests%3A%20.%20output&In-Reply-To=%3C200606112143.k5BLh2Al006020%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r55 - in sleep/tests: . output">rsmudge at berlios.de
+       </A><BR>
+    <I>Sun Jun 11 23:43:02 CEST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000037.html">[Sleep-svn] r54 - in sleep: src/sleep/engine src/sleep/engine/atoms src/sleep/parser tests tests/output
+</A></li>
+        <LI>Next message: <A HREF="000039.html">[Sleep-svn] r56 - in sleep: src/sleep/engine/atoms src/sleep/parser tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#38">[ date ]</a>
+              <a href="thread.html#38">[ thread ]</a>
+              <a href="subject.html#38">[ subject ]</a>
+              <a href="author.html#38">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2006-06-11 23:43:02 +0200 (Sun, 11 Jun 2006)
+New Revision: 55
+
+Added:
+   sleep/tests/cor_return.sl
+   sleep/tests/output/cor_return.sl
+Log:
+Adding another unit test for coroutines.
+
+
+
+Added: sleep/tests/cor_return.sl
+===================================================================
+--- sleep/tests/cor_return.sl	2006-06-11 21:33:29 UTC (rev 54)
++++ sleep/tests/cor_return.sl	2006-06-11 21:43:02 UTC (rev 55)
+@@ -0,0 +1,44 @@
++#
++# ensure return properly resets the coroutine... 
++#
++
++sub a
++{
++   yield 1;
++   
++   yield 2;
++
++   if ($1 ne $null)
++   {
++      return -1;
++   }
++
++   yield 3;
++  
++   yield 4;
++}
++
++println(&quot;Test 1: &quot;);
++
++println(a());
++println(a());
++println(a());
++println(a());
++
++println(a());
++println(a());
++println(a());
++println(a());
++
++println(&quot;Test 2: &quot;);
++
++println(a());
++println(a());
++println(a(&quot;boogidy boogidy&quot;));
++println(a());
++
++println(a());
++println(a());
++println(a());
++println(a());
++
+
+Added: sleep/tests/output/cor_return.sl
+===================================================================
+--- sleep/tests/output/cor_return.sl	2006-06-11 21:33:29 UTC (rev 54)
++++ sleep/tests/output/cor_return.sl	2006-06-11 21:43:02 UTC (rev 55)
+@@ -0,0 +1,18 @@
++Test 1: 
++1
++2
++3
++4
++1
++2
++3
++4
++Test 2: 
++1
++2
++-1
++1
++2
++3
++4
++1
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000037.html">[Sleep-svn] r54 - in sleep: src/sleep/engine src/sleep/engine/atoms src/sleep/parser tests tests/output
+</A></li>
+	<LI>Next message: <A HREF="000039.html">[Sleep-svn] r56 - in sleep: src/sleep/engine/atoms src/sleep/parser tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#38">[ date ]</a>
+              <a href="thread.html#38">[ thread ]</a>
+              <a href="subject.html#38">[ subject ]</a>
+              <a href="author.html#38">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

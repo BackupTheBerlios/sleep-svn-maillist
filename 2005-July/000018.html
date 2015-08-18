@@ -1,0 +1,163 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r30 - in sleep: . docs src/sleep/bridges src/sleep/parser
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2005-July/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r30%20-%20in%20sleep%3A%20.%20docs%20src/sleep/bridges%20src/sleep/parser&In-Reply-To=%3C200507010348.j613mQMn024574%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   
+   <LINK REL="Next"  HREF="000019.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r30 - in sleep: . docs src/sleep/bridges src/sleep/parser</H1>
+    <B>Raphael Mudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r30%20-%20in%20sleep%3A%20.%20docs%20src/sleep/bridges%20src/sleep/parser&In-Reply-To=%3C200507010348.j613mQMn024574%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r30 - in sleep: . docs src/sleep/bridges src/sleep/parser">rsmudge at sheep.berlios.de
+       </A><BR>
+    <I>Fri Jul  1 05:48:26 CEST 2005</I>
+    <P><UL>
+        
+        <LI>Next message: <A HREF="000019.html">[Sleep-svn] r31 - in sleep/tests: . output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18">[ date ]</a>
+              <a href="thread.html#18">[ thread ]</a>
+              <a href="subject.html#18">[ subject ]</a>
+              <a href="author.html#18">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2005-07-01 05:48:15 +0200 (Fri, 01 Jul 2005)
+New Revision: 30
+
+Modified:
+   sleep/docs/sleeplang.pdf
+   sleep/src/sleep/bridges/BasicNumbers.java
+   sleep/src/sleep/bridges/FileSystemBridge.java
+   sleep/src/sleep/parser/CodeGenerator.java
+   sleep/whatsnew.txt
+Log:
+Some more changes, fun stuff....  uint(n), bug fixes, etc.
+
+
+Modified: sleep/docs/sleeplang.pdf
+===================================================================
+(Binary files differ)
+
+Modified: sleep/src/sleep/bridges/BasicNumbers.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicNumbers.java	2005-06-24 23:08:34 UTC (rev 29)
++++ sleep/src/sleep/bridges/BasicNumbers.java	2005-07-01 03:48:15 UTC (rev 30)
+@@ -64,6 +64,7 @@
+        // functions
+        temp.put(&quot;&amp;double&quot;, new convert_double());
+        temp.put(&quot;&amp;int&quot;,    new convert_int());
++       temp.put(&quot;&amp;uint&quot;,    new convert_uint());
+        temp.put(&quot;&amp;long&quot;,   new convert_long());
+ 
+        temp.put(&quot;&amp;parseNumber&quot;,   new parseNumber());
+@@ -175,6 +176,16 @@
+        }
+     }
+ 
++    private static class convert_uint implements Function
++    {
++       public Scalar evaluate(String name, ScriptInstance si, Stack args)
++       {
++          int temp = BridgeUtilities.getInt(args, 0);
++          long templ = 0x00000000FFFFFFFFL &amp; temp;
++          return SleepUtils.getScalar(templ);
++       }
++    }
++
+     private static class convert_long implements Function
+     {
+        public Scalar evaluate(String name, ScriptInstance si, Stack args)
+
+Modified: sleep/src/sleep/bridges/FileSystemBridge.java
+===================================================================
+--- sleep/src/sleep/bridges/FileSystemBridge.java	2005-06-24 23:08:34 UTC (rev 29)
++++ sleep/src/sleep/bridges/FileSystemBridge.java	2005-07-01 03:48:15 UTC (rev 30)
+@@ -214,11 +214,14 @@
+            File a = BridgeUtilities.getFile(l);
+ 
+            File[] files = a.listFiles();
++           LinkedList temp = new LinkedList();
+ 
+-           LinkedList temp = new LinkedList();
+-           for (int x = 0; x &lt; files.length; x++)
++           if (files != null)
+            {
+-              temp.add(files[x].getAbsolutePath());
++              for (int x = 0; x &lt; files.length; x++)
++              {
++                 temp.add(files[x].getAbsolutePath());
++              }
+            }
+ 
+            return SleepUtils.getArrayWrapper(temp);
+
+Modified: sleep/src/sleep/parser/CodeGenerator.java
+===================================================================
+--- sleep/src/sleep/parser/CodeGenerator.java	2005-06-24 23:08:34 UTC (rev 29)
++++ sleep/src/sleep/parser/CodeGenerator.java	2005-07-01 03:48:15 UTC (rev 30)
+@@ -219,6 +219,11 @@
+    {
+       Statement stmt = TokenParser.ParseObject(parser, LexicalAnalyzer.GroupExpressionIndexTokens(parser, new StringIterator(data.toString(), data.getHint())));
+ 
++      if (parser.hasErrors())
++      {
++         return;
++      }
++
+ /*      System.out.println(stmt);
+ 
+       for (int x = 0; x &lt; stmt.getStrings().length; x++)
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2005-06-24 23:08:34 UTC (rev 29)
++++ sleep/whatsnew.txt	2005-07-01 03:48:15 UTC (rev 30)
+@@ -5,6 +5,10 @@
+ - added a function &amp;values(%hash) for extracting all of the values from
+   a scalar hash.
+ - exposed the PrintWriter/BufferedReader in the IOObject API
++- added a check to prevent ls() on a non-existant directory from fireing
++  an exception..
++- added uint(n) to convert scalar int n to a scalar long as an unsigned int.
++- fixed bug that was supressing HOES syntax errors
+ 
+ 2.0-b9 
+ ======
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	
+	<LI>Next message: <A HREF="000019.html">[Sleep-svn] r31 - in sleep/tests: . output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#18">[ date ]</a>
+              <a href="thread.html#18">[ thread ]</a>
+              <a href="subject.html#18">[ subject ]</a>
+              <a href="author.html#18">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,268 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r292 - in sleep: . docs src/sleep/runtime
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2007-July/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r292%20-%20in%20sleep%3A%20.%20docs%20src/sleep/runtime&In-Reply-To=%3C200707050111.l651BhoI010359%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000270.html">
+   <LINK REL="Next"  HREF="000272.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r292 - in sleep: . docs src/sleep/runtime</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r292%20-%20in%20sleep%3A%20.%20docs%20src/sleep/runtime&In-Reply-To=%3C200707050111.l651BhoI010359%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r292 - in sleep: . docs src/sleep/runtime">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Thu Jul  5 03:11:43 CEST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000270.html">[Sleep-svn] r291 - in sleep: . src/sleep/bridges src/sleep/parser	src/sleep/runtime tests tests/output
+</A></li>
+        <LI>Next message: <A HREF="000272.html">[Sleep-svn] r293 - sleep/docs
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#271">[ date ]</a>
+              <a href="thread.html#271">[ thread ]</a>
+              <a href="subject.html#271">[ subject ]</a>
+              <a href="author.html#271">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2007-07-05 03:11:42 +0200 (Thu, 05 Jul 2007)
+New Revision: 292
+
+Modified:
+   sleep/build.xml
+   sleep/docs/sleeplang.html
+   sleep/readme.txt
+   sleep/src/sleep/runtime/SleepUtils.java
+   sleep/whatsnew.txt
+Log:
+Sleep 2.1-b18 (I think :)).
+
+
+Modified: sleep/build.xml
+===================================================================
+--- sleep/build.xml	2007-07-05 00:44:33 UTC (rev 291)
++++ sleep/build.xml	2007-07-05 01:11:42 UTC (rev 292)
+@@ -16,7 +16,7 @@
+            destdir=&quot;${project.build}&quot;
+            nowarn=&quot;yes&quot;
+            depend=&quot;yes&quot;
+-           debug=&quot;true&quot;
++           debug=&quot;false&quot;
+            source=&quot;1.4&quot;
+            target=&quot;1.4&quot;
+            optimize=&quot;yes&quot;
+
+Modified: sleep/docs/sleeplang.html
+===================================================================
+--- sleep/docs/sleeplang.html	2007-07-05 00:44:33 UTC (rev 291)
++++ sleep/docs/sleeplang.html	2007-07-05 01:11:42 UTC (rev 292)
+@@ -226,6 +226,22 @@
+ &lt;var&gt;$decision&lt;/var&gt; was then assigned the value &quot;not guilty&quot;.  When the subroutine verdict finished executing the local variable
+ &lt;var&gt;$decision&lt;/var&gt; went away.  The global variable &lt;var&gt;$decision&lt;/var&gt; was not touched.&lt;/p&gt;
+ 
++&lt;h3&gt;Scalar Identity&lt;/h3&gt;
++
++&lt;p&gt;In general Sleep tries to hide the type of the data you're working with.  You can use strings, numbers, and objects interchangeably 
++in many cases.&lt;/p&gt;
++
++&lt;p&gt;Sleep has built-in array and hash (dictionary) data structures for storing scalars.  The concept of scalar identity was invented to
++help with manipulating and querying these data structures.  For example the &lt;code&gt;&amp;addAll&lt;/code&gt; function is a way to union two
++arrays together.  Scalars are judged as being equivalent through scalar identity.&lt;/p&gt;
++
++&lt;p&gt;If a scalar holds a reference to a value (i.e. a hash, an object, or an array) then the identity of that scalar is the reference 
++itself.  Otherwise the identity is based on the string form of the value.&lt;/p&gt;
++
++&lt;p&gt;The &lt;code&gt;=~&lt;/code&gt; operator exists for checking if two scalars share the same identity.  Really though you only need to know about
++this concept to understand how the &lt;code&gt;in&lt;/code&gt; predicate works and how &lt;code&gt;&amp;addAll&lt;/code&gt;, &lt;code&gt;&amp;retainAll&lt;/code&gt;, and
++&lt;code&gt;&amp;removeAll&lt;/code&gt; work.&lt;/p&gt;
++
+ &lt;h2&gt;&lt;a name=&quot;2&quot;&gt;If-Else Statements&lt;/a&gt;&lt;/h2&gt;
+ 
+ &lt;p&gt;If-Else statements let you compare different values and execute a certain part of the script based on the result of the 
+@@ -318,6 +334,10 @@
+   &lt;th&gt;Description&lt;/th&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
++  &lt;td&gt;in&lt;/td&gt;
++  &lt;td&gt;true if scalar v1 identity exists in array/generator v2&lt;/td&gt;
++ &lt;/tr&gt;
++ &lt;tr&gt;
+   &lt;td&gt;is&lt;/td&gt;
+   &lt;td&gt;true if scalar object reference v1 equals object reference v2&lt;/td&gt;
+  &lt;/tr&gt;
+@@ -325,6 +345,10 @@
+   &lt;td&gt;isa&lt;/td&gt;
+   &lt;td&gt;true if scalar object reference v1 is an instance of the Class referenced by scalar v2&lt;/td&gt;
+  &lt;/tr&gt;
++ &lt;tr&gt;  
++  &lt;td&gt;=~&lt;/td&gt;
++  &lt;td&gt;true if scalar v1 identity is equal to scalar v2 identity&lt;/td&gt;
++ &lt;/tr&gt;
+ &lt;/table&gt;
+ 
+ &lt;p&gt;One example use of the &lt;code&gt;is&lt;/code&gt; comparison is to check if a function really returned
+@@ -1047,9 +1071,33 @@
+ 
+ &lt;p&gt;The example above prints 'My name is Raphael Mudge, and I like ice cream!!!' three times.&lt;/p&gt;
+ 
+-&lt;p&gt;Sleep functions that expect a key/value pair will accept either a key/value expression or a string of the form
++&lt;p&gt;Built-in functions that expect a key/value pair will accept either a key/value expression or a string of the form
+ &quot;key=value&quot;.&lt;/p&gt;
+ 
++&lt;h4&gt;Scalar References&lt;/h4&gt;
++
++&lt;p&gt;Many times you may find yourself passing a key/value pair with the same key/value.  This is most often done to move
++a scalar between scopes.  This is very common with fork, lambda, and let.  To save you some typing Sleep has a special
++syntax for specifying a scalar be passed by name as a parameter.  Simply prefix the scalar with a backslash.&lt;/p&gt;
++
++&lt;pre&gt;sub foo
++{
++   local('$name');
++   $name = &quot;Raphael&quot;;
++   bar(\$name);
++}
++
++bar
++{
++   println(&quot;Name is: $name&quot;);
++}
++
++foo();&lt;/pre&gt;
++
++&lt;p&gt;In the example above &lt;var&gt;$name&lt;/var&gt; is local to &lt;code&gt;&amp;foo&lt;/code&gt;.  Normally to pass &lt;var&gt;$name&lt;/var&gt; into the this
++scope of &lt;code&gt;&amp;bar&lt;/code&gt; you would have to use &lt;code&gt;$name =&gt; $name&lt;/code&gt;.  The scalar reference &lt;code&gt;\$name&lt;/code&gt;
++is equivalent to that expression.&lt;/p&gt;
++
+ &lt;h3&gt;Multidimensional Hashes/Arrays&lt;/h3&gt;
+ 
+ &lt;p&gt;Multidimensional hashes work exactly the same as Sleep arrays.  It is also possible to have an array of hashes, or a hash of 
+@@ -2005,7 +2053,7 @@
+   &lt;td&gt;I probably should have learned from python and not added this but here it is anyways.  Applies &amp;closure to first two elements of @array or &amp;generator.  Takes the resulting value and applies it to the next element of @array or &amp;generator, so on and so forth.  Returns one value.&lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+-  &lt;td&gt;&lt;/td&gt;
++  &lt;td&gt;@&lt;/td&gt;
+   &lt;td&gt;remove(@array, $scalar, ...)&lt;/td&gt;
+   &lt;td&gt;removes each specified $scalar from @array.  if no parameters are passed the active element in the current foreach loop is removed.&lt;/td&gt;
+  &lt;/tr&gt;
+@@ -2245,6 +2293,11 @@
+  &lt;/tr&gt;  
+ 
+  &lt;tr&gt;
++   &lt;td&gt;%&lt;/td&gt;
++   &lt;td&gt;add(%hash, key =&gt; &quot;value&quot;, ...)&lt;/td&gt;
++   &lt;td&gt;adds specified key/values to the hash.&lt;/td&gt;
++ &lt;/tr&gt; 
++ &lt;tr&gt;
+   &lt;td&gt;&lt;/td&gt;
+   &lt;td&gt;clear(%hash)&lt;/td&gt;
+   &lt;td&gt;clears %hash&lt;/td&gt;
+@@ -2457,6 +2510,11 @@
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td&gt;$&lt;/td&gt;
++  &lt;td&gt;sizeof('format')&lt;/td&gt;
++  &lt;td&gt;using the specified data format string, calculates an estimated size of the data.&lt;/td&gt;
++ &lt;/tr&gt;
++ &lt;tr&gt;
++  &lt;td&gt;$&lt;/td&gt;
+   &lt;td&gt;skip([$handle], n)&lt;/td&gt;
+   &lt;td&gt;tells the handle to skip the next n bytes&lt;/td&gt;
+  &lt;/tr&gt;
+@@ -2641,6 +2699,11 @@
+   &lt;td&gt;returns the rounded positive square root of $scalar&lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
++   &lt;td&gt;$&lt;/td&gt;
++   &lt;td&gt;srand($scalar)&lt;/td&gt;
++   &lt;td&gt;seeds the random number generator with the specified scalar (interpreted as a long)&lt;/td&gt;
++ &lt;/tr&gt;
++ &lt;tr&gt;
+   &lt;td&gt;$&lt;/td&gt;
+   &lt;td&gt;tan($scalar)&lt;/td&gt;
+   &lt;td&gt;returns the tangent value of angle $scalar (radians)&lt;/td&gt;
+@@ -2926,6 +2989,11 @@
+   &lt;td&gt;this('$x $y')&lt;/td&gt;
+   &lt;td&gt;parses the specified string and declares all variables in the string as variables specific to the current closure.&lt;/td&gt;
+  &lt;/tr&gt;
++ &lt;tr&gt;   
++  &lt;td&gt;$&lt;/td&gt;
++  &lt;td&gt;typeOf($scalar)&lt;/td&gt;
++  &lt;td&gt;returns the Java ^Class backing the specified scalar.&lt;/td&gt;
++ &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td&gt;&lt;/td&gt;
+   &lt;td&gt;use(&quot;Loadable&quot;|^Loadable)&lt;/td&gt;
+
+Modified: sleep/readme.txt
+===================================================================
+--- sleep/readme.txt	2007-07-05 00:44:33 UTC (rev 291)
++++ sleep/readme.txt	2007-07-05 01:11:42 UTC (rev 292)
+@@ -1,5 +1,5 @@
+  ------- -------------------- ---------   ---------------  ------- ---------
+-Sleep - 2.1 beta 17 - README   
++Sleep - 2.1 beta 18 - README   
+ -  ------------- -------- -   ---------------- --       -    -     -     - - -
+ 
+ &quot;You got the language, all you need now is the O'Reilly book&quot;.  That is
+
+Modified: sleep/src/sleep/runtime/SleepUtils.java
+===================================================================
+--- sleep/src/sleep/runtime/SleepUtils.java	2007-07-05 00:44:33 UTC (rev 291)
++++ sleep/src/sleep/runtime/SleepUtils.java	2007-07-05 01:11:42 UTC (rev 292)
+@@ -26,7 +26,7 @@
+ public class SleepUtils
+ {
+    /** A date stamp of this Sleep release in YYYYMMDD format */
+-   public static final int    SLEEP_RELEASE = 20070617;
++   public static final int    SLEEP_RELEASE = 20070705;
+ 
+    /** A string description of this Sleep release */
+    public static final String SLEEP_VERSION = &quot;Sleep 2.1&quot;;
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2007-07-05 00:44:33 UTC (rev 291)
++++ sleep/whatsnew.txt	2007-07-05 01:11:42 UTC (rev 292)
+@@ -1,4 +1,4 @@
+-2.1-beta 18  (26 Jun 07)
++2.1-beta 18  (5 Jul 07)
+ ===========
+ - added scalar references: \$x is equivalent to $x =&gt; $x.  this sugar
+   was added for the common case of passing a key/value pair to copy a
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000270.html">[Sleep-svn] r291 - in sleep: . src/sleep/bridges src/sleep/parser	src/sleep/runtime tests tests/output
+</A></li>
+	<LI>Next message: <A HREF="000272.html">[Sleep-svn] r293 - sleep/docs
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#271">[ date ]</a>
+              <a href="thread.html#271">[ thread ]</a>
+              <a href="subject.html#271">[ subject ]</a>
+              <a href="author.html#271">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

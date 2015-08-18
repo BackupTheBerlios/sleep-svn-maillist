@@ -1,0 +1,288 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r98 - in sleep: . src/sleep/bridges src/sleep/bridges/io
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2006-August/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r98%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20src/sleep/bridges/io&In-Reply-To=%3C200608090227.k792R9t8015211%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000079.html">
+   <LINK REL="Next"  HREF="000081.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r98 - in sleep: . src/sleep/bridges src/sleep/bridges/io</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r98%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20src/sleep/bridges/io&In-Reply-To=%3C200608090227.k792R9t8015211%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r98 - in sleep: . src/sleep/bridges src/sleep/bridges/io">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Wed Aug  9 04:27:09 CEST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000079.html">[Sleep-svn] r97 - in sleep: . src/sleep/bridges tests tests/output
+</A></li>
+        <LI>Next message: <A HREF="000081.html">[Sleep-svn] r99 - in sleep: . src/sleep/bridges	src/sleep/engine/atoms tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#80">[ date ]</a>
+              <a href="thread.html#80">[ thread ]</a>
+              <a href="subject.html#80">[ subject ]</a>
+              <a href="author.html#80">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2006-08-09 04:27:05 +0200 (Wed, 09 Aug 2006)
+New Revision: 98
+
+Modified:
+   sleep/src/sleep/bridges/BasicIO.java
+   sleep/src/sleep/bridges/BasicNumbers.java
+   sleep/src/sleep/bridges/io/IOObject.java
+   sleep/src/sleep/bridges/io/ProcessObject.java
+   sleep/whatsnew.txt
+Log:
+Did alot of work on the wait function
+
+
+
+Modified: sleep/src/sleep/bridges/BasicIO.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicIO.java	2006-08-09 00:57:51 UTC (rev 97)
++++ sleep/src/sleep/bridges/BasicIO.java	2006-08-09 02:27:05 UTC (rev 98)
+@@ -35,7 +35,7 @@
+ import sleep.bridges.io.*;
+ 
+ /** provides IO functions for the sleep language */
+-public class BasicIO implements Loadable
++public class BasicIO implements Loadable, Function
+ {
+     public boolean scriptUnloaded(ScriptInstance aScript)
+     {
+@@ -81,7 +81,7 @@
+         temp.put(&quot;&amp;mark&quot;,       new mark());
+         temp.put(&quot;&amp;skip&quot;,       new skip());
+         temp.put(&quot;&amp;reset&quot;,      new reset());
+-        temp.put(&quot;&amp;wait&quot;,       new wait());
++        temp.put(&quot;&amp;wait&quot;,       this);
+ 
+         // typical ASCII'sh output functions
+         temp.put(&quot;&amp;print&quot;,      new print());
+@@ -97,6 +97,21 @@
+         return true;
+     }
+ 
++    public Scalar evaluate(String n, ScriptInstance i, Stack l)
++    {
++       if (n.equals(&quot;&amp;wait&quot;))
++       {
++          IOObject a = (IOObject)BridgeUtilities.getObject(l);
++          long    to = BridgeUtilities.getLong(l, 0);
++
++          return a.wait(i.getScriptEnvironment(), to);
++       }
++
++       System.out.println(&quot;apparently we were wrong about '&quot; + n + &quot;'&quot;);
++
++       return SleepUtils.getEmptyScalar();
++    }
++
+     private static class openf implements Function
+     {
+        public Scalar evaluate(String n, ScriptInstance i, Stack l)
+@@ -806,32 +821,6 @@
+        }
+     }
+ 
+-    private static class wait implements Function
+-    {
+-       public Scalar evaluate(String n, ScriptInstance i, Stack l)
+-       {
+-          IOObject a     = chooseSource(l, 1);
+-          long     times = BridgeUtilities.getLong(l, -1);
+-          long     stamp = System.currentTimeMillis();
+-
+-          if (a.getThread() != null)
+-          {
+-             while (a.getThread().isAlive())
+-             {
+-                 if (times &gt; -1 &amp;&amp; (System.currentTimeMillis() - stamp) &gt; times)
+-                 {
+-                    i.getScriptEnvironment().flagError(&quot;wait on object timed out&quot;);
+-                    return SleepUtils.getEmptyScalar();
+-                 }
+-
+-                 Thread.yield();
+-             }
+-          }
+-
+-          return a.getToken();
+-       }
+-    }
+-
+     private static class unpack implements Function
+     {
+        public Scalar evaluate(String n, ScriptInstance i, Stack l)
+
+Modified: sleep/src/sleep/bridges/BasicNumbers.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicNumbers.java	2006-08-09 00:57:51 UTC (rev 97)
++++ sleep/src/sleep/bridges/BasicNumbers.java	2006-08-09 02:27:05 UTC (rev 98)
+@@ -184,8 +184,17 @@
+        {
+           if (! args.isEmpty())
+           {
+-             int to = BridgeUtilities.getInt(args);
+-             return SleepUtils.getScalar((int)(Math.random() * to));
++             Scalar temp = (Scalar)args.pop();
++
++             if (temp.getArray() != null)
++             {
++                int potential = (int)(Math.random() * temp.getArray().size());
++                return temp.getArray().getAt(potential);
++             }
++             else
++             {
++                return SleepUtils.getScalar((int)(Math.random() * temp.intValue()));
++             }
+           }
+           
+           return SleepUtils.getScalar(Math.random());
+
+Modified: sleep/src/sleep/bridges/io/IOObject.java
+===================================================================
+--- sleep/src/sleep/bridges/io/IOObject.java	2006-08-09 00:57:51 UTC (rev 97)
++++ sleep/src/sleep/bridges/io/IOObject.java	2006-08-09 02:27:05 UTC (rev 98)
+@@ -56,6 +56,30 @@
+       return thread;
+    }
+ 
++   public Scalar wait(ScriptEnvironment env, long timeout)
++   {
++      if (getThread() != null &amp;&amp; getThread().isAlive())
++      {
++         try
++         {
++            getThread().join(timeout);
++
++            if (getThread().isAlive())
++            {
++               env.flagError(&quot;wait on object timed out&quot;);
++               return SleepUtils.getEmptyScalar();
++            }
++         }
++         catch (Exception ex)
++         {
++            env.flagError(&quot;wait on object failed: &quot; + ex.getMessage());
++            return SleepUtils.getEmptyScalar();
++         }
++      }
++
++      return getToken();
++   }
++
+    /** returns a scalar token associated with this IOObject.  Will return the empty scalar if the token is null.  The token is essentially the stored return value of an executing thread.  */
+    public Scalar getToken()
+    {
+
+Modified: sleep/src/sleep/bridges/io/ProcessObject.java
+===================================================================
+--- sleep/src/sleep/bridges/io/ProcessObject.java	2006-08-09 00:57:51 UTC (rev 97)
++++ sleep/src/sleep/bridges/io/ProcessObject.java	2006-08-09 02:27:05 UTC (rev 98)
+@@ -1,7 +1,7 @@
+ package sleep.bridges.io;
+ 
+ import java.io.*;
+-import sleep.runtime.ScriptEnvironment;
++import sleep.runtime.*;
+ 
+ public class ProcessObject extends IOObject
+ {
+@@ -36,6 +36,26 @@
+       }
+    }
+ 
++   public Scalar wait(ScriptEnvironment env, long timeout)
++   {
++      if (getThread() != null &amp;&amp; getThread().isAlive())
++      {
++         super.wait(env, timeout);
++      }
++
++      try
++      {
++         process.waitFor();
++         return SleepUtils.getScalar(process.waitFor());
++      }
++      catch (Exception ex)
++      {
++         env.flagError(&quot;wait for process failed: &quot; + ex);
++      }
++
++      return SleepUtils.getEmptyScalar();
++   }
++
+    public void close()
+    {
+       super.close();
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-08-09 00:57:51 UTC (rev 97)
++++ sleep/whatsnew.txt	2006-08-09 02:27:05 UTC (rev 98)
+@@ -3,9 +3,10 @@
+ - added an optional timeout parameter for the socket connect function i.e.:
+   $socket = connect(&quot;host&quot;, port, [timeout in milliseconds]) 
+   default is 60 seconds.
+-- modified listen to create bind to the specified port, each call to listen
+-  is a call to accept a connection on the specified port.  to stop listening
+-  on the specified port use closef(port number) instead of $handle.
++- modified listen to create a server socket and bind to the specified port, 
++  each call to listen is a call to accept a connection on the specified port.
++  to stop listening on the specified port use closef(port number) instead of 
++  $handle.
+ - added a function global to declare a series of variables into the global 
+   scope
+ - added a require strict debug flag, this flag causes a runtime warning to
+@@ -25,6 +26,12 @@
+   any of these flags can be OR'd together i.e.:
+ 
+   debug(1 | 4); # show all errors and uses of non-declared variables
++- when passed an array parameter, &amp;rand will return a random element of the
++  array.
++- eliminated the use of a busy loop to wait for a timeout within the &amp;wait
++  function
++- &amp;wait when called on a process will now wait for that process to exit
++  and return the exit value of the process.
+ 
+ 2.1-beta 2
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000079.html">[Sleep-svn] r97 - in sleep: . src/sleep/bridges tests tests/output
+</A></li>
+	<LI>Next message: <A HREF="000081.html">[Sleep-svn] r99 - in sleep: . src/sleep/bridges	src/sleep/engine/atoms tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#80">[ date ]</a>
+              <a href="thread.html#80">[ thread ]</a>
+              <a href="subject.html#80">[ subject ]</a>
+              <a href="author.html#80">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

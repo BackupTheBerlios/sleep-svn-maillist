@@ -1,0 +1,148 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r188 - in sleep: . src/sleep/bridges tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2006-November/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r188%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20tests%20tests/output&In-Reply-To=%3C200611300400.kAU407PQ022699%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000169.html">
+   
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r188 - in sleep: . src/sleep/bridges tests tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r188%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20tests%20tests/output&In-Reply-To=%3C200611300400.kAU407PQ022699%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r188 - in sleep: . src/sleep/bridges tests tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Thu Nov 30 05:00:07 CET 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000169.html">[Sleep-svn] r187 - in sleep: . src/sleep/parser tests tests/output
+</A></li>
+        
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#170">[ date ]</a>
+              <a href="thread.html#170">[ thread ]</a>
+              <a href="subject.html#170">[ subject ]</a>
+              <a href="author.html#170">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2006-11-30 05:00:05 +0100 (Thu, 30 Nov 2006)
+New Revision: 188
+
+Added:
+   sleep/tests/output/unlambdacs.sl
+   sleep/tests/unlambdacs.sl
+Modified:
+   sleep/src/sleep/bridges/BasicUtilities.java
+   sleep/whatsnew.txt
+Log:
+added unlambda function the not-lambda function :)
+
+
+
+Modified: sleep/src/sleep/bridges/BasicUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicUtilities.java	2006-11-30 03:51:27 UTC (rev 187)
++++ sleep/src/sleep/bridges/BasicUtilities.java	2006-11-30 04:00:05 UTC (rev 188)
+@@ -114,6 +114,7 @@
+ 
+         // closure / function handle type stuff
+         temp.put(&quot;&amp;lambda&quot;,    new lambda());
++        temp.put(&quot;&amp;unlambda&quot;,    temp.get(&quot;&amp;lambda&quot;));
+ 
+         function funcs = new function();
+         temp.put(&quot;&amp;function&quot;,  funcs);
+@@ -474,7 +475,15 @@
+           SleepClosure value;
+  
+           SleepClosure temp = BridgeUtilities.getFunction(l, si);           
+-          value = new SleepClosure(si, temp.getRunnableCode());
++
++          if (n.equals(&quot;&amp;lambda&quot;))
++          {
++             value = new SleepClosure(si, temp.getRunnableCode());
++          }
++          else
++          {
++             value = temp;
++          }
+            
+           Variable vars = value.getVariables();
+ 
+
+Added: sleep/tests/output/unlambdacs.sl
+===================================================================
+--- sleep/tests/output/unlambdacs.sl	2006-11-30 03:51:27 UTC (rev 187)
++++ sleep/tests/output/unlambdacs.sl	2006-11-30 04:00:05 UTC (rev 188)
+@@ -0,0 +1,3 @@
++Value: example 1
++Value: example 2
++Value: example 2
+
+Added: sleep/tests/unlambdacs.sl
+===================================================================
+--- sleep/tests/unlambdacs.sl	2006-11-30 03:51:27 UTC (rev 187)
++++ sleep/tests/unlambdacs.sl	2006-11-30 04:00:05 UTC (rev 188)
+@@ -0,0 +1,14 @@
++#
++# show lambda creating shared environments...
++#
++
++sub foo
++{
++   println(&quot;Value: $bar&quot;);
++}
++
++unlambda(&amp;foo, $bar =&gt; &quot;example 1&quot;);
++foo();
++
++[unlambda(&amp;foo, $bar =&gt; &quot;example 2&quot;)];
++foo();
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-11-30 03:51:27 UTC (rev 187)
++++ sleep/whatsnew.txt	2006-11-30 04:00:05 UTC (rev 188)
+@@ -6,6 +6,9 @@
+   immediately by a newline was not being &quot;terminated&quot;
+ - fixed a bug with &amp;&amp; and &amp; followed by a HOES expression being mistaken 
+   for a function reference token.
++- added &amp;unlambda function that works exactly like &amp;lambda except it does
++  not create a new closure (rather it manipulates the this scope of the
++  passed in closure and returns the passed in closure).
+ 
+ 2.1-beta 10 (20 Nov 06)
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000169.html">[Sleep-svn] r187 - in sleep: . src/sleep/parser tests tests/output
+</A></li>
+	
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#170">[ date ]</a>
+              <a href="thread.html#170">[ thread ]</a>
+              <a href="subject.html#170">[ subject ]</a>
+              <a href="author.html#170">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

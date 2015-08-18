@@ -1,0 +1,463 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r323 - in sleep: . src/sleep/bridges src/sleep/engine	src/sleep/runtime tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2008-March/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r323%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20src/sleep/engine%0A%09src/sleep/runtime%20tests%20tests/output&In-Reply-To=%3C200803212228.m2LMSOeG003566%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000300.html">
+   <LINK REL="Next"  HREF="000302.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r323 - in sleep: . src/sleep/bridges src/sleep/engine	src/sleep/runtime tests tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r323%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20src/sleep/engine%0A%09src/sleep/runtime%20tests%20tests/output&In-Reply-To=%3C200803212228.m2LMSOeG003566%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r323 - in sleep: . src/sleep/bridges src/sleep/engine	src/sleep/runtime tests tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Fri Mar 21 23:28:24 CET 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000300.html">[Sleep-svn] r322 - in sleep: . src/sleep/bridges src/sleep/engine	tests tests/output
+</A></li>
+        <LI>Next message: <A HREF="000302.html">[Sleep-svn] r324 - in sleep: . src/sleep/engine tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#301">[ date ]</a>
+              <a href="thread.html#301">[ thread ]</a>
+              <a href="subject.html#301">[ subject ]</a>
+              <a href="author.html#301">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2008-03-21 23:28:23 +0100 (Fri, 21 Mar 2008)
+New Revision: 323
+
+Added:
+   sleep/tests/foreachrecurse.sl
+   sleep/tests/localstack.sl
+   sleep/tests/output/foreachrecurse.sl
+   sleep/tests/output/localstack.sl
+   sleep/tests/output/pushl2.sl
+   sleep/tests/output/pushl3.sl
+   sleep/tests/pushl2.sl
+   sleep/tests/pushl3.sl
+Modified:
+   sleep/src/sleep/bridges/BasicUtilities.java
+   sleep/src/sleep/bridges/SleepClosure.java
+   sleep/src/sleep/engine/CallRequest.java
+   sleep/src/sleep/runtime/ScriptVariables.java
+   sleep/tests/inlineb.sl
+   sleep/whatsnew.txt
+Log:
+..
+
+
+Modified: sleep/src/sleep/bridges/BasicUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicUtilities.java	2008-03-19 19:26:37 UTC (rev 322)
++++ sleep/src/sleep/bridges/BasicUtilities.java	2008-03-21 22:28:23 UTC (rev 323)
+@@ -950,7 +950,14 @@
+           }
+           else if (n.equals(&quot;&amp;popl&quot;))
+           {
+-             vars.popLocalLevel();
++             if (vars.haveMoreLocals())
++             {
++                vars.popLocalLevel();
++             }
++             else
++             {
++                throw new RuntimeException(&quot;&amp;popl: no more local frames exist&quot;); 
++             }
+           }
+ 
+           if (!l.isEmpty())
+
+Modified: sleep/src/sleep/bridges/SleepClosure.java
+===================================================================
+--- sleep/src/sleep/bridges/SleepClosure.java	2008-03-19 19:26:37 UTC (rev 322)
++++ sleep/src/sleep/bridges/SleepClosure.java	2008-03-21 22:28:23 UTC (rev 323)
+@@ -69,8 +69,8 @@
+        return temp;
+     }
+ 
+-    /** saves the top level context */
+-    private void saveToplevelContext(Stack _context, Variable localLevel)
++    /** saves the top level context; may throw an exception if an error is detected... be sure to move critical cleanup prior to this function. */
++    private void saveToplevelContext(Stack _context, LinkedList localLevel)
+     {
+        if (!_context.isEmpty())
+        {
+@@ -78,6 +78,10 @@
+                                         this better be popped before use!!! */
+           context.push(_context);
+        }
++       else if (localLevel.size() != 1)
++       {
++          throw new RuntimeException((localLevel.size() - 1) + &quot; unaccounted local stack frame(s) in &quot; + toString() + &quot; (perhaps you forgot to &amp;popl?)&quot;);
++       }
+     }
+ 
+     /** returns the top most context stack... */
+@@ -198,15 +202,17 @@
+ 
+           if (toplevel.isEmpty()) /* a normal closure call */
+           {
++             vars.beginToplevel(new LinkedList());
+              vars.pushLocalLevel();
+-             localLevel = vars.getLocalVariables();
+           }
+           else /* restoring from a coroutine */
+           {
+-             localLevel = (Variable)toplevel.pop();
+-             vars.pushLocalLevel(localLevel);
++             LinkedList levels = (LinkedList)toplevel.pop();             
++             vars.beginToplevel(levels);
+           }
+ 
++          localLevel = vars.getLocalVariables();
++
+           //
+           // initialize local variables...
+           //
+@@ -226,17 +232,18 @@
+              temp = env.evaluateOldContext();
+           }
+ 
+-          saveToplevelContext(env.saveContext(), localLevel);
++          LinkedList phear = vars.leaveToplevel();        /* this will simultaneously save and remove all local scopes associated with
++                                                             the current closure context.  Very sexy */
++          vars.popClosureLevel();                         /* still have to do this manually, one day I need to refactor this state saving stuff */
+ 
+-          vars.popLocalLevel();
+-          vars.popClosureLevel();
+-
+           if (si.getScriptEnvironment().isCallCC())
+           {
+              SleepClosure tempc = SleepUtils.getFunctionFromScalar(si.getScriptEnvironment().getReturnValue(), si);
+              tempc.putMetadata(&quot;continuation&quot;, SleepUtils.getScalar(this));
+              si.getScriptEnvironment().flagReturn(si.getScriptEnvironment().getReturnValue(), ScriptEnvironment.FLOW_CONTROL_PASS); 
+           }
++
++          saveToplevelContext(env.saveContext(), phear);  /* saves the top level context *pHEAR*; done last in case there is an error with this */
+        }
+ 
+        return temp;
+
+Modified: sleep/src/sleep/engine/CallRequest.java
+===================================================================
+--- sleep/src/sleep/engine/CallRequest.java	2008-03-19 19:26:37 UTC (rev 322)
++++ sleep/src/sleep/engine/CallRequest.java	2008-03-21 22:28:23 UTC (rev 323)
+@@ -289,7 +289,8 @@
+             int targs = sleep.bridges.BridgeUtilities.initLocalScope(vars, localLevel, getScriptEnvironment().getCurrentFrame());
+             vars.setScalarLevel(&quot;@_&quot;, SleepUtils.getArrayScalar(new sleep.bridges.ArgumentArray(targs, localLevel)), localLevel);
+ 
+-            return inline.evaluate(getScriptEnvironment());
++            Scalar eval = inline.evaluate(getScriptEnvironment());
++            return eval;
+          }
+       }
+    }
+
+Modified: sleep/src/sleep/runtime/ScriptVariables.java
+===================================================================
+--- sleep/src/sleep/runtime/ScriptVariables.java	2008-03-19 19:26:37 UTC (rev 322)
++++ sleep/src/sleep/runtime/ScriptVariables.java	2008-03-21 22:28:23 UTC (rev 323)
+@@ -65,10 +65,33 @@
+   */
+ public class ScriptVariables implements Serializable
+ {
+-    Variable    global;   /* global variables */
+-    LinkedList  closure;  /* closure specific variables :) */
+-    LinkedList  locals;   /* local variables */
++    protected Variable    global;   /* global variables */
++    protected LinkedList  closure;  /* closure specific variables :) */
++    protected LinkedList  locals;   /* local variables--can be stacked into a closure thanks to pushl, popl, and inline functions */
+ 
++    protected Stack       marks;    /* mark the beginning of a stack for fun and profit */
++
++    /** called when a closure is entered, allows an old stack of local scopes to be restored easily */
++    public void beginToplevel(LinkedList l)
++    {
++       marks.push(locals);
++       locals = l;
++    }
++    
++    /** called when a closure is exited, returns local var scope for later restoration if desired */
++    public LinkedList leaveToplevel()
++    {
++       LinkedList scopes = locals;
++       locals = (LinkedList)marks.pop(); 
++       return scopes;
++    }
++
++    /** used to check if other local scopes exist after the next pop */
++    public boolean haveMoreLocals()
++    {
++        return locals.size() &gt; 1;
++    }
++
+     /** Initializes this ScriptVariables container using a DefaultVariable object for default variable storage */
+     public ScriptVariables()
+     {
+@@ -81,6 +104,7 @@
+        global   = aVariableClass;
+        closure  = new LinkedList();
+        locals   = new LinkedList();
++       marks    = new Stack();
+ 
+        pushLocalLevel();
+     }
+
+Added: sleep/tests/foreachrecurse.sl
+===================================================================
+--- sleep/tests/foreachrecurse.sl	2008-03-19 19:26:37 UTC (rev 322)
++++ sleep/tests/foreachrecurse.sl	2008-03-21 22:28:23 UTC (rev 323)
+@@ -0,0 +1,28 @@
++#
++# foreach iterators and regex bridge use a metadata hash to keep track of context sensitive data
++# this test assures that foreach loop handles recursion 
++
++global('$i');
++
++sub foo
++{
++   local('$var');
++   println(&quot;$i Enter foo!&quot;);
++
++   foreach $var ($1)
++   {
++      if ($var eq &quot;icecream&quot; &amp;&amp; $2 is $null)
++      {
++         println(&quot;$i Calling next foo thingie&quot;);
++         $i = &quot;  &quot;;
++         foo($1, 1);
++         $i = &quot;&quot;;
++      }
++      println(&quot;$i $var&quot;);
++   }
++
++   println(&quot;$i Exit foo!&quot;);
++}
++
++foo(@(1, 2, 3, &quot;icecream&quot;, 4, 5, 6, 7));
++
+
+Modified: sleep/tests/inlineb.sl
+===================================================================
+--- sleep/tests/inlineb.sl	2008-03-19 19:26:37 UTC (rev 322)
++++ sleep/tests/inlineb.sl	2008-03-21 22:28:23 UTC (rev 323)
+@@ -12,7 +12,7 @@
+ {
+    local('$x');
+    $x = 2;
+-   $z = 10 * foo();
++   $z = 10 * foo(); # this is a bug and it is bad.
+    println($z);
+    return 10;
+ }
+
+Added: sleep/tests/localstack.sl
+===================================================================
+--- sleep/tests/localstack.sl	2008-03-19 19:26:37 UTC (rev 322)
++++ sleep/tests/localstack.sl	2008-03-21 22:28:23 UTC (rev 323)
+@@ -0,0 +1,42 @@
++#
++# checks that closures carry their local vars with themselves.
++#
++
++sub bar
++{
++   local('$buffer $func');
++   $buffer = allocate();
++   writeObject($buffer, $1);
++   closef($buffer);
++
++   println(&quot;Normal continuation:&quot;);
++   invoke($1);
++
++   println(&quot;Serialized Continuation&quot;);
++   $func = readObject($buffer);
++   invoke($func);
++}
++
++sub foo
++{
++   println(&quot;Begin foo&quot;);
++   local('$x');
++   $x = &quot;a&quot;;
++   pushl();
++   local('$x');
++   $x = &quot;b&quot;;
++   pushl();
++   local('$x');
++   $x = &quot;c&quot;;
++   yield;        # pause execution
++   println($x);
++   popl();
++   println($x);
++   popl();
++   println($x);
++   println(&quot;End foo&quot;);
++}
++
++foo();
++bar(&amp;foo);
++foo();
+
+Added: sleep/tests/output/foreachrecurse.sl
+===================================================================
+--- sleep/tests/output/foreachrecurse.sl	2008-03-19 19:26:37 UTC (rev 322)
++++ sleep/tests/output/foreachrecurse.sl	2008-03-21 22:28:23 UTC (rev 323)
+@@ -0,0 +1,21 @@
++ Enter foo!
++ 1
++ 2
++ 3
++ Calling next foo thingie
++   Enter foo!
++   1
++   2
++   3
++   icecream
++   4
++   5
++   6
++   7
++   Exit foo!
++ icecream
++ 4
++ 5
++ 6
++ 7
++ Exit foo!
+
+Added: sleep/tests/output/localstack.sl
+===================================================================
+--- sleep/tests/output/localstack.sl	2008-03-19 19:26:37 UTC (rev 322)
++++ sleep/tests/output/localstack.sl	2008-03-21 22:28:23 UTC (rev 323)
+@@ -0,0 +1,12 @@
++Begin foo
++Normal continuation:
++c
++b
++a
++End foo
++Serialized Continuation
++c
++b
++a
++End foo
++Begin foo
+
+Added: sleep/tests/output/pushl2.sl
+===================================================================
+--- sleep/tests/output/pushl2.sl	2008-03-19 19:26:37 UTC (rev 322)
++++ sleep/tests/output/pushl2.sl	2008-03-21 22:28:23 UTC (rev 323)
+@@ -0,0 +1,3 @@
++Begin
++End
++Warning: 1 unaccounted local stack frame(s) in &amp;closure[pushl2.sl:14-17]#1 (perhaps you forgot to &amp;popl?) at pushl2.sl:20
+
+Added: sleep/tests/output/pushl3.sl
+===================================================================
+--- sleep/tests/output/pushl3.sl	2008-03-19 19:26:37 UTC (rev 322)
++++ sleep/tests/output/pushl3.sl	2008-03-21 22:28:23 UTC (rev 323)
+@@ -0,0 +1 @@
++Warning: &amp;popl: no more local frames exist at pushl3.sl:9
+
+Added: sleep/tests/pushl2.sl
+===================================================================
+--- sleep/tests/pushl2.sl	2008-03-19 19:26:37 UTC (rev 322)
++++ sleep/tests/pushl2.sl	2008-03-21 22:28:23 UTC (rev 323)
+@@ -0,0 +1,20 @@
++#
++# test for scope management...
++#
++
++inline bar
++{
++   pushl();
++   pushl();
++   popl($result =&gt; $a * $b);
++}
++
++sub foo
++{
++   local('$z'); 
++   println(&quot;Begin&quot;);
++   bar(300, 45);
++   println(&quot;End&quot;);
++}
++
++foo();
+
+Added: sleep/tests/pushl3.sl
+===================================================================
+--- sleep/tests/pushl3.sl	2008-03-19 19:26:37 UTC (rev 322)
++++ sleep/tests/pushl3.sl	2008-03-21 22:28:23 UTC (rev 323)
+@@ -0,0 +1,17 @@
++#
++# test for scope management...
++#
++
++inline bar
++{
++   pushl();
++   popl();
++   popl();
++}
++
++sub foo
++{
++   bar();
++}
++
++foo();
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2008-03-19 19:26:37 UTC (rev 322)
++++ sleep/whatsnew.txt	2008-03-21 22:28:23 UTC (rev 323)
+@@ -16,8 +16,7 @@
+   this is in line with how lambda, let, etc.. work.  pass a data
+   structure (such as an array or hash) to have updateable shared
+   values.
+-- round function can now round to a certain number of places if
+-  desired.
++- round function can now round to a desired number of places.
+ - replace function can now handle empty arguments, it will use
+   empty strings in their place.
+ - added &amp;warn to send a message to the script warning watcher 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000300.html">[Sleep-svn] r322 - in sleep: . src/sleep/bridges src/sleep/engine	tests tests/output
+</A></li>
+	<LI>Next message: <A HREF="000302.html">[Sleep-svn] r324 - in sleep: . src/sleep/engine tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#301">[ date ]</a>
+              <a href="thread.html#301">[ thread ]</a>
+              <a href="subject.html#301">[ subject ]</a>
+              <a href="author.html#301">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

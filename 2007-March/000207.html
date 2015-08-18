@@ -1,0 +1,191 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r228 - in sleep: . src/sleep/bridges	src/sleep/engine/atoms tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2007-March/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r228%20-%20in%20sleep%3A%20.%20src/sleep/bridges%0A%09src/sleep/engine/atoms%20tests%20tests/output&In-Reply-To=%3C200703171422.l2HEMYoZ030328%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000206.html">
+   <LINK REL="Next"  HREF="000208.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r228 - in sleep: . src/sleep/bridges	src/sleep/engine/atoms tests tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r228%20-%20in%20sleep%3A%20.%20src/sleep/bridges%0A%09src/sleep/engine/atoms%20tests%20tests/output&In-Reply-To=%3C200703171422.l2HEMYoZ030328%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r228 - in sleep: . src/sleep/bridges	src/sleep/engine/atoms tests tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Sat Mar 17 15:22:34 CET 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000206.html">[Sleep-svn] r227 - in sleep: . src/sleep/engine/types
+</A></li>
+        <LI>Next message: <A HREF="000208.html">[Sleep-svn] r229 - in sleep: . src/sleep/bridges src/sleep/runtime	tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#207">[ date ]</a>
+              <a href="thread.html#207">[ thread ]</a>
+              <a href="subject.html#207">[ subject ]</a>
+              <a href="author.html#207">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2007-03-17 15:22:33 +0100 (Sat, 17 Mar 2007)
+New Revision: 228
+
+Modified:
+   sleep/src/sleep/bridges/BasicUtilities.java
+   sleep/src/sleep/engine/atoms/Call.java
+   sleep/src/sleep/engine/atoms/Return.java
+   sleep/tests/output/profiler.sl
+   sleep/tests/output/useerr.sl
+   sleep/tests/profiler.sl
+   sleep/whatsnew.txt
+Log:
+fixed a small memory leak issue.
+
+
+
+Modified: sleep/src/sleep/bridges/BasicUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicUtilities.java	2007-03-17 13:49:02 UTC (rev 227)
++++ sleep/src/sleep/bridges/BasicUtilities.java	2007-03-17 14:22:33 UTC (rev 228)
+@@ -229,8 +229,7 @@
+ 
+           if (parent != null &amp;&amp; !parent.exists())
+           {
+-             si.getScriptEnvironment().flagError(new IllegalArgumentException(n + &quot;: could not locate source '&quot; + parent + &quot;'&quot;));
+-             return SleepUtils.getEmptyScalar();
++             throw new IllegalArgumentException(n + &quot;: could not locate source '&quot; + parent + &quot;'&quot;);
+           }
+ 
+           try
+
+Modified: sleep/src/sleep/engine/atoms/Call.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/Call.java	2007-03-17 13:49:02 UTC (rev 227)
++++ sleep/src/sleep/engine/atoms/Call.java	2007-03-17 14:22:33 UTC (rev 228)
+@@ -94,7 +94,7 @@
+                 }
+                 catch (RuntimeException rex)
+                 {
+-                   // add an e.killFrame() ?!?
++                   e.KillFrame();
+                    e.getScriptInstance().fireWarning(message + &quot; - FAILED!&quot;, getLineNumber(), true);
+                    throw(rex);
+                 }
+@@ -102,8 +102,16 @@
+          }
+          else
+          {
+-             temp = callme.evaluate(function, e.getScriptInstance(), e.getCurrentFrame());
+-             e.clearReturn();
++             try
++             {
++                temp = callme.evaluate(function, e.getScriptInstance(), e.getCurrentFrame());
++                e.clearReturn();
++             }
++             catch (RuntimeException rex)
++             {
++                e.KillFrame();
++                throw(rex);
++             }
+          }
+ 
+          if (e.isThrownValue())
+
+Modified: sleep/src/sleep/engine/atoms/Return.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/Return.java	2007-03-17 13:49:02 UTC (rev 227)
++++ sleep/src/sleep/engine/atoms/Return.java	2007-03-17 14:22:33 UTC (rev 228)
+@@ -54,7 +54,7 @@
+             e.flagReturn(temp, ScriptEnvironment.FLOW_CONTROL_THROW);
+          }
+       }
+-      else if (return_type == ScriptEnvironment.FLOW_CONTROL_BREAK)
++      else if (return_type == ScriptEnvironment.FLOW_CONTROL_BREAK || return_type == ScriptEnvironment.FLOW_CONTROL_CONTINUE)
+       {
+          e.flagReturn(null, return_type);
+       }
+
+Modified: sleep/tests/output/profiler.sl
+===================================================================
+--- sleep/tests/output/profiler.sl	2007-03-17 13:49:02 UTC (rev 227)
++++ sleep/tests/output/profiler.sl	2007-03-17 14:22:33 UTC (rev 228)
+@@ -3,6 +3,6 @@
+ this is a closure call!: 3628800.0
+ 10  &amp;closure[profiler.sl:7]
+ 4   &amp;println
++1   &amp;closure[profiler.sl:16]
++1   &amp;fact
+ 1   public int java.lang.String.length()
+-1   &amp;fact
+-1   &amp;closure[profiler.sl:16]
+
+Modified: sleep/tests/output/useerr.sl
+===================================================================
+--- sleep/tests/output/useerr.sl	2007-03-17 13:49:02 UTC (rev 227)
++++ sleep/tests/output/useerr.sl	2007-03-17 14:22:33 UTC (rev 228)
+@@ -1,2 +1,2 @@
+-Warning: checkError(): java.lang.IllegalArgumentException: &amp;use: could not locate source '/Users/raffi/jdbc.jar' at eval:0
++Warning: &amp;use: could not locate source '/Users/raffi/jdbc.jar' at eval:0
+ Warning: checkError(): java.lang.ClassNotFoundException: ABCDE at eval:0
+
+Modified: sleep/tests/profiler.sl
+===================================================================
+--- sleep/tests/profiler.sl	2007-03-17 13:49:02 UTC (rev 227)
++++ sleep/tests/profiler.sl	2007-03-17 14:22:33 UTC (rev 228)
+@@ -19,7 +19,7 @@
+ 
+ @stats = reverse(sort({ return [$1 calls] &lt;=&gt; [$2 calls]; }, copy(@stats)));
+ 
+-foreach $var (@stats)
++foreach $var (sort({ return [$2 calls] &lt;=&gt; [$1 calls]; }, sort({ return [$1 functionName] cmp [$2 functionName]; }, @stats)))
+ {
+    # $var is a ScriptInstance.ProfilerStatistic object, it accepts
+    # the following messages:
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2007-03-17 13:49:02 UTC (rev 227)
++++ sleep/whatsnew.txt	2007-03-17 14:22:33 UTC (rev 228)
+@@ -40,6 +40,8 @@
+   finding this one).
+ - made a small (possibly negligible) performance optimization to Sleep's
+   scalar value transfer code.
++- fixed frame leaks that can occur when a Java exception interrupts the 
++  calling of a function.
+ 
+ 2.1-beta 12  (11 Mar 07)
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000206.html">[Sleep-svn] r227 - in sleep: . src/sleep/engine/types
+</A></li>
+	<LI>Next message: <A HREF="000208.html">[Sleep-svn] r229 - in sleep: . src/sleep/bridges src/sleep/runtime	tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#207">[ date ]</a>
+              <a href="thread.html#207">[ thread ]</a>
+              <a href="subject.html#207">[ subject ]</a>
+              <a href="author.html#207">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

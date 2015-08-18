@@ -1,0 +1,117 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r368 - in sleep: . src/sleep/bridges tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2008-May/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r368%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20tests%20tests/output&In-Reply-To=%3C200805142023.m4EKNoVn022651%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000343.html">
+   <LINK REL="Next"  HREF="000345.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r368 - in sleep: . src/sleep/bridges tests tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r368%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20tests%20tests/output&In-Reply-To=%3C200805142023.m4EKNoVn022651%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r368 - in sleep: . src/sleep/bridges tests tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Wed May 14 22:23:50 CEST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000343.html">[Sleep-svn] r367 - in sleep: . src/sleep/bridges tests
+</A></li>
+        <LI>Next message: <A HREF="000345.html">[Sleep-svn] r369 - in sleep: . src/sleep/bridges src/sleep/engine	tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#344">[ date ]</a>
+              <a href="thread.html#344">[ thread ]</a>
+              <a href="subject.html#344">[ subject ]</a>
+              <a href="author.html#344">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2008-05-14 22:23:50 +0200 (Wed, 14 May 2008)
+New Revision: 368
+
+Added:
+   sleep/tests/output/split2.sl
+   sleep/tests/split2.sl
+Modified:
+   sleep/src/sleep/bridges/RegexBridge.java
+   sleep/whatsnew.txt
+Log:
+updated split to accept a limit parameter.
+
+
+Modified: sleep/src/sleep/bridges/RegexBridge.java
+===================================================================
+--- sleep/src/sleep/bridges/RegexBridge.java	2008-05-14 20:05:54 UTC (rev 367)
++++ sleep/src/sleep/bridges/RegexBridge.java	2008-05-14 20:23:50 UTC (rev 368)
+@@ -244,7 +244,7 @@
+ 
+           Pattern pattern  = RegexBridge.getPattern(a);
+ 
+-          String results[] = pattern.split(b);
++          String results[] = l.isEmpty() ? pattern.split(b) : pattern.split(b, BridgeUtilities.getInt(l, 0));
+           
+           Scalar array = SleepUtils.getArrayScalar();
+ 
+
+Added: sleep/tests/output/split2.sl
+===================================================================
+--- sleep/tests/output/split2.sl	2008-05-14 20:05:54 UTC (rev 367)
++++ sleep/tests/output/split2.sl	2008-05-14 20:23:50 UTC (rev 368)
+@@ -0,0 +1 @@
++@('the', 'rain', 'in spain falls mainly on the plain')
+
+Added: sleep/tests/split2.sl
+===================================================================
+--- sleep/tests/split2.sl	2008-05-14 20:05:54 UTC (rev 367)
++++ sleep/tests/split2.sl	2008-05-14 20:23:50 UTC (rev 368)
+@@ -0,0 +1 @@
++println(split(&quot; &quot;, &quot;the rain in spain falls mainly on the plain&quot;, 3));
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2008-05-14 20:05:54 UTC (rev 367)
++++ sleep/whatsnew.txt	2008-05-14 20:23:50 UTC (rev 368)
+@@ -39,6 +39,8 @@
+ - &amp;clear now clears each element from the array rather than
+   creating a new array and returning it.
+ - added &amp;concat(@a, @b, ...) to concatenate multiple arrays
++- split('pattern', 'text', [limit]) now accepts a limit 
++  parameter to allow partial splits of text.
+   
+ 2.1-beta 25  (8 May 08) [will this beta process ever end?]
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000343.html">[Sleep-svn] r367 - in sleep: . src/sleep/bridges tests
+</A></li>
+	<LI>Next message: <A HREF="000345.html">[Sleep-svn] r369 - in sleep: . src/sleep/bridges src/sleep/engine	tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#344">[ date ]</a>
+              <a href="thread.html#344">[ thread ]</a>
+              <a href="subject.html#344">[ subject ]</a>
+              <a href="author.html#344">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

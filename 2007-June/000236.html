@@ -1,0 +1,153 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r257 - in sleep: . src/sleep/bridges tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2007-June/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r257%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20tests%20tests/output&In-Reply-To=%3C200706102147.l5ALlbwH019065%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000235.html">
+   <LINK REL="Next"  HREF="000237.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r257 - in sleep: . src/sleep/bridges tests tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r257%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20tests%20tests/output&In-Reply-To=%3C200706102147.l5ALlbwH019065%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r257 - in sleep: . src/sleep/bridges tests tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Sun Jun 10 23:47:37 CEST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000235.html">[Sleep-svn] r256 - in sleep: . src/sleep/bridges tests tests/output
+</A></li>
+        <LI>Next message: <A HREF="000237.html">[Sleep-svn] r258 - in sleep: . docs src/sleep/bridges	src/sleep/console tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#236">[ date ]</a>
+              <a href="thread.html#236">[ thread ]</a>
+              <a href="subject.html#236">[ subject ]</a>
+              <a href="author.html#236">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2007-06-10 23:47:37 +0200 (Sun, 10 Jun 2007)
+New Revision: 257
+
+Added:
+   sleep/tests/closurekvp.sl
+   sleep/tests/output/closurekvp.sl
+Modified:
+   sleep/build.xml
+   sleep/src/sleep/bridges/SleepClosure.java
+   sleep/whatsnew.txt
+Log:
+hashes/arrays can now be used as named arguments to closures
+
+
+Modified: sleep/build.xml
+===================================================================
+--- sleep/build.xml	2007-06-10 21:10:47 UTC (rev 256)
++++ sleep/build.xml	2007-06-10 21:47:37 UTC (rev 257)
+@@ -43,6 +43,8 @@
+            &lt;include name=&quot;sleep/interfaces/*.java&quot; /&gt;
+            &lt;include name=&quot;sleep/parser/ParserConfig.java&quot; /&gt;
+            &lt;include name=&quot;sleep/runtime/*.java&quot; /&gt;
++           &lt;include name=&quot;sleep/engine/ProxyInterface.java&quot; /&gt;
++           &lt;exclude name=&quot;sleep/runtime/WatchScalar.java&quot; /&gt;
+            &lt;exclude name=&quot;sleep/runtime/CollectionWrapper.java&quot; /&gt;
+            &lt;exclude name=&quot;sleep/runtime/MapWrapper.java&quot; /&gt;
+         &lt;/fileset&gt;
+
+Modified: sleep/src/sleep/bridges/SleepClosure.java
+===================================================================
+--- sleep/src/sleep/bridges/SleepClosure.java	2007-06-10 21:10:47 UTC (rev 256)
++++ sleep/src/sleep/bridges/SleepClosure.java	2007-06-10 21:47:37 UTC (rev 257)
+@@ -228,7 +228,7 @@
+              {
+                 KeyValuePair kvp = (KeyValuePair)lvar.getValue().objectValue();
+ 
+-                if (kvp.getKey().toString().charAt(0) != '$')
++                if (!sleep.parser.Checkers.isVariable(kvp.getKey().toString()))
+                 {
+                    throw new IllegalArgumentException(&quot;unreachable named parameter: &quot; + kvp.getKey());
+                 }
+
+Added: sleep/tests/closurekvp.sl
+===================================================================
+--- sleep/tests/closurekvp.sl	2007-06-10 21:10:47 UTC (rev 256)
++++ sleep/tests/closurekvp.sl	2007-06-10 21:47:37 UTC (rev 257)
+@@ -0,0 +1,19 @@
++#
++# ensure hashes/arrays can be passed as named parameters...
++#
++
++debug(7);
++
++sub foo
++{
++   local('$var');
++
++   foreach $var (@keys)
++   {
++      println(&quot;Cool: $var = &quot; . %data[$var]);
++   }
++}
++
++global('%d');
++%d = %(a =&gt; &quot;ardvark&quot;, c =&gt; &quot;cat&quot;, b =&gt; &quot;b4d a$$&quot;, p =&gt; &quot;pHEAR&quot;, e =&gt; 'eAR');
++foo(@keys =&gt; sorta(keys(%d)), %data =&gt; %d);
+
+Added: sleep/tests/output/closurekvp.sl
+===================================================================
+--- sleep/tests/output/closurekvp.sl	2007-06-10 21:10:47 UTC (rev 256)
++++ sleep/tests/output/closurekvp.sl	2007-06-10 21:47:37 UTC (rev 257)
+@@ -0,0 +1,5 @@
++Cool: a = ardvark
++Cool: b = b4d a$$
++Cool: c = cat
++Cool: e = eAR
++Cool: p = pHEAR
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2007-06-10 21:10:47 UTC (rev 256)
++++ sleep/whatsnew.txt	2007-06-10 21:47:37 UTC (rev 257)
+@@ -5,6 +5,7 @@
+   expressions of (key =&gt; value) and strings with the form &quot;key=value&quot;
+ - added getIOHandle(InputStream, OutputStream) to SleepUtilities class
+ - registered cmp operator to prevent parser confusing it with a function
++- hashes/arrays can now be passed as named parameters to closures
+ 
+ 2.1-beta 15  (25 Apr 07)
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000235.html">[Sleep-svn] r256 - in sleep: . src/sleep/bridges tests tests/output
+</A></li>
+	<LI>Next message: <A HREF="000237.html">[Sleep-svn] r258 - in sleep: . docs src/sleep/bridges	src/sleep/console tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#236">[ date ]</a>
+              <a href="thread.html#236">[ thread ]</a>
+              <a href="subject.html#236">[ subject ]</a>
+              <a href="author.html#236">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,251 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r401 - in sleep/jsr223: . src/org/dashnine/sleep
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2008-May/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r401%20-%20in%20sleep/jsr223%3A%20.%20src/org/dashnine/sleep&In-Reply-To=%3C200805302006.m4UK6bO5029029%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000376.html">
+   <LINK REL="Next"  HREF="000378.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r401 - in sleep/jsr223: . src/org/dashnine/sleep</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r401%20-%20in%20sleep/jsr223%3A%20.%20src/org/dashnine/sleep&In-Reply-To=%3C200805302006.m4UK6bO5029029%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r401 - in sleep/jsr223: . src/org/dashnine/sleep">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Fri May 30 22:06:37 CEST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000376.html">[Sleep-svn] r400 - in sleep: . src/sleep/bridges
+</A></li>
+        <LI>Next message: <A HREF="000378.html">[Sleep-svn] r402 - sleep
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#377">[ date ]</a>
+              <a href="thread.html#377">[ thread ]</a>
+              <a href="subject.html#377">[ subject ]</a>
+              <a href="author.html#377">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2008-05-30 22:06:37 +0200 (Fri, 30 May 2008)
+New Revision: 401
+
+Modified:
+   sleep/jsr223/readme-jsr223.txt
+   sleep/jsr223/sleep-engine.jar
+   sleep/jsr223/src/org/dashnine/sleep/SleepScriptEngine.java
+   sleep/jsr223/src/org/dashnine/sleep/SleepScriptEngineFactory.java
+Log:
+improved jsr223 support
+
+
+Modified: sleep/jsr223/readme-jsr223.txt
+===================================================================
+--- sleep/jsr223/readme-jsr223.txt	2008-05-30 18:54:03 UTC (rev 400)
++++ sleep/jsr223/readme-jsr223.txt	2008-05-30 20:06:37 UTC (rev 401)
+@@ -17,6 +17,8 @@
+ 
+ [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">raffi at beardsley</A> ~/sleep] jrunscript -cp sleep.jar -l sleep -f file.sl
+ 
++  @ARGV and $__SCRIPT__ are available for scripts run this way. 
++
+ To evaluate Sleep code within Java:
+ 
+   **** Make sure sleep.jar is in the classpath ****
+@@ -24,13 +26,20 @@
+   ScriptEngineManager manager = new ScriptEngineManager();
+   ScriptEngine sleepEngine = manager.getEngineByName(&quot;sleep&quot;);
+ 
++  Object value = sleepEngine.eval(&quot;return 'hello world';&quot;);
++
+   @see <A HREF="http://java.sun.com/javase/6/docs/api/javax/script/ScriptEngine.html">http://java.sun.com/javase/6/docs/api/javax/script/ScriptEngine.html</A>
+   
+ Some notes about the integration:
+ 
+-- The GLOBAL_SCOPE Bindings of the ScriptContext are treated as Sleep globals.  The Binding values
+-  are dumped into an object scalar with no conversion.
++- The GLOBAL_SCOPE Bindings of the ScriptContext are treated as Sleep globals.  The ENGINE_SCOPE 
++  Bindings of the ScriptContext are treated as script locals.  
+ 
++  The binding keys are all prefixed with a $ sigil.  i.e the key javax.script.engine is available
++  as $javax.script.engine.
++
++  Sleep will marshall the bound values into Sleep scalars. 
++
+ - The getErrorWriter(), getReader(), and getWriter() values of ScriptContext are virtually ignored.
+   1) Sleep doesn't speak Reader/Writer language and 2) they seem to act as blackholes when 
+   scripts are executed with JRunScript.  
+
+Modified: sleep/jsr223/sleep-engine.jar
+===================================================================
+(Binary files differ)
+
+Modified: sleep/jsr223/src/org/dashnine/sleep/SleepScriptEngine.java
+===================================================================
+--- sleep/jsr223/src/org/dashnine/sleep/SleepScriptEngine.java	2008-05-30 18:54:03 UTC (rev 400)
++++ sleep/jsr223/src/org/dashnine/sleep/SleepScriptEngine.java	2008-05-30 20:06:37 UTC (rev 401)
+@@ -53,47 +53,6 @@
+     private Hashtable       sharedEnvironment;
+     private ScriptVariables variables;
+ 
+-    private static class BindingVariables extends sleep.bridges.DefaultVariable
+-    {
+-        protected Bindings vars;
+-
+-        public BindingVariables(Bindings b)
+-        {
+-           vars = b;
+-        }        
+-
+-        public Scalar putScalar(String key, Scalar value)
+-        {
+-           if (vars != null &amp;&amp; vars.containsKey(key.substring(1)))
+-           {
+-              vars.put(key.substring(1), value.objectValue());
+-           }
+-
+-           return super.putScalar(key, value);
+-        }
+-
+-        public Scalar getScalar(String key)
+-        {
+-           if (vars != null &amp;&amp; vars.containsKey(key.substring(1)))
+-           {
+-              return SleepUtils.getScalar(vars.get(key.substring(1)));
+-           }
+-
+-           return super.getScalar(key);
+-        }
+-
+-        public boolean scalarExists(String key)
+-        {
+-           if (vars != null &amp;&amp; vars.containsKey(key.substring(1)))
+-           {
+-              return true;
+-           }
+-
+-           return super.scalarExists(key);
+-        }
+-    }
+-
+-    // ..
+     public SleepScriptEngine()
+     {
+         loader = new ScriptLoader();
+@@ -116,7 +75,44 @@
+ 
+     private Object evalScript(ScriptInstance script, ScriptContext context)
+     {
+-        return script.runScript().objectValue();
++        /* install global bindings */
++        Bindings global = context.getBindings(ScriptContext.GLOBAL_SCOPE);
++
++        if (global != null)
++        {
++           Iterator i = global.entrySet().iterator();
++           while (i.hasNext())
++           {
++              Map.Entry value = (Map.Entry)i.next();
++              script.getScriptVariables().putScalar(&quot;$&quot; + value.getKey().toString(), ObjectUtilities.BuildScalar(true, value.getValue()));
++           }
++        }
++
++        /* install local bindings */
++        Bindings local = context.getBindings(ScriptContext.ENGINE_SCOPE);
++        Map locals = new HashMap();
++
++        if (local != null)
++        {
++           Iterator i = local.entrySet().iterator();
++           while (i.hasNext())
++           {
++              Map.Entry value = (Map.Entry)i.next();
++              locals.put(&quot;$&quot; + value.getKey().toString(), ObjectUtilities.BuildScalar(true, value.getValue())  );
++           }
++        }
++
++        if (locals.get(&quot;$&quot; + ScriptEngine.FILENAME) != null)
++        {
++           script.getScriptVariables().putScalar(&quot;$__SCRIPT__&quot;, (Scalar)locals.get(&quot;$&quot; + ScriptEngine.FILENAME));
++        }        
++
++        if (locals.get(&quot;$&quot; + ScriptEngine.ARGV) != null)
++        {
++           script.getScriptVariables().putScalar(&quot;@ARGV&quot;, (Scalar)locals.get(&quot;$&quot; + ScriptEngine.ARGV));
++        }
++
++        return SleepUtils.runCode(script.getRunnableScript(), &quot;eval&quot;, script, SleepUtils.getArgumentStack(locals)).objectValue();
+     }
+ 
+     private static class WarningWatcher implements RuntimeWarningWatcher
+@@ -139,14 +135,6 @@
+         try
+         {
+            ScriptInstance script = loader.loadScript(&quot;eval&quot;, text, sharedEnvironment);
+-
+-           if (variables == null)
+-           {
+-              variables = new ScriptVariables(new BindingVariables(context.getBindings(ScriptContext.GLOBAL_SCOPE)));
+-           }
+-
+-           script.setScriptVariables(variables);
+-
+            script.addWarningWatcher(new WarningWatcher(context));
+            return script;
+         }
+
+Modified: sleep/jsr223/src/org/dashnine/sleep/SleepScriptEngineFactory.java
+===================================================================
+--- sleep/jsr223/src/org/dashnine/sleep/SleepScriptEngineFactory.java	2008-05-30 18:54:03 UTC (rev 400)
++++ sleep/jsr223/src/org/dashnine/sleep/SleepScriptEngineFactory.java	2008-05-30 20:06:37 UTC (rev 401)
+@@ -153,13 +153,13 @@
+     private static List&lt;String&gt; extensions;
+     private static List&lt;String&gt; mimeTypes;
+     static {
+-        names = new ArrayList&lt;String&gt;(2);
++        names = new ArrayList&lt;String&gt;(3);
+         names.add(&quot;sleep&quot;);
+         names.add(&quot;Sleep&quot;);
++        names.add(&quot;sl&quot;);
+         names = Collections.unmodifiableList(names);
+-        extensions = new ArrayList&lt;String&gt;(2);
++        extensions = new ArrayList&lt;String&gt;(1);
+         extensions.add(&quot;sl&quot;);
+-        extensions.add(&quot;.sl&quot;);
+         extensions = Collections.unmodifiableList(extensions);
+         mimeTypes = new ArrayList&lt;String&gt;(0);
+         mimeTypes = Collections.unmodifiableList(mimeTypes);
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000376.html">[Sleep-svn] r400 - in sleep: . src/sleep/bridges
+</A></li>
+	<LI>Next message: <A HREF="000378.html">[Sleep-svn] r402 - sleep
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#377">[ date ]</a>
+              <a href="thread.html#377">[ thread ]</a>
+              <a href="subject.html#377">[ subject ]</a>
+              <a href="author.html#377">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,585 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r124 - in sleep: . src/sleep/bridges src/sleep/engine	src/sleep/parser src/sleep/runtime tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2006-September/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r124%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20src/sleep/engine%0A%09src/sleep/parser%20src/sleep/runtime%20tests%20tests/output&In-Reply-To=%3C200609241813.k8OIDMdO024547%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000105.html">
+   <LINK REL="Next"  HREF="000107.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r124 - in sleep: . src/sleep/bridges src/sleep/engine	src/sleep/parser src/sleep/runtime tests tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r124%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20src/sleep/engine%0A%09src/sleep/parser%20src/sleep/runtime%20tests%20tests/output&In-Reply-To=%3C200609241813.k8OIDMdO024547%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r124 - in sleep: . src/sleep/bridges src/sleep/engine	src/sleep/parser src/sleep/runtime tests tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Sun Sep 24 20:13:22 CEST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000105.html">[Sleep-svn] r123 - in sleep: . src/sleep/bridges	src/sleep/engine/atoms
+</A></li>
+        <LI>Next message: <A HREF="000107.html">[Sleep-svn] r125 - in sleep: . src/sleep/bridges tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#106">[ date ]</a>
+              <a href="thread.html#106">[ thread ]</a>
+              <a href="subject.html#106">[ subject ]</a>
+              <a href="author.html#106">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2006-09-24 20:13:22 +0200 (Sun, 24 Sep 2006)
+New Revision: 124
+
+Added:
+   sleep/tests/nparams.sl
+   sleep/tests/output/nparams.sl
+   sleep/tests/output/pep255.sl
+   sleep/tests/pep255.sl
+Modified:
+   sleep/src/sleep/bridges/SleepClosure.java
+   sleep/src/sleep/engine/GeneratedSteps.java
+   sleep/src/sleep/engine/Step.java
+   sleep/src/sleep/parser/CodeGenerator.java
+   sleep/src/sleep/runtime/ScriptVariables.java
+   sleep/tests/cor_return.sl
+   sleep/whatsnew.txt
+Log:
+Recursive coroutines!
+
+
+
+Modified: sleep/src/sleep/bridges/SleepClosure.java
+===================================================================
+--- sleep/src/sleep/bridges/SleepClosure.java	2006-09-18 19:08:16 UTC (rev 123)
++++ sleep/src/sleep/bridges/SleepClosure.java	2006-09-24 18:13:22 UTC (rev 124)
+@@ -73,7 +73,7 @@
+     Block                code;
+ 
+     /** the owning script associated with this sleep closure */
+-    ScriptInstance      owner; 
++    ScriptInstance      owner;
+ 
+     /** the saved context of this closure */
+     Stack             context;
+@@ -81,6 +81,27 @@
+     /** the meta data for this closure context */
+     HashMap          metadata; 
+ 
++    /** saves the top level context */
++    private void saveToplevelContext(Stack _context, Variable localLevel)
++    {
++       if (!_context.isEmpty())
++       {
++          _context.push(localLevel); /* push the local vars on to the top of the context stack,
++                                        this better be popped before use!!! */
++          context.push(_context);
++       }
++    }
++
++    /** returns the top most context stack... */
++    private Stack getToplevelContext()
++    {
++       if (context.isEmpty())
++       {
++          return new Stack();
++       }
++       return (Stack)context.pop();
++    }
++
+     public String toString()
+     {
+        return &quot;&amp;closure&quot; + hashCode();
+@@ -155,16 +176,27 @@
+        ScriptVariables   vars = si.getScriptVariables();
+        ScriptEnvironment env  = si.getScriptEnvironment();
+ 
++       Variable          localLevel;
++
+        Scalar temp; // return value of subroutine.
+ 
+        synchronized (vars)
+        {
+-          env.loadContext(context, metadata);
++          Stack toplevel = getToplevelContext();
++          env.loadContext(toplevel, metadata);
+ 
+           vars.pushClosureLevel(this);
+-          vars.pushLocalLevel();
+ 
+-          Variable localLevel = vars.getLocalVariables();
++          if (toplevel.isEmpty()) /* a normal closure call */
++          {
++             vars.pushLocalLevel();
++             localLevel = vars.getLocalVariables();
++          }
++          else /* restoring from a coroutine */
++          {
++             localLevel = (Variable)toplevel.pop();
++             vars.pushLocalLevel(localLevel);
++          }
+ 
+           vars.setScalarLevel(&quot;$0&quot;, SleepUtils.getScalar(message), localLevel);
+ 
+@@ -202,7 +234,7 @@
+           //
+           // call the function, save the scalar that was returned. 
+           //
+-          if (context.isEmpty())
++          if (toplevel.isEmpty())
+           {
+              temp = code.evaluate(env);
+           }
+@@ -211,7 +243,7 @@
+              temp = env.evaluateOldContext();
+           }
+ 
+-          context = env.saveContext();
++          saveToplevelContext(env.saveContext(), localLevel);
+ 
+           vars.popLocalLevel();
+           vars.popClosureLevel();
+
+Modified: sleep/src/sleep/engine/GeneratedSteps.java
+===================================================================
+--- sleep/src/sleep/engine/GeneratedSteps.java	2006-09-18 19:08:16 UTC (rev 123)
++++ sleep/src/sleep/engine/GeneratedSteps.java	2006-09-24 18:13:22 UTC (rev 124)
+@@ -46,6 +46,12 @@
+        return temp;
+     }
+ 
++    public static Step NullOperation()
++    {
++       Step temp = new Step();
++       return temp;
++    }
++
+     public static Step IteratorCreate(String key, String value)
+     {
+        return new Iterate(key, value, Iterate.ITERATOR_CREATE);
+
+Modified: sleep/src/sleep/engine/Step.java
+===================================================================
+--- sleep/src/sleep/engine/Step.java	2006-09-18 19:08:16 UTC (rev 123)
++++ sleep/src/sleep/engine/Step.java	2006-09-24 18:13:22 UTC (rev 124)
+@@ -30,7 +30,7 @@
+ &lt;/pre&gt; */
+ 
+ 
+-public abstract class Step implements Serializable
++public class Step implements Serializable
+ {
+    /** the script line number that this step was generated from */
+    protected int  line;
+@@ -57,6 +57,9 @@
+    }
+ 
+    /** evaluate this atomic step. */
+-   public abstract Scalar evaluate(ScriptEnvironment e);
++   public Scalar evaluate(ScriptEnvironment e) 
++   {
++      return SleepUtils.getEmptyScalar();
++   }
+ }
+ 
+
+Modified: sleep/src/sleep/parser/CodeGenerator.java
+===================================================================
+--- sleep/src/sleep/parser/CodeGenerator.java	2006-09-18 19:08:16 UTC (rev 123)
++++ sleep/src/sleep/parser/CodeGenerator.java	2006-09-24 18:13:22 UTC (rev 124)
+@@ -1058,6 +1058,15 @@
+            {
+               atom = GeneratedSteps.Return(ScriptEnvironment.FLOW_CONTROL_YIELD);
+               add(atom, tokens[0]);
++
++              /* for some reason, yield breaks in certain cases if a yield happens
++                 at the end of a block and no other steps come after it.  this has
++                 only reared its head once I started allowing recursive coroutines
++                 to combat the problem I've opted to introduce a null operation
++                 after each yield, this fixes the problem.  hopefully it doesn't
++                 show itself in some other way in the future.  :~( *cry* */
++              atom = GeneratedSteps.NullOperation();
++              add(atom, tokens[0]);
+            }
+            else
+            {
+
+Modified: sleep/src/sleep/runtime/ScriptVariables.java
+===================================================================
+--- sleep/src/sleep/runtime/ScriptVariables.java	2006-09-18 19:08:16 UTC (rev 123)
++++ sleep/src/sleep/runtime/ScriptVariables.java	2006-09-24 18:13:22 UTC (rev 124)
+@@ -207,6 +207,12 @@
+        closure.removeFirst();
+     }
+ 
++    /** makes the specified variable container active for the local scope.  once the code that is using this has finished, it really should be popped. */
++    public void pushLocalLevel(Variable localVariables)
++    {
++       locals.addFirst(localVariables);
++    }
++
+     /** starts a new local variable scope.  once the code that is using this has finished, it should be popped */
+     public void pushLocalLevel()
+     {
+
+Modified: sleep/tests/cor_return.sl
+===================================================================
+--- sleep/tests/cor_return.sl	2006-09-18 19:08:16 UTC (rev 123)
++++ sleep/tests/cor_return.sl	2006-09-24 18:13:22 UTC (rev 124)
+@@ -15,7 +15,9 @@
+ 
+    yield 3;
+   
+-   yield 4;
++   return 4; # this last return is required, if this was a yield we would resume execution of this
++             # coroutine after this statement which would cause the sub to immediately return an
++             # implied $null.
+ }
+ 
+ println(&quot;Test 1: &quot;);
+@@ -35,10 +37,10 @@
+ println(a());
+ println(a());
+ println(a(&quot;boogidy boogidy&quot;));
+-println(a());
+ 
+ println(a());
+ println(a());
+ println(a());
+ println(a());
++println(a());
+ 
+
+Added: sleep/tests/nparams.sl
+===================================================================
+--- sleep/tests/nparams.sl	2006-09-18 19:08:16 UTC (rev 123)
++++ sleep/tests/nparams.sl	2006-09-24 18:13:22 UTC (rev 124)
+@@ -0,0 +1,56 @@
++#
++# a test of named parameters... fun eh?!?
++#
++
++debug(15);
++
++sub test1
++{
++   local('$test');
++   println(&quot;test1: $test&quot;);
++}
++
++test1($test =&gt; &quot;success!&quot;);
++test1();
++
++sub test2
++{
++   println(&quot;test2: $test&quot;);
++}
++
++test2($test =&gt; &quot;yes, another one&quot;);
++test2();
++
++sub test3
++{
++   this('$test');
++   println(&quot;test3: $test&quot;);
++   $test = ':)';
++}
++
++test3($test =&gt; 'eh?!?');
++test3(); # should print nothing because $test when it was set was in the local scope, higher priority over the this scope
++test3(); # should print a smiley since $test would have been in the this scope at this time
++
++sub test4
++{
++   local('$count $var');
++
++   foreach $count =&gt; $var (@_)
++   {
++      println(&quot;$[3]count = $var&quot;);
++   }
++
++   println(&quot;a: $a and b: $b and c: $c&quot;);
++}
++
++test4(&quot;a&quot;, &quot;b&quot;, $a =&gt; &quot;apple&quot;, &quot;c&quot;, $b =&gt; &quot;boy&quot;, &quot;d&quot;, $c =&gt; &quot;cat&quot;);
++
++sub test5
++{
++   println(&quot;Test 5 has been called, executing action:&quot;);
++   [$action];
++}
++
++test5($action =&gt; { println(&quot;The passed in closure has been called&quot;); });
++test5(action =&gt; { println(&quot;This will never happen! muah!&quot;); });
+
+Added: sleep/tests/output/nparams.sl
+===================================================================
+--- sleep/tests/output/nparams.sl	2006-09-18 19:08:16 UTC (rev 123)
++++ sleep/tests/output/nparams.sl	2006-09-24 18:13:22 UTC (rev 124)
+@@ -0,0 +1,47 @@
++Trace: &amp;local('$test') at line 9
++test1: success!
++Trace: &amp;println('test1: success!') at line 10
++Trace: &amp;test1($test =&gt; 'success!') at line 13
++Trace: &amp;local('$test') at line 9
++test1: 
++Trace: &amp;println('test1: ') at line 10
++Trace: &amp;test1() at line 14
++test2: yes, another one
++Trace: &amp;println('test2: yes, another one') at line 18
++Trace: &amp;test2($test =&gt; 'yes, another one') at line 21
++Warning: variable '$test' not declared at line 18
++test2: 
++Trace: &amp;println('test2: ') at line 18
++Trace: &amp;test2() at line 22
++Trace: &amp;this('$test') at line 26
++test3: eh?!?
++Trace: &amp;println('test3: eh?!?') at line 27
++Trace: &amp;test3($test =&gt; 'eh?!?') at line 31
++Trace: &amp;this('$test') at line 26
++test3: 
++Trace: &amp;println('test3: ') at line 27
++Trace: &amp;test3() at line 32
++Trace: &amp;this('$test') at line 26
++test3: :)
++Trace: &amp;println('test3: :)') at line 27
++Trace: &amp;test3() at line 33
++Trace: &amp;local('$count $var') at line 37
++0   = a
++Trace: &amp;println('0   = a') at line 41
++1   = b
++Trace: &amp;println('1   = b') at line 41
++2   = c
++Trace: &amp;println('2   = c') at line 41
++3   = d
++Trace: &amp;println('3   = d') at line 41
++a: apple and b: boy and c: cat
++Trace: &amp;println('a: apple and b: boy and c: cat') at line 44
++Trace: &amp;test4('a', 'b', $a =&gt; 'apple', 'c', $b =&gt; 'boy', 'd', $c =&gt; 'cat') at line 47
++Test 5 has been called, executing action:
++Trace: &amp;println('Test 5 has been called, executing action:') at line 51
++The passed in closure has been called
++Trace: &amp;println('The passed in closure has been called') at line 55
++Trace: [&amp;closure10363227] at line 52
++Trace: &amp;test5($action =&gt; &amp;closure10363227) at line 55
++Trace: &amp;test5(action =&gt; &amp;closure10481832) - FAILED! at line 56
++Warning: unreachable named parameter: action at line 56
+
+Added: sleep/tests/output/pep255.sl
+===================================================================
+--- sleep/tests/output/pep255.sl	2006-09-18 19:08:16 UTC (rev 123)
++++ sleep/tests/output/pep255.sl	2006-09-24 18:13:22 UTC (rev 124)
+@@ -0,0 +1,30 @@
++In order tree traversal
++3
+++
++4
++root
++6
++-
++2
++*
++30
++Pre order tree traversal
++3
++4
+++
++6
++2
++-
++30
++*
++root
++Post order tree traversal
++root
+++
++3
++4
++*
++-
++6
++2
++30
+
+Added: sleep/tests/pep255.sl
+===================================================================
+--- sleep/tests/pep255.sl	2006-09-18 19:08:16 UTC (rev 123)
++++ sleep/tests/pep255.sl	2006-09-24 18:13:22 UTC (rev 124)
+@@ -0,0 +1,128 @@
++#
++# inspired by Python PEP 255... recursive generators for Sleep
++#
++
++# do an inorder traversal of a tree closure
++sub inorder
++{
++   local('$x');
++
++   if ($1 !is $null)
++   {
++      while $x (inorder([$1 left]))
++      {
++         yield $x;
++         local('$x');
++      }
++
++      yield [$1 label];
++
++      while $x (inorder([$1 right]))
++      {
++         yield $x;
++      } 
++   }
++
++   return $null;
++}
++
++# do a pre order traversal of a tree closure
++sub preorder
++{
++   local('$x');
++
++   if ($1 !is $null)
++   {
++      while $x (preorder([$1 left]))
++      {
++         yield $x;
++      }
++
++      while $x (preorder([$1 right]))
++      {
++         yield $x;
++      } 
++
++      yield [$1 label];
++   }
++
++   return $null;
++}
++
++# do a post order traversal of a tree closure
++sub postorder
++{
++   local('$x');
++
++   if ($1 !is $null)
++   {
++      yield [$1 label];
++
++      while $x (postorder([$1 left]))
++      {
++         yield $x;
++      }
++
++      while $x (postorder([$1 right]))
++      {
++         yield $x;
++      } 
++   }
++
++   return $null;
++}
++
++
++sub tree
++{
++   this('$label $left $right');
++
++   if ($0 eq &quot;print&quot;)
++   {
++      return &quot;( $+ $label $+ &quot; . iff ($left !is $null, &quot; &quot; . [$left print], &quot; ()&quot;) . iff($right !is $null, &quot; &quot; . [$right print], &quot; ()&quot;) . &quot;)&quot;;
++   }
++
++   if ($0 eq &quot;left&quot;)
++   {
++      return $left;
++   }
++
++   if ($0 eq &quot;right&quot;)
++   {
++      return $right;
++   }
++
++   if ($0 eq &quot;label&quot;)
++   {
++      return $label;
++   }
++}
++
++sub node
++{
++   return lambda(&amp;tree, $label =&gt; $1, $left =&gt; $2, $right =&gt; $3);
++} 
++
++$root = node(&quot;root&quot;, node(&quot;+&quot;, node(3), node(4)), node(&quot;*&quot;, node(&quot;-&quot;, node(6), node(2)), node(30)));
++
++println(&quot;In order tree traversal&quot;);
++
++while $traversal (inorder($root))
++{
++   println($traversal);
++}
++
++println(&quot;Pre order tree traversal&quot;);
++
++while $traversal (preorder($root))
++{
++   println($traversal);
++}
++
++println(&quot;Post order tree traversal&quot;);
++
++while $traversal (postorder($root))
++{
++   println($traversal);
++}
++
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-09-18 19:08:16 UTC (rev 123)
++++ sleep/whatsnew.txt	2006-09-24 18:13:22 UTC (rev 124)
+@@ -6,6 +6,10 @@
+   convert the key/value pair into a string i.e. $key=value
+ - improved function call traceing to detect when a function call failed and to
+   indicate that such an event occured.
++- coroutines are now allowed to call themselves in a recursive manner
++- when yield is called, the local variable state is preserved until the 
++  coroutine is called again (only when the coroutine is reset, i.e. exited w/o
++  a yield is the local variable state dropped).
+ 
+ 2.1-beta 5  (17 Sept 06)
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000105.html">[Sleep-svn] r123 - in sleep: . src/sleep/bridges	src/sleep/engine/atoms
+</A></li>
+	<LI>Next message: <A HREF="000107.html">[Sleep-svn] r125 - in sleep: . src/sleep/bridges tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#106">[ date ]</a>
+              <a href="thread.html#106">[ thread ]</a>
+              <a href="subject.html#106">[ subject ]</a>
+              <a href="author.html#106">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

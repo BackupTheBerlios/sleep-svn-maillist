@@ -1,0 +1,236 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r280 - in sleep: . src/sleep/bridges	src/sleep/engine/atoms tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2007-June/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r280%20-%20in%20sleep%3A%20.%20src/sleep/bridges%0A%09src/sleep/engine/atoms%20tests%20tests/output&In-Reply-To=%3C200706151859.l5FIx2be029597%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000258.html">
+   <LINK REL="Next"  HREF="000260.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r280 - in sleep: . src/sleep/bridges	src/sleep/engine/atoms tests tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r280%20-%20in%20sleep%3A%20.%20src/sleep/bridges%0A%09src/sleep/engine/atoms%20tests%20tests/output&In-Reply-To=%3C200706151859.l5FIx2be029597%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r280 - in sleep: . src/sleep/bridges	src/sleep/engine/atoms tests tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Fri Jun 15 20:59:02 CEST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000258.html">[Sleep-svn] r279 - in sleep: . src/sleep/console
+</A></li>
+        <LI>Next message: <A HREF="000260.html">[Sleep-svn] r281 - in sleep: . src/sleep/runtime tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#259">[ date ]</a>
+              <a href="thread.html#259">[ thread ]</a>
+              <a href="subject.html#259">[ subject ]</a>
+              <a href="author.html#259">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2007-06-15 20:59:01 +0200 (Fri, 15 Jun 2007)
+New Revision: 280
+
+Added:
+   sleep/tests/newInstance.sl
+   sleep/tests/output/newInstance.sl
+Modified:
+   sleep/src/sleep/bridges/BasicUtilities.java
+   sleep/src/sleep/engine/atoms/ObjectAccess.java
+   sleep/tests/border.sl
+   sleep/tests/output/border.sl
+   sleep/whatsnew.txt
+Log:
+..
+
+
+Modified: sleep/src/sleep/bridges/BasicUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicUtilities.java	2007-06-15 17:44:04 UTC (rev 279)
++++ sleep/src/sleep/bridges/BasicUtilities.java	2007-06-15 18:59:01 UTC (rev 280)
+@@ -103,6 +103,7 @@
+         temp.put(&quot;isa&quot;, this);
+         temp.put(&quot;&amp;setField&quot;, this);
+         temp.put(&quot;&amp;typeOf&quot;, this);
++        temp.put(&quot;&amp;newInstance&quot;, this);
+ 
+         temp.put(&quot;&amp;exit&quot;, this);
+      
+@@ -783,6 +784,25 @@
+              }
+           }
+        }
++       else if (n.equals(&quot;&amp;newInstance&quot;))
++       {
++          Scalar top = BridgeUtilities.getScalar(l);
++      
++          if (top.getArray() != null)
++          {
++             Class        clz[]   = (Class[])ObjectUtilities.buildArgument(Class[].class, top, i);
++             SleepClosure closure = (SleepClosure)BridgeUtilities.getObject(l);          
++
++             return SleepUtils.getScalar(ProxyInterface.BuildInterface(clz, closure, i));
++          }
++          else
++          {
++             Class        clz     = (Class)top.objectValue();
++             SleepClosure closure = (SleepClosure)BridgeUtilities.getObject(l);          
++
++             return SleepUtils.getScalar(SleepUtils.newInstance(clz, closure, i));
++          }
++       }
+        else if (n.equals(&quot;&amp;typeOf&quot;))
+        {
+           Scalar s = BridgeUtilities.getScalar(l);
+
+Modified: sleep/src/sleep/engine/atoms/ObjectAccess.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/ObjectAccess.java	2007-06-15 17:44:04 UTC (rev 279)
++++ sleep/src/sleep/engine/atoms/ObjectAccess.java	2007-06-15 18:59:01 UTC (rev 280)
+@@ -221,6 +221,10 @@
+                   {
+                      trace.append(theClass.getName() + &quot; &quot; + name + args + &quot;]&quot;);
+                   }
++                  else if (Proxy.isProxyClass(theClass))
++                  {
++                     trace.append(theClass.getName() + &quot; &quot; + name + args + &quot;]&quot;);
++                  }
+                   else
+                   {
+                      trace.append(SleepUtils.describe(scalar) + &quot; &quot; + name + args + &quot;]&quot;);
+
+Modified: sleep/tests/border.sl
+===================================================================
+--- sleep/tests/border.sl	2007-06-15 17:44:04 UTC (rev 279)
++++ sleep/tests/border.sl	2007-06-15 18:59:01 UTC (rev 280)
+@@ -30,3 +30,5 @@
+ 
+ println(@test);
+ 
++println(subarray(@(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;, &quot;d&quot;, &quot;e&quot;), 2));
++println(substr(&quot;abcde&quot;, 2));
+
+Added: sleep/tests/newInstance.sl
+===================================================================
+--- sleep/tests/newInstance.sl	2007-06-15 17:44:04 UTC (rev 279)
++++ sleep/tests/newInstance.sl	2007-06-15 18:59:01 UTC (rev 280)
+@@ -0,0 +1,37 @@
++debug(7);
++
++sub foo
++{
++   if ($0 eq &quot;toString&quot;)
++   {
++      return &quot;&lt;&amp;foo as an object&gt;&quot;;
++   }
++
++   local('$a');
++
++   println(&quot;I have been called with: $0&quot;);
++   println(&quot;My args are:&quot;);
++   foreach $n =&gt; $a (@_)
++   {
++      println(&quot;  $n =&gt; $a&quot;);
++   }
++
++   return 3;
++}
++
++global('$action');
++$action = newInstance(^Comparable, &amp;foo);
++println(&quot;Class:      &quot; . [$action getClass]);
++println(&quot;Interfaces: &quot; . [[$action getClass] getInterfaces]); 
++println(&quot;Value:      &quot; . $action);
++
++debug(7 | 15);
++println([$action compareTo: &quot;foo&quot;]);
++
++debug(7);
++
++$action = newInstance(@(^List, ^Comparable), &amp;foo);
++println(&quot;Class:      &quot; . [$action getClass]);
++println(&quot;Interfaces: &quot; . [[$action getClass] getInterfaces]); 
++println(&quot;Value:      &quot; . $action);
++
+
+Modified: sleep/tests/output/border.sl
+===================================================================
+--- sleep/tests/output/border.sl	2007-06-15 17:44:04 UTC (rev 279)
++++ sleep/tests/output/border.sl	2007-06-15 18:59:01 UTC (rev 280)
+@@ -14,3 +14,5 @@
+ abc
+ @('a', 'b', 'c', 'd', 'e')
+ @('v', 'w', 'x', 'y')
++@('c', 'd', 'e')
++cde
+
+Added: sleep/tests/output/newInstance.sl
+===================================================================
+--- sleep/tests/output/newInstance.sl	2007-06-15 17:44:04 UTC (rev 279)
++++ sleep/tests/output/newInstance.sl	2007-06-15 18:59:01 UTC (rev 280)
+@@ -0,0 +1,18 @@
++Class:      class $Proxy0
++Interfaces: @(interface java.lang.Comparable)
++Value:      &lt;&amp;foo as an object&gt;
++Trace: &amp;local('$a') at newInstance.sl:10
++I have been called with: compareTo
++Trace: &amp;println('I have been called with: compareTo') at newInstance.sl:12
++My args are:
++Trace: &amp;println('My args are:') at newInstance.sl:13
++  0 =&gt; foo
++Trace: &amp;println('  0 =&gt; foo') at newInstance.sl:16
++Trace: [&amp;closure[newInstance.sl:5-19]#1 compareTo: 'foo'] = 3 at &lt;Java&gt;:-1
++Trace: [$Proxy0 compareTo: 'foo'] = 3 at newInstance.sl:29
++3
++Trace: &amp;println(3) at newInstance.sl:29
++Trace: &amp;debug(7) = 7 at newInstance.sl:31
++Class:      class $Proxy1
++Interfaces: @(interface java.util.List, interface java.lang.Comparable)
++Value:      &lt;&amp;foo as an object&gt;
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2007-06-15 17:44:04 UTC (rev 279)
++++ sleep/whatsnew.txt	2007-06-15 18:59:01 UTC (rev 280)
+@@ -25,6 +25,8 @@
+   as the type to cast to.  
+ - added a lindexOf function to obtain the last index of a substring
+ - sleep console now shares one pool of imported packages for evaluations
++- added newInstance(^Class|@, &amp;closure) for creating a proxy instance
++  of a Java object backed by the specified interfaces
+ 
+ 2.1-beta 16  (11 Jun 07)
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000258.html">[Sleep-svn] r279 - in sleep: . src/sleep/console
+</A></li>
+	<LI>Next message: <A HREF="000260.html">[Sleep-svn] r281 - in sleep: . src/sleep/runtime tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#259">[ date ]</a>
+              <a href="thread.html#259">[ thread ]</a>
+              <a href="subject.html#259">[ subject ]</a>
+              <a href="author.html#259">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

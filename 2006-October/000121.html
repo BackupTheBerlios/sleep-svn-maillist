@@ -1,0 +1,188 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r139 - in sleep: . docs src src/sleep/runtime
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2006-October/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r139%20-%20in%20sleep%3A%20.%20docs%20src%20src/sleep/runtime&In-Reply-To=%3C200610160053.k9G0r6pd006317%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000120.html">
+   <LINK REL="Next"  HREF="000122.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r139 - in sleep: . docs src src/sleep/runtime</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r139%20-%20in%20sleep%3A%20.%20docs%20src%20src/sleep/runtime&In-Reply-To=%3C200610160053.k9G0r6pd006317%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r139 - in sleep: . docs src src/sleep/runtime">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Mon Oct 16 02:53:06 CEST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000120.html">[Sleep-svn] r138 - in sleep: . src/sleep/console
+</A></li>
+        <LI>Next message: <A HREF="000122.html">[Sleep-svn] r140 - in sleep: . src/sleep/bridges tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#121">[ date ]</a>
+              <a href="thread.html#121">[ thread ]</a>
+              <a href="subject.html#121">[ subject ]</a>
+              <a href="author.html#121">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2006-10-16 02:53:05 +0200 (Mon, 16 Oct 2006)
+New Revision: 139
+
+Modified:
+   sleep/docs/sleeplang.html
+   sleep/readme.txt
+   sleep/src/count.pl
+   sleep/src/sleep/runtime/SleepUtils.java
+Log:
+Sleep 2.1-b7
+
+
+
+Modified: sleep/docs/sleeplang.html
+===================================================================
+--- sleep/docs/sleeplang.html	2006-10-16 00:13:10 UTC (rev 138)
++++ sleep/docs/sleeplang.html	2006-10-16 00:53:05 UTC (rev 139)
+@@ -382,6 +382,10 @@
+   &lt;td&gt;is the specified value a scalar array&lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
++  &lt;td&gt;-isfunction&lt;/td&gt;
++  &lt;td&gt;does the specified scalar hold a function&lt;/td&gt;
++ &lt;/tr&gt;
++ &lt;tr&gt;
+   &lt;td&gt;-ishash&lt;/td&gt;
+   &lt;td&gt;is the specified value a scalar hash&lt;/td&gt;
+  &lt;/tr&gt;
+@@ -1514,6 +1518,22 @@
+ &lt;p&gt;Another special variable available within closures is the &lt;var&gt;$this&lt;/var&gt; variable.  &lt;var&gt;$this&lt;/var&gt; refers to &quot;this&quot; 
+ closure.&lt;/p&gt;
+ 
++&lt;h4&gt;Indexing Closures&lt;/h4&gt;
++
++&lt;p&gt;The index operation applied to a closure obtains a value from the closure's &quot;this&quot; scope.&lt;/p&gt;
++
++&lt;pre&gt;sub life_universe_and_everything
++{
++   this('$answer');
++   $answer = 42;
++}
++
++life_universe_and_everything(); # nothing is available until 
++                                # the function actually executes
++
++println(&quot;What is the meaning of it all? &quot; . &amp;life_universe_and_everything['$answer']);
++&amp;life_universe_and_everything['$question'] = &quot;Unknown?!?&quot;;&lt;/pre&gt;
++
+ &lt;h3&gt;Accumulator Example&lt;/h3&gt;
+ 
+ &lt;p&gt;This first example is a Sleep Accumulator Generator.  An Accumulator Generator is a function that takes a parameter
+@@ -2491,6 +2511,11 @@
+   &lt;td&gt;parses the specified string and declares all variables in the string as global variables.&lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
++  &lt;td&gt;$&lt;/td&gt;
++  &lt;td&gt;invoke(&amp;closure, @args, [&quot;message&quot;])&lt;/td&gt;
++  &lt;td&gt;invokes the specified closure using the specified array for each individual argument.  the message parameter ($0) can be specified as well.&lt;/td&gt;
++ &lt;/tr&gt;
++ &lt;tr&gt; 
+   &lt;td&gt;&amp;&lt;/td&gt;
+   &lt;td&gt;lambda(&amp;closure,&nbsp;$key&nbsp;=&gt;&nbsp;&quot;value&quot;,&nbsp;...)&lt;/td&gt;
+   &lt;td&gt;copies &amp;closure into a new closure.  The closure environment is initialized with all of the key/value pair arguments.&lt;/td&gt;
+@@ -2512,8 +2537,8 @@
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td&gt;&lt;/td&gt;
+-  &lt;td&gt;setField(class|$object, &quot;field&quot;, value)&lt;/td&gt;
+-  &lt;td&gt;sets a public/protected field of the specified class or instance of $object to a specified value.&lt;/td&gt;
++  &lt;td&gt;setField(class|$object, field =&gt; value, ...)&lt;/td&gt;
++  &lt;td&gt;sets any number of public/protected fields of the specified class or instance of $object to a corresponding value.&lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td&gt;$&lt;/td&gt;
+
+Modified: sleep/readme.txt
+===================================================================
+--- sleep/readme.txt	2006-10-16 00:13:10 UTC (rev 138)
++++ sleep/readme.txt	2006-10-16 00:53:05 UTC (rev 139)
+@@ -1,5 +1,5 @@
+  ------- -------------------- ---------   ---------------  ------- ---------
+-Sleep - 2.1 beta 6 - README   
++Sleep - 2.1 beta 7 - README   
+ -  ------------- -------- -   ---------------- --       -    -     -     - - -
+ 
+ &quot;You got the language, all you need now is the O'Reilly book&quot;.  That is
+@@ -89,6 +89,10 @@
+ 
+ [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">raffi at beardsley</A> ~/sleep/bin]$ java -jar sleep.jar
+ 
++For Sleep interpreter usage information:
++
++[<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">raffi at beardsley</A> ~/sleep/bin]$ java -jar sleep.jar --help
++
+ To launch a sleep script from the command line:
+ 
+ [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">raffi at beardsley</A> ~/sleep/bin]$ java -jar sleep.jar filename.sl
+
+Modified: sleep/src/count.pl
+===================================================================
+--- sleep/src/count.pl	2006-10-16 00:13:10 UTC (rev 138)
++++ sleep/src/count.pl	2006-10-16 00:53:05 UTC (rev 139)
+@@ -14,7 +14,7 @@
+ 
+ foreach $var (@files)
+ {
+-   $c = `wc --lines $var`;
++   $c = `wc -l $var`;
+    $c = join(&quot;&quot;, split(/ /, $c));
+    @t = split(/\./, $c);
+    $count += $t[0];
+
+Modified: sleep/src/sleep/runtime/SleepUtils.java
+===================================================================
+--- sleep/src/sleep/runtime/SleepUtils.java	2006-10-16 00:13:10 UTC (rev 138)
++++ sleep/src/sleep/runtime/SleepUtils.java	2006-10-16 00:53:05 UTC (rev 139)
+@@ -49,7 +49,7 @@
+ public class SleepUtils
+ {
+    /** A date stamp of this Sleep release in YYYYMMDD format */
+-   public static final int    SLEEP_RELEASE = 20061001;
++   public static final int    SLEEP_RELEASE = 20061015;
+ 
+    /** A string description of this Sleep release */
+    public static final String SLEEP_VERSION = &quot;Sleep 2.1&quot;;
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000120.html">[Sleep-svn] r138 - in sleep: . src/sleep/console
+</A></li>
+	<LI>Next message: <A HREF="000122.html">[Sleep-svn] r140 - in sleep: . src/sleep/bridges tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#121">[ date ]</a>
+              <a href="thread.html#121">[ thread ]</a>
+              <a href="subject.html#121">[ subject ]</a>
+              <a href="author.html#121">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

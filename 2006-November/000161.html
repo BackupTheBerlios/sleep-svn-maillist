@@ -1,0 +1,508 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r179 - in sleep: . src/sleep/engine	src/sleep/engine/atoms src/sleep/parser tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2006-November/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r179%20-%20in%20sleep%3A%20.%20src/sleep/engine%0A%09src/sleep/engine/atoms%20src/sleep/parser%20tests%20tests/output&In-Reply-To=%3C200611210212.kAL2CUqE000773%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000160.html">
+   <LINK REL="Next"  HREF="000162.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r179 - in sleep: . src/sleep/engine	src/sleep/engine/atoms src/sleep/parser tests tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r179%20-%20in%20sleep%3A%20.%20src/sleep/engine%0A%09src/sleep/engine/atoms%20src/sleep/parser%20tests%20tests/output&In-Reply-To=%3C200611210212.kAL2CUqE000773%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r179 - in sleep: . src/sleep/engine	src/sleep/engine/atoms src/sleep/parser tests tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Tue Nov 21 03:12:30 CET 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000160.html">[Sleep-svn] r178 - in sleep: . src/sleep/parser
+</A></li>
+        <LI>Next message: <A HREF="000162.html">[Sleep-svn] r180 - in sleep/tests: . output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#161">[ date ]</a>
+              <a href="thread.html#161">[ thread ]</a>
+              <a href="subject.html#161">[ subject ]</a>
+              <a href="author.html#161">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2006-11-21 03:12:26 +0100 (Tue, 21 Nov 2006)
+New Revision: 179
+
+Added:
+   sleep/tests/output/preced.sl
+   sleep/tests/preced.sl
+Modified:
+   sleep/build.xml
+   sleep/src/sleep/engine/GeneratedSteps.java
+   sleep/src/sleep/engine/atoms/Assign.java
+   sleep/src/sleep/engine/atoms/AssignT.java
+   sleep/src/sleep/parser/CodeGenerator.java
+   sleep/src/sleep/parser/LexicalAnalyzer.java
+   sleep/src/sleep/parser/ParserConstants.java
+   sleep/src/sleep/parser/StringIterator.java
+   sleep/src/sleep/parser/TokenParser.java
+   sleep/whatsnew.txt
+Log:
+added assignment ops, I too find it hard to believe but they are in there... ooh
+
+
+
+Modified: sleep/build.xml
+===================================================================
+--- sleep/build.xml	2006-11-20 20:16:20 UTC (rev 178)
++++ sleep/build.xml	2006-11-21 02:12:26 UTC (rev 179)
+@@ -16,7 +16,7 @@
+            destdir=&quot;${project.build}&quot;
+            nowarn=&quot;yes&quot;
+            depend=&quot;yes&quot;
+-           debug=&quot;false&quot;
++           debug=&quot;true&quot;
+            source=&quot;1.4&quot;
+            target=&quot;1.4&quot;
+            optimize=&quot;yes&quot;
+
+Modified: sleep/src/sleep/engine/GeneratedSteps.java
+===================================================================
+--- sleep/src/sleep/engine/GeneratedSteps.java	2006-11-20 20:16:20 UTC (rev 178)
++++ sleep/src/sleep/engine/GeneratedSteps.java	2006-11-21 02:12:26 UTC (rev 179)
+@@ -100,12 +100,24 @@
+        return temp;
+     }
+ 
++    public static Step AssignAndOperate(Block variable, String operator)
++    {
++       Step temp = new Assign(variable, new Operate(operator));
++       return temp;
++    }
++
+     public static Step AssignT()
+     {
+        Step temp = new AssignT();
+        return temp;
+     }
+ 
++    public static Step AssignTupleAndOperate(String operator)
++    {
++       Step temp = new AssignT(new Operate(operator));
++       return temp;
++    }
++
+     public static Step CreateFrame()
+     {
+        Step temp = new CreateFrame();
+
+Modified: sleep/src/sleep/engine/atoms/Assign.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/Assign.java	2006-11-20 20:16:20 UTC (rev 178)
++++ sleep/src/sleep/engine/atoms/Assign.java	2006-11-21 02:12:26 UTC (rev 179)
+@@ -29,13 +29,20 @@
+ 
+ public class Assign extends Step
+ {
+-   Block variable;
++   Block   variable = null;
++   Operate operator = null;
+     
+-   public Assign(Block var)
++   public Assign(Block var, Operate op)
+    {
++      operator = op;
+       variable = var;
+    }
+ 
++   public Assign(Block var)
++   {
++      this(var, null);
++   }
++
+    public String toString(String prefix)
+    {
+       StringBuffer temp = new StringBuffer();
+@@ -70,10 +77,19 @@
+          variable.evaluate(e);
+          putv  = (Scalar)(e.getCurrentFrame().pop());
+       e.KillFrame();
+- 
++
+       value = (Scalar)(e.getCurrentFrame().pop());
++
++      if (operator != null)
++      {
++         e.CreateFrame();
++         e.getCurrentFrame().push(value); // rhs
++         e.getCurrentFrame().push(putv);  // lhs - operate expects vars in a weird order.
++         operator.evaluate(e);
++         value = (Scalar)e.getCurrentFrame().pop();
++      }
++
+       putv.setValue(value);    
+-
+       e.FrameResult(value);
+       return null;
+    }
+
+Modified: sleep/src/sleep/engine/atoms/AssignT.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/AssignT.java	2006-11-20 20:16:20 UTC (rev 178)
++++ sleep/src/sleep/engine/atoms/AssignT.java	2006-11-21 02:12:26 UTC (rev 179)
+@@ -29,6 +29,18 @@
+ 
+ public class AssignT extends Step
+ {
++   protected Operate operator;
++
++   public AssignT(Operate op)
++   {
++      operator = op;
++   }
++
++   public AssignT()
++   {
++      this(null);
++   }
++
+    public String toString(String prefix)
+    {
+       StringBuffer temp = new StringBuffer();
+@@ -51,23 +63,50 @@
+    {
+       Scalar   putv;
+       Scalar   value;
+-      Stack    variables = e.getCurrentFrame();
++      Iterator variter = null;
+ 
+-      Scalar   scalar = (Scalar)variables.pop();
++      Scalar scalar    = (Scalar)e.getCurrentFrame().pop(); /* source of our values */
++      Scalar check     = (Scalar)e.getCurrentFrame().peek();
+ 
++      if (e.getCurrentFrame().size() == 1 &amp;&amp; check.getArray() != null &amp;&amp; operator != null)
++      {
++         variter = check.getArray().scalarIterator();
++      }
++      else
++      {
++         variter = e.getCurrentFrame().iterator();
++      }
++
+       if (scalar.getArray() == null)
+       {
+-         Iterator i = variables.iterator();
++         Iterator i = variter;
+          while (i.hasNext())
+          {
+-            ((Scalar)i.next()).setValue(scalar.getValue()); // copying of value or ref handled by Scalar class
++            putv = (Scalar)i.next();
++
++            if (operator != null)
++            {
++               e.CreateFrame();
++               e.CreateFrame();
++               e.getCurrentFrame().push(scalar); // rhs
++               e.getCurrentFrame().push(putv);  // lhs - operate expects vars in a weird order.
++               operator.evaluate(e);
++               putv.setValue((Scalar)e.getCurrentFrame().pop());
++               e.KillFrame(); // need two frames, one for the operator atomic step and another
++                              // to avoid a concurrent modification exception.
++            }
++            else
++            {
++               putv.setValue(scalar); // copying of value or ref handled by Scalar class
++            }
+          }          
+          e.KillFrame();
+          return null;
+       }
+ 
++      try {
+       Iterator values = scalar.getArray().scalarIterator();
+-      Iterator putvs  = variables.iterator();
++      Iterator putvs  = variter;
+ 
+       while (putvs.hasNext())
+       {
+@@ -81,11 +120,22 @@
+          {
+             value = SleepUtils.getEmptyScalar();
+          }
++
++         if (operator != null)
++         {
++            e.CreateFrame();
++            e.CreateFrame();
++            e.getCurrentFrame().push(value); // rhs
++            e.getCurrentFrame().push(putv);  // lhs - operate expects vars in a weird order.
++            operator.evaluate(e);
++            value = (Scalar)e.getCurrentFrame().pop();
++            e.KillFrame(); // see explanation above...
++         }
+  
+          putv.setValue(value);
+       }
+ 
+-      e.FrameResult(scalar);
++      e.FrameResult(scalar); } catch (Exception ex) { ex.printStackTrace(); }
+       return null;
+    }
+ }
+
+Modified: sleep/src/sleep/parser/CodeGenerator.java
+===================================================================
+--- sleep/src/sleep/parser/CodeGenerator.java	2006-11-20 20:16:20 UTC (rev 178)
++++ sleep/src/sleep/parser/CodeGenerator.java	2006-11-21 02:12:26 UTC (rev 179)
+@@ -879,6 +879,7 @@
+ 
+            break;
+          case EXPR_ASSIGNMENT_T:                                  // implemented
++         case EXPR_ASSIGNMENT_T_OP:
+            atom = GeneratedSteps.CreateFrame();
+            add(atom, tokens[0]);
+ 
+@@ -892,10 +893,18 @@
+ 
+            parseIdea(tokens[2]);
+ 
+-           atom = GeneratedSteps.AssignT();
++           if (datum.getType() == EXPR_ASSIGNMENT_T_OP)
++           {
++              atom = GeneratedSteps.AssignTupleAndOperate(strings[1].substring(0, strings[1].length() - 1));
++           }
++           else
++           {
++              atom = GeneratedSteps.AssignT();
++           }
+            add(atom, tokens[0]);
+            break;
+          case EXPR_ASSIGNMENT:                                  // implemented
++         case EXPR_ASSIGNMENT_OP:                                  // implemented
+            atom = GeneratedSteps.CreateFrame();
+            add(atom, tokens[2]);
+ 
+@@ -904,7 +913,14 @@
+            backup();
+            parseIdea(tokens[0]);
+ 
+-           atom = GeneratedSteps.Assign(restore());
++           if (datum.getType() == EXPR_ASSIGNMENT_OP)
++           {
++              atom = GeneratedSteps.AssignAndOperate(restore(), strings[1].substring(0, strings[1].length() - 1));
++           }
++           else
++           {
++              atom = GeneratedSteps.Assign(restore());
++           }
+            add(atom, tokens[2]);
+            break;
+          case EXPR_IF_ELSE:                                // done
+
+Modified: sleep/src/sleep/parser/LexicalAnalyzer.java
+===================================================================
+--- sleep/src/sleep/parser/LexicalAnalyzer.java	2006-11-20 20:16:20 UTC (rev 178)
++++ sleep/src/sleep/parser/LexicalAnalyzer.java	2006-11-21 02:12:26 UTC (rev 179)
+@@ -62,7 +62,7 @@
+    // using this effectively removes the white space requirement for said built in operator.  
+    private static boolean isBuiltInOperator(char f, StringBuffer aTerm, StringIterator iter)
+    {
+-      if (f == '.' &amp;&amp; (aTerm.length() &lt;= 0 || !(Character.isDigit(aTerm.charAt(aTerm.length() - 1)) &amp;&amp; aTerm.charAt(0) != '$')))
++      if (f == '.' &amp;&amp; (aTerm.length() &lt;= 0 || !(Character.isDigit(aTerm.charAt(aTerm.length() - 1)) &amp;&amp; aTerm.charAt(0) != '$')) &amp;&amp; !iter.isNextChar('='))
+       {
+          return true;
+       }
+
+Modified: sleep/src/sleep/parser/ParserConstants.java
+===================================================================
+--- sleep/src/sleep/parser/ParserConstants.java	2006-11-20 20:16:20 UTC (rev 178)
++++ sleep/src/sleep/parser/ParserConstants.java	2006-11-21 02:12:26 UTC (rev 179)
+@@ -7,6 +7,8 @@
+    public static final int EXPR_WHILE_SPECIAL   = 101;       
+    public static final int EXPR_ASSIGNMENT      = 200;
+    public static final int EXPR_ASSIGNMENT_T    = 202;
++   public static final int EXPR_ASSIGNMENT_OP   = 203;
++   public static final int EXPR_ASSIGNMENT_T_OP = 204;
+    public static final int EXPR_IF              = 300;
+    public static final int EXPR_IF_ELSE         = 301;
+    public static final int EXPR_FOREACH         = 400;
+
+Modified: sleep/src/sleep/parser/StringIterator.java
+===================================================================
+--- sleep/src/sleep/parser/StringIterator.java	2006-11-20 20:16:20 UTC (rev 178)
++++ sleep/src/sleep/parser/StringIterator.java	2006-11-21 02:12:26 UTC (rev 179)
+@@ -53,6 +53,11 @@
+       return position - begin;
+    }
+ 
++   public boolean isNextChar(char n)
++   {
++      return hasNext() &amp;&amp; text[position] == n;
++   }
++
+    public char next()
+    {
+       char current = text[position];
+
+Modified: sleep/src/sleep/parser/TokenParser.java
+===================================================================
+--- sleep/src/sleep/parser/TokenParser.java	2006-11-20 20:16:20 UTC (rev 178)
++++ sleep/src/sleep/parser/TokenParser.java	2006-11-21 02:12:26 UTC (rev 179)
+@@ -686,7 +686,20 @@
+             myToken.add(tokens[x+3]);
+             x += 3;
+          }
+-         // assignment statement check...
++         else if ((check = findPrecedentOperators(myToken, data, x, &quot;+= -= *= .= /= %= |= &amp;= ^=&quot;, 2)) != x ||
++                  (check = findPrecedentOperators(myToken, data, x, &quot;&lt;&lt;= &gt;&gt;=&quot;, 3)) != x) // checking for a assignment :)
++         {
++            if (Checkers.isExpression(strings[x]))
++            {
++               myToken.setType(EXPR_ASSIGNMENT_T_OP);
++            }
++            else
++            {
++               myToken.setType(EXPR_ASSIGNMENT_OP);
++            }
++
++            x = check;
++         }
+          else if ((check = findPrecedentOperators(myToken, data, x, &quot;=&quot;, 1)) != x) // checking for a assignment :)
+          {
+             if (Checkers.isExpression(strings[x]))
+
+Added: sleep/tests/output/preced.sl
+===================================================================
+--- sleep/tests/output/preced.sl	2006-11-20 20:16:20 UTC (rev 178)
++++ sleep/tests/output/preced.sl	2006-11-21 02:12:26 UTC (rev 179)
+@@ -0,0 +1,12 @@
++%(key =&gt; 'value', 3 =&gt; 'blah') and %(key =&gt; 'value', 3 =&gt; 'blah') and %(key =&gt; 'value', 3 =&gt; 'blah')
++9
++$x = 5; $y = 5; $z = 5
++$x = 10; $y = 10; $z = 10
++$x = 7; $y = 8; $z = 9
++$x = 28; $y = 32; $z = 36
++@(50, 48, 42)
++@('this is a test')
++@('this is a test3')
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">+ at a</A>: @('a', 'b', 'c')
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">+ at b</A>: @('d', 'e', 'f')
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">+ at c</A>: @('g', 'h', 'i')
+
+Added: sleep/tests/preced.sl
+===================================================================
+--- sleep/tests/preced.sl	2006-11-20 20:16:20 UTC (rev 178)
++++ sleep/tests/preced.sl	2006-11-21 02:12:26 UTC (rev 179)
+@@ -0,0 +1,54 @@
++#
++#
++#
++
++# demonstrating a test of a bug fix.
++($x, $y, $z) = %(key =&gt; &quot;value&quot;);
++
++$x[&quot;3&quot;] = &quot;blah&quot;;
++println(&quot;$x and $y and $z&quot;);
++
++# show off assignment op on simple scalars
++$x = 3;
++$x += 10;
++$x -= 4;
++println($x);
++
++# assignment op with tuples... ooh...
++
++($x, $y, $z) = 5;
++println(&quot;\$x = $x $+ ; \$y = $y $+ ; \$z = $z&quot;);
++
++($x, $y, $z) *= 2;
++println(&quot;\$x = $x $+ ; \$y = $y $+ ; \$z = $z&quot;);
++
++($x, $y, $z) -= @(3, 2, 1);
++println(&quot;\$x = $x $+ ; \$y = $y $+ ; \$z = $z&quot;);
++
++($x, $y, $z) &lt;&lt;= 2;
++println(&quot;\$x = $x $+ ; \$y = $y $+ ; \$z = $z&quot;);
++
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">+ at a</A> = @(10, 12, 14);
++
++# special case... one element..
++(@a) *= @(5, 4, 3);
++println(@a);
++
++# normal assignment works different than op assignment... basically this will
++# assign the first element of the anonymous array to @a (the element happens to be
++# an array itself).  
++(@a) = @(@(&quot;this is a test&quot;));
++println(@a);
++
++#
++# append 3, 4, and 5 to the first, second, and third elements of @a.
++#
++(@a) .= @(3, 4, 5);
++println(@a);
++
++# normal behavior
++(@a, @b, @c) = @(@(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;), @(&quot;d&quot;, &quot;e&quot;, &quot;f&quot;), @(&quot;g&quot;, &quot;h&quot;, &quot;i&quot;));
++println(&quot;@a: &quot; . @a);
++println(&quot;@b: &quot; . @b);
++println(&quot;@c: &quot; . @c);
++
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-11-20 20:16:20 UTC (rev 178)
++++ sleep/whatsnew.txt	2006-11-21 02:12:26 UTC (rev 179)
+@@ -14,7 +14,21 @@
+ - added &amp;readc($handle) for reading a single character from an I/O handle.
+ - oops, parser no longer assumes a bareword in a expression is a function
+   reference.  should stop some frustrating errors :)
++- fixed a silly bug with tuple assignment where hash right hand side was
++  being converted to a string before being assinged to the individual
++  elements.
++- added assignment ops i.e. +=, -=, *=, /=, &amp;=, |=, ^=, &lt;&lt;=, &gt;&gt;=, and .=
++  using these ops will assign the result of the op applied to the assignment 
++  value and the right hand side.  this works as expected with normal
++  and tuple assignment.
++- using a tuple assignment op has a special case called expand array: 
++  a single array value specified within a tuple will be expanded as if each 
++  of its elements were specified within the expression i.e.:
++  (@a) += @(3, 4); will be equivalent to: (@a[0], @a[1]) += @(3, 4)
+ 
++  this does not apply to normal tuple assignment. the same effect can be
++  achieved with the &amp;copy function.
++
+ 2.1-beta 9  (6 Nov 06)
+ ===========
+ - made sleep data structures and sleepclosure all serializable.
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000160.html">[Sleep-svn] r178 - in sleep: . src/sleep/parser
+</A></li>
+	<LI>Next message: <A HREF="000162.html">[Sleep-svn] r180 - in sleep/tests: . output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#161">[ date ]</a>
+              <a href="thread.html#161">[ thread ]</a>
+              <a href="subject.html#161">[ subject ]</a>
+              <a href="author.html#161">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

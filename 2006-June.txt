@@ -1,0 +1,6590 @@
+From directaa at freemail.sx.cn  Sat Jun  3 01:40:33 2006
+From: directaa at freemail.sx.cn (Hamer)
+Date: Fri, 02 Jun 2006 21:40:33 -0200
+Subject: [Sleep-svn] Re: Boosting online _ 066129
+Message-ID: <@attglobal.net>
+
+Dear sleep-svn at lists.berlios.de:
+
+We offer promotion solutions:
+
+1. Supply target emaiI-list (only in your need). 
+
+2. Custom-built your email-list and send over your
+    message for you.
+
+* We also offer server for send over lists.
+
+Hope to serving you. 
+
+
+Hape
+Business Support
+Supporea at lianluo.com
+
+
+
+It is email for sleep-svn at lists.berlios.de.
+RE.M0VE:  to at Hotmail.com
+
+
+From rsmudge at berlios.de  Mon Jun  5 00:25:52 2006
+From: rsmudge at berlios.de (rsmudge at BerliOS)
+Date: Mon, 5 Jun 2006 00:25:52 +0200
+Subject: [Sleep-svn] r51 - in sleep: . src/sleep/engine src/sleep/engine/atoms src/sleep/parser src/sleep/runtime tests
+Message-ID: <200606042225.k54MPqU8000666@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-06-05 00:25:51 +0200 (Mon, 05 Jun 2006)
+New Revision: 51
+
+Added:
+   sleep/tests/elfbug.sl
+Removed:
+   sleep/src/sleep/engine/atoms/Push.java
+Modified:
+   sleep/build.xml
+   sleep/src/sleep/engine/Block.java
+   sleep/src/sleep/engine/GeneratedSteps.java
+   sleep/src/sleep/engine/atoms/Assign.java
+   sleep/src/sleep/engine/atoms/AssignT.java
+   sleep/src/sleep/engine/atoms/Bind.java
+   sleep/src/sleep/engine/atoms/BindFilter.java
+   sleep/src/sleep/engine/atoms/BindPredicate.java
+   sleep/src/sleep/engine/atoms/Call.java
+   sleep/src/sleep/engine/atoms/Check.java
+   sleep/src/sleep/engine/atoms/CreateClosure.java
+   sleep/src/sleep/engine/atoms/Foreach.java
+   sleep/src/sleep/engine/atoms/Get.java
+   sleep/src/sleep/engine/atoms/Goto.java
+   sleep/src/sleep/engine/atoms/Index.java
+   sleep/src/sleep/engine/atoms/ObjectAccess.java
+   sleep/src/sleep/engine/atoms/ObjectNew.java
+   sleep/src/sleep/engine/atoms/Operate.java
+   sleep/src/sleep/engine/atoms/PLiteral.java
+   sleep/src/sleep/engine/atoms/Return.java
+   sleep/src/sleep/engine/atoms/SValue.java
+   sleep/src/sleep/parser/CodeGenerator.java
+   sleep/src/sleep/runtime/ScriptEnvironment.java
+   sleep/whatsnew.txt
+Log:
+Did some massive retooling of the sleep interpreter to force calculations to happen
+within the stack "frames" instead of a single environment stack for all things.
+
+Benefits, a small performance boost (noticeable somewhat in microbenchmarks), throwing
+out tons of tested code, and fixed a small bug blue-elf complained about.
+
+On the bright side this will help make some other things possible i.e. coroutines (this
+is but one of many major steps required to put coroutines in place).
+
+
+
+Modified: sleep/build.xml
+===================================================================
+--- sleep/build.xml	2006-05-20 22:25:33 UTC (rev 50)
++++ sleep/build.xml	2006-06-04 22:25:51 UTC (rev 51)
+@@ -16,7 +16,7 @@
+            destdir="${project.build}"
+            nowarn="yes"
+            depend="yes"
+-           debug="yes"
++           debug="no"
+            optimize="yes"
+     >
+     </javac>
+
+Modified: sleep/src/sleep/engine/Block.java
+===================================================================
+--- sleep/src/sleep/engine/Block.java	2006-05-20 22:25:33 UTC (rev 50)
++++ sleep/src/sleep/engine/Block.java	2006-06-04 22:25:51 UTC (rev 51)
+@@ -124,6 +124,11 @@
+         code.  don't call this method yourself.  okay? */
+     public Scalar evaluate(ScriptEnvironment environment)
+     {
++        if (environment.isReturn())
++        {
++           return environment.getReturnValue();
++        }
++
+         Step temp = first;
+         while (temp != null)
+         {
+@@ -148,7 +153,7 @@
+ 
+               return SleepUtils.getEmptyScalar();
+            }
+-     
++
+            if (environment.isReturn())
+            {
+               return environment.getReturnValue();
+@@ -157,20 +162,6 @@
+            temp = temp.next;
+         }
+ 
+-        // it looks tempting to remove this bit of code here, doesn't it?  You are 
+-        // probably thinking "I yAM THe OpTIMizATiON PrIME MaSTeR"... well guess 
+-        // what, you're not.  Don't remove this stuff here.  
+-        //
+-        // Basically this forces a function that doesn't return anything to return $null.
+-        //
+-        Stack env = environment.getEnvironmentStack();
+-
+-        if (env.isEmpty())
+-        {
+-           return SleepUtils.getEmptyScalar(); 
+-        }
+-
+-        return null;
+-//        return (Scalar)(env.peek());
++        return SleepUtils.getEmptyScalar(); 
+     }
+ }
+
+Modified: sleep/src/sleep/engine/GeneratedSteps.java
+===================================================================
+--- sleep/src/sleep/engine/GeneratedSteps.java	2006-05-20 22:25:33 UTC (rev 50)
++++ sleep/src/sleep/engine/GeneratedSteps.java	2006-06-04 22:25:51 UTC (rev 51)
+@@ -40,12 +40,6 @@
+        return temp;
+     }
+ 
+-    public static Step Push()
+-    {
+-       Step temp = new Push();
+-       return temp;
+-    }
+-
+     public static Step SValue(Scalar value)
+     {
+        Step temp = new SValue(value);
+
+Modified: sleep/src/sleep/engine/atoms/Assign.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/Assign.java	2006-05-20 22:25:33 UTC (rev 50)
++++ sleep/src/sleep/engine/atoms/Assign.java	2006-06-04 22:25:51 UTC (rev 51)
+@@ -49,17 +49,28 @@
+       return temp.toString();
+    }
+ 
++   // Pre condition:
++   //   actual right hand side value is on "current stack"
++   //
++   // Post condition:
++   //   "current stack" is killed.
++   
+    public Scalar evaluate(ScriptEnvironment e)
+    {
+-      Stack env = e.getEnvironmentStack();
+-      variable.evaluate(e);
++      Scalar putv, value;
++
++      // evaluate our left hand side (assign to) value
++
++      e.CreateFrame();
++         variable.evaluate(e);
++         putv  = (Scalar)(e.getCurrentFrame().pop());
++      e.KillFrame();
+  
+-      Scalar putv  = (Scalar)env.pop();
+-      Scalar value = (Scalar)env.pop();
+-
++      value = (Scalar)(e.getCurrentFrame().pop());
+       putv.setValue(value);    
+ 
+-      return putv;
++      e.FrameResult(value);
++      return null;
+    }
+ }
+ 
+
+Modified: sleep/src/sleep/engine/atoms/AssignT.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/AssignT.java	2006-05-20 22:25:33 UTC (rev 50)
++++ sleep/src/sleep/engine/atoms/AssignT.java	2006-06-04 22:25:51 UTC (rev 51)
+@@ -39,16 +39,22 @@
+       return temp.toString();
+    }
+ 
++   // Pre Condition:
++   //   top value of "current frame" is the array value
++   //   n values on "current frame" represent our assign to scalars
++   //
++   // Post Condition:
++   //   "current frame" is dissolved.
++   // 
++
+    public Scalar evaluate(ScriptEnvironment e)
+    {
+-      Stack env = e.getEnvironmentStack();
+-
+-      Scalar   scalar = (Scalar)env.pop();
+-
+       Scalar   putv;
+       Scalar   value;
+       Stack    variables = e.getCurrentFrame();
+ 
++      Scalar   scalar = (Scalar)variables.pop();
++
+       if (scalar.getArray() == null)
+       {
+          Iterator i = variables.iterator();
+@@ -57,7 +63,7 @@
+             ((Scalar)i.next()).setValue(scalar.getValue()); // copying of value or ref handled by Scalar class
+          }          
+          e.KillFrame();
+-         return SleepUtils.getEmptyScalar();
++         return null;
+       }
+ 
+       Iterator values = scalar.getArray().scalarIterator();
+@@ -79,8 +85,8 @@
+          putv.setValue(value);
+       }
+ 
+-      e.KillFrame();
+-      return SleepUtils.getEmptyScalar();
++      e.FrameResult(scalar);
++      return null;
+    }
+ }
+ 
+
+Modified: sleep/src/sleep/engine/atoms/Bind.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/Bind.java	2006-05-20 22:25:33 UTC (rev 50)
++++ sleep/src/sleep/engine/atoms/Bind.java	2006-06-04 22:25:51 UTC (rev 51)
+@@ -62,17 +62,21 @@
+       code = c;
+    }
+ 
++   //
++   // no stack pre/post conditions for this step
++   //
++
+    public Scalar evaluate(ScriptEnvironment e)
+    {
+       Environment temp = e.getFunctionEnvironment(funcenv);
+       
+       if (temp != null)
+       { 
+-         Stack env = e.getEnvironmentStack();   
++         e.CreateFrame();
++            name.evaluate(e);
++            Scalar funcname = (Scalar)e.getCurrentFrame().pop();
++         e.KillFrame();
+ 
+-         name.evaluate(e);
+-         Scalar funcname = (Scalar)env.pop();
+-
+          temp.bindFunction(e.getScriptInstance(), funcenv, funcname.getValue().toString(), code);
+       }
+       else
+@@ -80,8 +84,7 @@
+          e.getScriptInstance().fireWarning("Attempting to bind code to non-existent environment: " + funcenv, getLineNumber());
+       }
+ 
+-      Scalar ts = SleepUtils.getScalar(code);
+-      return ts;
++      return null;
+    }
+ }
+ 
+
+Modified: sleep/src/sleep/engine/atoms/BindFilter.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/BindFilter.java	2006-05-20 22:25:33 UTC (rev 50)
++++ sleep/src/sleep/engine/atoms/BindFilter.java	2006-06-04 22:25:51 UTC (rev 51)
+@@ -67,8 +67,7 @@
+          e.getScriptInstance().fireWarning("Attempting to bind code to non-existent predicate environment: " + funcenv, getLineNumber());
+       }
+ 
+-      Scalar ts = SleepUtils.getScalar(code);
+-      return ts;
++      return null;
+    }
+ }
+ 
+
+Modified: sleep/src/sleep/engine/atoms/BindPredicate.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/BindPredicate.java	2006-05-20 22:25:33 UTC (rev 50)
++++ sleep/src/sleep/engine/atoms/BindPredicate.java	2006-06-04 22:25:51 UTC (rev 51)
+@@ -65,8 +65,7 @@
+          e.getScriptInstance().fireWarning("Attempting to bind code to non-existent predicate environment: " + funcenv, getLineNumber());
+       }
+ 
+-      Scalar ts = SleepUtils.getScalar(code);
+-      return ts;
++      return null;
+    }
+ }
+ 
+
+Modified: sleep/src/sleep/engine/atoms/Call.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/Call.java	2006-05-20 22:25:33 UTC (rev 50)
++++ sleep/src/sleep/engine/atoms/Call.java	2006-06-04 22:25:51 UTC (rev 51)
+@@ -40,13 +40,17 @@
+    {
+       return "[Function Call]: "+function+"\n";
+    }
++  
++   // Pre Condition:
++   //  arguments on the current stack (to allow stack to be passed0
++   //
++   // Post Condition:
++   //  current frame will be dissolved and return value will be placed on parent frame
+ 
++
+    public Scalar evaluate(ScriptEnvironment e)
+    {
+-      Stack env   = e.getEnvironmentStack();
+-
+       Scalar temp = null;
+-
+       Function callme = e.getFunction(function);
+ 
+       if (callme != null)
+@@ -60,9 +64,8 @@
+           temp = SleepUtils.getEmptyScalar();
+       }
+ 
+-      e.KillFrame();
+-      env.clear();
+-      env.push(temp);
+-      return temp;
++      e.FrameResult(temp);
++
++      return null;
+    }
+ }
+
+Modified: sleep/src/sleep/engine/atoms/Check.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/Check.java	2006-05-20 22:25:33 UTC (rev 50)
++++ sleep/src/sleep/engine/atoms/Check.java	2006-06-04 22:25:51 UTC (rev 51)
+@@ -156,6 +156,7 @@
+    /** Performs this "check".  Returns the value of the condition that is checked. */
+    public boolean check(ScriptEnvironment env)
+    {
++      env.CreateFrame();
+       setup.evaluate(env);
+       Predicate choice = env.getPredicate(name);
+  
+
+Modified: sleep/src/sleep/engine/atoms/CreateClosure.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/CreateClosure.java	2006-05-20 22:25:33 UTC (rev 50)
++++ sleep/src/sleep/engine/atoms/CreateClosure.java	2006-06-04 22:25:51 UTC (rev 51)
+@@ -32,24 +32,28 @@
+ {
+    Block  block = null;
+ 
++   public String toString()
++   {
++      return "[Create Closure]\n" + block.toString("   ");
++   }
++
+    public CreateClosure(Block _block)
+    {
+       block = _block;
+    }
+ 
++   // 
++   // no stack pre condition.
++   //
++   // post condition:
++   //   pushes closure onto current frame
++
+    public Scalar evaluate(ScriptEnvironment e)
+    {
+-      Stack env = e.getEnvironmentStack();   
+-
+       Scalar value = SleepUtils.getScalar(new SleepClosure(e.getScriptInstance(), block));
++      e.getCurrentFrame().push(value);
+ 
+-      env.push(value);
+-      return value;
++      return null;
+    }
+-
+-   public String toString()
+-   {
+-      return "[Create Closure]\n" + block.toString("   ");
+-   }
+ }
+ 
+
+Modified: sleep/src/sleep/engine/atoms/Foreach.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/Foreach.java	2006-05-20 22:25:33 UTC (rev 50)
++++ sleep/src/sleep/engine/atoms/Foreach.java	2006-06-04 22:25:51 UTC (rev 51)
+@@ -66,8 +66,6 @@
+ 
+    public Scalar evaluate(ScriptEnvironment e)
+    {
+-      Stack env = e.getEnvironmentStack();   
+-
+       Variable venv = e.getScriptVariables().getScalarLevel(value, e.getScriptInstance());
+ 
+       if (venv == null)
+@@ -75,9 +73,12 @@
+          venv = e.getScriptVariables().getGlobalVariables();
+       }
+ 
++      e.CreateFrame();
+       source.evaluate(e);
+  
+-      Scalar src = (Scalar)env.pop();
++      Scalar src = (Scalar)e.getCurrentFrame().pop();
++      e.KillFrame();
++
+       Iterator i;
+ 
+       if (src.getHash() != null)
+@@ -117,7 +118,9 @@
+             venv.putScalar(value, out);
+          }
+ 
++         e.CreateFrame();
+          code.evaluate(e);
++         e.KillFrame();
+ 
+          if (e.isReturn())
+          {
+@@ -140,8 +143,6 @@
+          x++;
+       }
+ 
+-      env.clear();
+-//      env.push(valueHolder);
+       return null;
+    }
+ }
+
+Modified: sleep/src/sleep/engine/atoms/Get.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/Get.java	2006-05-20 22:25:33 UTC (rev 50)
++++ sleep/src/sleep/engine/atoms/Get.java	2006-06-04 22:25:51 UTC (rev 51)
+@@ -43,37 +43,33 @@
+ 
+    public Scalar evaluate(ScriptEnvironment e)
+    {
+-      Stack env = e.getEnvironmentStack();
+-
+       if (value.charAt(0) == '&')
+       {
+          Function func = e.getFunction(value);
+ 
+          Scalar blah = SleepUtils.getScalar(func); 
+-
+-         env.push(blah);
+-         return blah;
++         e.getCurrentFrame().push(blah);
+       }
+-
+-      Scalar structure = e.getScalar(value);
+-
+-      if (structure != null)
++      else
+       {
+-         env.push(structure);
+-         return structure;
+-      }
++         Scalar structure = e.getScalar(value);
+ 
+-      if (value.charAt(0) == '@')
+-         structure = SleepUtils.getArrayScalar();
+-      else if (value.charAt(0) == '%')
+-         structure = SleepUtils.getHashScalar();
+-      else
+-         structure = SleepUtils.getEmptyScalar();
++         if (structure == null)
++         {
++            if (value.charAt(0) == '@')
++               structure = SleepUtils.getArrayScalar();
++            else if (value.charAt(0) == '%')
++               structure = SleepUtils.getHashScalar();
++            else
++               structure = SleepUtils.getEmptyScalar();
+ 
+-      e.putScalar(value, structure);
+-      env.push(structure);
++            e.putScalar(value, structure);
++         }
+ 
+-      return structure;
++         e.getCurrentFrame().push(structure);
++      }
++
++      return null;
+    }
+ }
+ 
+
+Modified: sleep/src/sleep/engine/atoms/Goto.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/Goto.java	2006-05-20 22:25:33 UTC (rev 50)
++++ sleep/src/sleep/engine/atoms/Goto.java	2006-06-04 22:25:51 UTC (rev 51)
+@@ -90,17 +90,15 @@
+ 
+    public Scalar evaluate(ScriptEnvironment e)
+    {
+-      Stack env = e.getEnvironmentStack();   
+-
+       Scalar temp = null;
+ 
+       if (start.check(e))
+       {
+-          temp = iftrue.evaluate(e);
++          iftrue.evaluate(e);
+       }
+       else if (iffalse != null)
+       {
+-          temp = iffalse.evaluate(e);
++          iffalse.evaluate(e);
+       }
+ 
+       if (isLoop)
+@@ -117,8 +115,7 @@
+ 
+           while (!e.isReturn() && start.check(e))
+           {
+-             temp = iftrue.evaluate(e);
+-             env.clear();
++             iftrue.evaluate(e);
+ 
+              if (e.getFlowControlRequest() == ScriptEnvironment.FLOW_CONTROL_CONTINUE)
+              {
+@@ -134,11 +131,10 @@
+          if (e.getFlowControlRequest() == ScriptEnvironment.FLOW_CONTROL_BREAK)
+          {
+              e.clearReturn();
+-             env.clear();
+          }
+       }
+ 
+-      return temp;
++      return null;
+    }
+ }
+ 
+
+Modified: sleep/src/sleep/engine/atoms/Index.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/Index.java	2006-05-20 22:25:33 UTC (rev 50)
++++ sleep/src/sleep/engine/atoms/Index.java	2006-06-04 22:25:51 UTC (rev 51)
+@@ -57,12 +57,19 @@
+       index = i;
+    }
+ 
++   //
++   // Pre Condition:
++   //   previous data structure is top item on current frame
++   //
++   // Post Condition:
++   //   current frame is dissolved
++   //   current data data structure is top item on parent frame
++
+    public Scalar evaluate(ScriptEnvironment e)
+    {
+-      Stack  env       = e.getEnvironmentStack();
+       Scalar pos, rv = null;
+ 
+-      Scalar structure = (Scalar)env.pop();
++      Scalar structure = (Scalar)e.getCurrentFrame().pop();
+ 
+       if (SleepUtils.isEmptyScalar(structure))
+       {
+@@ -76,16 +83,16 @@
+           }
+       }
+ 
+-      index.evaluate(e);
+-      pos = (Scalar)(env.pop());
++      e.CreateFrame();
++         index.evaluate(e);
++         pos = (Scalar)(e.getCurrentFrame().pop());
++      e.KillFrame();
+ 
+       if (structure.getArray() != null) { rv = structure.getArray().getAt(pos.getValue().intValue()); }
+       else if (structure.getHash() != null) { rv = structure.getHash().getAt(pos); }
+       else { rv = SleepUtils.getEmptyScalar(); } // always return an empty scalar if we are not referencing a hash or an array
+ 
+-      return (Scalar)(env.push(rv));
++      e.FrameResult(rv);
++      return null;
+    }
+ }
+-
+-
+-
+
+Modified: sleep/src/sleep/engine/atoms/ObjectAccess.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/ObjectAccess.java	2006-05-20 22:25:33 UTC (rev 50)
++++ sleep/src/sleep/engine/atoms/ObjectAccess.java	2006-06-04 22:25:51 UTC (rev 51)
+@@ -46,9 +46,17 @@
+       return "[Object Access]: "+classRef+"#"+name+"\n";
+    }
+ 
++   //
++   // Pre Condition:
++   //   object we're accessing is top item on current frame
++   //   arguments consist of the rest of the current frame...
++   //
++   // Post Condition:
++   //   current frame is dissolved
++   //   result is top item on parent frame
++
+    public Scalar evaluate(ScriptEnvironment e)
+    {
+-      Stack  env    = e.getEnvironmentStack();
+       Scalar result = SleepUtils.getEmptyScalar();
+ 
+       Object accessMe = null;
+@@ -58,15 +66,17 @@
+ 
+       if (classRef == null)
+       {
+-         scalar    = (Scalar)env.pop();
++         scalar    = (Scalar)e.getCurrentFrame().pop();
+          accessMe  = scalar.objectValue();
+ 
+          if (accessMe == null)
+          {
+-            e.getScriptInstance().fireWarning("Attempted to call a method on a null reference", getLineNumber());
+-            env.push(SleepUtils.getEmptyScalar());
++            e.getScriptInstance().fireWarning("Attempted to call a non-static method on a null reference", getLineNumber());
+             e.KillFrame();
+-            return SleepUtils.getEmptyScalar();
++
++            e.getCurrentFrame().push(SleepUtils.getEmptyScalar());
++
++            return null;
+          }
+ 
+          theClass  = accessMe.getClass();
+@@ -84,19 +94,21 @@
+          Function func = SleepUtils.getFunctionFromScalar(scalar, e.getScriptInstance());
+ 
+          result = func.evaluate(name, e.getScriptInstance(), e.getCurrentFrame());
++
+          e.clearReturn(); // this has to be done or else bad things will happen when the closure returns stuff
++         // ^-- evaluate, is this really necessary or are closures smart enough to clear the return themselves? // RSM
+ 
+-         env.push(result);
+-         e.KillFrame();
+-         return result;
++         e.FrameResult(result);
++         return null;
+       }
+ 
+       if (name == null)
+       {
+          e.getScriptInstance().fireWarning("Attempted to query an object with no method/field", getLineNumber());
+-         env.push(result);
+          e.KillFrame();
+-         return result;
++         e.getCurrentFrame().push(result);
++
++         return null;
+       }
+ 
+       //
+@@ -175,8 +187,7 @@
+          e.getScriptInstance().fireWarning("cannot access " + name + " in " + theClass + ": " + iax.getMessage(), getLineNumber());
+       }
+ 
+-      e.KillFrame();
+-      env.push(result);
+-      return result;
++      e.FrameResult(result);
++      return null;
+    }
+ }
+
+Modified: sleep/src/sleep/engine/atoms/ObjectNew.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/ObjectNew.java	2006-05-20 22:25:33 UTC (rev 50)
++++ sleep/src/sleep/engine/atoms/ObjectNew.java	2006-06-04 22:25:51 UTC (rev 51)
+@@ -43,9 +43,16 @@
+       return "[Object New]: "+name+"\n";
+    }
+ 
++   //
++   // Pre Condition:
++   //   arguments are on the current frame
++   //
++   // Post Condition:
++   //   current frame dissolved
++   //   new object is placed on parent frame
++
+    public Scalar evaluate(ScriptEnvironment e)
+    {
+-      Stack  env    = e.getEnvironmentStack();
+       Scalar result = SleepUtils.getEmptyScalar();
+ 
+       Object[]    parameters     = null;
+@@ -99,8 +106,7 @@
+          e.getScriptInstance().fireWarning(iax.toString(), getLineNumber());
+       }
+ 
+-      e.KillFrame();
+-      env.push(result);
+-      return result;
++      e.FrameResult(result);
++      return null;
+    }
+ }
+
+Modified: sleep/src/sleep/engine/atoms/Operate.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/Operate.java	2006-05-20 22:25:33 UTC (rev 50)
++++ sleep/src/sleep/engine/atoms/Operate.java	2006-06-04 22:25:51 UTC (rev 51)
+@@ -41,26 +41,33 @@
+        return "[Operator]: "+oper+"\n";
+    }
+ 
++   //
++   // Pre Condition:
++   //   lhs, rhs are both on current frame
++   //
++   // Post Condition:
++   //   current frame is dissolved
++   //   return value of operation placed on parent frame
++   //
++
+    public Scalar evaluate(ScriptEnvironment e)
+    {
+-      Stack env = e.getEnvironmentStack();   
+-
+       Operator callme = e.getOperator(oper);
+ 
+       if (callme != null)
+       {
+          Scalar temp = callme.operate(oper, e.getScriptInstance(), e.getCurrentFrame());
+-         env.push(temp);
+          e.KillFrame();
+-         return temp;
++         e.getCurrentFrame().push(temp);
+       }
+       else
+       {
+          e.getScriptInstance().fireWarning("Attempting to use non-existent operator: '" + oper + "'", getLineNumber());
++         e.KillFrame();
++         e.getCurrentFrame().push(SleepUtils.getEmptyScalar());
+       }
+-      e.KillFrame();
+ 
+-      return SleepUtils.getEmptyScalar();
++      return null;
+    }
+ }
+ 
+
+Modified: sleep/src/sleep/engine/atoms/PLiteral.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/PLiteral.java	2006-05-20 22:25:33 UTC (rev 50)
++++ sleep/src/sleep/engine/atoms/PLiteral.java	2006-06-04 22:25:51 UTC (rev 51)
+@@ -78,8 +78,7 @@
+ 
+    public Scalar evaluate(ScriptEnvironment e)
+    {
+-      Stack  env   = e.getEnvironmentStack();
+-      String value = buildString(e, env);
++      String value = buildString(e);
+       Scalar rv;
+ 
+       if (evaluator != null && e.getEnvironment().get(evaluator) != null)
+@@ -92,12 +91,14 @@
+          rv = SleepUtils.getScalar(value);
+       }
+ 
+-      env.push(rv);
++      e.getCurrentFrame().push(rv);
+       return rv;
+    }
+ 
+-   protected String buildString(ScriptEnvironment e, Stack env)
++   protected String buildString(ScriptEnvironment e)
+    {
++      e.CreateFrame();
++
+       StringBuffer value = new StringBuffer();
+       for (int x = 0; x < fragments.length; x++) 
+       {
+@@ -107,9 +108,9 @@
+              code[x].evaluate(e);
+              if (align[x] != null)
+              {
+-                String temp = ((Scalar)env.pop()).getValue().toString();
++                String temp = ((Scalar)e.getCurrentFrame().pop()).getValue().toString();
+                 align[x].evaluate(e);
+-                int al = ((Scalar)env.pop()).getValue().intValue();
++                int al = ((Scalar)e.getCurrentFrame().pop()).getValue().intValue();
+                 if (temp != null)
+                 {
+                    for (int z = 0 - temp.length(); z > al; z--)
+@@ -125,11 +126,13 @@
+              }
+              else
+              {
+-                value = value.append(((Scalar)env.pop()).getValue().toString());
++                value = value.append(((Scalar)e.getCurrentFrame().pop()).getValue().toString());
+              }
+           }
+       }
+ 
++      e.KillFrame();
++
+       return value.toString();
+    }
+ }
+
+Deleted: sleep/src/sleep/engine/atoms/Push.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/Push.java	2006-05-20 22:25:33 UTC (rev 50)
++++ sleep/src/sleep/engine/atoms/Push.java	2006-06-04 22:25:51 UTC (rev 51)
+@@ -1,45 +0,0 @@
+-/*
+-   SLEEP - Simple Language for Environment Extension Purposes
+- .-------------------------.
+- | sleep.engine.atoms.Push |__________________________________________________
+- |                                                                            |
+-   Author: Raphael Mudge (rsmudge at mtu.edu)
+-           http://www.csl.mtu.edu/~rsmudge/
+-
+-   Description: This class contains an implementation of an atomic Step for
+-     the sleep scripting.  
+-
+-   Documentation:
+-
+-   Changelog:
+-   11/17/2002 - this class was refactored out of Step and put in its own file.
+-
+-   * This software is distributed under the artistic license, see license.txt
+-     for more information. *
+-
+- |____________________________________________________________________________|
+- */
+-
+-package sleep.engine.atoms;
+-
+-import java.util.*;
+-import sleep.interfaces.*;
+-import sleep.engine.*;
+-import sleep.runtime.*;
+-
+-public class Push extends Step
+-{
+-   public String toString()
+-   {
+-      return "[Push]\n";
+-   } 
+-
+-   public Scalar evaluate(ScriptEnvironment e)
+-   {
+-      Stack env = e.getEnvironmentStack();   
+-
+-      e.getCurrentFrame().push(env.pop());
+-
+-      return null;
+-   }
+-}
+
+Modified: sleep/src/sleep/engine/atoms/Return.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/Return.java	2006-05-20 22:25:33 UTC (rev 50)
++++ sleep/src/sleep/engine/atoms/Return.java	2006-06-04 22:25:51 UTC (rev 51)
+@@ -44,22 +44,21 @@
+ 
+    public Scalar evaluate(ScriptEnvironment e)
+    {
+-      Stack env = e.getEnvironmentStack();   
+-
+       if (return_type == ScriptEnvironment.FLOW_CONTROL_BREAK)
+       {
+          e.flagReturn(null, return_type);
+       }
+-      else if (env.isEmpty())
++      else if (e.getCurrentFrame().isEmpty())
+       {
+          e.flagReturn(SleepUtils.getEmptyScalar(), return_type);
+       }
+       else
+       {
+-         e.flagReturn((Scalar)env.pop(), return_type);
++         e.flagReturn((Scalar)e.getCurrentFrame().pop(), return_type);
+       }
+ 
+-      return e.getReturnValue();
++      e.KillFrame();
++      return null;
+    }
+ }
+ 
+
+Modified: sleep/src/sleep/engine/atoms/SValue.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/SValue.java	2006-05-20 22:25:33 UTC (rev 50)
++++ sleep/src/sleep/engine/atoms/SValue.java	2006-06-04 22:25:51 UTC (rev 51)
+@@ -43,8 +43,7 @@
+ 
+    public Scalar evaluate(ScriptEnvironment e)
+    {
+-      Stack env = e.getEnvironmentStack();   
+-      env.push(value);
++      e.getCurrentFrame().push(value);
+       return value;
+    }
+ }
+
+Modified: sleep/src/sleep/parser/CodeGenerator.java
+===================================================================
+--- sleep/src/sleep/parser/CodeGenerator.java	2006-05-20 22:25:33 UTC (rev 50)
++++ sleep/src/sleep/parser/CodeGenerator.java	2006-06-04 22:25:51 UTC (rev 51)
+@@ -139,16 +139,8 @@
+            // <idea> <string> <idea>
+            backup();
+ 
+-           atom = GeneratedSteps.CreateFrame();
+-           add(atom, tokens[0]);
+-
+            parseIdea(tokens[0]);
+-           atom = GeneratedSteps.Push();
+-           add(atom, tokens[0]);
+-
+            parseIdea(tokens[2]);
+-           atom = GeneratedSteps.Push();
+-           add(atom, tokens[2]);
+ 
+            tempc = GeneratedSteps.Check(strings[1], restore()); // a KillFrame is implied here
+            tempc.setInfo(tokens[1].getHint());
+@@ -157,14 +149,8 @@
+          case PRED_UNI:
+            backup();
+ 
+-           atom = GeneratedSteps.CreateFrame();
+-           add(atom, tokens[1]);
+-
+            parseIdea(tokens[1]);
+              
+-           atom = GeneratedSteps.Push();
+-           add(atom, tokens[1]);
+-
+            tempc = GeneratedSteps.Check(strings[0], restore());
+            tempc.setInfo(tokens[0].getHint());
+ 
+@@ -246,15 +232,13 @@
+        switch (datum.getType())
+        {
+          case OBJECT_NEW:
++           atom = GeneratedSteps.CreateFrame();
++           add(atom, tokens[0]);
++
+            if (tokens.length > 1)
+            {
+               parseParameters(tokens[1]);
+            }
+-           else
+-           {
+-              atom = GeneratedSteps.CreateFrame();
+-              add(atom, tokens[0]);
+-           }
+ 
+            aClass = parser.findImportedClass(strings[0]);
+ 
+@@ -265,15 +249,13 @@
+            add(atom, tokens[0]);
+            break;
+         case OBJECT_CL_CALL: 
++           atom = GeneratedSteps.CreateFrame();
++           add(atom, tokens[0]);
++
+            if (tokens.length > 1)
+            {
+               parseParameters(tokens[1]);
+            }
+-           else
+-           {
+-              atom = GeneratedSteps.CreateFrame();
+-              add(atom, tokens[0]);
+-           }
+ 
+            parseIdea(tokens[0]);
+ 
+@@ -281,15 +263,13 @@
+            add(atom, tokens[0]);
+            break;
+         case OBJECT_ACCESS:
++           atom = GeneratedSteps.CreateFrame();
++           add(atom, tokens[0]);
++
+            if (tokens.length > 2)
+            {
+               parseParameters(tokens[2]);
+            }
+-           else
+-           {
+-              atom = GeneratedSteps.CreateFrame();
+-              add(atom, tokens[0]);
+-           }
+ 
+            parseIdea(tokens[0]);
+ 
+@@ -297,22 +277,20 @@
+            add(atom, tokens[0]);
+            break;
+          case OBJECT_ACCESS_S:
++           atom = GeneratedSteps.CreateFrame();
++           add(atom, tokens[0]);
++
+            if (tokens.length > 2)
+            {
+               parseParameters(tokens[2]);
+            }
+-           else
+-           {
+-              atom = GeneratedSteps.CreateFrame();
+-              add(atom, tokens[0]);
+-           }
+- 
++
+            aClass = parser.findImportedClass(strings[0]);
+ 
+            if (aClass == null)
+               parser.reportError("Class " + strings[0] + " was not found", tokens[0]);
+            
+-           atom    = GeneratedSteps.ObjectAccessStatic(aClass, strings[1]);
++           atom = GeneratedSteps.ObjectAccessStatic(aClass, strings[1]);
+            add(atom, tokens[0]);
+            break;
+        }
+@@ -383,8 +361,6 @@
+            // parse B
+            //
+            parseIdea(tokens[2]);
+-           atom = GeneratedSteps.Push();
+-           add(atom, tokens[2]);
+ 
+            //
+            // parse A - or just push it onto the stack as a literal token :)
+@@ -393,9 +369,6 @@
+            atom    = GeneratedSteps.SValue(ascalar);
+            add(atom, tokens[0]);
+ 
+-           atom = GeneratedSteps.Push();
+-           add(atom, tokens[2]);
+-
+            //
+            // parse operator
+            //
+@@ -413,14 +386,12 @@
+            // parse B
+            //
+            parseIdea(tokens[2]);
+-           atom = GeneratedSteps.Push();
+-           add(atom, tokens[2]);
++
+            //
+            // parse A
+            //
+            parseIdea(tokens[0]);
+-           atom = GeneratedSteps.Push();
+-           add(atom, tokens[2]);
++
+            //
+            // parse operator
+            //
+@@ -487,13 +458,16 @@
+            }
+            break;
+          case VALUE_INDEXED:
+-
+            parseIdea(tokens[0]); // parse the thing we're going to index stuff off of..
+ 
+            for (int z = 1; z < tokens.length; z++)
+            {         
+               backup();
++
++              atom = GeneratedSteps.CreateFrame();
++              add(atom, tokens[0]);
+               parseIdea(ParserUtilities.extract(tokens[z]));
++
+               atom = GeneratedSteps.Index(strings[0], restore());
+               add(atom, tokens[0]);
+            }
+@@ -791,6 +765,9 @@
+            }
+            else if (tokens.length > 1)
+            {
++              atom = GeneratedSteps.CreateFrame();
++              add(atom, tokens[0]);
++
+               parseParameters(ParserUtilities.extract(tokens[1]));
+ 
+               atom = GeneratedSteps.Call(strings[0]);
+@@ -820,8 +797,6 @@
+            for (int x = 0; x < termsAr2.length; x++)
+            {
+               parseIdea(termsAr2[x]);
+-              atom = GeneratedSteps.Push();
+-              add(atom, termsAr2[x]);
+            }
+ 
+            parseIdea(tokens[2]);
+@@ -830,13 +805,15 @@
+            add(atom, tokens[0]);
+            break;
+          case EXPR_ASSIGNMENT:                                  // implemented
+-           backup();
++           atom = GeneratedSteps.CreateFrame();
++           add(atom, tokens[2]);
+ 
+-           parseIdea(tokens[0]);
+-           atom = GeneratedSteps.Assign(restore());
+-
+            parseIdea(tokens[2]);
+ 
++           backup();
++           parseIdea(tokens[0]);
++
++           atom = GeneratedSteps.Assign(restore());
+            add(atom, tokens[2]);
+            break;
+          case EXPR_IF_ELSE:                                // done
+@@ -964,6 +941,9 @@
+            parser.importPackage(strings[0]);
+            break;           
+          case EXPR_RETURN:                     // implemented
++           atom = GeneratedSteps.CreateFrame();
++           add(atom, tokens[0]);
++
+            if (strings[0].equals("done"))
+            {
+               parseIdea(tokens[0].copy("1"));  // in jIRC speak this means just plain old return
+@@ -1003,17 +983,12 @@
+ 
+    public void parseParameters(Token token)
+    {
+-      Step atom = GeneratedSteps.CreateFrame();
+-      add(atom, token);
+-
+       TokenList terms   = ParserUtilities.groupByParameterTerm(parser, token);
+       Token[]   termsAr = terms.getTokens();
+ 
+       for (int x = termsAr.length - 1; x >= 0; x--)
+       {
+          parseIdea(termsAr[x]);
+-         atom = GeneratedSteps.Push();
+-         add(atom, termsAr[x]);
+       }
+    }
+ }
+
+Modified: sleep/src/sleep/runtime/ScriptEnvironment.java
+===================================================================
+--- sleep/src/sleep/runtime/ScriptEnvironment.java	2006-05-20 22:25:33 UTC (rev 50)
++++ sleep/src/sleep/runtime/ScriptEnvironment.java	2006-06-04 22:25:51 UTC (rev 51)
+@@ -263,6 +263,17 @@
+        return (Stack)frames.get(findex);    
+     }
+ 
++    public void FrameResult(Scalar value)
++    {
++       KillFrame();
++       if (findex >= 0)
++       {
++          getCurrentFrame().push(value);
++       }
++    }
++
++    public boolean hasFrame() { return findex >= 0; }
++
+     public void KillFrame()
+     {
+        getCurrentFrame().clear();
+
+Added: sleep/tests/elfbug.sl
+===================================================================
+--- sleep/tests/elfbug.sl	2006-05-20 22:25:33 UTC (rev 50)
++++ sleep/tests/elfbug.sl	2006-06-04 22:25:51 UTC (rev 51)
+@@ -0,0 +1,7 @@
++ at array = array("abc", "def", "ghi", "jkl", "mno", "pqr", "stu", "vwx", "yz");
++
++foreach $c (@array) 
++{
++   %hash[lc($c)] = 1;
++   println("This will echo the first one only: $c");
++}
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-05-20 22:25:33 UTC (rev 50)
++++ sleep/whatsnew.txt	2006-06-04 22:25:51 UTC (rev 51)
+@@ -3,6 +3,11 @@
+ - fixed the clean target in the sleep build.xml file
+ - added a continue keyword for flow control of while/for/foreach
+   loops.  My arm hath been twisted.
++- rewrote the interpreter to use stack frames instead of a single
++  environment stack for all temporary calculations...  this could 
++  create bugs and needs lots and lots of testing.
++- fixed bug related to using a function call within an array/hash 
++  index
+ 
+ 2.0-release
+ ===========
+
+
+
+From rsmudge at berlios.de  Sat Jun 10 20:40:38 2006
+From: rsmudge at berlios.de (rsmudge at BerliOS)
+Date: Sat, 10 Jun 2006 20:40:38 +0200
+Subject: [Sleep-svn] r52 - in sleep: src/sleep/bridges src/sleep/engine src/sleep/engine/atoms src/sleep/parser src/sleep/runtime tests tests/output
+Message-ID: <200606101840.k5AIecj2020067@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-06-10 20:40:32 +0200 (Sat, 10 Jun 2006)
+New Revision: 52
+
+Added:
+   sleep/tests/output/elfbug.sl
+   sleep/tests/output/yield.sl
+   sleep/tests/yield.sl
+Modified:
+   sleep/src/sleep/bridges/SleepClosure.java
+   sleep/src/sleep/engine/Block.java
+   sleep/src/sleep/engine/atoms/Goto.java
+   sleep/src/sleep/parser/CodeGenerator.java
+   sleep/src/sleep/runtime/ScriptEnvironment.java
+Log:
+Wow, coroutines are on the way.  Still need to write more unit tests and make it possible for foreach loops to
+yield correctly but at the moment the basic mechanism is in place.
+
+
+
+Modified: sleep/src/sleep/bridges/SleepClosure.java
+===================================================================
+--- sleep/src/sleep/bridges/SleepClosure.java	2006-06-04 22:25:51 UTC (rev 51)
++++ sleep/src/sleep/bridges/SleepClosure.java	2006-06-10 18:40:32 UTC (rev 52)
+@@ -48,6 +48,9 @@
+     /** the owning script associated with this sleep closure */
+     ScriptInstance      owner; 
+ 
++    /** the saved context of this closure */
++    Stack             context;
++
+     /** Creates a new Sleep Closure, with a brand new set of internal variables.  Don't be afraid, you can call this constructor from your code. */
+     public SleepClosure(ScriptInstance si, Block _code)
+     {
+@@ -59,6 +62,7 @@
+     {
+        code     = _code;
+        owner    = si;
++       context  = null;
+ 
+        _var.putScalar("$this", SleepUtils.getScalar(this));
+        setVariables(_var);
+@@ -119,6 +123,8 @@
+ 
+        synchronized (vars)
+        {
++          env.loadContext(context);
++
+           vars.pushClosureLevel(this);
+           vars.pushLocalLevel();
+ 
+@@ -142,16 +148,17 @@
+           //
+           // call the function, save the scalar that was returned. 
+           //
+-          temp = code.evaluate(env);
+-
+-/*          if (getOwner() != si && env.isReturn())
++          if (context != null && ! context.isEmpty())
+           {
+-             env.clearReturn();
+-             si.getScriptEnvironment().flagReturn(temp);
+-          } 
+-          
+-          This commented out block is no longer needed if the environment of the calling script is always used... */
++             temp = env.evaluateOldContext();
++          }
++          else
++          {
++             temp = code.evaluate(env);
++          }
+ 
++          context = env.saveContext();
++
+           vars.popLocalLevel();
+           vars.popClosureLevel();
+        }
+
+Modified: sleep/src/sleep/engine/Block.java
+===================================================================
+--- sleep/src/sleep/engine/Block.java	2006-06-04 22:25:51 UTC (rev 51)
++++ sleep/src/sleep/engine/Block.java	2006-06-10 18:40:32 UTC (rev 52)
+@@ -49,8 +49,8 @@
+  */
+ public class Block implements Serializable
+ {
+-    Step  first;
+-    Step  last;
++    protected Step  first;
++    protected Step  last;
+ 
+     public String toString(String prefix)
+     { 
+@@ -124,12 +124,20 @@
+         code.  don't call this method yourself.  okay? */
+     public Scalar evaluate(ScriptEnvironment environment)
+     {
++        return evaluate(environment, first);
++    }
++
++    /** evaluates this block of code.  please note that if the block has a return statement and the method clearReturn() is not 
++        called on the corresponding script environment chaos will ensue.  use SleepUtils.runCode() to safely execute a block of
++        code.  don't call this method yourself.  okay? */
++    public Scalar evaluate(ScriptEnvironment environment, Step start)
++    {
+         if (environment.isReturn())
+         {
+            return environment.getReturnValue();
+         }
+ 
+-        Step temp = first;
++        Step temp = start;
+         while (temp != null)
+         {
+            try
+@@ -156,6 +164,18 @@
+ 
+            if (environment.isReturn())
+            {
++              if (environment.getFlowControlRequest() == ScriptEnvironment.FLOW_CONTROL_YIELD)
++              {
++                 if (temp instanceof sleep.engine.atoms.Return)
++                 {
++                    environment.addToContext(this, temp.next);
++                 }
++                 else
++                 {
++                    environment.addToContext(this, temp);
++                 }
++              }
++
+               return environment.getReturnValue();
+            }
+ 
+
+Modified: sleep/src/sleep/engine/atoms/Goto.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/Goto.java	2006-06-04 22:25:51 UTC (rev 51)
++++ sleep/src/sleep/engine/atoms/Goto.java	2006-06-10 18:40:32 UTC (rev 52)
+@@ -90,8 +90,6 @@
+ 
+    public Scalar evaluate(ScriptEnvironment e)
+    {
+-      Scalar temp = null;
+-
+       if (start.check(e))
+       {
+           iftrue.evaluate(e);
+
+Modified: sleep/src/sleep/parser/CodeGenerator.java
+===================================================================
+--- sleep/src/sleep/parser/CodeGenerator.java	2006-06-04 22:25:51 UTC (rev 51)
++++ sleep/src/sleep/parser/CodeGenerator.java	2006-06-10 18:40:32 UTC (rev 52)
+@@ -971,6 +971,11 @@
+               atom = GeneratedSteps.Return(ScriptEnvironment.FLOW_CONTROL_CONTINUE);
+               add(atom, tokens[0]);
+            }
++           else if (strings[0].equals("yield"))
++           {
++              atom = GeneratedSteps.Return(ScriptEnvironment.FLOW_CONTROL_YIELD);
++              add(atom, tokens[0]);
++           }
+            else
+            {
+               atom = GeneratedSteps.Return(ScriptEnvironment.FLOW_CONTROL_RETURN);
+
+Modified: sleep/src/sleep/runtime/ScriptEnvironment.java
+===================================================================
+--- sleep/src/sleep/runtime/ScriptEnvironment.java	2006-06-04 22:25:51 UTC (rev 51)
++++ sleep/src/sleep/runtime/ScriptEnvironment.java	2006-06-10 18:40:32 UTC (rev 52)
+@@ -26,6 +26,7 @@
+ 
+ import sleep.runtime.Scalar;
+ import sleep.engine.Block;
++import sleep.engine.Step;
+ 
+ import sleep.bridges.BasicNumbers;
+ import sleep.bridges.BasicStrings;
+@@ -206,6 +207,62 @@
+     }
+ 
+     //
++    // ******** Context Management **********
++    //
++    
++    protected static class Context
++    {
++       public Block block;
++       public Step  last;       
++
++       public String toString() { return "[" + last.toString() + ":" + last.getLineNumber() + "]"; }
++    }
++
++    protected Stack contextStack = null;
++
++    public void loadContext(Stack c)
++    {
++       contextStack = c;
++    }
++
++    public void addToContext(Block b, Step s)
++    {
++       if (contextStack == null)
++           contextStack = new Stack();
++
++       Context temp = new Context();
++       temp.block = b;
++       temp.last  = s;
++       contextStack.add(0, temp);
++    }
++
++    public Scalar evaluateOldContext()
++    {
++       Scalar rv = SleepUtils.getEmptyScalar();
++
++       if (contextStack == null)
++           return rv;
++
++       Stack cstack = contextStack;
++       contextStack = null;
++
++       while (!cstack.isEmpty())
++       {
++          Context temp = (Context)cstack.pop();
++          rv = temp.block.evaluate(this, temp.last);
++       }
++
++       return rv;
++    }
++
++    public Stack saveContext()
++    {
++       Stack temp   = contextStack;
++       contextStack = null;
++       return temp;
++    }
++
++    //
+     // ******** Flow Control **********
+     //
+ 
+@@ -220,6 +277,9 @@
+ 
+     /** adding a continue keyword as people keep demanding it */
+     public static final int FLOW_CONTROL_CONTINUE = 3;
++
++    /** adding a yield keyword */
++    public static final int FLOW_CONTROL_YIELD    = 4;
+     
+     protected Scalar rv      = null;
+     protected int    request = 0;
+
+Added: sleep/tests/output/elfbug.sl
+===================================================================
+--- sleep/tests/output/elfbug.sl	2006-06-04 22:25:51 UTC (rev 51)
++++ sleep/tests/output/elfbug.sl	2006-06-10 18:40:32 UTC (rev 52)
+@@ -0,0 +1,9 @@
++This will echo the first one only: abc
++This will echo the first one only: def
++This will echo the first one only: ghi
++This will echo the first one only: jkl
++This will echo the first one only: mno
++This will echo the first one only: pqr
++This will echo the first one only: stu
++This will echo the first one only: vwx
++This will echo the first one only: yz
+
+Added: sleep/tests/output/yield.sl
+===================================================================
+--- sleep/tests/output/yield.sl	2006-06-04 22:25:51 UTC (rev 51)
++++ sleep/tests/output/yield.sl	2006-06-10 18:40:32 UTC (rev 52)
+@@ -0,0 +1,115 @@
++Test 1
++1
++Test 2
++2
++Test 3
++3
++Test 4
++4
++Test 5
++5
++Test 6
++6
++Test 7
++7
++Done
++In range? 0
++In range? 1
++In range? 2
++In range? 3
++In range? 4
++In range? 5
++In range? 6
++In range? 7
++In range? 8
++In range? 9
++In range? 10
++In range? 11
++In range? 12
++In range? 13
++In range? 14
++In range? 15
++In range? 16
++In range? 17
++In range? 18
++In range? 19
++In range? 20
++In range? 21
++In range? 22
++In range? 23
++In range? 24
++In range? 25
++In range? 26
++In range? 27
++In range? 28
++In range? 29
++In range? 30
++In range? 31
++In range? 32
++In range? 33
++In range? 34
++In range? 35
++In range? 36
++In range? 37
++In range? 38
++In range? 39
++In range? 40
++In range? 41
++In range? 42
++In range? 43
++In range? 44
++In range? 45
++In range? 46
++In range? 47
++In range? 48
++In range? 49
++In range? 50
++In range? 51
++In range? 52
++In range? 53
++In range? 54
++In range? 55
++In range? 56
++In range? 57
++In range? 58
++In range? 59
++In range? 60
++In range? 61
++In range? 62
++In range? 63
++In range? 64
++In range? 65
++In range? 66
++In range? 67
++In range? 68
++In range? 69
++In range? 70
++In range? 71
++In range? 72
++In range? 73
++In range? 74
++In range? 75
++In range? 76
++In range? 77
++In range? 78
++In range? 79
++In range? 80
++In range? 81
++In range? 82
++In range? 83
++In range? 84
++In range? 85
++In range? 86
++In range? 87
++In range? 88
++In range? 89
++In range? 90
++In range? 91
++In range? 92
++In range? 93
++In range? 94
++In range? 95
++In range? 96
++In range? 97
++In range? 98
++In range? 99
+
+Added: sleep/tests/yield.sl
+===================================================================
+--- sleep/tests/yield.sl	2006-06-04 22:25:51 UTC (rev 51)
++++ sleep/tests/yield.sl	2006-06-10 18:40:32 UTC (rev 52)
+@@ -0,0 +1,58 @@
++sub simple
++{
++   println("Test 1");
++   yield 1;
++
++   println("Test 2");
++   yield 2;
++
++   println("Test 3");
++   yield 3;
++ 
++   println("Test 4");
++   yield 4;
++
++   println("Test 5");
++   yield 5;
++
++   println("Test 6");
++   yield 6;
++
++   println("Test 7");
++   yield 7;
++
++   println("Done");
++   yield 0;
++}
++
++$x = simple();
++while ($x != 0)
++{
++   println($x);
++   $x = simple();
++}
++
++#
++#
++#
++
++sub range
++{
++   local('$y');
++   $y = 0;
++   while ($y < 100)
++   {
++      yield $y;
++      $y++;
++   }
++
++   return -1;
++}
++
++$x = range();
++while ($x != -1)
++{
++   println("In range? $x");
++   $x = range();
++}
++
+
+
+
+From rsmudge at berlios.de  Sun Jun 11 22:46:37 2006
+From: rsmudge at berlios.de (rsmudge at BerliOS)
+Date: Sun, 11 Jun 2006 22:46:37 +0200
+Subject: [Sleep-svn] r53 - in sleep: src/sleep/bridges src/sleep/engine src/sleep/runtime tests tests/output
+Message-ID: <200606112046.k5BKkbii023716@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-06-11 22:46:37 +0200 (Sun, 11 Jun 2006)
+New Revision: 53
+
+Added:
+   sleep/tests/cor_other_callers.sl
+   sleep/tests/output/cor_other_callers.sl
+Modified:
+   sleep/src/sleep/bridges/SleepClosure.java
+   sleep/src/sleep/engine/Block.java
+   sleep/src/sleep/runtime/ScriptEnvironment.java
+Log:
+More coroutine work, made it so coroutines can call other coroutines without losing state.  This is not the same
+as a coroutine being able to recursively call itself.  
+
+
+
+Modified: sleep/src/sleep/bridges/SleepClosure.java
+===================================================================
+--- sleep/src/sleep/bridges/SleepClosure.java	2006-06-10 18:40:32 UTC (rev 52)
++++ sleep/src/sleep/bridges/SleepClosure.java	2006-06-11 20:46:37 UTC (rev 53)
+@@ -62,7 +62,7 @@
+     {
+        code     = _code;
+        owner    = si;
+-       context  = null;
++       context  = new Stack();
+ 
+        _var.putScalar("$this", SleepUtils.getScalar(this));
+        setVariables(_var);
+@@ -148,13 +148,13 @@
+           //
+           // call the function, save the scalar that was returned. 
+           //
+-          if (context != null && ! context.isEmpty())
++          if (context.isEmpty())
+           {
+-             temp = env.evaluateOldContext();
++             temp = code.evaluate(env);
+           }
+           else
+           {
+-             temp = code.evaluate(env);
++             temp = env.evaluateOldContext();
+           }
+ 
+           context = env.saveContext();
+
+Modified: sleep/src/sleep/engine/Block.java
+===================================================================
+--- sleep/src/sleep/engine/Block.java	2006-06-10 18:40:32 UTC (rev 52)
++++ sleep/src/sleep/engine/Block.java	2006-06-11 20:46:37 UTC (rev 53)
+@@ -168,7 +168,10 @@
+               {
+                  if (temp instanceof sleep.engine.atoms.Return)
+                  {
+-                    environment.addToContext(this, temp.next);
++                    if (temp.next != null)
++                    {
++                       environment.addToContext(this, temp.next);
++                    }
+                  }
+                  else
+                  {
+
+Modified: sleep/src/sleep/runtime/ScriptEnvironment.java
+===================================================================
+--- sleep/src/sleep/runtime/ScriptEnvironment.java	2006-06-10 18:40:32 UTC (rev 52)
++++ sleep/src/sleep/runtime/ScriptEnvironment.java	2006-06-11 20:46:37 UTC (rev 53)
+@@ -214,38 +214,35 @@
+     {
+        public Block block;
+        public Step  last;       
+-
+-       public String toString() { return "[" + last.toString() + ":" + last.getLineNumber() + "]"; }
+     }
+ 
+-    protected Stack contextStack = null;
++    protected Stack context      = null;
++    protected Stack contextStack = new Stack();
+ 
+     public void loadContext(Stack c)
+     {
+-       contextStack = c;
++       if (context != null)
++       { 
++          contextStack.push(context);
++       }
++       context = c;
+     }
+ 
+     public void addToContext(Block b, Step s)
+     {
+-       if (contextStack == null)
+-           contextStack = new Stack();
+-
+        Context temp = new Context();
+        temp.block = b;
+        temp.last  = s;
+-       contextStack.add(0, temp);
++       context.add(0, temp);
+     }
+ 
+     public Scalar evaluateOldContext()
+     {
+        Scalar rv = SleepUtils.getEmptyScalar();
+ 
+-       if (contextStack == null)
+-           return rv;
++       Stack cstack = context;
++       context      = new Stack();
+ 
+-       Stack cstack = contextStack;
+-       contextStack = null;
+-
+        while (!cstack.isEmpty())
+        {
+           Context temp = (Context)cstack.pop();
+@@ -257,9 +254,18 @@
+ 
+     public Stack saveContext()
+     {
+-       Stack temp   = contextStack;
+-       contextStack = null;
+-       return temp;
++       Stack cstack = context;
++
++       if (contextStack.isEmpty())
++       {
++          context = null;
++       }
++       else
++       {
++          context = (Stack)(contextStack.pop());
++       }
++
++       return cstack;
+     }
+ 
+     //
+
+Added: sleep/tests/cor_other_callers.sl
+===================================================================
+--- sleep/tests/cor_other_callers.sl	2006-06-10 18:40:32 UTC (rev 52)
++++ sleep/tests/cor_other_callers.sl	2006-06-11 20:46:37 UTC (rev 53)
+@@ -0,0 +1,50 @@
++#
++# coroutine test 
++#    ensure that coroutine state is not lost when another coroutine is called within the same coroutine
++#    note that this test is *different* from a coroutine being able to recursively call itself... 
++#  
++
++sub a
++{
++   this('$y');  
++   $y = 0;
++   while ($y < 10)
++   {
++      println("a() yields: $y * b()");
++      yield $y * b();
++      $y++;
++   }
++
++   return -1;
++}
++
++sub b
++{
++   this('$x');
++   $x = 10;
++   while ($x < 20)
++   {
++      println("b() yields: $x * c()");
++      yield $x * c();
++      $x++;
++   }
++}
++
++sub c
++{
++   this('$z');
++   $z = 20;
++   while ($z < 30)
++   {
++      println("c() yields: $z");
++      yield $z;
++      $z++;
++   }  
++}
++
++$z = a();
++while ($z > -1)
++{
++   println($z);
++   $z = a();
++} 
+
+Added: sleep/tests/output/cor_other_callers.sl
+===================================================================
+--- sleep/tests/output/cor_other_callers.sl	2006-06-10 18:40:32 UTC (rev 52)
++++ sleep/tests/output/cor_other_callers.sl	2006-06-11 20:46:37 UTC (rev 53)
+@@ -0,0 +1,40 @@
++a() yields: 0 * b()
++b() yields: 10 * c()
++c() yields: 20
++0
++a() yields: 1 * b()
++b() yields: 11 * c()
++c() yields: 21
++231
++a() yields: 2 * b()
++b() yields: 12 * c()
++c() yields: 22
++528
++a() yields: 3 * b()
++b() yields: 13 * c()
++c() yields: 23
++897
++a() yields: 4 * b()
++b() yields: 14 * c()
++c() yields: 24
++1344
++a() yields: 5 * b()
++b() yields: 15 * c()
++c() yields: 25
++1875
++a() yields: 6 * b()
++b() yields: 16 * c()
++c() yields: 26
++2496
++a() yields: 7 * b()
++b() yields: 17 * c()
++c() yields: 27
++3213
++a() yields: 8 * b()
++b() yields: 18 * c()
++c() yields: 28
++4032
++a() yields: 9 * b()
++b() yields: 19 * c()
++c() yields: 29
++4959
+
+
+
+From rsmudge at berlios.de  Sun Jun 11 23:33:29 2006
+From: rsmudge at berlios.de (rsmudge at BerliOS)
+Date: Sun, 11 Jun 2006 23:33:29 +0200
+Subject: [Sleep-svn] r54 - in sleep: src/sleep/engine src/sleep/engine/atoms src/sleep/parser tests tests/output
+Message-ID: <200606112133.k5BLXTCx002930@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-06-11 23:33:29 +0200 (Sun, 11 Jun 2006)
+New Revision: 54
+
+Added:
+   sleep/src/sleep/engine/atoms/Decide.java
+   sleep/tests/cor_ifonce.sl
+   sleep/tests/output/cor_ifonce.sl
+Modified:
+   sleep/src/sleep/engine/Block.java
+   sleep/src/sleep/engine/GeneratedSteps.java
+   sleep/src/sleep/engine/atoms/Goto.java
+   sleep/src/sleep/parser/CodeGenerator.java
+Log:
+Fixed yet another coroutine issue, basically when resuming an if statement with a coroutine the check function
+would get called again.
+
+To make this happen the atomic steps for looping and for deciding had to be separated.  This is because of the functions
+that branch (Goto, Decide, Foreach, etc.) only Goto is "reentrant" i.e. we wouldn't want to resume any of the other atomic
+steps when the state is restored.
+
+
+
+Modified: sleep/src/sleep/engine/Block.java
+===================================================================
+--- sleep/src/sleep/engine/Block.java	2006-06-11 20:46:37 UTC (rev 53)
++++ sleep/src/sleep/engine/Block.java	2006-06-11 21:33:29 UTC (rev 54)
+@@ -166,17 +166,17 @@
+            {
+               if (environment.getFlowControlRequest() == ScriptEnvironment.FLOW_CONTROL_YIELD)
+               {
+-                 if (temp instanceof sleep.engine.atoms.Return)
++                 if (temp instanceof sleep.engine.atoms.Goto)
+                  {
++                    environment.addToContext(this, temp);
++                 }
++                 else
++                 {
+                     if (temp.next != null)
+                     {
+                        environment.addToContext(this, temp.next);
+                     }
+                  }
+-                 else
+-                 {
+-                    environment.addToContext(this, temp);
+-                 }
+               }
+ 
+               return environment.getReturnValue();
+
+Modified: sleep/src/sleep/engine/GeneratedSteps.java
+===================================================================
+--- sleep/src/sleep/engine/GeneratedSteps.java	2006-06-11 20:46:37 UTC (rev 53)
++++ sleep/src/sleep/engine/GeneratedSteps.java	2006-06-11 21:33:29 UTC (rev 54)
+@@ -52,11 +52,18 @@
+        return temp;
+     }
+ 
+-    public static Step Goto(Check conditionForGoto, Block ifTrue, Block ifFalse, Block increment, boolean shouldLoop)
++    public static Step Goto(Check conditionForGoto, Block ifTrue, Block increment)
+     {
+        Goto temp = new Goto(conditionForGoto);
++       temp.setChoices(ifTrue);
++       temp.setIncrement(increment);
++       return temp;
++    }
++
++    public static Step Decide(Check conditionForGoto, Block ifTrue, Block ifFalse)
++    {
++       Decide temp = new Decide(conditionForGoto);
+        temp.setChoices(ifTrue, ifFalse);
+-       temp.setLoop(shouldLoop, increment);
+        return temp;
+     }
+  
+
+Added: sleep/src/sleep/engine/atoms/Decide.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/Decide.java	2006-06-11 20:46:37 UTC (rev 53)
++++ sleep/src/sleep/engine/atoms/Decide.java	2006-06-11 21:33:29 UTC (rev 54)
+@@ -0,0 +1,89 @@
++/*
++   SLEEP - Simple Language for Environment Extension Purposes
++ .---------------------------.
++ | sleep.engine.atoms.Decide |________________________________________________
++ |                                                                            |
++   Author: Raphael Mudge (rsmudge at mtu.edu)
++           http://www.csl.mtu.edu/~rsmudge/
++
++   Description: This class contains an implementation of an atomic Step for
++     the sleep scripting.  
++
++   Documentation:
++
++   Changelog:
++   11/17/2002 - this class was refactored out of Step and put in its own file.
++
++   * This software is distributed under the artistic license, see license.txt
++     for more information. *
++
++ |____________________________________________________________________________|
++ */
++
++package sleep.engine.atoms;
++
++import java.util.*;
++import sleep.interfaces.*;
++import sleep.engine.*;
++import sleep.runtime.*;
++
++public class Decide extends Step
++{
++   public Block iftrue;
++   public Block iffalse;
++   public Check start;
++ 
++   public Decide (Check s)
++   {
++      start = s;
++   }
++
++   public String toString(String prefix)
++   {
++      StringBuffer temp = new StringBuffer();
++      temp.append(prefix);
++      temp.append("[Decide]:\n");
++      temp.append(prefix);
++      temp.append("  [Condition]: \n");      
++      temp.append(start.toString(prefix+"      "));
++     
++      if (iftrue != null)
++      {
++         temp.append(prefix); 
++         temp.append("  [If true]:   \n");      
++         temp.append(iftrue.toString(prefix+"      "));
++      }
++
++      if (iffalse != null)
++      {
++         temp.append(prefix); 
++         temp.append("  [If False]:   \n");      
++         temp.append(iffalse.toString(prefix+"      "));
++      }
++
++      return temp.toString();
++   }
++
++   public void setChoices(Block t, Block f)
++   {
++      iftrue  = t;
++      iffalse = f;
++   }
++
++   public Scalar evaluate(ScriptEnvironment e)
++   {
++      if (start.check(e))
++      {
++          iftrue.evaluate(e);
++      }
++      else if (iffalse != null)
++      {
++          iffalse.evaluate(e);
++      }
++
++      return null;
++   }
++}
++
++
++
+
+Modified: sleep/src/sleep/engine/atoms/Goto.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/Goto.java	2006-06-11 20:46:37 UTC (rev 53)
++++ sleep/src/sleep/engine/atoms/Goto.java	2006-06-11 21:33:29 UTC (rev 54)
+@@ -30,12 +30,7 @@
+ public class Goto extends Step
+ {
+    public Block iftrue;
+-   public Block iffalse;
+-
+    public Check start;
+- 
+-   public String name;
+-   public boolean isLoop;
+    public Block increment;
+ 
+    public Goto (Check s)
+@@ -47,7 +42,7 @@
+    {
+       StringBuffer temp = new StringBuffer();
+       temp.append(prefix);
+-      temp.append("[Goto]:  (loop: "+isLoop+")      \n");
++      temp.append("[Goto]: \n");
+       temp.append(prefix);
+       temp.append("  [Condition]: \n");      
+       temp.append(start.toString(prefix+"      "));
+@@ -59,13 +54,6 @@
+          temp.append(iftrue.toString(prefix+"      "));
+       }
+ 
+-      if (iffalse != null)
+-      {
+-         temp.append(prefix); 
+-         temp.append("  [If False]:   \n");      
+-         temp.append(iffalse.toString(prefix+"      "));
+-      }
+-
+       if (increment != null)
+       {
+          temp.append(prefix); 
+@@ -76,62 +64,38 @@
+       return temp.toString();
+    }
+ 
+-   public void setLoop(boolean l, Block i)
++   public void setIncrement(Block i)
+    {
+-      isLoop    = l;
+       increment = i;
+    }
+ 
+-   public void setChoices(Block t, Block f)
++   public void setChoices(Block t)
+    {
+       iftrue = t;
+-      iffalse = f;
+    }
+ 
+    public Scalar evaluate(ScriptEnvironment e)
+    {
+-      if (start.check(e))
++      while (!e.isReturn() && start.check(e))
+       {
+-          iftrue.evaluate(e);
+-      }
+-      else if (iffalse != null)
+-      {
+-          iffalse.evaluate(e);
+-      }
++         iftrue.evaluate(e);
+ 
+-      if (isLoop)
+-      {
+-          if (e.getFlowControlRequest() == ScriptEnvironment.FLOW_CONTROL_CONTINUE)
+-          {
+-             e.clearReturn();
+-          }
+-
+-          if (increment != null)
+-          {
+-             increment.evaluate(e);
+-          }
+-
+-          while (!e.isReturn() && start.check(e))
+-          {
+-             iftrue.evaluate(e);
+-
+-             if (e.getFlowControlRequest() == ScriptEnvironment.FLOW_CONTROL_CONTINUE)
+-             {
+-                e.clearReturn();
+-             }
+-
+-             if (increment != null)
+-             {
+-                increment.evaluate(e);
+-             }
++         if (e.getFlowControlRequest() == ScriptEnvironment.FLOW_CONTROL_CONTINUE)
++         {
++            e.clearReturn();
+          }
+ 
+-         if (e.getFlowControlRequest() == ScriptEnvironment.FLOW_CONTROL_BREAK)
++         if (increment != null)
+          {
+-             e.clearReturn();
++            increment.evaluate(e);
+          }
+       }
+ 
++      if (e.getFlowControlRequest() == ScriptEnvironment.FLOW_CONTROL_BREAK)
++      {
++         e.clearReturn();
++      }
++
+       return null;
+    }
+ }
+
+Modified: sleep/src/sleep/parser/CodeGenerator.java
+===================================================================
+--- sleep/src/sleep/parser/CodeGenerator.java	2006-06-11 20:46:37 UTC (rev 53)
++++ sleep/src/sleep/parser/CodeGenerator.java	2006-06-11 21:33:29 UTC (rev 54)
+@@ -760,7 +760,7 @@
+               parseIdea(termsAr[2]);
+               b = restore();
+ 
+-              atom = GeneratedSteps.Goto(parsePredicate(termsAr[0]), a, b, null, false);
++              atom = GeneratedSteps.Decide(parsePredicate(termsAr[0]), a, b);
+               add(atom, tokens[0]); 
+            }
+            else if (tokens.length > 1)
+@@ -784,7 +784,7 @@
+          case EXPR_WHILE:                                        // done
+            backup();
+            parseBlock(tokens[2]);    
+-           atom = GeneratedSteps.Goto(parsePredicate(ParserUtilities.extract(tokens[1])), restore(), null, null, true);
++           atom = GeneratedSteps.Goto(parsePredicate(ParserUtilities.extract(tokens[1])), restore(), null);
+            add(atom, tokens[1]);
+            break;
+          case EXPR_ASSIGNMENT_T:                                  // implemented
+@@ -841,7 +841,7 @@
+            }
+            b = restore();
+ 
+-           atom = GeneratedSteps.Goto(parsePredicate(ParserUtilities.extract(tokens[1])), a, b, null, false);
++           atom = GeneratedSteps.Decide(parsePredicate(ParserUtilities.extract(tokens[1])), a, b);
+            add(atom, tokens[1]); 
+            break;
+          case EXPR_FOREACH_SPECIAL:
+@@ -934,7 +934,7 @@
+            //
+            // setup our goto object..
+            // 
+-           atom = GeneratedSteps.Goto(parsePredicate(extracted_terms[1]), b, null, a, true);
++           atom = GeneratedSteps.Goto(parsePredicate(extracted_terms[1]), b, a);
+            add(atom, tokens[1]);
+            break;
+          case OBJECT_IMPORT:
+
+Added: sleep/tests/cor_ifonce.sl
+===================================================================
+--- sleep/tests/cor_ifonce.sl	2006-06-11 20:46:37 UTC (rev 53)
++++ sleep/tests/cor_ifonce.sl	2006-06-11 21:33:29 UTC (rev 54)
+@@ -0,0 +1,39 @@
++#
++# ensure if statement condition gets evaluated only once in a coroutine...
++#
++
++sub check
++{
++   println("Check function has been called!@#$%^&");
++   return 1;
++}
++
++sub a
++{
++   if (check())
++   {
++      yield "within if statement";
++   }
++
++   return "done";
++}
++
++println("Call 1: " . a());
++println("Call 2: " . a());
++
++
++sub b
++{
++   if (check())
++   {
++      yield "within if statement";
++      println("The if should continue anyways...");
++   }
++
++   return "done";
++}
++
++println("Call 3: " . b());
++println("Call 4: " . b());
++
++
+
+Added: sleep/tests/output/cor_ifonce.sl
+===================================================================
+--- sleep/tests/output/cor_ifonce.sl	2006-06-11 20:46:37 UTC (rev 53)
++++ sleep/tests/output/cor_ifonce.sl	2006-06-11 21:33:29 UTC (rev 54)
+@@ -0,0 +1,7 @@
++Check function has been called!@#
++Call 1: within if statement
++Call 2: done
++Check function has been called!@#
++Call 3: within if statement
++The if should continue anyways...
++Call 4: done
+
+
+
+From rsmudge at berlios.de  Sun Jun 11 23:43:02 2006
+From: rsmudge at berlios.de (rsmudge at BerliOS)
+Date: Sun, 11 Jun 2006 23:43:02 +0200
+Subject: [Sleep-svn] r55 - in sleep/tests: . output
+Message-ID: <200606112143.k5BLh2Al006020@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-06-11 23:43:02 +0200 (Sun, 11 Jun 2006)
+New Revision: 55
+
+Added:
+   sleep/tests/cor_return.sl
+   sleep/tests/output/cor_return.sl
+Log:
+Adding another unit test for coroutines.
+
+
+
+Added: sleep/tests/cor_return.sl
+===================================================================
+--- sleep/tests/cor_return.sl	2006-06-11 21:33:29 UTC (rev 54)
++++ sleep/tests/cor_return.sl	2006-06-11 21:43:02 UTC (rev 55)
+@@ -0,0 +1,44 @@
++#
++# ensure return properly resets the coroutine... 
++#
++
++sub a
++{
++   yield 1;
++   
++   yield 2;
++
++   if ($1 ne $null)
++   {
++      return -1;
++   }
++
++   yield 3;
++  
++   yield 4;
++}
++
++println("Test 1: ");
++
++println(a());
++println(a());
++println(a());
++println(a());
++
++println(a());
++println(a());
++println(a());
++println(a());
++
++println("Test 2: ");
++
++println(a());
++println(a());
++println(a("boogidy boogidy"));
++println(a());
++
++println(a());
++println(a());
++println(a());
++println(a());
++
+
+Added: sleep/tests/output/cor_return.sl
+===================================================================
+--- sleep/tests/output/cor_return.sl	2006-06-11 21:33:29 UTC (rev 54)
++++ sleep/tests/output/cor_return.sl	2006-06-11 21:43:02 UTC (rev 55)
+@@ -0,0 +1,18 @@
++Test 1: 
++1
++2
++3
++4
++1
++2
++3
++4
++Test 2: 
++1
++2
++-1
++1
++2
++3
++4
++1
+
+
+
+From rsmudge at berlios.de  Mon Jun 12 00:08:35 2006
+From: rsmudge at berlios.de (rsmudge at BerliOS)
+Date: Mon, 12 Jun 2006 00:08:35 +0200
+Subject: [Sleep-svn] r56 - in sleep: src/sleep/engine/atoms src/sleep/parser tests tests/output
+Message-ID: <200606112208.k5BM8ZZd012367@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-06-12 00:08:34 +0200 (Mon, 12 Jun 2006)
+New Revision: 56
+
+Added:
+   sleep/tests/cor_prodcon.sl
+   sleep/tests/output/cor_prodcon.sl
+Modified:
+   sleep/src/sleep/engine/atoms/Goto.java
+   sleep/src/sleep/parser/CodeGenerator.java
+Log:
+Fixed another coroutine issue, the increment step on for loops was not being executed upon resuming a for loop
+after a yield.  
+
+
+
+Modified: sleep/src/sleep/engine/atoms/Goto.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/Goto.java	2006-06-11 21:43:02 UTC (rev 55)
++++ sleep/src/sleep/engine/atoms/Goto.java	2006-06-11 22:08:34 UTC (rev 56)
+@@ -29,9 +29,9 @@
+ 
+ public class Goto extends Step
+ {
+-   public Block iftrue;
+-   public Check start;
+-   public Block increment;
++   protected Block   iftrue;
++   protected Check   start;
++   protected Block   increment;
+ 
+    public Goto (Check s)
+    {
+@@ -83,11 +83,12 @@
+          if (e.getFlowControlRequest() == ScriptEnvironment.FLOW_CONTROL_CONTINUE)
+          {
+             e.clearReturn();
+-         }
+ 
+-         if (increment != null)
+-         {
+-            increment.evaluate(e);
++            if (increment != null)
++            {
++               increment.evaluate(e); /* normally this portion exists within iftrue but in the case of a continue
++                                      the increment has to be executed separately so it is included */
++            }
+          }
+       }
+ 
+
+Modified: sleep/src/sleep/parser/CodeGenerator.java
+===================================================================
+--- sleep/src/sleep/parser/CodeGenerator.java	2006-06-11 21:43:02 UTC (rev 55)
++++ sleep/src/sleep/parser/CodeGenerator.java	2006-06-11 22:08:34 UTC (rev 56)
+@@ -906,14 +906,6 @@
+            parseBlock(tokens[0].copy(doThis.toString()));
+ 
+            //
+-           // parse the loop body and save it
+-           //
+-           backup();
+-
+-           parseBlock(tokens[2]);    
+-           b = restore();
+-
+-           //
+            // parse the final terms and save them...
+            //
+            backup();
+@@ -932,6 +924,15 @@
+            a = restore();
+ 
+            //
++           // parse the loop body and save it
++           //
++           backup();
++
++           parseBlock(tokens[2]);    
++           parseBlock(tokens[0].copy(doThis.toString()));
++           b = restore();
++
++           //
+            // setup our goto object..
+            // 
+            atom = GeneratedSteps.Goto(parsePredicate(extracted_terms[1]), b, a);
+
+Added: sleep/tests/cor_prodcon.sl
+===================================================================
+--- sleep/tests/cor_prodcon.sl	2006-06-11 21:43:02 UTC (rev 55)
++++ sleep/tests/cor_prodcon.sl	2006-06-11 22:08:34 UTC (rev 56)
+@@ -0,0 +1,53 @@
++#
++# Producer/Consumer Problem with Coroutines...
++#
++
++ at data = array();
++
++sub produce
++{
++   this('$x');
++
++   println("*** Starting to Produce ***");
++
++   for ($x = 0; $x < 100; $x++)
++   {
++      println("Produce: $x");
++      push(@data, $x);
++
++      if (($x % 4) == 0 && $x > 1)
++      {
++         yield;
++      }
++   }
++
++   yield; # give up the last stuff we produced...
++
++   clear(@data); # produce no data when we're ready to cancel...
++}
++
++sub consume
++{
++   this('$var');
++
++   println("*** Starting to Consume ***");
++
++   while (1)
++   {
++      while (size(@data) > 0)
++      {
++         $var = pop(@data);
++         println("Consume: $var");
++      }
++
++      yield; 
++   }   
++}
++
++produce();
++while (size(@data) > 0)
++{
++   consume();
++   produce();
++} 
++
+
+Added: sleep/tests/output/cor_prodcon.sl
+===================================================================
+--- sleep/tests/output/cor_prodcon.sl	2006-06-11 21:43:02 UTC (rev 55)
++++ sleep/tests/output/cor_prodcon.sl	2006-06-11 22:08:34 UTC (rev 56)
+@@ -0,0 +1,202 @@
++*** Starting to Produce ***
++Produce: 0
++Produce: 1
++Produce: 2
++Produce: 3
++Produce: 4
++*** Starting to Consume ***
++Consume: 4
++Consume: 3
++Consume: 2
++Consume: 1
++Consume: 0
++Produce: 5
++Produce: 6
++Produce: 7
++Produce: 8
++Consume: 8
++Consume: 7
++Consume: 6
++Consume: 5
++Produce: 9
++Produce: 10
++Produce: 11
++Produce: 12
++Consume: 12
++Consume: 11
++Consume: 10
++Consume: 9
++Produce: 13
++Produce: 14
++Produce: 15
++Produce: 16
++Consume: 16
++Consume: 15
++Consume: 14
++Consume: 13
++Produce: 17
++Produce: 18
++Produce: 19
++Produce: 20
++Consume: 20
++Consume: 19
++Consume: 18
++Consume: 17
++Produce: 21
++Produce: 22
++Produce: 23
++Produce: 24
++Consume: 24
++Consume: 23
++Consume: 22
++Consume: 21
++Produce: 25
++Produce: 26
++Produce: 27
++Produce: 28
++Consume: 28
++Consume: 27
++Consume: 26
++Consume: 25
++Produce: 29
++Produce: 30
++Produce: 31
++Produce: 32
++Consume: 32
++Consume: 31
++Consume: 30
++Consume: 29
++Produce: 33
++Produce: 34
++Produce: 35
++Produce: 36
++Consume: 36
++Consume: 35
++Consume: 34
++Consume: 33
++Produce: 37
++Produce: 38
++Produce: 39
++Produce: 40
++Consume: 40
++Consume: 39
++Consume: 38
++Consume: 37
++Produce: 41
++Produce: 42
++Produce: 43
++Produce: 44
++Consume: 44
++Consume: 43
++Consume: 42
++Consume: 41
++Produce: 45
++Produce: 46
++Produce: 47
++Produce: 48
++Consume: 48
++Consume: 47
++Consume: 46
++Consume: 45
++Produce: 49
++Produce: 50
++Produce: 51
++Produce: 52
++Consume: 52
++Consume: 51
++Consume: 50
++Consume: 49
++Produce: 53
++Produce: 54
++Produce: 55
++Produce: 56
++Consume: 56
++Consume: 55
++Consume: 54
++Consume: 53
++Produce: 57
++Produce: 58
++Produce: 59
++Produce: 60
++Consume: 60
++Consume: 59
++Consume: 58
++Consume: 57
++Produce: 61
++Produce: 62
++Produce: 63
++Produce: 64
++Consume: 64
++Consume: 63
++Consume: 62
++Consume: 61
++Produce: 65
++Produce: 66
++Produce: 67
++Produce: 68
++Consume: 68
++Consume: 67
++Consume: 66
++Consume: 65
++Produce: 69
++Produce: 70
++Produce: 71
++Produce: 72
++Consume: 72
++Consume: 71
++Consume: 70
++Consume: 69
++Produce: 73
++Produce: 74
++Produce: 75
++Produce: 76
++Consume: 76
++Consume: 75
++Consume: 74
++Consume: 73
++Produce: 77
++Produce: 78
++Produce: 79
++Produce: 80
++Consume: 80
++Consume: 79
++Consume: 78
++Consume: 77
++Produce: 81
++Produce: 82
++Produce: 83
++Produce: 84
++Consume: 84
++Consume: 83
++Consume: 82
++Consume: 81
++Produce: 85
++Produce: 86
++Produce: 87
++Produce: 88
++Consume: 88
++Consume: 87
++Consume: 86
++Consume: 85
++Produce: 89
++Produce: 90
++Produce: 91
++Produce: 92
++Consume: 92
++Consume: 91
++Consume: 90
++Consume: 89
++Produce: 93
++Produce: 94
++Produce: 95
++Produce: 96
++Consume: 96
++Consume: 95
++Consume: 94
++Consume: 93
++Produce: 97
++Produce: 98
++Produce: 99
++Consume: 99
++Consume: 98
++Consume: 97
+
+
+
+From rsmudge at berlios.de  Mon Jun 12 02:53:03 2006
+From: rsmudge at berlios.de (rsmudge at BerliOS)
+Date: Mon, 12 Jun 2006 02:53:03 +0200
+Subject: [Sleep-svn] r57 - in sleep/src/sleep: bridges engine engine/atoms parser runtime
+Message-ID: <200606120053.k5C0r3eB027239@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-06-12 02:52:58 +0200 (Mon, 12 Jun 2006)
+New Revision: 57
+
+Removed:
+   sleep/src/sleep/engine/atoms/Foreach.java
+Modified:
+   sleep/src/sleep/bridges/SleepClosure.java
+   sleep/src/sleep/engine/GeneratedSteps.java
+   sleep/src/sleep/parser/CodeGenerator.java
+   sleep/src/sleep/runtime/ScriptEnvironment.java
+Log:
+Refactored the Sleep foreach loop construct; all sleep loops now use the goto atomic step. 
+
+
+
+Modified: sleep/src/sleep/bridges/SleepClosure.java
+===================================================================
+--- sleep/src/sleep/bridges/SleepClosure.java	2006-06-11 22:08:34 UTC (rev 56)
++++ sleep/src/sleep/bridges/SleepClosure.java	2006-06-12 00:52:58 UTC (rev 57)
+@@ -51,6 +51,9 @@
+     /** the saved context of this closure */
+     Stack             context;
+ 
++    /** the meta data for this closure context */
++    HashMap          metadata; 
++
+     /** Creates a new Sleep Closure, with a brand new set of internal variables.  Don't be afraid, you can call this constructor from your code. */
+     public SleepClosure(ScriptInstance si, Block _code)
+     {
+@@ -63,6 +66,7 @@
+        code     = _code;
+        owner    = si;
+        context  = new Stack();
++       metadata = new HashMap();
+ 
+        _var.putScalar("$this", SleepUtils.getScalar(this));
+        setVariables(_var);
+@@ -123,7 +127,7 @@
+ 
+        synchronized (vars)
+        {
+-          env.loadContext(context);
++          env.loadContext(context, metadata);
+ 
+           vars.pushClosureLevel(this);
+           vars.pushLocalLevel();
+
+Modified: sleep/src/sleep/engine/GeneratedSteps.java
+===================================================================
+--- sleep/src/sleep/engine/GeneratedSteps.java	2006-06-11 22:08:34 UTC (rev 56)
++++ sleep/src/sleep/engine/GeneratedSteps.java	2006-06-12 00:52:58 UTC (rev 57)
+@@ -46,6 +46,21 @@
+        return temp;
+     }
+ 
++    public static Step IteratorCreate(String key, String value)
++    {
++       return new Iterate(key, value, Iterate.ITERATOR_CREATE);
++    }
++
++    public static Step IteratorNext()
++    {
++       return new Iterate(null, null, Iterate.ITERATOR_NEXT);
++    }
++
++    public static Step IteratorDestroy()
++    {
++       return new Iterate(null, null, Iterate.ITERATOR_DESTROY);
++    }
++
+     public static Check Check(String nameOfOperator, Block setupOperands)
+     {
+        Check temp = new Check(nameOfOperator, setupOperands);
+@@ -109,18 +124,6 @@
+        return temp;
+     }
+ 
+-    public static Step Foreach(Block source, String value, Block code)
+-    {
+-       Step temp = new Foreach(source, value, code);
+-       return temp;
+-    }
+-
+-    public static Step Foreach(Block source, String key, String value, Block code)
+-    {
+-       Step temp = new Foreach(source, key, value, code);
+-       return temp;
+-    }
+-
+     public static Step CreateClosure(Block code)
+     {
+        Step temp = new CreateClosure(code);
+
+Deleted: sleep/src/sleep/engine/atoms/Foreach.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/Foreach.java	2006-06-11 22:08:34 UTC (rev 56)
++++ sleep/src/sleep/engine/atoms/Foreach.java	2006-06-12 00:52:58 UTC (rev 57)
+@@ -1,151 +0,0 @@
+-/*
+-   SLEEP - Simple Language for Environment Extension Purposes
+- .----------------------------.
+- | sleep.engine.atoms.Foreach |_______________________________________________
+- |                                                                            |
+-   Author: Raphael Mudge (rsmudge at mtu.edu)
+-           http://www.csl.mtu.edu/~rsmudge/
+-
+-   Description: This class contains an implementation of an atomic Step for
+-     the sleep scripting.  
+-
+-   Documentation:
+-
+-   Changelog:
+-
+-   * This software is distributed under the artistic license, see license.txt
+-     for more information. *
+-
+- |____________________________________________________________________________|
+- */
+-
+-package sleep.engine.atoms;
+-
+-import java.util.*;
+-import sleep.interfaces.*;
+-import sleep.engine.*;
+-import sleep.runtime.*;
+-
+-public class Foreach extends Step
+-{
+-   public Block  source;
+-   public String value;
+-   public Block  code;
+-   public String key;
+- 
+-   public Foreach (Block _source, String _value, Block _code)
+-   {
+-       this(_source, null, _value, _code);
+-   }
+-
+-   public Foreach (Block _source, String _key, String _value, Block _code)
+-   {
+-       source = _source;
+-       key    = _key;
+-       value  = _value;
+-       code   = _code;
+-   }
+-
+-   public String toString(String prefix)
+-   {
+-      StringBuffer temp = new StringBuffer();
+-
+-      temp.append(prefix);
+-      temp.append("[Foreach]: " + key + " => " + value + "\n");
+-      temp.append(prefix);
+-
+-      temp.append("  [Source Data]: \n");      
+-      temp.append(source.toString(prefix+"      "));
+-
+-      temp.append(prefix);
+-      temp.append("  [Code to execute]: \n");      
+-      temp.append(code.toString(prefix+"      "));
+-
+-      return temp.toString();
+-   }
+-
+-   public Scalar evaluate(ScriptEnvironment e)
+-   {
+-      Variable venv = e.getScriptVariables().getScalarLevel(value, e.getScriptInstance());
+-
+-      if (venv == null)
+-      {
+-         venv = e.getScriptVariables().getGlobalVariables();
+-      }
+-
+-      e.CreateFrame();
+-      source.evaluate(e);
+- 
+-      Scalar src = (Scalar)e.getCurrentFrame().pop();
+-      e.KillFrame();
+-
+-      Iterator i;
+-
+-      if (src.getHash() != null)
+-      {
+-         i = src.getHash().keys().scalarIterator();  
+-      }
+-      else if (src.getArray() != null)
+-      {
+-         i = src.getArray().scalarIterator();
+-      }
+-      else
+-      {
+-         e.getScriptInstance().fireWarning("Attempted to use foreach on non-array: '" + src + "'", getLineNumber());
+-         return null;
+-      }
+-
+-      int x = 0;
+-      while (i.hasNext())
+-      {
+-         Scalar out = (Scalar)i.next();
+-
+-         if (key != null)
+-         {
+-            if (src.getHash() != null)
+-            {
+-               venv.putScalar(key, out);
+-               venv.putScalar(value, src.getHash().getAt(out));
+-            }
+-            else
+-            {
+-               venv.putScalar(key, SleepUtils.getScalar(x));
+-               venv.putScalar(value, out);
+-            }
+-         }
+-         else
+-         {
+-            venv.putScalar(value, out);
+-         }
+-
+-         e.CreateFrame();
+-         code.evaluate(e);
+-         e.KillFrame();
+-
+-         if (e.isReturn())
+-         {
+-            if (e.getFlowControlRequest() == ScriptEnvironment.FLOW_CONTROL_BREAK)
+-            {
+-               e.clearReturn();
+-               break;
+-            }
+-            else if (e.getFlowControlRequest() == ScriptEnvironment.FLOW_CONTROL_CONTINUE)
+-            {
+-               e.clearReturn();
+-               continue;
+-            }
+-            else
+-            {
+-               return e.getReturnValue();
+-            }
+-         }
+-
+-         x++;
+-      }
+-
+-      return null;
+-   }
+-}
+-
+-
+-
+
+Modified: sleep/src/sleep/parser/CodeGenerator.java
+===================================================================
+--- sleep/src/sleep/parser/CodeGenerator.java	2006-06-11 22:08:34 UTC (rev 56)
++++ sleep/src/sleep/parser/CodeGenerator.java	2006-06-12 00:52:58 UTC (rev 57)
+@@ -341,6 +341,8 @@
+        Step     atom;
+        Scalar   ascalar;
+ 
++       Check    tempp;
++
+        Iterator i;
+        String   mutilate; // mutilate this string as I see fit...
+        StringBuffer sb;  
+@@ -851,36 +853,71 @@
+            // |$value    3
+            // |(@temp)   4
+            // |{ &printf("hi"); } 5
++ 
++           /**** purposeful fall thru... ****/
+ 
+-           backup(); 
+-           parseIdea(ParserUtilities.extract(tokens[4])); // parse the "source" of the foreach
+-           a = restore();
+-
+-           backup();
+-           parseBlock(ParserUtilities.extract(tokens[5])); // parse the actual block of code to be executed.
+-           b = restore();
+-
+-           atom = GeneratedSteps.Foreach(a, strings[1], strings[3], b);
+-
+-           add(atom, tokens[1]);
+-           break;
+          case EXPR_FOREACH:
+            // |foreach
+            // |$var
+            // |(@temp)
+            // |{ &printf("hi"); }
+ 
+-           backup(); 
+-           parseIdea(ParserUtilities.extract(tokens[2])); // parse the "source" of the foreach
++           //
++           // setup our frame with the value, possibly the key,  and the source
++           //
++           atom = GeneratedSteps.CreateFrame();
++           add(atom, tokens[0]);
++
++           if (datum.getType() == EXPR_FOREACH)
++           {
++              parseIdea(ParserUtilities.extract(tokens[2])); // parse the "source" of the foreach
++              atom = GeneratedSteps.IteratorCreate(null, strings[1]);
++           }
++           else
++           {
++              parseIdea(ParserUtilities.extract(tokens[4])); // parse the "source" of the foreach
++              atom = GeneratedSteps.IteratorCreate(strings[1], strings[3]);
++           }
++           add(atom, tokens[0]);
++
++           //
++           // parse the body of the loop
++           // 
++           backup();
++
++           if (datum.getType() == EXPR_FOREACH)
++           {
++              parseBlock(ParserUtilities.extract(tokens[3])); // parse the actual block of code to be executed.
++           }
++           else
++           {
++              parseBlock(ParserUtilities.extract(tokens[5])); // parse the actual block of code to be executed.
++           }
++
+            a = restore();
+ 
++           //
++           // setup the has next portion of the iterator...
++           //
+            backup();
+-           parseBlock(ParserUtilities.extract(tokens[3])); // parse the actual block of code to be executed.
+-           b = restore();
+ 
+-           atom = GeneratedSteps.Foreach(a, strings[1], b);
++           atom = GeneratedSteps.IteratorNext();
++           add(atom, tokens[0]);
++             
++           tempp = GeneratedSteps.Check("-istrue", restore());
++           tempp.setInfo(tokens[0].getHint());
+ 
++           //
++           // add our looping mechanism (everyone loves this part, eh!?!)
++           //
++           atom = GeneratedSteps.Goto(tempp, a, null);
+            add(atom, tokens[1]);
++
++           //
++           // add our mechanism for destroying the iterator...
++           //
++           atom = GeneratedSteps.IteratorDestroy();
++           add(atom, tokens[1]);
+            break; 
+          case EXPR_FOR:
+            // |for
+
+Modified: sleep/src/sleep/runtime/ScriptEnvironment.java
+===================================================================
+--- sleep/src/sleep/runtime/ScriptEnvironment.java	2006-06-11 22:08:34 UTC (rev 56)
++++ sleep/src/sleep/runtime/ScriptEnvironment.java	2006-06-12 00:52:58 UTC (rev 57)
+@@ -216,18 +216,41 @@
+        public Step  last;       
+     }
+ 
+-    protected Stack context      = null;
+-    protected Stack contextStack = new Stack();
++    protected Stack    context      = new Stack();
++    protected Stack    contextStack = new Stack();
+ 
+-    public void loadContext(Stack c)
++    protected HashMap  metadata     = new HashMap();
++    protected Stack    metaStack    = new Stack();
++
++    public void loadContext(Stack _context, HashMap _metadata)
+     {
+-       if (context != null)
+-       { 
+-          contextStack.push(context);
++       contextStack.push(context);
++       metaStack.push(metadata); 
++
++       context  = _context;
++       metadata = _metadata;
++    }
++
++    /** Use this function to save some meta data for this particular closure context, passing null for value will
++        remove the key from the metadata for this context */
++    public void setContextMetadata(Object key, Object value)
++    {
++       if (value == null) 
++       {
++          metadata.remove(key);
+        }
+-       context = c;
++       else
++       {
++          metadata.put(key, value);
++       }
+     }
+ 
++    /** Returns the data associated with the particular key for this context. */
++    public Object getContextMetadata(Object key)
++    {
++       return metadata.get(key);
++    }
++
+     public void addToContext(Block b, Step s)
+     {
+        Context temp = new Context();
+@@ -256,14 +279,8 @@
+     {
+        Stack cstack = context;
+ 
+-       if (contextStack.isEmpty())
+-       {
+-          context = null;
+-       }
+-       else
+-       {
+-          context = (Stack)(contextStack.pop());
+-       }
++       context  = (Stack)(contextStack.pop());
++       metadata = (HashMap)(metaStack.pop());
+ 
+        return cstack;
+     }
+
+
+
+From rsmudge at berlios.de  Mon Jun 12 02:53:45 2006
+From: rsmudge at berlios.de (rsmudge at BerliOS)
+Date: Mon, 12 Jun 2006 02:53:45 +0200
+Subject: [Sleep-svn] r58 - sleep/src/sleep/engine/atoms
+Message-ID: <200606120053.k5C0rjOp027525@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-06-12 02:53:42 +0200 (Mon, 12 Jun 2006)
+New Revision: 58
+
+Added:
+   sleep/src/sleep/engine/atoms/Iterate.java
+Log:
+forgot to add this file :)
+
+
+
+Added: sleep/src/sleep/engine/atoms/Iterate.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/Iterate.java	2006-06-12 00:52:58 UTC (rev 57)
++++ sleep/src/sleep/engine/atoms/Iterate.java	2006-06-12 00:53:42 UTC (rev 58)
+@@ -0,0 +1,201 @@
++/*
++   SLEEP - Simple Language for Environment Extension Purposes
++ .----------------------------.
++ | sleep.engine.atoms.Iterator |______________________________________________
++ |                                                                            |
++   Author: Raphael Mudge (rsmudge at mtu.edu)
++           http://www.csl.mtu.edu/~rsmudge/
++
++   Description: This class contains an implementation of an atomic Step for
++     the sleep scripting.  
++
++   Documentation:
++
++   Changelog:
++
++   * This software is distributed under the artistic license, see license.txt
++     for more information. *
++
++ |____________________________________________________________________________|
++ */
++
++package sleep.engine.atoms;
++
++import java.util.*;
++import sleep.interfaces.*;
++import sleep.engine.*;
++import sleep.runtime.*;
++
++public class Iterate extends Step
++{
++   private static class IteratorData
++   {
++      public String   key      = null;
++      public Variable kenv     = null;
++
++      public String   value    = null;
++      public Variable venv     = null;
++
++      public Scalar   source   = null;
++      public Iterator iterator = null;
++      public int      count    = 0;
++   }
++
++   public static final int ITERATOR_CREATE   = 1;
++   public static final int ITERATOR_DESTROY  = 2;
++   public static final int ITERATOR_NEXT     = 3;
++
++   public String toString(String prefix)
++   {
++      switch (type)
++      { 
++         case ITERATOR_CREATE:
++            return prefix + "[Create Iterator]\n";
++         case ITERATOR_DESTROY:
++            return prefix + "[Destroy Iterator]\n";
++         case ITERATOR_NEXT:
++            return prefix + "[Iterator next]\n";
++      }
++
++      return prefix + "[Iterator Unknown!@]";
++   }
++
++   protected int    type = 0;
++   protected String key;
++   protected String value;
++
++   public Iterate(String _key, String _value, int _type)
++   {
++      type  = _type;
++      key   = _key;
++      value = _value;
++   }
++
++   private void iterator_destroy(ScriptEnvironment e)
++   {
++      Stack iterators = (Stack)(e.getContextMetadata("iterators"));
++      iterators.pop();      
++   }
++
++   private void iterator_create(ScriptEnvironment e)
++   {
++      Stack temp = e.getCurrentFrame();
++      
++      //
++      // grab our values off of the current frame...
++      //
++      IteratorData data = new IteratorData();
++      data.source   = (Scalar)(temp.pop());
++      e.KillFrame();
++
++      //
++      // setup our variables :)
++      //
++      data.value = value;
++      data.venv  = e.getScriptVariables().getScalarLevel(value, e.getScriptInstance());
++
++      if (data.venv == null)
++      {
++         data.venv = e.getScriptVariables().getGlobalVariables();
++      }
++
++      if (key != null)
++      {
++         data.key  = key;
++         data.kenv = e.getScriptVariables().getScalarLevel(key, e.getScriptInstance());
++
++         if (data.kenv == null)
++            data.kenv = e.getScriptVariables().getGlobalVariables();
++      }
++      
++      //
++      // setup the iterator
++      //
++      if (data.source.getHash() != null)
++      {
++         data.iterator = data.source.getHash().keys().scalarIterator();
++      }
++      else if (data.source.getArray() != null)
++      {
++         data.iterator = data.source.getArray().scalarIterator();
++      }
++      else
++      {
++         e.getScriptInstance().fireWarning("Attempted to use foreach on non-array: '" + data.source + "'", getLineNumber());
++         data.iterator = null;
++      }
++
++      //
++      // save the iterator
++      //
++      Stack iterators   = (Stack)(e.getContextMetadata("iterators"));
++
++      if (iterators == null)
++      {
++         iterators = new Stack();
++         e.setContextMetadata("iterators", iterators);
++      }
++
++      iterators.push(data);
++   }
++
++   private void iterator_next(ScriptEnvironment e)
++   {
++      Stack iterators   = (Stack)(e.getContextMetadata("iterators"));
++      IteratorData data = (IteratorData)(iterators.peek());
++
++      Scalar next       = null;
++
++      if (data.iterator != null && data.iterator.hasNext())
++      {
++         next = (Scalar)(data.iterator.next());
++         e.getCurrentFrame().push(SleepUtils.getScalar(true));
++      }
++      else
++      {
++         e.getCurrentFrame().push(SleepUtils.getScalar(false));
++         return;
++      }
++
++      if (data.key != null)
++      {
++         if (data.source.getHash() != null)
++         {
++            data.kenv.putScalar(data.key, next);
++            data.venv.putScalar(data.value, data.source.getHash().getAt(next));
++         }
++         else
++         {
++            data.kenv.putScalar(data.key, SleepUtils.getScalar(data.count));
++            data.venv.putScalar(data.value, next);
++         }
++      }
++      else
++      {
++         data.venv.putScalar(data.value, next);
++      }
++
++      data.count++;
++   }
++
++   public Scalar evaluate(ScriptEnvironment e)
++   {
++      if (type == ITERATOR_NEXT)
++      {
++         iterator_next(e);
++      }
++      else if (type == ITERATOR_CREATE)
++      {
++         iterator_create(e);
++      }
++      else if (type == ITERATOR_DESTROY)
++      {
++         iterator_destroy(e);
++      }
++
++      return null;
++   }
++}
++
++
++
+
+
+
+From rsmudge at berlios.de  Mon Jun 12 03:06:24 2006
+From: rsmudge at berlios.de (rsmudge at BerliOS)
+Date: Mon, 12 Jun 2006 03:06:24 +0200
+Subject: [Sleep-svn] r59 - in sleep: . src/sleep/runtime tests tests/output
+Message-ID: <200606120106.k5C16O1B031440@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-06-12 03:06:20 +0200 (Mon, 12 Jun 2006)
+New Revision: 59
+
+Added:
+   sleep/tests/cor_foreach.sl
+   sleep/tests/output/cor_foreach.sl
+Modified:
+   sleep/src/sleep/runtime/ScriptEnvironment.java
+   sleep/whatsnew.txt
+Log:
+Coroutines are in.  :)  Yay.
+
+
+
+Modified: sleep/src/sleep/runtime/ScriptEnvironment.java
+===================================================================
+--- sleep/src/sleep/runtime/ScriptEnvironment.java	2006-06-12 00:53:42 UTC (rev 58)
++++ sleep/src/sleep/runtime/ScriptEnvironment.java	2006-06-12 01:06:20 UTC (rev 59)
+@@ -256,7 +256,7 @@
+        Context temp = new Context();
+        temp.block = b;
+        temp.last  = s;
+-       context.add(0, temp);
++       context.add(temp);
+     }
+ 
+     public Scalar evaluateOldContext()
+@@ -266,9 +266,10 @@
+        Stack cstack = context;
+        context      = new Stack();
+ 
+-       while (!cstack.isEmpty())
++       Iterator i = cstack.iterator();
++       while (i.hasNext())
+        {
+-          Context temp = (Context)cstack.pop();
++          Context temp = (Context)i.next();
+           rv = temp.block.evaluate(this, temp.last);
+        }
+ 
+
+Added: sleep/tests/cor_foreach.sl
+===================================================================
+--- sleep/tests/cor_foreach.sl	2006-06-12 00:53:42 UTC (rev 58)
++++ sleep/tests/cor_foreach.sl	2006-06-12 01:06:20 UTC (rev 59)
+@@ -0,0 +1,24 @@
++#
++# make sure coroutines play nicely with foreach loops.
++#
++sub a
++{
++   this('$var');
++
++   @array = split(" ", "this is a long test string ok maybe it isn't that long oh well");
++ 
++   foreach $var (@array)
++   {
++      yield "heh: $var";
++   }
++
++   return $null;
++}
++
++$a = a();
++while ($a !is $null)
++{
++   println($a);
++   $a = a();
++}
++
+
+Added: sleep/tests/output/cor_foreach.sl
+===================================================================
+--- sleep/tests/output/cor_foreach.sl	2006-06-12 00:53:42 UTC (rev 58)
++++ sleep/tests/output/cor_foreach.sl	2006-06-12 01:06:20 UTC (rev 59)
+@@ -0,0 +1,14 @@
++heh: this
++heh: is
++heh: a
++heh: long
++heh: test
++heh: string
++heh: ok
++heh: maybe
++heh: it
++heh: isn't
++heh: that
++heh: long
++heh: oh
++heh: well
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-06-12 00:53:42 UTC (rev 58)
++++ sleep/whatsnew.txt	2006-06-12 01:06:20 UTC (rev 59)
+@@ -8,6 +8,13 @@
+   create bugs and needs lots and lots of testing.
+ - fixed bug related to using a function call within an array/hash 
+   index
++- added coroutines to the sleep language, this consists of a yield
++  keyword (works like return that exits a closure at that point.  
++  Next time said closure is called execution resumes at the point
++  where you last yielded from.
++- did massive reworking of the sleep interpreter to allow for
++  coroutines (this had some benefits as well including the ability
++  for bridge writers to track bridge data by script context).
+ 
+ 2.0-release
+ ===========
+
+
+
+From rsmudge at berlios.de  Mon Jun 12 03:48:39 2006
+From: rsmudge at berlios.de (rsmudge at BerliOS)
+Date: Mon, 12 Jun 2006 03:48:39 +0200
+Subject: [Sleep-svn] r60 - sleep/docs
+Message-ID: <200606120148.k5C1mdCr012083@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-06-12 03:48:19 +0200 (Mon, 12 Jun 2006)
+New Revision: 60
+
+Modified:
+   sleep/docs/sleeplang.pdf
+Log:
+Update the documentation y0.
+
+
+
+Modified: sleep/docs/sleeplang.pdf
+===================================================================
+(Binary files differ)
+
+
+
+From rsmudge at berlios.de  Mon Jun 12 23:39:23 2006
+From: rsmudge at berlios.de (rsmudge at BerliOS)
+Date: Mon, 12 Jun 2006 23:39:23 +0200
+Subject: [Sleep-svn] r61 - sleep
+Message-ID: <200606122139.k5CLdNfX025311@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-06-12 23:39:22 +0200 (Mon, 12 Jun 2006)
+New Revision: 61
+
+Modified:
+   sleep/readme.txt
+Log:
+Just updating the readme...
+
+
+
+Modified: sleep/readme.txt
+===================================================================
+--- sleep/readme.txt	2006-06-12 01:48:19 UTC (rev 60)
++++ sleep/readme.txt	2006-06-12 21:39:22 UTC (rev 61)
+@@ -1,5 +1,5 @@
+  ------- -------------------- ---------   ---------------  ------- ---------
+-Sleep - 2.0 - README   
++Sleep - 2.1 beta 1 - README   
+ -  ------------- -------- -   ---------------- --       -    -     -     - - -
+ 
+ "You got the language, all you need now is the O'Reilly book".  That is
+
+
+
+From rsmudge at berlios.de  Thu Jun 15 00:25:46 2006
+From: rsmudge at berlios.de (rsmudge at BerliOS)
+Date: Thu, 15 Jun 2006 00:25:46 +0200
+Subject: [Sleep-svn] r62 - in sleep: . src/sleep/bridges tests tests/output
+Message-ID: <200606142225.k5EMPka9004648@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-06-15 00:25:46 +0200 (Thu, 15 Jun 2006)
+New Revision: 62
+
+Added:
+   sleep/tests/breakfirst.sl
+   sleep/tests/output/breakfirst.sl
+   sleep/tests/output/xor.sl
+   sleep/tests/xor.sl
+Modified:
+   sleep/src/sleep/bridges/BasicNumbers.java
+   sleep/whatsnew.txt
+Log:
+Fixed broken xor operator and added some more unit tests...
+
+
+
+Modified: sleep/src/sleep/bridges/BasicNumbers.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicNumbers.java	2006-06-12 21:39:22 UTC (rev 61)
++++ sleep/src/sleep/bridges/BasicNumbers.java	2006-06-14 22:25:46 UTC (rev 62)
+@@ -309,7 +309,7 @@
+           if (o.equals("<<"))  { return SleepUtils.getScalar(a << b); }
+           if (o.equals("&"))  { return SleepUtils.getScalar(a & b); }
+           if (o.equals("|"))  { return SleepUtils.getScalar(a | b); }
+-          if (o.equals("^"))  { return SleepUtils.getScalar(a & b); }
++          if (o.equals("^"))  { return SleepUtils.getScalar(a ^ b); }
+        }
+        else
+        {
+@@ -326,7 +326,7 @@
+           if (o.equals("<<"))  { return SleepUtils.getScalar(a << b); }
+           if (o.equals("&"))  { return SleepUtils.getScalar(a & b); }
+           if (o.equals("|"))  { return SleepUtils.getScalar(a | b); }
+-          if (o.equals("^"))  { return SleepUtils.getScalar(a & b); }
++          if (o.equals("^"))  { return SleepUtils.getScalar(a ^ b); }
+        }
+ 
+        return SleepUtils.getEmptyScalar();
+
+Added: sleep/tests/breakfirst.sl
+===================================================================
+--- sleep/tests/breakfirst.sl	2006-06-12 21:39:22 UTC (rev 61)
++++ sleep/tests/breakfirst.sl	2006-06-14 22:25:46 UTC (rev 62)
+@@ -0,0 +1,15 @@
++#
++# another test of break to make sure it breaks right away...
++#
++
++println("Blah...");
++
++for ($x = 0; $x < 100; $x++)
++{
++   if ($x == 0)
++   {
++      break;
++   }
++ 
++   echo("$x");
++}
+
+Added: sleep/tests/output/breakfirst.sl
+===================================================================
+--- sleep/tests/output/breakfirst.sl	2006-06-12 21:39:22 UTC (rev 61)
++++ sleep/tests/output/breakfirst.sl	2006-06-14 22:25:46 UTC (rev 62)
+@@ -0,0 +1 @@
++Blah...
+
+Added: sleep/tests/output/xor.sl
+===================================================================
+--- sleep/tests/output/xor.sl	2006-06-12 21:39:22 UTC (rev 61)
++++ sleep/tests/output/xor.sl	2006-06-14 22:25:46 UTC (rev 62)
+@@ -0,0 +1,6 @@
++test1: pass
++test2: pass
++test3: pass
++test4: pass
++test5: pass
++test6: pass
+
+Added: sleep/tests/xor.sl
+===================================================================
+--- sleep/tests/xor.sl	2006-06-12 21:39:22 UTC (rev 61)
++++ sleep/tests/xor.sl	2006-06-14 22:25:46 UTC (rev 62)
+@@ -0,0 +1,10 @@
++#
++# oops, I had broken the xor operatopr
++#
++
++println("test1: " . iff((2L ^ 2L) == 0, "pass", "fail"));
++println("test2: " . iff((4L ^ 2L) != 0, "pass", "fail"));
++println("test3: " . iff((2 ^ 2) == 0, "pass", "fail"));
++println("test4: " . iff((4 ^ 2) != 0, "pass", "fail"));
++println("test5: " . iff((4 ^ 2) == 6, "pass", "fail"));
++println("test6: " . iff((4L ^ 2L) == 6, "pass", "fail"));
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-06-12 21:39:22 UTC (rev 61)
++++ sleep/whatsnew.txt	2006-06-14 22:25:46 UTC (rev 62)
+@@ -15,6 +15,8 @@
+ - did massive reworking of the sleep interpreter to allow for
+   coroutines (this had some benefits as well including the ability
+   for bridge writers to track bridge data by script context).
++- oops, fixed broken ^ operator (bridge was written wrong, thanks
++  to Ralph Becker for catching this one).
+ 
+ 2.0-release
+ ===========
+
+
+
+From rsmudge at berlios.de  Thu Jun 15 03:35:44 2006
+From: rsmudge at berlios.de (rsmudge at BerliOS)
+Date: Thu, 15 Jun 2006 03:35:44 +0200
+Subject: [Sleep-svn] r63 - in sleep: . src/sleep/bridges src/sleep/engine/atoms tests tests/output
+Message-ID: <200606150135.k5F1ZiXK022010@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-06-15 03:35:29 +0200 (Thu, 15 Jun 2006)
+New Revision: 63
+
+Added:
+   sleep/tests/foreachrem.sl
+   sleep/tests/output/foreachrem.sl
+Modified:
+   sleep/src/sleep/bridges/BasicUtilities.java
+   sleep/src/sleep/engine/atoms/Iterate.java
+   sleep/whatsnew.txt
+Log:
+updated remove() function to remove current element of foreach loop if 
+no parameter is passed (works for arrays only due to how scalarIterator() 
+woprks)
+
+
+
+Modified: sleep/src/sleep/bridges/BasicUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicUtilities.java	2006-06-14 22:25:46 UTC (rev 62)
++++ sleep/src/sleep/bridges/BasicUtilities.java	2006-06-15 01:35:29 UTC (rev 63)
+@@ -592,6 +592,24 @@
+ 
+     public Scalar evaluate(String n, ScriptInstance i, Stack l)
+     {
++       if (l.isEmpty() && n.equals("&remove"))
++       {
++          Stack iterators = (Stack)(i.getScriptEnvironment().getContextMetadata("iterators"));
++
++          if (iterators == null || iterators.isEmpty())
++          {
++             throw new RuntimeException("&remove: no active foreach loop to remove element from");
++          }
++          else
++          {
++             sleep.engine.atoms.Iterate.IteratorData d = (sleep.engine.atoms.Iterate.IteratorData)iterators.peek();
++             d.iterator.remove();
++             d.count = d.count - 1;
++          }
++         
++          return SleepUtils.getEmptyScalar();
++       }
++
+        Scalar value = BridgeUtilities.getScalar(l);
+ 
+        if (n.equals("&push"))
+
+Modified: sleep/src/sleep/engine/atoms/Iterate.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/Iterate.java	2006-06-14 22:25:46 UTC (rev 62)
++++ sleep/src/sleep/engine/atoms/Iterate.java	2006-06-15 01:35:29 UTC (rev 63)
+@@ -28,7 +28,7 @@
+ 
+ public class Iterate extends Step
+ {
+-   private static class IteratorData
++   public static class IteratorData
+    {
+       public String   key      = null;
+       public Variable kenv     = null;
+
+Added: sleep/tests/foreachrem.sl
+===================================================================
+--- sleep/tests/foreachrem.sl	2006-06-14 22:25:46 UTC (rev 62)
++++ sleep/tests/foreachrem.sl	2006-06-15 01:35:29 UTC (rev 63)
+@@ -0,0 +1,23 @@
++#
++# test arrays...
++#
++ at temp = array("a", "b", "c", "d", "e", "f");
++printAll(@temp);
++println("---");
++
++foreach $index => $value (@temp)
++{
++   println("@temp[ $+ $index $+ ] = $value : " . @temp[$index]);
++
++   if ($value eq "c" || $value eq "e") 
++   {
++       remove();
++   }
++}
++
++println("---");
++printAll(@temp);
++
++# test out the error clause...
++remove();
++
+
+Added: sleep/tests/output/foreachrem.sl
+===================================================================
+--- sleep/tests/output/foreachrem.sl	2006-06-14 22:25:46 UTC (rev 62)
++++ sleep/tests/output/foreachrem.sl	2006-06-15 01:35:29 UTC (rev 63)
+@@ -0,0 +1,19 @@
++a
++b
++c
++d
++e
++f
++---
++ at temp[0] = a : a
++ at temp[1] = b : b
++ at temp[2] = c : c
++ at temp[2] = d : d
++ at temp[3] = e : e
++ at temp[3] = f : f
++---
++a
++b
++d
++f
++Warning: &remove: no active foreach loop to remove element from at line 22
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-06-14 22:25:46 UTC (rev 62)
++++ sleep/whatsnew.txt	2006-06-15 01:35:29 UTC (rev 63)
+@@ -17,6 +17,8 @@
+   for bridge writers to track bridge data by script context).
+ - oops, fixed broken ^ operator (bridge was written wrong, thanks
+   to Ralph Becker for catching this one).
++- remove() with no parameters will remove the current array element
++  in a foreach loop (this only works on arrays, not hashes).
+ 
+ 2.0-release
+ ===========
+
+
+
+From rsmudge at berlios.de  Thu Jun 15 04:32:01 2006
+From: rsmudge at berlios.de (rsmudge at BerliOS)
+Date: Thu, 15 Jun 2006 04:32:01 +0200
+Subject: [Sleep-svn] r64 - in sleep: . src/sleep/bridges tests tests/output
+Message-ID: <200606150232.k5F2W11s015169@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-06-15 04:31:50 +0200 (Thu, 15 Jun 2006)
+New Revision: 64
+
+Added:
+   sleep/tests/iswm2.sl
+   sleep/tests/output/iswm2.sl
+Modified:
+   sleep/build.xml
+   sleep/src/sleep/bridges/BasicStrings.java
+   sleep/whatsnew.txt
+Log:
+Fixed some bugs in iswm
+
+
+
+Modified: sleep/build.xml
+===================================================================
+--- sleep/build.xml	2006-06-15 01:35:29 UTC (rev 63)
++++ sleep/build.xml	2006-06-15 02:31:50 UTC (rev 64)
+@@ -16,7 +16,7 @@
+            destdir="${project.build}"
+            nowarn="yes"
+            depend="yes"
+-           debug="no"
++           debug="true"
+            optimize="yes"
+     >
+     </javac>
+
+Modified: sleep/src/sleep/bridges/BasicStrings.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicStrings.java	2006-06-15 01:35:29 UTC (rev 63)
++++ sleep/src/sleep/bridges/BasicStrings.java	2006-06-15 02:31:50 UTC (rev 64)
+@@ -205,6 +205,8 @@
+            String b = locals.pop().toString();
+            String a = locals.pop().toString();
+ 
++           try
++           {
+            if ((a.length() == 0 || b.length() == 0) && a.length() != b.length())
+               return false;
+ 
+@@ -225,21 +227,32 @@
+                     }
+                  }
+ 
+-                 for (cptr = aptr; cptr < a.length() && a.charAt(cptr) != '?' && a.charAt(cptr) != '*'; cptr++);
++                 for (cptr = aptr; cptr < a.length() && a.charAt(cptr) != '?' && a.charAt(cptr) != '*'; cptr++) { } // body intentionally left empty.
+ 
+-                 if (greedy)
+-                    cptr = b.lastIndexOf(a.substring(aptr, cptr)); 
+-                 else
+-                    cptr = b.indexOf(a.substring(aptr, cptr), bptr); 
++                 if (cptr != aptr) // don't advance our bptr unless there is some non-wildcard pattern to look for next in the string
++                 {
++                    if (greedy)
++                       cptr = b.lastIndexOf(a.substring(aptr, cptr)); 
++                    else
++                       cptr = b.indexOf(a.substring(aptr, cptr), bptr);
+ 
++                    if (cptr == -1 || cptr < bptr) // < - require 0 or more chars, <= - requires 1 or more chars
++                    {
++                       return false;
++                    }
+ 
+-                 if (cptr == -1 || cptr < bptr) // < - require 0 or more chars, <= - requires 1 or more chars
++                    bptr = cptr;
++                 }
++
++                 if (a.charAt(aptr) == '?') // if the current aptr is a ?, decrement so the loop can deal with it on the next round
+                  {
+-                    return false;
++                    aptr--;
+                  }
+-
+-                 bptr = cptr;
+               }
++              else if (bptr >= b.length())
++              {
++                 return false;
++              }
+               else if (a.charAt(aptr) == '\\')
+               {
+                  aptr++;
+@@ -255,9 +268,13 @@
+               aptr++;
+               bptr++;
+            }
+-
+            return (bptr == b.length());
++           }
++           catch (Exception ex) { ex.printStackTrace(); }
++     
++           return false;
+         }
++     
+     }
+ 
+     private static class func_left implements Function
+
+Added: sleep/tests/iswm2.sl
+===================================================================
+--- sleep/tests/iswm2.sl	2006-06-15 01:35:29 UTC (rev 63)
++++ sleep/tests/iswm2.sl	2006-06-15 02:31:50 UTC (rev 64)
+@@ -0,0 +1,27 @@
++#
++# tests for the iswm algorithm...
++# making sure that when lhs (wildcard pattern) is longer than rhs the results still workout as they should
++#
++
++println("LHS empty string: " . iff("" iswm "aaaa", "true", "false"));
++
++println("case 1: " . iff("test *" iswm "test", "true", "false")); # false
++println("case 2: " . iff("test*abcdefghijk*" iswm "test", "true", "false")); # false
++println("case 3: " . iff("test*" iswm "test", "true", "false")); # true
++println("case 4: " . iff("test******************" iswm "test", "true", "false")); # true
++println("case 5: " . iff("test**********?" iswm "test", "true", "false")); # false
++println("case 6: " . iff("test***?****" iswm "test", "true", "false")); # false
++println("case 7: " . iff("test****?****" iswm "test", "true", "false")); # false
++println("case 8: " . iff("test?*" iswm "test", "true", "false")); # false
++println("case 9: " . iff("test*?*" iswm "test", "true", "false")); # false
++println("case 10: " . iff("test?" iswm "test", "true", "false")); # false
++
++println("case a: " . iff("*test" iswm "test", "true", "false")); # true
++println("case b: " . iff("?test" iswm "test", "true", "false")); # false
++println("case c: " . iff("**test" iswm "test", "true", "false")); # true
++println("case d: " . iff("*?*test" iswm "test", "true", "false")); # false
++
++println("case e: " . iff("tes*t" iswm "test", "true", "false")); # true
++println("case f: " . iff("tes?t" iswm "test", "true", "false")); # false
++println("case g: " . iff("tes*?*t" iswm "test", "true", "false")); # false
++println("case h: " . iff("tes**********t" iswm "test", "true", "false")); # true
+
+Added: sleep/tests/output/iswm2.sl
+===================================================================
+--- sleep/tests/output/iswm2.sl	2006-06-15 01:35:29 UTC (rev 63)
++++ sleep/tests/output/iswm2.sl	2006-06-15 02:31:50 UTC (rev 64)
+@@ -0,0 +1,19 @@
++LHS empty string: false
++case 1: false
++case 2: false
++case 3: true
++case 4: true
++case 5: false
++case 6: false
++case 7: false
++case 8: false
++case 9: false
++case 10: false
++case a: true
++case b: false
++case c: true
++case d: false
++case e: true
++case f: false
++case g: false
++case h: true
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-06-15 01:35:29 UTC (rev 63)
++++ sleep/whatsnew.txt	2006-06-15 02:31:50 UTC (rev 64)
+@@ -19,6 +19,8 @@
+   to Ralph Becker for catching this one).
+ - remove() with no parameters will remove the current array element
+   in a foreach loop (this only works on arrays, not hashes).
++- fixed bugs with iswm algorithm when wildcard pattern is longer 
++  than the text it is being compared against.
+ 
+ 2.0-release
+ ===========
+
+
+
+From rsmudge at berlios.de  Thu Jun 15 05:06:22 2006
+From: rsmudge at berlios.de (rsmudge at BerliOS)
+Date: Thu, 15 Jun 2006 05:06:22 +0200
+Subject: [Sleep-svn] r65 - in sleep: . src/sleep/bridges src/sleep/runtime tests tests/output
+Message-ID: <200606150306.k5F36MiD026917@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-06-15 05:06:21 +0200 (Thu, 15 Jun 2006)
+New Revision: 65
+
+Added:
+   sleep/tests/matcher.sl
+   sleep/tests/output/matcher.sl
+Modified:
+   sleep/src/sleep/bridges/RegexBridge.java
+   sleep/src/sleep/runtime/ScriptEnvironment.java
+   sleep/whatsnew.txt
+Log:
+Fixed a threading issue with ismatch/hasmatch/matched...  
+
+
+
+Modified: sleep/src/sleep/bridges/RegexBridge.java
+===================================================================
+--- sleep/src/sleep/bridges/RegexBridge.java	2006-06-15 02:31:50 UTC (rev 64)
++++ sleep/src/sleep/bridges/RegexBridge.java	2006-06-15 03:06:21 UTC (rev 65)
+@@ -84,41 +84,45 @@
+ 
+     private static class isMatch implements Predicate, Function
+     {
+-       protected Matcher matcher = null;
+-
+-       protected HashMap context = new HashMap(); // storing matcher contexts...
+-
+        public boolean decide(String n, ScriptInstance i, Stack l)
+        {
+           String b = ((Scalar)l.pop()).toString(); // PATTERN
+           String a = ((Scalar)l.pop()).toString(); // TEXT TO MATCH AGAINST
+ 
++          ScriptEnvironment env = i.getScriptEnvironment();
++          Matcher matcher;
++
+           Pattern pattern = RegexBridge.getPattern(b);
+           boolean rv;
+ 
+           if (n.equals("hasmatch"))
+           {
+-              if (context.containsKey(a + b))
++              matcher = (Matcher)env.getContextMetadata(a + b);
++
++              if (matcher != null)
+               {
+-                 matcher = (Matcher)context.get(a + b);
++                 env.setContextMetadata("matcher", matcher);
+               }
+               else
+               {
+                  matcher = pattern.matcher(a);
+-                 context.put(a + b, matcher);
++                 env.setContextMetadata(a + b, matcher);
++                 env.setContextMetadata("matcher", matcher);
+               }
+               rv = matcher.find();
+           }
+           else
+           {
+               matcher = pattern.matcher(a);
++              env.setContextMetadata("matcher", matcher);
+               rv =  matcher.matches();
+           }
+ 
+           if (!rv) 
+           {
+              matcher  = null;           
+-             context.remove(a + b);
++             env.setContextMetadata("matcher", null);
++             env.setContextMetadata(a + b, null);
+           }
+ 
+           return rv;
+@@ -128,6 +132,9 @@
+        {
+           Scalar value = SleepUtils.getArrayScalar();            
+ 
++          ScriptEnvironment env = i.getScriptEnvironment();
++          Matcher matcher = (Matcher)env.getContextMetadata("matcher");
++
+           if (matcher != null)
+           {
+              int count = matcher.groupCount();  
+
+Modified: sleep/src/sleep/runtime/ScriptEnvironment.java
+===================================================================
+--- sleep/src/sleep/runtime/ScriptEnvironment.java	2006-06-15 02:31:50 UTC (rev 64)
++++ sleep/src/sleep/runtime/ScriptEnvironment.java	2006-06-15 03:06:21 UTC (rev 65)
+@@ -251,6 +251,19 @@
+        return metadata.get(key);
+     }
+ 
++    /** Returns the data associated with the particular key for this context. If the key value is null then the specified default_value is returned */
++    public Object getContextMetadata(Object key, Object default_value)
++    {
++       Object value = metadata.get(key);
++
++       if (value == null)
++       {
++          return default_value;
++       }
++ 
++       return metadata.get(key);
++    }
++
+     public void addToContext(Block b, Step s)
+     {
+        Context temp = new Context();
+
+Added: sleep/tests/matcher.sl
+===================================================================
+--- sleep/tests/matcher.sl	2006-06-15 02:31:50 UTC (rev 64)
++++ sleep/tests/matcher.sl	2006-06-15 03:06:21 UTC (rev 65)
+@@ -0,0 +1,20 @@
++$my_th = {
++   $mystr = "[12324234] AAA BBBAAA AAA";
++
++   if ($mystr hasmatch '\[(\d+)\].+') 
++   {
++      println("CORRECT");
++   }
++   else
++   {
++      println("INCORRECT!");
++   }
++};
++
++while($ii < 10) 
++{
++  $ii = $ii + 1;
++  fork($my_th, $iter => "$ii");
++}
++
++
+
+Added: sleep/tests/output/matcher.sl
+===================================================================
+--- sleep/tests/output/matcher.sl	2006-06-15 02:31:50 UTC (rev 64)
++++ sleep/tests/output/matcher.sl	2006-06-15 03:06:21 UTC (rev 65)
+@@ -0,0 +1,10 @@
++CORRECT
++CORRECT
++CORRECT
++CORRECT
++CORRECT
++CORRECT
++CORRECT
++CORRECT
++CORRECT
++CORRECT
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-06-15 02:31:50 UTC (rev 64)
++++ sleep/whatsnew.txt	2006-06-15 03:06:21 UTC (rev 65)
+@@ -21,6 +21,9 @@
+   in a foreach loop (this only works on arrays, not hashes).
+ - fixed bugs with iswm algorithm when wildcard pattern is longer 
+   than the text it is being compared against.
++- updated isMatch/hasMatch/matched to use the new context meta
++  data feature to keep tracker of matchers (the old way was not
++  thread safe)
+ 
+ 2.0-release
+ ===========
+
+
+
+From rsmudge at berlios.de  Thu Jun 15 06:21:58 2006
+From: rsmudge at berlios.de (rsmudge at BerliOS)
+Date: Thu, 15 Jun 2006 06:21:58 +0200
+Subject: [Sleep-svn] r66 - in sleep: . src/sleep/parser tests tests/output
+Message-ID: <200606150421.k5F4Lwpr032262@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-06-15 06:21:57 +0200 (Thu, 15 Jun 2006)
+New Revision: 66
+
+Added:
+   sleep/tests/forany.sl
+   sleep/tests/output/forany.sl
+Modified:
+   sleep/src/sleep/parser/CodeGenerator.java
+   sleep/whatsnew.txt
+Log:
+for loop initialization and increment fields can now be left empty
+
+
+
+Modified: sleep/src/sleep/parser/CodeGenerator.java
+===================================================================
+--- sleep/src/sleep/parser/CodeGenerator.java	2006-06-15 03:06:21 UTC (rev 65)
++++ sleep/src/sleep/parser/CodeGenerator.java	2006-06-15 04:21:57 UTC (rev 66)
+@@ -945,21 +945,30 @@
+            //
+            // parse the final terms and save them...
+            //
+-           backup();
+-           doThis = new StringBuffer();
+ 
+-           TokenList final_terms = ParserUtilities.groupByParameterTerm(parser, extracted_terms[2]);
++           if (extracted_terms.length == 3)
++           {
++              backup();
++              doThis = new StringBuffer();
+ 
+-           i = final_terms.getList().iterator();
+-           while (i.hasNext())
++              TokenList final_terms = ParserUtilities.groupByParameterTerm(parser, extracted_terms[2]);
++
++              i = final_terms.getList().iterator();
++              while (i.hasNext())
++              {
++                 doThis.append(i.next().toString());
++                 doThis.append("; ");
++              }
++
++              parseBlock(tokens[0].copy(doThis.toString()));
++              a = restore();
++           }
++           else
+            {
+-              doThis.append(i.next().toString());
+-              doThis.append("; ");
++              a = null;
++              doThis = new StringBuffer();
+            }
+ 
+-           parseBlock(tokens[0].copy(doThis.toString()));
+-           a = restore();
+-
+            //
+            // parse the loop body and save it
+            //
+
+Added: sleep/tests/forany.sl
+===================================================================
+--- sleep/tests/forany.sl	2006-06-15 03:06:21 UTC (rev 65)
++++ sleep/tests/forany.sl	2006-06-15 04:21:57 UTC (rev 66)
+@@ -0,0 +1,28 @@
++#
++# test for loops with empty increment/comparison/decrement fields..
++# 
++
++for ($x = 0; $x < 5; $x++)
++{
++   println("Loop 1: $x");
++}
++
++for ($x = 0; $x < 5;)
++{
++   println("Loop 2: $x");
++   $x++;
++}
++
++$x = 0;
++for (; $x < 5; $x++)
++{
++   println("Loop 3: $x");
++}
++
++$x = 0;
++for (; $x < 5;)
++{
++   println("Loop 4: $x");
++   $x++;
++}
++
+
+Added: sleep/tests/output/forany.sl
+===================================================================
+--- sleep/tests/output/forany.sl	2006-06-15 03:06:21 UTC (rev 65)
++++ sleep/tests/output/forany.sl	2006-06-15 04:21:57 UTC (rev 66)
+@@ -0,0 +1,20 @@
++Loop 1: 0
++Loop 1: 1
++Loop 1: 2
++Loop 1: 3
++Loop 1: 4
++Loop 2: 0
++Loop 2: 1
++Loop 2: 2
++Loop 2: 3
++Loop 2: 4
++Loop 3: 0
++Loop 3: 1
++Loop 3: 2
++Loop 3: 3
++Loop 3: 4
++Loop 4: 0
++Loop 4: 1
++Loop 4: 2
++Loop 4: 3
++Loop 4: 4
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-06-15 03:06:21 UTC (rev 65)
++++ sleep/whatsnew.txt	2006-06-15 04:21:57 UTC (rev 66)
+@@ -24,6 +24,7 @@
+ - updated isMatch/hasMatch/matched to use the new context meta
+   data feature to keep tracker of matchers (the old way was not
+   thread safe)
++- for loop initialization and increment terms can now be empty
+ 
+ 2.0-release
+ ===========
+
+
+
+From rsmudge at berlios.de  Thu Jun 15 06:33:33 2006
+From: rsmudge at berlios.de (rsmudge at BerliOS)
+Date: Thu, 15 Jun 2006 06:33:33 +0200
+Subject: [Sleep-svn] r67 - in sleep: . src/sleep/runtime
+Message-ID: <200606150433.k5F4XXFm001334@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-06-15 06:33:30 +0200 (Thu, 15 Jun 2006)
+New Revision: 67
+
+Modified:
+   sleep/src/sleep/runtime/SleepUtils.java
+   sleep/whatsnew.txt
+Log:
+Added getScalar functions for short/float types
+
+
+
+Modified: sleep/src/sleep/runtime/SleepUtils.java
+===================================================================
+--- sleep/src/sleep/runtime/SleepUtils.java	2006-06-15 04:21:57 UTC (rev 66)
++++ sleep/src/sleep/runtime/SleepUtils.java	2006-06-15 04:33:30 UTC (rev 67)
+@@ -263,6 +263,24 @@
+       return temp;
+    } 
+ 
++   /** returns an int scalar (coverted from the short) with value x */
++   public static Scalar getScalar(short x)
++   {
++      Scalar temp = new Scalar();
++      temp.setValue(new IntValue((int)x));
++
++      return temp;
++   } 
++
++   /** returns a double scalar (coverted from the float) with value x */
++   public static Scalar getScalar(float x)
++   {
++      Scalar temp = new Scalar();
++      temp.setValue(new DoubleValue((double)x));
++
++      return temp;
++   } 
++
+    /** returns a double scalar with value x */
+    public static Scalar getScalar(double x)
+    {
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-06-15 04:21:57 UTC (rev 66)
++++ sleep/whatsnew.txt	2006-06-15 04:33:30 UTC (rev 67)
+@@ -25,6 +25,7 @@
+   data feature to keep tracker of matchers (the old way was not
+   thread safe)
+ - for loop initialization and increment terms can now be empty
++- added SleepUtils.getScalar(x) for Java shorts and floats
+ 
+ 2.0-release
+ ===========
+
+
+
+From rsmudge at berlios.de  Fri Jun 16 03:50:04 2006
+From: rsmudge at berlios.de (rsmudge at BerliOS)
+Date: Fri, 16 Jun 2006 03:50:04 +0200
+Subject: [Sleep-svn] r69 - in sleep/docs: . images
+Message-ID: <200606160150.k5G1o4EC029112@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-06-16 03:49:56 +0200 (Fri, 16 Jun 2006)
+New Revision: 69
+
+Added:
+   sleep/docs/images/
+   sleep/docs/images/IODiagram.png
+   sleep/docs/images/image001.png
+Modified:
+   sleep/docs/sleepguide.html
+   sleep/docs/sleeplang.html
+Log:
+Documentation update...
+
+
+
+Added: sleep/docs/images/IODiagram.png
+===================================================================
+(Binary files differ)
+
+
+Property changes on: sleep/docs/images/IODiagram.png
+___________________________________________________________________
+Name: svn:mime-type
+   + application/octet-stream
+
+Added: sleep/docs/images/image001.png
+===================================================================
+(Binary files differ)
+
+
+Property changes on: sleep/docs/images/image001.png
+___________________________________________________________________
+Name: svn:mime-type
+   + application/octet-stream
+
+Modified: sleep/docs/sleepguide.html
+===================================================================
+--- sleep/docs/sleepguide.html	2006-06-16 01:13:48 UTC (rev 68)
++++ sleep/docs/sleepguide.html	2006-06-16 01:49:56 UTC (rev 69)
+@@ -325,7 +325,7 @@
+ application bridge, the application bridge will call an API in the application, any values returned by the application will be 
+ sent back to the script.  Figure 1 highlights what the Sleep bridge architecture looks like.</p>
+ 
+-<center><img src="image001.png" align="center"></center>
++<center><img src="images/image001.png" align="center"></center>
+  
+ <center><p>Figure 1. Sleep Bridge Architecture</p></center>
+ 
+@@ -818,6 +818,29 @@
+ <p>Sleep scripts can happily interact in a multithreaded context.  The trick is to force any blocking/waiting to occur within 
+ Java itself.   Once the blocking/waiting is done just call a preregisted block of sleep code to respond to the event.</p>
+ 
++<h3>Saving Context Data</h3>
++
++<p>State information for a bridge should not be stored in a bridge itself.  You may ask, why is this?  Typically bridges are
++shared among multiple scripts/script environments to save memory.  If scripts sharing some bridges are executing in a multi
++threaded environment it is possible that the saved instance data could get corrupted.</p>
++
++<p>Until recently the hasMatch predicate kept track of the current matcher in an instance variable of the regex bridge.  One
++user noticed that when they used fork() that their regex matches kept failing when they shouldn't.</p>
++
++<p>The correct way to save context data is to use the following functions from an instance of ScriptEnvironment:</p>
++
++<table>
++ <tr><td colspan="2"><i>public Object getContextMetaData(Object key)</i></td></tr>
++ <tr><td width="25"></td><td>retrieve a piece of data saved within the current executing context.</td></tr>
++ <tr><td colspan="2"></td></tr>
++ <tr><td colspan="2"><i>public void setContextMetaData(Object key, Object value)</i></td></tr>
++ <tr><td width="25"></td><td>store a piece of data into the context store for the current executing context.</td></tr>
++</table>
++
++<p>The set context meta data function will store the given value in the context meta data store for the current closure context.
++If no closure is currently active then the data will be stored into a default context meta data store.  This is the recommended
++way to save bridge state information.</p>
++
+ <h3>Multithreading with Fork</h3>
+ 
+ <p>The Sleep function <code>&amp;fork</code> implementation creates a new script environment entirely separate from the currnet 
+@@ -847,7 +870,7 @@
+ piece is the IO Bridge itself.  The IO Bridge is just a normal set of Sleep bridges that implement functions, predicates, and operators that make the
+ functionality of the IO Source and the IOObject accessible to scripters.</p>
+ 
+-<p align="center"><img src="IODiagram.png"><br><br>Figure 2. Sleep IO Architecture</p>
++<p align="center"><img src="images/IODiagram.png"><br><br>Figure 2. Sleep IO Architecture</p>
+ 
+ <a name="3a.2"><h2>The IOObject Class</h2></a>
+ 
+
+Modified: sleep/docs/sleeplang.html
+===================================================================
+--- sleep/docs/sleeplang.html	2006-06-16 01:13:48 UTC (rev 68)
++++ sleep/docs/sleeplang.html	2006-06-16 01:49:56 UTC (rev 69)
+@@ -457,6 +457,27 @@
+ <p>The loop example above is setup to count to 100.  Once the count reaches 50 though the loop is broken out of.  The break 
+ statement is a way of saying "this is the end of the loop, right here".</p>
+ 
++<h3>The Continue Command</h3>
++
++<p>Once in awhile it is useful to skip to the beginning of a loop ignoring the current element.  This is what the continue
++command is for.</p>
++
++<p>Another example:</p>
++
++<pre>for ($x = 0; $x < 100; $x++)
++{
++   if ($x > 10 && $x < 90)
++   {
++      continue;
++   }
++
++   println($x);
++}</pre>
++
++<p>The loop above will print 0 .. 10, skip all values between 11 and 89, and then print 90 - 99.  The continue command
++just jumps to the beginning of the loop again ignoring the current item.  Within a for loop the incremeter ($x++
++in this example) is always executed even if continue is used.</p>
++
+ <a name="4"><h2>Number Crunching</h2></a>
+ 
+ <p>The Scalars -> Expressions section introduced sleep's family of numerical scalars.</p>
+@@ -637,10 +658,13 @@
+ <p>The foreach loop above will loop through the source (either an <var>@array</var> or a <var>%hash</var>).  The index of the 
+ source will be assigned to the scalar on the left.  The value of the source will be assigned to the scalar on the right.</p>
+ 
+-<p>Within a foreach loop functions that modify the structure of <var>@array</var> are not allowed.  This includes add(), 
++<p>Within a foreach loop most functions that modify the structure of <var>@array</var> are not allowed.  This includes add(), 
+ remove(), removeAt(), push(), pop() etc.  An attempt to modify the structure of @array during a foreach loops execution will 
+ result in a script warning.</p>
+ 
++<p>The current element of a foreach loop can be removed by calling <code>remove()</code> with no parameters.  This only works 
++when iterating over an <var>@array</var>.</p>
++
+ <h3>Arrays as Stacks</h3>
+ 
+ <p>A stack is a data structure that has a push and pop operation.  Push puts data on top of the stack.  Pop takes data off the 
+@@ -1462,7 +1486,7 @@
+ 
+ <p>When execution is restored local variables are not preserved.  If you want to preserve variables you will need to 
+ place variables into the <b>this</b> scope for the current closure.  Arguments passed to each call on the closure
+-will be available as local variables during the call.</p>
++will be available as local variables $1, $2, etc. during the current call.</p>
+ 
+ <p>It is important to note that while coroutines can call other coroutines, a coroutine should not recursively call
+ itself.  A closure turns into a coroutine once the yield keyword has been utilized.  The reason coroutines should not
+@@ -1472,6 +1496,24 @@
+ 
+ <p>When the return command is used or the end of the closure is reached, the saved context will be discarded.</p>
+ 
++<h4>Generators with Coroutines</h4>
++
++<p>One usage of a coroutine is to easily generate a sequence of numbers i.e.:</p>
++
++<pre>$generator = {
++   this('$counter');
++
++   for ($counter = 0; $counter < 1000; $counter++)
++   {
++      yield $counter;
++   }
++
++   return $null;
++};</pre>
++
++<p>The above stores a coroutine into $generator.  The first time $generator is called a 0 will be returned.  The second time $generator will
++return a 1.  So on and so forth until $null is finally returned.</p>
++
+ <a name="11"><h2>Function Library</h2></a>
+ 
+ <p>This appendix is a list of the application neutral built-in functions for sleep.  I expect this list to grow as time goes on.  
+@@ -1553,7 +1595,7 @@
+  <tr>
+   <td></td>
+   <td>remove(@array, $scalar, ...)</td>
+-  <td>removes each specified $scalar from @array..</td>
++  <td>removes each specified $scalar from @array.  if no parameters are passed the active element in the current foreach loop is removed.</td>
+  </tr>
+  <tr>
+   <td>$</td>
+
+
+
+From rsmudge at berlios.de  Fri Jun 16 04:31:33 2006
+From: rsmudge at berlios.de (rsmudge at BerliOS)
+Date: Fri, 16 Jun 2006 04:31:33 +0200
+Subject: [Sleep-svn] r70 - in sleep: . src/sleep/runtime
+Message-ID: <200606160231.k5G2VXK5019218@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-06-16 04:31:30 +0200 (Fri, 16 Jun 2006)
+New Revision: 70
+
+Modified:
+   sleep/build.xml
+   sleep/src/sleep/runtime/SleepUtils.java
+Log:
+Oops, forgot to update date/release var.
+
+
+
+Modified: sleep/build.xml
+===================================================================
+--- sleep/build.xml	2006-06-16 01:49:56 UTC (rev 69)
++++ sleep/build.xml	2006-06-16 02:31:30 UTC (rev 70)
+@@ -16,7 +16,7 @@
+            destdir="${project.build}"
+            nowarn="yes"
+            depend="yes"
+-           debug="true"
++           debug="false"
+            optimize="yes"
+     >
+     </javac>
+
+Modified: sleep/src/sleep/runtime/SleepUtils.java
+===================================================================
+--- sleep/src/sleep/runtime/SleepUtils.java	2006-06-16 01:49:56 UTC (rev 69)
++++ sleep/src/sleep/runtime/SleepUtils.java	2006-06-16 02:31:30 UTC (rev 70)
+@@ -49,10 +49,10 @@
+ public class SleepUtils
+ {
+    /** A date stamp of this Sleep release in YYYYMMDD format */
+-   public static final int    SLEEP_RELEASE = 20050720;
++   public static final int    SLEEP_RELEASE = 20060616;
+ 
+    /** A string description of this Sleep release */
+-   public static final String SLEEP_VERSION = "Sleep 2.0";
++   public static final String SLEEP_VERSION = "Sleep 2.1";
+ 
+    /** registers "keyword" as a keyword with the parser.  This is a necessity if you have extra non standard
+      bridges in sleep */
+
+
+
+From rsmudge at berlios.de  Sat Jun 17 08:09:49 2006
+From: rsmudge at berlios.de (rsmudge at BerliOS)
+Date: Sat, 17 Jun 2006 08:09:49 +0200
+Subject: [Sleep-svn] r71 - in sleep: . src/sleep/bridges tests tests/output
+Message-ID: <200606170609.k5H69nPN005558@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-06-17 08:09:43 +0200 (Sat, 17 Jun 2006)
+New Revision: 71
+
+Added:
+   sleep/tests/fpfuncs.sl
+   sleep/tests/output/fpfuncs.sl
+Modified:
+   sleep/src/sleep/bridges/BasicUtilities.java
+   sleep/whatsnew.txt
+Log:
+Added a few functional programming style functions.
+
+
+
+Modified: sleep/src/sleep/bridges/BasicUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicUtilities.java	2006-06-16 02:31:30 UTC (rev 70)
++++ sleep/src/sleep/bridges/BasicUtilities.java	2006-06-17 06:09:43 UTC (rev 71)
+@@ -64,10 +64,15 @@
+         temp.put("&clear", this);
+         temp.put("&subarray", this);
+         temp.put("&copy",  new copy());
+-        temp.put("&map",    new map());
++ 
++        map map_f = new map();
++
++        temp.put("&map",    map_f);
++        temp.put("&filter",    map_f);
+         temp.put("&cast",   new f_cast());
+ 
+-
++        temp.put("&search", this);
++        temp.put("&reduce", this);
+         temp.put("&values", this);
+         temp.put("&remove", this);     // not safe within foreach loops (since they use an iterator, and remove throws an exception)
+         temp.put("-istrue", this);    // predicate -istrue <Scalar>, determine wether or not the scalar is null or not.
+@@ -416,7 +421,14 @@
+           while (i.hasNext())
+           {
+              locals.push(i.next());
+-             rv.getArray().push(temp.callClosure("eval", si, locals));
++
++             Scalar val = temp.callClosure("eval", si, locals);
++
++             if (!SleepUtils.isEmptyScalar(val) || n.equals("&map"))
++             {
++                rv.getArray().push(val);
++             }
++
+              locals.clear();
+           }
+ 
+@@ -616,31 +628,19 @@
+        {
+           return value.getArray().push(SleepUtils.getScalar((Scalar)l.pop()));
+        }
+-       else if (n.equals("&add"))
++       else if (n.equals("&add") && value.getArray() != null)
+        {
+-          Scalar item = (Scalar)l.pop();
+-
+-          int index    = 0;
+-
+-          if (!l.isEmpty())
+-          {
+-             index = BridgeUtilities.getInt(l);  
+-          }
+-          else
+-          {
+-             index = value.getArray().size();
+-          }
+-
++          Scalar item = BridgeUtilities.getScalar(l);
++          int index = BridgeUtilities.getInt(l, value.getArray().size());  
+           return value.getArray().add(item, index);
+        }
+        else if (n.equals("&pop"))
+        {
+           return value.getArray().pop();
+        }
+-       else if (n.equals("&size")) // &size(@array)
++       else if (n.equals("&size") && value.getArray() != null) // &size(@array)
+        {
+-          if (value.getArray() != null)
+-             return SleepUtils.getScalar(value.getArray().size());
++          return SleepUtils.getScalar(value.getArray().size());
+        }
+        else if (n.equals("&clear"))
+        {
+@@ -657,9 +657,72 @@
+              value.setValue(SleepUtils.getEmptyScalar());
+           }
+        }
+-       else if (n.equals("&flatten"))
++       else if (n.equals("&search") && value.getArray() != null)
+        {
+-          if (value.getArray() == null) { return SleepUtils.getEmptyScalar(); }
++          SleepClosure f = BridgeUtilities.getFunction(l, i); 
++          int start      = BridgeUtilities.getInt(l, 0);
++          int count      = 0;
++          Stack locals   = new Stack();
++
++          Iterator iter = value.getArray().scalarIterator();
++          while (iter.hasNext())
++          {
++             Scalar temp = (Scalar)iter.next();
++
++             if (start > 0)
++             {
++                start--;
++                count++;
++                continue;
++             }            
++
++             locals.push(SleepUtils.getScalar(count));
++             locals.push(temp);
++             Scalar val = f.callClosure("eval", i, locals);
++
++             if (! SleepUtils.isEmptyScalar(val))
++             {
++                return val;
++             }
++
++             locals.clear();
++             count++;
++          }
++       }
++       else if (n.equals("&reduce") && SleepUtils.isFunctionScalar(value))
++       {
++          SleepClosure f    = SleepUtils.getFunctionFromScalar(value, i); 
++          ScalarArray array = BridgeUtilities.getArray(l);
++          Stack locals      = new Stack();
++
++          Iterator iter = array.scalarIterator();
++
++          Scalar a      = iter.hasNext() ? (Scalar)iter.next() : SleepUtils.getEmptyScalar();
++          Scalar b      = iter.hasNext() ? (Scalar)iter.next() : SleepUtils.getEmptyScalar();
++          Scalar temp   = null;
++
++          locals.push(a);
++          locals.push(b);
++
++          a = f.callClosure("eval", i, locals);
++ 
++          locals.clear();
++
++          while (iter.hasNext())
++          {
++             b = (Scalar)iter.next();
++
++             locals.push(b);
++             locals.push(a);
++             a = f.callClosure("eval", i, locals);
++
++             locals.clear();
++          }
++
++          return a;
++       }
++       else if (n.equals("&flatten") && value.getArray() != null)
++       {
+           return BridgeUtilities.flattenArray(value, null);
+        }
+        else if (n.equals("&subarray"))
+
+Added: sleep/tests/fpfuncs.sl
+===================================================================
+--- sleep/tests/fpfuncs.sl	2006-06-16 02:31:30 UTC (rev 70)
++++ sleep/tests/fpfuncs.sl	2006-06-17 06:09:43 UTC (rev 71)
+@@ -0,0 +1,46 @@
++#
++# test some of the functional programming style functions...
++#
++
++ at array = array("a", "b", "c", "d", "e", "f", "g", "h", "i");
++
++sub func1
++{
++   if ($1 eq "a" || $1 eq "c")
++   {
++      return $null;
++   }
++   else
++   {
++      return "letter: $1";
++   }
++}
++
++println("Test 1");
++ at a = map(&func1, @array);
++printAll(@a);
++
++println("Test 2");
++ at b = filter(&func1, @array);
++printAll(@b);
++
++println("Test 3");
++$val = search(@array, { if ($1 eq "c") { return "found c! $1 at $2"; } });
++println("Check: $val");
++
++println("Test 4");
++$val = search(@array, { if ($1 eq "c") { return "found c! $1 at $2"; } }, 4);
++println("Check: $val");
++
++println("Test 5");
++add(@array, "test");
++add(@array, "test 2", 3);
++printAll(@array);
++
++println("Test 6");
++ at c = array(1, 2, 3, 4, 5);
++ at d = array(1, 2, 3, 4, 5, 6);
++
++println("Reduce odd: " . reduce({ return $1 + $2; }, @c));
++println("Reduce even: " . reduce({ return $1 + $2; }, @d));
++
+
+Added: sleep/tests/output/fpfuncs.sl
+===================================================================
+--- sleep/tests/output/fpfuncs.sl	2006-06-16 02:31:30 UTC (rev 70)
++++ sleep/tests/output/fpfuncs.sl	2006-06-17 06:09:43 UTC (rev 71)
+@@ -0,0 +1,37 @@
++Test 1
++
++letter: b
++
++letter: d
++letter: e
++letter: f
++letter: g
++letter: h
++letter: i
++Test 2
++letter: b
++letter: d
++letter: e
++letter: f
++letter: g
++letter: h
++letter: i
++Test 3
++Check: found c! c at 2
++Test 4
++Check: 
++Test 5
++a
++b
++c
++test 2
++d
++e
++f
++g
++h
++i
++test
++Test 6
++Reduce odd: 15
++Reduce even: 21
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-06-16 02:31:30 UTC (rev 70)
++++ sleep/whatsnew.txt	2006-06-17 06:09:43 UTC (rev 71)
+@@ -1,3 +1,10 @@
++2.1-beta 2
++===========
++- added a few more FP-style functions to Sleep:
++  &reduce(&closure, @array)
++  &search(@array, &closure, [index])
++  &filter(@array, &closure)
++
+ 2.1-beta 1
+ ===========
+ - fixed the clean target in the sleep build.xml file
+
+
+
+From rsmudge at berlios.de  Sat Jun 17 08:22:11 2006
+From: rsmudge at berlios.de (rsmudge at BerliOS)
+Date: Sat, 17 Jun 2006 08:22:11 +0200
+Subject: [Sleep-svn] r72 - in sleep: . src/sleep/bridges
+Message-ID: <200606170622.k5H6MBrw009548@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-06-17 08:21:42 +0200 (Sat, 17 Jun 2006)
+New Revision: 72
+
+Modified:
+   sleep/src/sleep/bridges/BasicStrings.java
+   sleep/whatsnew.txt
+Log:
+Added replaceAt() function to Sleep
+
+
+
+Modified: sleep/src/sleep/bridges/BasicStrings.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicStrings.java	2006-06-17 06:09:43 UTC (rev 71)
++++ sleep/src/sleep/bridges/BasicStrings.java	2006-06-17 06:21:42 UTC (rev 72)
+@@ -66,6 +66,7 @@
+         temp.put("&indexOf", new func_indexOf());
+         temp.put("&strlen",  new func_strlen());
+         temp.put("&strrep",  new func_strrep());
++        temp.put("&replaceAt",  new func_replaceAt());
+ 
+         temp.put("&tr",      new func_tr());
+ 
+@@ -393,6 +394,22 @@
+         }
+     }
+ 
++    private static class func_replaceAt implements Function
++    {
++        public Scalar evaluate(String n, ScriptInstance i, Stack l)
++        {
++           StringBuffer work    = new StringBuffer(BridgeUtilities.getString(l, ""));
++           String       nstr    = BridgeUtilities.getString(l, "");
++           int          index   = BridgeUtilities.getInt(l, 0);
++           int          nchar   = BridgeUtilities.getInt(l, nstr.length());
++
++           work.delete(index, index + nchar);
++           work.insert(index, nstr);
++
++           return SleepUtils.getScalar(work.toString());
++        }
++    }
++
+     private static class func_substr implements Function
+     {
+         public Scalar evaluate(String n, ScriptInstance i, Stack l)
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-06-17 06:09:43 UTC (rev 71)
++++ sleep/whatsnew.txt	2006-06-17 06:21:42 UTC (rev 72)
+@@ -4,6 +4,7 @@
+   &reduce(&closure, @array)
+   &search(@array, &closure, [index])
+   &filter(@array, &closure)
++- added &replaceAt("original", "new", index, [chars to delete]);
+ 
+ 2.1-beta 1
+ ===========
+
+
+
+From rsmudge at berlios.de  Sat Jun 17 08:43:20 2006
+From: rsmudge at berlios.de (rsmudge at BerliOS)
+Date: Sat, 17 Jun 2006 08:43:20 +0200
+Subject: [Sleep-svn] r73 - in sleep: . src/sleep/bridges tests tests/output
+Message-ID: <200606170643.k5H6hKRD016811@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-06-17 08:43:19 +0200 (Sat, 17 Jun 2006)
+New Revision: 73
+
+Added:
+   sleep/tests/output/stringf.sl
+   sleep/tests/stringf.sl
+Modified:
+   sleep/src/sleep/bridges/BasicStrings.java
+   sleep/whatsnew.txt
+Log:
+Added &mid function
+
+
+
+Modified: sleep/src/sleep/bridges/BasicStrings.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicStrings.java	2006-06-17 06:21:42 UTC (rev 72)
++++ sleep/src/sleep/bridges/BasicStrings.java	2006-06-17 06:43:19 UTC (rev 73)
+@@ -62,7 +62,11 @@
+         temp.put("&charAt",  new func_charAt());
+         temp.put("&uc",      new func_uc());
+         temp.put("&lc",      new func_lc());
+-        temp.put("&substr",  new func_substr());
++
++        func_substr f_substr = new func_substr();
++        temp.put("&substr",  f_substr);
++        temp.put("&mid",  f_substr);
++
+         temp.put("&indexOf", new func_indexOf());
+         temp.put("&strlen",  new func_strlen());
+         temp.put("&strrep",  new func_strrep());
+@@ -414,10 +418,20 @@
+     {
+         public Scalar evaluate(String n, ScriptInstance i, Stack l)
+         {
+-           String value = l.pop().toString();
+-           int    start = BridgeUtilities.getInt(l);
+-           int    stop  = BridgeUtilities.getInt(l, value.length());
+-          
++           String value = BridgeUtilities.getString(l, "");
++
++           int start, stop;
++           start = BridgeUtilities.getInt(l);
++
++           if (n.equals("&mid"))
++           {
++              stop  = BridgeUtilities.getInt(l, value.length() - start) + start;
++           }
++           else
++           {
++              stop  = BridgeUtilities.getInt(l, value.length());
++           }
++                    
+            return SleepUtils.getScalar(value.substring(start, stop));
+         }
+     }
+
+Added: sleep/tests/output/stringf.sl
+===================================================================
+--- sleep/tests/output/stringf.sl	2006-06-17 06:21:42 UTC (rev 72)
++++ sleep/tests/output/stringf.sl	2006-06-17 06:43:19 UTC (rev 73)
+@@ -0,0 +1,6 @@
++Test 1: this a test
++Test 2: this is a function test
++Test 3: is
++Test 4: is a test
++Test 5: a test
++Test 6: te
+
+Added: sleep/tests/stringf.sl
+===================================================================
+--- sleep/tests/stringf.sl	2006-06-17 06:21:42 UTC (rev 72)
++++ sleep/tests/stringf.sl	2006-06-17 06:43:19 UTC (rev 73)
+@@ -0,0 +1,12 @@
++#
++# test some of the string functions
++#
++
++println("Test 1: " . replaceAt("this is a test", "", 4, 3));
++println("Test 2: " . replaceAt("this is a test", "function ", 10, 0));
++
++println("Test 3: " . mid("this is a test", 5, 2));
++println("Test 4: " . mid("this is a test", 5));
++println("Test 5: " . substr("this is a test", 8));
++println("Test 6: " . substr("this is a test", 10, 12));
++     #                       01234567890123
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-06-17 06:21:42 UTC (rev 72)
++++ sleep/whatsnew.txt	2006-06-17 06:43:19 UTC (rev 73)
+@@ -5,6 +5,8 @@
+   &search(@array, &closure, [index])
+   &filter(@array, &closure)
+ - added &replaceAt("original", "new", index, [chars to delete]);
++- added &mid("string", index, n chars) to extract a substring
++  equivalent to &substr("string", index, index + n chars) 
+ 
+ 2.1-beta 1
+ ===========
+
+
+
+From rsmudge at berlios.de  Sat Jun 17 09:00:43 2006
+From: rsmudge at berlios.de (rsmudge at BerliOS)
+Date: Sat, 17 Jun 2006 09:00:43 +0200
+Subject: [Sleep-svn] r74 - in sleep: . src/sleep/bridges/io
+Message-ID: <200606170700.k5H70hM5022710@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-06-17 09:00:40 +0200 (Sat, 17 Jun 2006)
+New Revision: 74
+
+Modified:
+   sleep/src/sleep/bridges/io/FileObject.java
+   sleep/src/sleep/bridges/io/IOObject.java
+   sleep/src/sleep/bridges/io/ProcessObject.java
+   sleep/src/sleep/bridges/io/SocketObject.java
+   sleep/whatsnew.txt
+Log:
+Exposed the actual IO source objects in the IO API with a new method getSource
+
+
+
+Modified: sleep/src/sleep/bridges/io/FileObject.java
+===================================================================
+--- sleep/src/sleep/bridges/io/FileObject.java	2006-06-17 06:43:19 UTC (rev 73)
++++ sleep/src/sleep/bridges/io/FileObject.java	2006-06-17 07:00:40 UTC (rev 74)
+@@ -8,6 +8,12 @@
+ {
+    protected File file;
+ 
++   /** returns the file referenced by this IOObject */
++   public Object getSource()
++   {
++      return file;
++   }
++
+    /** opens a file and references it to this file object.  the descriptor parameter is a filename */
+    public void open(String descriptor, ScriptEnvironment env)
+    {
+
+Modified: sleep/src/sleep/bridges/io/IOObject.java
+===================================================================
+--- sleep/src/sleep/bridges/io/IOObject.java	2006-06-17 06:43:19 UTC (rev 73)
++++ sleep/src/sleep/bridges/io/IOObject.java	2006-06-17 07:00:40 UTC (rev 74)
+@@ -36,6 +36,12 @@
+    protected Thread           thread  = null;
+    protected Scalar           token   = null;
+ 
++   /** return the actual source of this IO for scripters to query using HOES */
++   public Object getSource()
++   {
++      return null;
++   }
++
+    /** set the thread used for this IOObject (currently used to allow a script to wait() on the threads completion) */
+    public void setThread(Thread t)
+    {
+
+Modified: sleep/src/sleep/bridges/io/ProcessObject.java
+===================================================================
+--- sleep/src/sleep/bridges/io/ProcessObject.java	2006-06-17 06:43:19 UTC (rev 73)
++++ sleep/src/sleep/bridges/io/ProcessObject.java	2006-06-17 07:00:40 UTC (rev 74)
+@@ -7,6 +7,12 @@
+ {
+    protected Process process;
+ 
++   /** returns the Process object used by this IO implementation */
++   public Object getSource()
++   {
++      return process;
++   }
++
+    public void open(String command, ScriptEnvironment env)
+    {
+       try
+
+Modified: sleep/src/sleep/bridges/io/SocketObject.java
+===================================================================
+--- sleep/src/sleep/bridges/io/SocketObject.java	2006-06-17 06:43:19 UTC (rev 73)
++++ sleep/src/sleep/bridges/io/SocketObject.java	2006-06-17 07:00:40 UTC (rev 74)
+@@ -8,6 +8,12 @@
+ {
+    protected Socket socket;
+ 
++   /** returns the socket used for this connection */
++   public Object getSource()
++   {
++      return socket;
++   }
++
+    public void open(String server, int port, ScriptEnvironment env)
+    {
+       try
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-06-17 06:43:19 UTC (rev 73)
++++ sleep/whatsnew.txt	2006-06-17 07:00:40 UTC (rev 74)
+@@ -7,6 +7,10 @@
+ - added &replaceAt("original", "new", index, [chars to delete]);
+ - added &mid("string", index, n chars) to extract a substring
+   equivalent to &substr("string", index, index + n chars) 
++- exposed the IO Process, File, and Socket using a new method
++  added to IOObject: getSource().  This will allow scripters to
++  query the IO source using HOES if there is some API Sleep does
++  not bridge. (i.e. exit value of a process)
+ 
+ 2.1-beta 1
+ ===========
+
+
+
+From rsmudge at berlios.de  Sat Jun 17 09:06:13 2006
+From: rsmudge at berlios.de (rsmudge at BerliOS)
+Date: Sat, 17 Jun 2006 09:06:13 +0200
+Subject: [Sleep-svn] r75 - in sleep: . src/sleep/runtime
+Message-ID: <200606170706.k5H76DqA024629@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-06-17 09:06:11 +0200 (Sat, 17 Jun 2006)
+New Revision: 75
+
+Modified:
+   sleep/src/sleep/runtime/SleepUtils.java
+   sleep/whatsnew.txt
+Log:
+Added an API for generating a Sleep IO handle..
+
+
+
+Modified: sleep/src/sleep/runtime/SleepUtils.java
+===================================================================
+--- sleep/src/sleep/runtime/SleepUtils.java	2006-06-17 07:00:40 UTC (rev 74)
++++ sleep/src/sleep/runtime/SleepUtils.java	2006-06-17 07:06:11 UTC (rev 75)
+@@ -245,6 +245,17 @@
+      return (SleepClosure)script.getScriptEnvironment().getFunction(value.toString());
+    }
+ 
++   /** creates an IO handle scalar suitable for use with the sleep IO API.  The passed in
++       streams can each be null if necessary. */ 
++   public static Scalar getIOHandleScalar(InputStream in, OutputStream out)
++   {
++      sleep.bridges.io.IOObject handle = new sleep.bridges.io.IOObject();
++      handle.openRead(in);
++      handle.openWrite(out);
++
++      return SleepUtils.getScalar(handle);
++   }
++
+    /** returns an empty hashmap scalar */
+    public static Scalar getHashScalar()
+    {
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-06-17 07:00:40 UTC (rev 74)
++++ sleep/whatsnew.txt	2006-06-17 07:06:11 UTC (rev 75)
+@@ -11,6 +11,8 @@
+   added to IOObject: getSource().  This will allow scripters to
+   query the IO source using HOES if there is some API Sleep does
+   not bridge. (i.e. exit value of a process)
++- added an API to SleepUtils for building an IO handle scalar 
++  from a Java InputStream/OutputStream
+ 
+ 2.1-beta 1
+ ===========
+
+
+
+From rsmudge at berlios.de  Sat Jun 17 09:11:59 2006
+From: rsmudge at berlios.de (rsmudge at BerliOS)
+Date: Sat, 17 Jun 2006 09:11:59 +0200
+Subject: [Sleep-svn] r76 - sleep/docs
+Message-ID: <200606170711.k5H7Bxfo026987@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-06-17 09:11:56 +0200 (Sat, 17 Jun 2006)
+New Revision: 76
+
+Modified:
+   sleep/docs/sleeplang.html
+Log:
+Small doc update to note comparison of $null to "" and 0
+
+
+
+Modified: sleep/docs/sleeplang.html
+===================================================================
+--- sleep/docs/sleeplang.html	2006-06-17 07:06:11 UTC (rev 75)
++++ sleep/docs/sleeplang.html	2006-06-17 07:11:56 UTC (rev 76)
+@@ -323,6 +323,24 @@
+  </tr>
+ </table>
+ 
++<p>One example use of the <code>is</code> comparison is to check if a function really returned
++<var>$null</var> and not just an empty string:</p>
++
++<pre>if ($null is "")
++{
++   println("This will not print");
++}
++
++if ($null is 0)
++{
++   println("This will not print either.");
++}
++
++if ($null is $null)
++{
++   println("Bingo!");
++}</pre>
++
+ <p>Most comparisons in sleep can be negated with the ! exclamation point before the operator in the comparison.</p>
+ 
+ <pre>if ("test" !isin "walrus")
+
+
+
+From rsmudge at berlios.de  Sat Jun 17 09:29:53 2006
+From: rsmudge at berlios.de (rsmudge at BerliOS)
+Date: Sat, 17 Jun 2006 09:29:53 +0200
+Subject: [Sleep-svn] r77 - in sleep: docs src/sleep/bridges src/sleep/bridges/io
+Message-ID: <200606170729.k5H7TrrV031529@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-06-17 09:29:51 +0200 (Sat, 17 Jun 2006)
+New Revision: 77
+
+Modified:
+   sleep/docs/sleepguide.html
+   sleep/src/sleep/bridges/BasicIO.java
+   sleep/src/sleep/bridges/io/IOObject.java
+Log:
+Working on updating the console API plus more doc updates (documented halt and done in 2.7)
+
+
+
+Modified: sleep/docs/sleepguide.html
+===================================================================
+--- sleep/docs/sleepguide.html	2006-06-17 07:11:56 UTC (rev 76)
++++ sleep/docs/sleepguide.html	2006-06-17 07:29:51 UTC (rev 77)
+@@ -648,6 +648,12 @@
+ event driven scripting to popup menu structures to my application. Environments are a very powerful way to get the most out of 
+ integrating your application with the sleep language.</p>
+ 
++<p>As a side note, Sleep comes with two extra keywords built-in.  These are <code>halt</code>
++and <code>done</code>.  These keywords function exactly like return except they return a 
++specific integer constant.  In the case of halt the return value is 2.  done returns a 1.  
++These keywords were put into the Sleep language to work with the event handling bridges in the
++IRC client jIRCii.  Feel free to take advantage of them within your own apps.</p>
++
+ <h2><a name="2.8">Filtered Environment Bridges</a></h2>
+ 
+ <p>Filtered environments are similar to normal keyword environments except they also allow a parameter specified by the user.  
+
+Modified: sleep/src/sleep/bridges/BasicIO.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicIO.java	2006-06-17 07:11:56 UTC (rev 76)
++++ sleep/src/sleep/bridges/BasicIO.java	2006-06-17 07:29:51 UTC (rev 77)
+@@ -348,7 +348,7 @@
+     {
+        public Scalar evaluate(String n, ScriptInstance i, Stack l)
+        {
+-          return SleepUtils.getScalar(IOObject.getConsole());
++          return SleepUtils.getScalar(IOObject.getConsole(i.getScriptEnvironment()));
+        }
+     }
+ 
+
+Modified: sleep/src/sleep/bridges/io/IOObject.java
+===================================================================
+--- sleep/src/sleep/bridges/io/IOObject.java	2006-06-17 07:11:56 UTC (rev 76)
++++ sleep/src/sleep/bridges/io/IOObject.java	2006-06-17 07:29:51 UTC (rev 77)
+@@ -68,9 +68,19 @@
+       token = t;
+    }
+ 
+-   /** returns an IOObject that represents stdin/stdout */
++   /** this method is no longer the preferred way for obtaining the console IOObject */
+    public static IOObject getConsole()
+    {
++      IOObject temp = new IOObject();
++      temp.openRead(System.in);
++      temp.openWrite(System.out);
++
++      return temp;
++   }
++
++   /** returns an IOObject that represents stdin/stdout */
++   public static IOObject getConsole(ScriptEnvironment environment)
++   {
+       if (console == null)
+       {
+          console = new IOObject();
+
+
+
+From rsmudge at berlios.de  Sat Jun 17 19:15:46 2006
+From: rsmudge at berlios.de (rsmudge at BerliOS)
+Date: Sat, 17 Jun 2006 19:15:46 +0200
+Subject: [Sleep-svn] r78 - sleep/docs
+Message-ID: <200606171715.k5HHFkVm020954@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-06-17 19:15:45 +0200 (Sat, 17 Jun 2006)
+New Revision: 78
+
+Modified:
+   sleep/docs/sleeplang.html
+Log:
+Documented all of those functions I've been adding... whee...
+
+
+
+Modified: sleep/docs/sleeplang.html
+===================================================================
+--- sleep/docs/sleeplang.html	2006-06-17 07:29:51 UTC (rev 77)
++++ sleep/docs/sleeplang.html	2006-06-17 17:15:45 UTC (rev 78)
+@@ -1592,6 +1592,11 @@
+  </tr>
+  <tr>
+   <td>@</td>
++  <td>filter(&amp;closure, @array)</td>
++  <td>Evaluates the specified closure against each element of @array.  Each non-null value returned by &amp;closure is collected into an array that is returned by the filter() call.</td>
++ </tr>
++ <tr>
++  <td>@</td>
+   <td>flatten(@array)</td>
+   <td>returns a copy of a multidimensional(?) @array flattened into a one dimensional array</td>
+  </tr>
+@@ -1611,6 +1616,11 @@
+   <td>pushes $scalar arguments on to the top of @array</td>
+  </tr>
+  <tr>
++  <td>@</td>
++  <td>reduce(@array, &amp;closure)</td>
++  <td>I probably should have learned from python and not added this but here it is anyways.  Applies &amp;closure to first two elements of @array.  Takes the resulting value and applies it to the next element of @array, so on and so forth.  Returns one value.</td>
++ </tr>
++ <tr>
+   <td></td>
+   <td>remove(@array, $scalar, ...)</td>
+   <td>removes each specified $scalar from @array.  if no parameters are passed the active element in the current foreach loop is removed.</td>
+@@ -1626,6 +1636,11 @@
+   <td>returns a copy of @array in reverse order</td>
+  </tr>
+  <tr>
++  <td>@</td>
++  <td>search(@array, &amp;closure, [index])</td>
++  <td>Applies &amp;closure to each element of @array (beginning with the specified index).  Returns the first non-null return value of &amp;closure.</td>
++ </tr>
++ <tr>
+   <td>$</td>
+   <td>shift(@array)</td>
+   <td>removes the first element from @array and returns it.</td>
+@@ -2202,6 +2217,11 @@
+  </tr>
+  <tr>
+   <td>$</td>
++  <td>mid("string", start, n)</td>
++  <td>returns a substring of the specified "string" starting from the start index followed by the next n chars</td>
++ </tr>
++ <tr>
++  <td>$</td>
+   <td>replace("string", 'pattern', "new", [n])</td>
+   <td>splits "string" by regex 'pattern' in "string" and joins it with specified "new" value.  will replace up to n occurences. 
+   within the "new" string remembered patterns can be expanded with the literal $1, $2, etc.  These are literal characters  
+@@ -2209,6 +2229,12 @@
+  </tr>
+  <tr>
+   <td>$</td>
++  <td>replaceAt("string", "new", index, [n])</td>
++  <td>removes n characters from the specified index (or just len of the new string if n isn't
++      specified) then inserts the new string into the specified index.</td>
++ </tr>
++ <tr>
++  <td>$</td>
+   <td>right("string", n)</td>
+   <td>returns the right most n characters of "string'</td>
+  </tr>
+
+
+
+From rsmudge at berlios.de  Sat Jun 17 22:46:39 2006
+From: rsmudge at berlios.de (rsmudge at BerliOS)
+Date: Sat, 17 Jun 2006 22:46:39 +0200
+Subject: [Sleep-svn] r79 - in sleep: . src/sleep/console src/sleep/engine src/sleep/runtime tests tests/output
+Message-ID: <200606172046.k5HKkdak000550@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-06-17 22:46:37 +0200 (Sat, 17 Jun 2006)
+New Revision: 79
+
+Added:
+   sleep/tests/debugce.sl
+   sleep/tests/output/debugce.sl
+Modified:
+   sleep/build.xml
+   sleep/src/sleep/console/TextConsole.java
+   sleep/src/sleep/engine/Block.java
+   sleep/src/sleep/runtime/ScriptEnvironment.java
+   sleep/src/sleep/runtime/ScriptInstance.java
+   sleep/tests/test.pl
+   sleep/whatsnew.txt
+Log:
+Added some more debug options...
+
+
+
+Modified: sleep/build.xml
+===================================================================
+--- sleep/build.xml	2006-06-17 17:15:45 UTC (rev 78)
++++ sleep/build.xml	2006-06-17 20:46:37 UTC (rev 79)
+@@ -16,7 +16,7 @@
+            destdir="${project.build}"
+            nowarn="yes"
+            depend="yes"
+-           debug="false"
++           debug="true"
+            optimize="yes"
+     >
+     </javac>
+
+Modified: sleep/src/sleep/console/TextConsole.java
+===================================================================
+--- sleep/src/sleep/console/TextConsole.java	2006-06-17 17:15:45 UTC (rev 78)
++++ sleep/src/sleep/console/TextConsole.java	2006-06-17 20:46:37 UTC (rev 79)
+@@ -25,13 +25,14 @@
+              System.out.println(SleepUtils.SLEEP_VERSION + " (" + SleepUtils.SLEEP_RELEASE + ")");
+              return;
+          }
+-
++         
+          //
+          // put all of our command line arguments into an array scalar
+          //
+          Scalar array = SleepUtils.getArrayScalar();
+          for (int x = 1; x < args.length; x++)
+          {
++
+             array.getArray().push(SleepUtils.getScalar(args[x]));
+          }
+ 
+@@ -40,6 +41,11 @@
+             ScriptInstance script = loader.loadScript(args[0]);     // load the script, parse it, etc.
+             script.getScriptVariables().putScalar("@ARGV", array);  // set @ARGV to be our array of command line arguments
+ 
++            if (System.getProperty("sleep.debug") != null)
++            {
++               script.setDebugFlags(Integer.parseInt(System.getProperty("sleep.debug")));
++            }
++
+             script.runScript();                                     // run the script...
+          } 
+          catch (YourCodeSucksException yex)
+
+Modified: sleep/src/sleep/engine/Block.java
+===================================================================
+--- sleep/src/sleep/engine/Block.java	2006-06-17 17:15:45 UTC (rev 78)
++++ sleep/src/sleep/engine/Block.java	2006-06-17 20:46:37 UTC (rev 79)
+@@ -142,7 +142,7 @@
+         {
+            try
+            {
+-              Scalar value = temp.evaluate(environment);
++              temp.evaluate(environment);
+            }
+            catch (IllegalArgumentException aex)
+            {
+@@ -179,7 +179,15 @@
+                  }
+               }
+ 
+-              return environment.getReturnValue();
++              if (environment.isDebugInterrupt())
++              {
++                 environment.getScriptInstance().fireWarning(environment.getDebugString(), temp.getLineNumber());
++                 /** get debug string clears the debug interrupt! */
++              }
++              else
++              {
++                 return environment.getReturnValue();
++              }
+            }
+ 
+            temp = temp.next;
+
+Modified: sleep/src/sleep/runtime/ScriptEnvironment.java
+===================================================================
+--- sleep/src/sleep/runtime/ScriptEnvironment.java	2006-06-17 17:15:45 UTC (rev 78)
++++ sleep/src/sleep/runtime/ScriptEnvironment.java	2006-06-17 20:46:37 UTC (rev 79)
+@@ -108,7 +108,11 @@
+     public void flagError(String message)
+     {
+        errorMessage = message;
+-//       getScriptVariables().putScalar("$!", SleepUtils.getScalar(message));
++
++       if ((getScriptInstance().getDebugFlags() & ScriptInstance.DEBUG_SHOW_WARNINGS) == ScriptInstance.DEBUG_SHOW_WARNINGS)
++       {
++          showDebugMessage("checkError(): " + message);
++       }
+     }
+ 
+     /** once an error is checked using this function, it is cleared, the orignal error message is returned as well */
+@@ -317,10 +321,17 @@
+ 
+     /** adding a yield keyword */
+     public static final int FLOW_CONTROL_YIELD    = 4;
+-    
++
++    protected boolean isDebugInterrupt  = false;
++    protected String  debugString       = "";
+     protected Scalar rv      = null;
+     protected int    request = 0;
+ 
++    public boolean isDebugInterrupt()
++    {
++       return isDebugInterrupt;
++    }
++
+     public Scalar getReturnValue()
+     {
+        return rv;
+@@ -328,7 +339,7 @@
+ 
+     public boolean isReturn()
+     {
+-       return request != FLOW_CONTROL_NONE;
++       return request != FLOW_CONTROL_NONE || isDebugInterrupt;
+     }
+ 
+     public int getFlowControlRequest()
+@@ -336,6 +347,19 @@
+        return request;
+     }
+ 
++    public String getDebugString()
++    {
++       isDebugInterrupt = false;
++       return debugString;
++    }
++
++    /** fires this debug message via a runtime warning complete with line number of current step */
++    public void showDebugMessage(String message)
++    {
++       isDebugInterrupt = true;
++       debugString = message;
++    }
++
+     public void flagReturn(Scalar value, int type_of_flow)
+     {
+        if (value == null) { value = SleepUtils.getEmptyScalar(); }
+
+Modified: sleep/src/sleep/runtime/ScriptInstance.java
+===================================================================
+--- sleep/src/sleep/runtime/ScriptInstance.java	2006-06-17 17:15:45 UTC (rev 78)
++++ sleep/src/sleep/runtime/ScriptInstance.java	2006-06-17 20:46:37 UTC (rev 79)
+@@ -71,6 +71,30 @@
+     /** The compiled sleep code for this script, the ScriptLoader will set this value upon loading a script. */
+     protected Block             script;
+ 
++    /** debug should be absolutely quiet, never fire any runtime warnings */
++    public static final int DEBUG_NONE          = 0;
++
++    /** fire runtime warnings for all critical flow interrupting errors */
++    public static final int DEBUG_SHOW_ERRORS   = 1;
++
++    /** fire runtime warnings for anything flagged for retrieval with checkError() */
++    public static final int DEBUG_SHOW_WARNINGS = 2;
++
++    /** track all of the flagged debug options for this script (set to DEBUG_SHOW_ERRORS by default) */
++    protected int debug = DEBUG_SHOW_ERRORS;
++
++    /** set the debug flags for this script */
++    public void setDebugFlags(int options)
++    {
++        debug = options;
++    }
++
++    /** retrieve the debug flags for this script */
++    public int getDebugFlags()  
++    {
++        return debug;
++    }
++
+     public ScriptInstance(Hashtable environmentToShare)
+     {
+         this((Variable)null, environmentToShare);
+@@ -232,12 +256,15 @@
+     /** Fire a runtime script warning */
+     public void fireWarning(String message, int line)
+     {
+-       ScriptWarning temp = new ScriptWarning(this, message, line);
++       if (debug != DEBUG_NONE)
++       {
++          ScriptWarning temp = new ScriptWarning(this, message, line);
+  
+-       Iterator i = watchers.iterator();
+-       while (i.hasNext())
+-       {
+-          ((RuntimeWarningWatcher)i.next()).processScriptWarning(temp);
++          Iterator i = watchers.iterator();
++          while (i.hasNext())
++          {
++             ((RuntimeWarningWatcher)i.next()).processScriptWarning(temp);
++          }
+        }
+     }
+ }
+
+Added: sleep/tests/debugce.sl
+===================================================================
+--- sleep/tests/debugce.sl	2006-06-17 17:15:45 UTC (rev 78)
++++ sleep/tests/debugce.sl	2006-06-17 20:46:37 UTC (rev 79)
+@@ -0,0 +1,11 @@
++# ensure this is run with -Dsleep.debug=3 passed to the java interpreter.
++# just checking to make sure that the check error debugging stuff works..
++#
++
++eval("
++    println('\\\\'');
++");
++
++$handle = openf("fjasjkfajskfjasfjksakjfsjkfjksafjk.txt");
++
++println("I should be doing more stuff here...");
+
+Added: sleep/tests/output/debugce.sl
+===================================================================
+--- sleep/tests/output/debugce.sl	2006-06-17 17:15:45 UTC (rev 78)
++++ sleep/tests/output/debugce.sl	2006-06-17 20:46:37 UTC (rev 79)
+@@ -0,0 +1,3 @@
++Warning: checkError(): 2 error(s): Mismatched Parentheses - missing close paren at 1; Runaway string at 1 at line 5
++Warning: checkError(): java.io.FileNotFoundException: fjasjkfajskfjasfjksakjfsjkfjksafjk.txt (No such file or directory) at line 9
++I should be doing more stuff here...
+
+Modified: sleep/tests/test.pl
+===================================================================
+--- sleep/tests/test.pl	2006-06-17 17:15:45 UTC (rev 78)
++++ sleep/tests/test.pl	2006-06-17 20:46:37 UTC (rev 79)
+@@ -27,16 +27,20 @@
+ 
+ foreach $var (@files)
+ {
++   $PROPS = "";
++   if ($var eq "debugce.sl") { $PROPS = "-Dsleep.debug=3"; }
++
+    if (!-e "./tests/output/$var")
+    {
+-      `java -jar sleep.jar ./tests/$var >./tests/output/$var`;
++      `java $PROPS -jar sleep.jar ./tests/$var >./tests/output/$var`;
+       push @errors, "$var output does not exist, creating it";
+    }
+    else
+    {
+       $expected_value = join("", `cat ./tests/output/$var`);
+-      $script_value   = join("", `java -jar sleep.jar ./tests/$var`);
+ 
++      $script_value   = join("", `java $PROPS -jar sleep.jar ./tests/$var`);
++
+       if ($expected_value ne $script_value)
+       {
+          push @errors, "Output of $var does not match expected output.";
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-06-17 17:15:45 UTC (rev 78)
++++ sleep/whatsnew.txt	2006-06-17 20:46:37 UTC (rev 79)
+@@ -13,7 +13,24 @@
+   not bridge. (i.e. exit value of a process)
+ - added an API to SleepUtils for building an IO handle scalar 
+   from a Java InputStream/OutputStream
++- added a debug flag to each script instance.  the options consist 
++  of:
++  DEBUG_SHOW_ERRORS = 1 - this is the typical behavior that causes
++     a runtime warning to be fired whenever an uncaught exception
++     occurs within a bridge.
++  DEBUG_SHOW_WARNINGS = 2 - fires a runtime warning any time an error
++     is flagged using flagError() in the script environment.  
++     runtime warnings are typically errors a scripter is meant to
++     check for with checkError($error).  
++  DEBUG_NONE = 0 - disables all firing of runtime warnings (not 
++     recommended)
+ 
++  Sleep scripts on the command line can run with different debug 
++  levels using:
++  java -Dsleep.debug=3 -jar sleep.jar filename.sl
++
++
++
+ 2.1-beta 1
+ ===========
+ - fixed the clean target in the sleep build.xml file
+
+
+
+From rsmudge at berlios.de  Sat Jun 17 23:14:27 2006
+From: rsmudge at berlios.de (rsmudge at BerliOS)
+Date: Sat, 17 Jun 2006 23:14:27 +0200
+Subject: [Sleep-svn] r80 - in sleep: . src/sleep/engine/atoms tests tests/output
+Message-ID: <200606172114.k5HLERUB002531@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-06-17 23:14:27 +0200 (Sat, 17 Jun 2006)
+New Revision: 80
+
+Added:
+   sleep/tests/fe_generator.sl
+   sleep/tests/output/fe_generator.sl
+Modified:
+   sleep/src/sleep/engine/atoms/Iterate.java
+   sleep/whatsnew.txt
+Log:
+Added the ability to iterate over closures with a foreach loop
+
+
+
+Modified: sleep/src/sleep/engine/atoms/Iterate.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/Iterate.java	2006-06-17 20:46:37 UTC (rev 79)
++++ sleep/src/sleep/engine/atoms/Iterate.java	2006-06-17 21:14:27 UTC (rev 80)
+@@ -26,6 +26,8 @@
+ import sleep.engine.*;
+ import sleep.runtime.*;
+ 
++import sleep.bridges.SleepClosure;
++
+ public class Iterate extends Step
+ {
+    public static class IteratorData
+@@ -41,6 +43,35 @@
+       public int      count    = 0;
+    }
+ 
++   private static class FunctionIterator implements Iterator
++   {
++      protected SleepClosure      closure;
++      protected ScriptInstance    si;
++      protected Scalar            current;
++      protected Stack             locals = new Stack();
++
++      public FunctionIterator(SleepClosure c, ScriptInstance i)
++      {
++         closure = c;
++         si      = i;
++      }
++
++      public boolean hasNext()
++      {
++         current = closure.callClosure("eval", si, locals);
++         return !SleepUtils.isEmptyScalar(current);
++      }
++
++      public Object next()
++      {
++         return current;
++      }
++
++      public void remove()
++      {
++      }
++   }
++
+    public static final int ITERATOR_CREATE   = 1;
+    public static final int ITERATOR_DESTROY  = 2;
+    public static final int ITERATOR_NEXT     = 3;
+@@ -119,6 +150,10 @@
+       {
+          data.iterator = data.source.getArray().scalarIterator();
+       }
++      else if (SleepUtils.isFunctionScalar(data.source))
++      {
++         data.iterator = new FunctionIterator(SleepUtils.getFunctionFromScalar(data.source, e.getScriptInstance()), e.getScriptInstance()); 
++      }
+       else
+       {
+          e.getScriptInstance().fireWarning("Attempted to use foreach on non-array: '" + data.source + "'", getLineNumber());
+
+Added: sleep/tests/fe_generator.sl
+===================================================================
+--- sleep/tests/fe_generator.sl	2006-06-17 20:46:37 UTC (rev 79)
++++ sleep/tests/fe_generator.sl	2006-06-17 21:14:27 UTC (rev 80)
+@@ -0,0 +1,44 @@
++#
++# test out foreach with closures...
++#
++
++foreach $index => $value ({ this('$x'); for ($x = 0; $x < 10; $x++) { yield "val: $x"; } return $null; })
++{
++   println("$index => $value");
++}
++
++sub _range
++{
++   while ($start < $stop)
++   {
++      yield $start;
++      $start++;
++   }
++
++   return $null;
++}
++
++foreach $index => $value (lambda(&_range, $start => 50, $stop => 60))
++{
++   println("Testing out range stuff: $index => $value");
++}
++
++sub _range2
++{
++   this('$start $stop');
++   ($start, $stop) = @_;
++   yield $this;
++
++   while ($start < $stop)
++   {
++      yield $start;
++      $start++;
++   }
++
++   return $null;
++}
++
++foreach $index => $value (_range2(70, 80))
++{
++   println("My third test: $index => $value");
++}
+
+Added: sleep/tests/output/fe_generator.sl
+===================================================================
+--- sleep/tests/output/fe_generator.sl	2006-06-17 20:46:37 UTC (rev 79)
++++ sleep/tests/output/fe_generator.sl	2006-06-17 21:14:27 UTC (rev 80)
+@@ -0,0 +1,30 @@
++0 => val: 0
++1 => val: 1
++2 => val: 2
++3 => val: 3
++4 => val: 4
++5 => val: 5
++6 => val: 6
++7 => val: 7
++8 => val: 8
++9 => val: 9
++Testing out range stuff: 0 => 50
++Testing out range stuff: 1 => 51
++Testing out range stuff: 2 => 52
++Testing out range stuff: 3 => 53
++Testing out range stuff: 4 => 54
++Testing out range stuff: 5 => 55
++Testing out range stuff: 6 => 56
++Testing out range stuff: 7 => 57
++Testing out range stuff: 8 => 58
++Testing out range stuff: 9 => 59
++My third test: 0 => 70
++My third test: 1 => 71
++My third test: 2 => 72
++My third test: 3 => 73
++My third test: 4 => 74
++My third test: 5 => 75
++My third test: 6 => 76
++My third test: 7 => 77
++My third test: 8 => 78
++My third test: 9 => 79
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-06-17 20:46:37 UTC (rev 79)
++++ sleep/whatsnew.txt	2006-06-17 21:14:27 UTC (rev 80)
+@@ -28,9 +28,10 @@
+   Sleep scripts on the command line can run with different debug 
+   levels using:
+   java -Dsleep.debug=3 -jar sleep.jar filename.sl
++- foreach can now iterate over closures..  if a closure is passed to
++  foreach then the closure will be called continuously until a $null
++  is returned.
+ 
+-
+-
+ 2.1-beta 1
+ ===========
+ - fixed the clean target in the sleep build.xml file
+
+
+
+From rsmudge at berlios.de  Sun Jun 18 00:20:33 2006
+From: rsmudge at berlios.de (rsmudge at BerliOS)
+Date: Sun, 18 Jun 2006 00:20:33 +0200
+Subject: [Sleep-svn] r81 - in sleep: src/sleep/bridges tests tests/output
+Message-ID: <200606172220.k5HMKXIT009031@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-06-18 00:20:26 +0200 (Sun, 18 Jun 2006)
+New Revision: 81
+
+Added:
+   sleep/tests/output/setops.sl
+   sleep/tests/setops.sl
+Modified:
+   sleep/src/sleep/bridges/BasicUtilities.java
+Log:
+added set operations :)
+
+
+
+Modified: sleep/src/sleep/bridges/BasicUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicUtilities.java	2006-06-17 21:14:27 UTC (rev 80)
++++ sleep/src/sleep/bridges/BasicUtilities.java	2006-06-17 22:20:26 UTC (rev 81)
+@@ -71,6 +71,10 @@
+         temp.put("&filter",    map_f);
+         temp.put("&cast",   new f_cast());
+ 
++        temp.put("&addAll", this);
++        temp.put("&removeAll", this);
++        temp.put("&retainAll", this);
++
+         temp.put("&search", this);
+         temp.put("&reduce", this);
+         temp.put("&values", this);
+@@ -628,6 +632,60 @@
+        {
+           return value.getArray().push(SleepUtils.getScalar((Scalar)l.pop()));
+        }
++       else if ((n.equals("&retainAll") || n.equals("&removeAll")) && value.getArray() != null)
++       {
++          ScalarArray a = value.getArray();
++          ScalarArray b = BridgeUtilities.getArray(l);
++    
++          HashSet s = new HashSet();
++          Iterator iter = b.scalarIterator();
++          while (iter.hasNext())
++          {
++             s.add(iter.next().toString());
++          }      
++
++          iter = a.scalarIterator();
++          while (iter.hasNext())
++          {
++             Object temp = iter.next();
++
++             if (!s.contains(temp.toString()) && n.equals("&retainAll"))
++             {
++                iter.remove();
++             }
++             else if (s.contains(temp.toString()) && n.equals("&removeAll"))
++             {
++                iter.remove();
++             }
++          }
++
++          return SleepUtils.getArrayScalar(a);
++       }
++       else if (n.equals("&addAll") && value.getArray() != null)
++       {
++          ScalarArray a = value.getArray();
++          ScalarArray b = BridgeUtilities.getArray(l);
++    
++          HashSet s = new HashSet();
++          Iterator iter = a.scalarIterator();
++          while (iter.hasNext())
++          {
++             s.add(iter.next().toString());
++          }      
++
++          iter = b.scalarIterator();
++          while (iter.hasNext())
++          {
++             Scalar temp = (Scalar)iter.next();
++
++             if (!s.contains(temp.toString()))
++             {
++                a.push(temp);
++             }
++          }
++
++          return SleepUtils.getArrayScalar(a);
++       }
+        else if (n.equals("&add") && value.getArray() != null)
+        {
+           Scalar item = BridgeUtilities.getScalar(l);
+
+Added: sleep/tests/output/setops.sl
+===================================================================
+--- sleep/tests/output/setops.sl	2006-06-17 21:14:27 UTC (rev 80)
++++ sleep/tests/output/setops.sl	2006-06-17 22:20:26 UTC (rev 81)
+@@ -0,0 +1,63 @@
++--- Add All || Set Union ---
++Test 1
++1
++2
++3
++4
++5
++6
++8
++10
++12
++Test 2
++1
++2
++3
++4
++5
++6
++7
++8
++9
++10
++11
++12
++Test 3
++2
++4
++6
++8
++10
++12
++--- Remove All || Set Difference ---
++Test 1
++1
++3
++5
++7
++9
++11
++Test 2
++2
++4
++6
++8
++10
++12
++Test 3
++--- Retain All || Set Intersect ---
++Test 1
++2
++4
++6
++8
++10
++12
++Test 2
++Test 3
++2
++4
++6
++8
++10
++12
+
+Added: sleep/tests/setops.sl
+===================================================================
+--- sleep/tests/setops.sl	2006-06-17 21:14:27 UTC (rev 80)
++++ sleep/tests/setops.sl	2006-06-17 22:20:26 UTC (rev 81)
+@@ -0,0 +1,83 @@
++#
++# doing a test of some set operations...
++#
++
++sub b
++{
++   return array(1, 2, 3, 4, 5, 6);
++}
++
++sub evens_odds
++{
++   return array(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12);
++}
++
++sub evens
++{
++   return array(2, 4, 6, 8, 10, 12);
++}
++
++sub odds
++{
++   return array(1, 3, 5, 7, 9, 11);
++}
++
++println("--- Add All || Set Union ---");
++println("Test 1"); # ensure that only one of each element is in @a
++ at a = evens();
++ at b = b();
++addAll(@a, @b);
++printAll(sortn(@a));
++
++println("Test 2"); # ensure that all elements are in @a
++ at a = evens();
++ at b = odds();
++addAll(@a, @b);
++printAll(sortn(@a));
++
++println("Test 3"); # yet another test...
++ at a = evens();
++ at b = evens();
++addAll(@a, @b);
++printAll(sortn(@a));
++
++println("--- Remove All || Set Difference ---");
++println("Test 1"); # ensure that only one of each element is in @a
++ at a = evens_odds();
++ at b = evens();
++removeAll(@a, @b);
++printAll(sortn(@a));
++
++println("Test 2"); # ensure that all elements are in @a
++ at a = evens();
++ at b = odds();
++removeAll(@a, @b);
++printAll(sortn(@a));
++
++println("Test 3"); # yet another test...
++ at a = evens();
++ at b = evens();
++removeAll(@a, @b);
++printAll(sortn(@a));
++
++println("--- Retain All || Set Intersect ---");
++println("Test 1"); # ensure that only one of each element is in @a
++ at a = evens_odds();
++ at b = evens();
++retainAll(@a, @b);
++printAll(sortn(@a));
++
++println("Test 2"); # ensure that all elements are in @a
++ at a = evens();
++ at b = odds();
++retainAll(@a, @b);
++printAll(sortn(@a));
++
++println("Test 3"); # yet another test...
++ at a = evens();
++ at b = evens();
++retainAll(@a, @b);
++printAll(sortn(@a));
++
++	
++
+
+
+
+From rsmudge at berlios.de  Sun Jun 18 00:29:19 2006
+From: rsmudge at berlios.de (rsmudge at BerliOS)
+Date: Sun, 18 Jun 2006 00:29:19 +0200
+Subject: [Sleep-svn] r82 - sleep
+Message-ID: <200606172229.k5HMTJlB009814@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-06-18 00:29:19 +0200 (Sun, 18 Jun 2006)
+New Revision: 82
+
+Modified:
+   sleep/whatsnew.txt
+Log:
+..
+
+
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-06-17 22:20:26 UTC (rev 81)
++++ sleep/whatsnew.txt	2006-06-17 22:29:19 UTC (rev 82)
+@@ -31,7 +31,12 @@
+ - foreach can now iterate over closures..  if a closure is passed to
+   foreach then the closure will be called continuously until a $null
+   is returned.
++- added a few functions for performing set type operations on @arrays
++  @ removeAll(@a, @b) - modifies @a with the difference of @a - @b
++  @ addAll(@a, @b) - modifies @a with the union of @a + @b
++  @ retainAll(@a, @b) - modifies @a to contain the intersection of @a and @b
+ 
++
+ 2.1-beta 1
+ ===========
+ - fixed the clean target in the sleep build.xml file
+
+
+
+From rsmudge at berlios.de  Sun Jun 18 00:40:46 2006
+From: rsmudge at berlios.de (rsmudge at BerliOS)
+Date: Sun, 18 Jun 2006 00:40:46 +0200
+Subject: [Sleep-svn] r83 - sleep/docs
+Message-ID: <200606172240.k5HMekFq012352@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-06-18 00:40:26 +0200 (Sun, 18 Jun 2006)
+New Revision: 83
+
+Modified:
+   sleep/docs/sleeplang.html
+Log:
+Documenting some of the new stuff...
+
+
+
+Modified: sleep/docs/sleeplang.html
+===================================================================
+--- sleep/docs/sleeplang.html	2006-06-17 22:29:19 UTC (rev 82)
++++ sleep/docs/sleeplang.html	2006-06-17 22:40:26 UTC (rev 83)
+@@ -1532,6 +1532,21 @@
+ <p>The above stores a coroutine into $generator.  The first time $generator is called a 0 will be returned.  The second time $generator will
+ return a 1.  So on and so forth until $null is finally returned.</p>
+ 
++<p>Foreach loops can be used to iterate over a closure.</p>
++
++<pre>foreach $value ($generator)
++{
++   println("Value is $value");
++}</pre>
++
++<p>The above would iterate over $generator until it returned $null.  The output would be:</p>
++
++<pre>Value is 0
++Value is 1
++...
++Value is 998
++Value is 999</pre>
++
+ <a name="11"><h2>Function Library</h2></a>
+ 
+ <p>This appendix is a list of the application neutral built-in functions for sleep.  I expect this list to grow as time goes on.  
+@@ -1570,6 +1585,11 @@
+  </tr>
+  <tr>
+   <td>@</td>
++  <td>addAll(@a, @b)</td>
++  <td>adds all of the non-present elements of @b into @a. equivalent to the union of @a and @b</td>
++ </tr>
++ <tr>
++  <td>@</td>
+   <td>array("string 1", 2, $var3, ...)</td>
+   <td>creates an array with all of the function arguments</td>
+  </tr>
+@@ -1626,12 +1646,22 @@
+   <td>removes each specified $scalar from @array.  if no parameters are passed the active element in the current foreach loop is removed.</td>
+  </tr>
+  <tr>
++  <td>@</td>
++  <td>removeAll(@a, @b)</td>
++  <td>removes all elements of @b from @a. equivalent to the different of @a and @b</td>
++ </tr>
++ <tr>
+   <td>$</td>
+   <td>removeAt(@arrray, index)</td>
+   <td>removes the element at index from @array.</td>
+  </tr>
+  <tr>
+   <td>@</td>
++  <td>retainAll(@a, @b)</td>
++  <td>removes all elements from @a that are not present in @b.  equivalent to the intersection of @a and @b.</td>
++ </tr>
++ <tr>
++  <td>@</td>
+   <td>reverse(@array)</td>
+   <td>returns a copy of @array in reverse order</td>
+  </tr>
+
+
+
+From rsmudge at berlios.de  Sun Jun 18 00:59:39 2006
+From: rsmudge at berlios.de (rsmudge at BerliOS)
+Date: Sun, 18 Jun 2006 00:59:39 +0200
+Subject: [Sleep-svn] r84 - in sleep: . src/sleep/runtime
+Message-ID: <200606172259.k5HMxdm1019092@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-06-18 00:59:27 +0200 (Sun, 18 Jun 2006)
+New Revision: 84
+
+Modified:
+   sleep/src/sleep/runtime/SleepUtils.java
+   sleep/whatsnew.txt
+Log:
+Added API to generate Java Collection stuffs from sleep array/hash data structures.
+
+
+
+Modified: sleep/src/sleep/runtime/SleepUtils.java
+===================================================================
+--- sleep/src/sleep/runtime/SleepUtils.java	2006-06-17 22:40:26 UTC (rev 83)
++++ sleep/src/sleep/runtime/SleepUtils.java	2006-06-17 22:59:27 UTC (rev 84)
+@@ -34,6 +34,7 @@
+ 
+ import java.io.*;
+ 
++import sleep.bridges.BridgeUtilities;
+ import sleep.bridges.SleepClosure;
+ 
+ /** This class contains generalized utilities for instantiating/wrapping data into the sleep Scalar type. 
+@@ -211,6 +212,73 @@
+       return temp;
+    }
+ 
++   /** Generate a java.util.Map from a scalar hash.  Keys will be Java strings.  Values will be
++       the Java object equivalents of the data stored in the scalar hash. */
++   public static Map getMapFromHash(Scalar map)
++   { 
++      return getMapFromHash(map.getHash());
++   }
++
++   /** Generate a java.util.Map from a scalar hash.  Keys will be Java strings.  Values will be
++       the Java object equivalents of the data stored in the scalar hash. */
++   public static Map getMapFromHash(ScalarHash map)
++   {
++      HashMap dict = new HashMap();
++
++      if (map != null)
++      {
++         Iterator i = map.keys().scalarIterator();
++         while (i.hasNext())
++         {
++            Scalar key  = (Scalar)i.next();
++            Scalar val  = map.getAt(key);
++
++            if (val.getHash() != null)
++            {
++               dict.put(key.toString(), getMapFromHash(val.getHash()));
++            }
++            else if (val.getArray() != null)
++            {
++               dict.put(key.toString(), getListFromArray(val.getArray()));
++            }
++            else
++            {  
++               dict.put(key.toString(), val.objectValue());
++            }
++         }
++      }
++
++      return dict;
++   }
++
++   /** Generate a java.util.List from a scalar array.  Values will be the Java object 
++       equivalents of the data stored in the scalar array. */
++   public static List getListFromArray(Scalar array)
++   {
++      return getListFromArray(array.getArray());
++   }
++
++   /** Generate a java.util.List from a scalar array.  Values will be the Java object 
++       equivalents of the data stored in the scalar array. */
++   public static List getListFromArray(ScalarArray array)
++   {
++      LinkedList list = new LinkedList();
++       
++      if (array != null)
++      {
++         array = BridgeUtilities.flattenArray(SleepUtils.getArrayScalar(array), null).getArray();
++
++         Iterator i = array.scalarIterator();
++         while (i.hasNext())
++         {
++            Scalar temp = (Scalar)i.next();
++            list.add(temp.objectValue());
++         }
++      }
++
++      return list;
++   }
++
+    /** a shared instance of the dreaded null scalar... */
+    protected static ScalarType nullScalar = new NullValue();
+ 
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-06-17 22:40:26 UTC (rev 83)
++++ sleep/whatsnew.txt	2006-06-17 22:59:27 UTC (rev 84)
+@@ -35,8 +35,9 @@
+   @ removeAll(@a, @b) - modifies @a with the difference of @a - @b
+   @ addAll(@a, @b) - modifies @a with the union of @a + @b
+   @ retainAll(@a, @b) - modifies @a to contain the intersection of @a and @b
++- added methods to SleepUtils to generate a java.util.Map from a 
++  Sleep Hash scalar and to generate a java.util.List from a Sleep Array.
+ 
+-
+ 2.1-beta 1
+ ===========
+ - fixed the clean target in the sleep build.xml file
+
+
+
+From rsmudge at berlios.de  Sun Jun 18 01:04:47 2006
+From: rsmudge at berlios.de (rsmudge at BerliOS)
+Date: Sun, 18 Jun 2006 01:04:47 +0200
+Subject: [Sleep-svn] r85 - sleep/src/sleep/runtime
+Message-ID: <200606172304.k5HN4lRZ019998@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-06-18 01:04:44 +0200 (Sun, 18 Jun 2006)
+New Revision: 85
+
+Modified:
+   sleep/src/sleep/runtime/SleepUtils.java
+Log:
+One small change :)
+
+
+
+Modified: sleep/src/sleep/runtime/SleepUtils.java
+===================================================================
+--- sleep/src/sleep/runtime/SleepUtils.java	2006-06-17 22:59:27 UTC (rev 84)
++++ sleep/src/sleep/runtime/SleepUtils.java	2006-06-17 23:04:44 UTC (rev 85)
+@@ -266,13 +266,23 @@
+        
+       if (array != null)
+       {
+-         array = BridgeUtilities.flattenArray(SleepUtils.getArrayScalar(array), null).getArray();
+-
+          Iterator i = array.scalarIterator();
+          while (i.hasNext())
+          {
+             Scalar temp = (Scalar)i.next();
+-            list.add(temp.objectValue());
++
++            if (temp.getHash() != null)
++            {
++               list.add(getMapFromHash(temp.getHash()));
++            }
++            else if (temp.getArray() != null)
++            {
++               list.add(getListFromArray(temp.getArray()));
++            }
++            else
++            {
++               list.add(temp.objectValue());
++            }
+          }
+       }
+ 
+
+
+

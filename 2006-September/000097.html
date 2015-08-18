@@ -1,0 +1,402 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r115 - in sleep: . src/sleep/bridges	src/sleep/bridges/io tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2006-September/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r115%20-%20in%20sleep%3A%20.%20src/sleep/bridges%0A%09src/sleep/bridges/io%20tests%20tests/output&In-Reply-To=%3C200609150233.k8F2Xda5031141%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000096.html">
+   <LINK REL="Next"  HREF="000098.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r115 - in sleep: . src/sleep/bridges	src/sleep/bridges/io tests tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r115%20-%20in%20sleep%3A%20.%20src/sleep/bridges%0A%09src/sleep/bridges/io%20tests%20tests/output&In-Reply-To=%3C200609150233.k8F2Xda5031141%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r115 - in sleep: . src/sleep/bridges	src/sleep/bridges/io tests tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Fri Sep 15 04:33:39 CEST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000096.html">[Sleep-svn] r114 - in sleep: . src/sleep/bridges src/sleep/engine	src/sleep/engine/atoms src/sleep/engine/types tests	tests/data tests/data/src/org/hick/blah tests/output
+</A></li>
+        <LI>Next message: <A HREF="000098.html">[Sleep-svn] r116 - in sleep: . src/sleep/bridges src/sleep/runtime	tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#97">[ date ]</a>
+              <a href="thread.html#97">[ thread ]</a>
+              <a href="subject.html#97">[ subject ]</a>
+              <a href="author.html#97">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2006-09-15 04:33:38 +0200 (Fri, 15 Sep 2006)
+New Revision: 115
+
+Added:
+   sleep/tests/checksum.sl
+   sleep/tests/output/checksum.sl
+Modified:
+   sleep/src/sleep/bridges/BasicIO.java
+   sleep/src/sleep/bridges/io/IOObject.java
+   sleep/tests/output/fe_generatordb.sl
+   sleep/tests/output/trace.sl
+   sleep/tests/output/wrong.sl
+   sleep/whatsnew.txt
+Log:
+Added checksum capability to sleep
+
+
+
+Modified: sleep/src/sleep/bridges/BasicIO.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicIO.java	2006-09-12 23:06:03 UTC (rev 114)
++++ sleep/src/sleep/bridges/BasicIO.java	2006-09-15 02:33:38 UTC (rev 115)
+@@ -34,6 +34,9 @@
+ import java.nio.*;
+ import sleep.bridges.io.*;
+ 
++import java.util.zip.*;
++import javax.crypto.*;
++
+ /** provides IO functions for the sleep language */
+ public class BasicIO implements Loadable, Function
+ {
+@@ -94,9 +97,32 @@
+ 
+         temp.put(&quot;&amp;getConsole&quot;, new getConsoleObject());
+ 
++        /* integrity functions */
++        temp.put(&quot;&amp;checksum&quot;, this);
++        temp.put(&quot;&amp;digest&quot;,   this);
++
+         return true;
+     }
+ 
++    private static byte[] toByteArrayNoConversion(String textz)
++    {
++        char[] text = textz.toCharArray();
++        byte[] data = new byte[text.length];
++        for (int x = 0; x &lt; text.length; x++)
++        {
++           data[x] = (byte)text[x];
++        }
++
++        return data;
++    }
++
++    private static Checksum getChecksum(String algorithm)
++    {
++       if (algorithm.equals(&quot;Adler32&quot;)) { return new Adler32(); }
++       if (algorithm.equals(&quot;CRC32&quot;)) { return new CRC32(); }
++       return null;
++    }
++
+     public Scalar evaluate(String n, ScriptInstance i, Stack l)
+     {
+        if (n.equals(&quot;&amp;wait&quot;))
+@@ -106,7 +132,53 @@
+ 
+           return a.wait(i.getScriptEnvironment(), to);
+        }
++       else if (n.equals(&quot;&amp;checksum&quot;))
++       {
++          Scalar   s = BridgeUtilities.getScalar(l);
++          if (s.objectValue() != null &amp;&amp; s.objectValue() instanceof IOObject)
++          {
++             /* do our fun stuff to setup a checksum object */
+ 
++             boolean isRead  = true;
++
++             String temp = BridgeUtilities.getString(l, &quot;CRC32&quot;);
++             if (temp.charAt(0) == '&gt;')
++             {
++                isRead  = false;
++                temp    = temp.substring(1);
++             }
++             
++             IOObject io = (IOObject)s.objectValue();
++
++             if (isRead)
++             {
++                CheckedInputStream cis = new CheckedInputStream(io.getInputStream(), getChecksum(temp));
++                io.openRead(cis);
++                return SleepUtils.getScalar(cis.getChecksum());
++             }
++             else
++             {
++                CheckedOutputStream cos = new CheckedOutputStream(io.getOutputStream(), getChecksum(temp));
++                io.openWrite(cos);
++                return SleepUtils.getScalar(cos.getChecksum());
++             }
++          }
++          else if (s.objectValue() != null &amp;&amp; s.objectValue() instanceof Checksum)
++          {
++             Checksum sum = (Checksum)s.objectValue();
++             return SleepUtils.getScalar(sum.getValue());
++          }
++          else
++          {
++             String temp = s.toString();
++             String algo = BridgeUtilities.getString(l, &quot;CRC32&quot;);
++
++             Checksum doit = getChecksum(algo);
++             doit.update(toByteArrayNoConversion(temp), 0, temp.length());
++             return SleepUtils.getScalar(doit.getValue());
++          }
++       }
++
+        System.out.println(&quot;apparently we were wrong about '&quot; + n + &quot;'&quot;);
+ 
+        return SleepUtils.getEmptyScalar();
+
+Modified: sleep/src/sleep/bridges/io/IOObject.java
+===================================================================
+--- sleep/src/sleep/bridges/io/IOObject.java	2006-09-12 23:06:03 UTC (rev 114)
++++ sleep/src/sleep/bridges/io/IOObject.java	2006-09-15 02:33:38 UTC (rev 115)
+@@ -116,6 +116,18 @@
+       return console;
+    }
+ 
++   /** Returns the latest hooking point into the input stream */
++   public InputStream getInputStream()
++   {
++      return in;
++   }
++
++   /** Returns the latest hooking point into the output stream */
++   public OutputStream getOutputStream()
++   {
++      return out;
++   }
++
+    /** Initializes a binary reader (a DataInputStream) and a text reader (a BufferedReader) against this input stream.  Calling this effectively makes this IOObject useable with Sleep's IO read* functions. */
+    public void openRead(InputStream _in)
+    {
+
+Added: sleep/tests/checksum.sl
+===================================================================
+--- sleep/tests/checksum.sl	2006-09-12 23:06:03 UTC (rev 114)
++++ sleep/tests/checksum.sl	2006-09-15 02:33:38 UTC (rev 115)
+@@ -0,0 +1,35 @@
++#
++# test the checksum API
++#
++
++$REAL = 990741747; # output of UNIX crc32 command for test.jar
++
++# first test... checksumming an I/O handle :)
++
++$handle = openf(&quot;data/test.jar&quot;);
++$summer = checksum($handle);
++readAll($handle); # read in the entire contents but we'll discard it...
++$sum    = checksum($summer);
++println(&quot;(1) Checksum value of test.jar is: &quot; . $sum . &quot; good? &quot; . iff($sum eq $REAL, &quot;yes&quot;, &quot;no&quot;));
++closef($handle);
++
++# second test... checksumming raw data
++
++$handle = openf(&quot;data/test.jar&quot;);
++$data   = readb($handle, lof(&quot;data/test.jar&quot;)); # read in the entire file
++$sum    = checksum($data, &quot;CRC32&quot;);
++println(&quot;(2) Checksum value of test.jar is: &quot; . $sum . &quot; good? &quot; . iff($sum eq $REAL, &quot;yes&quot;, &quot;no&quot;));
++closef($handle);
++
++# third test.. the kewlest test of them all...
++
++$sumfork = fork({
++   readb($source, lof(&quot;data/test.jar&quot;));
++});
++
++$summer = checksum($sumfork, &quot;&gt;CRC32&quot;);
++writeb($sumfork, $data);
++closef($sumfork);
++wait($sumfork);
++println(&quot;Checksum of written data is: &quot; . checksum($summer));
++
+
+Added: sleep/tests/output/checksum.sl
+===================================================================
+--- sleep/tests/output/checksum.sl	2006-09-12 23:06:03 UTC (rev 114)
++++ sleep/tests/output/checksum.sl	2006-09-15 02:33:38 UTC (rev 115)
+@@ -0,0 +1,3 @@
++(1) Checksum value of test.jar is: 990741747 good? yes
++(2) Checksum value of test.jar is: 990741747 good? yes
++Checksum of written data is: 990741747
+
+Modified: sleep/tests/output/fe_generatordb.sl
+===================================================================
+--- sleep/tests/output/fe_generatordb.sl	2006-09-12 23:06:03 UTC (rev 114)
++++ sleep/tests/output/fe_generatordb.sl	2006-09-15 02:33:38 UTC (rev 115)
+@@ -19,7 +19,7 @@
+ Trace: &amp;println('8 =&gt; val: 8') at line 8
+ 9 =&gt; val: 9
+ Trace: &amp;println('9 =&gt; val: 9') at line 8
+-Trace: &amp;lambda(&amp;closure1708953, $start =&gt; 50, $stop =&gt; 60) = &amp;closure16564386 at line 22
++Trace: &amp;lambda(&amp;closure2881682, $start =&gt; 50, $stop =&gt; 60) = &amp;closure13389929 at line 22
+ Testing out range stuff: 0 =&gt; 50
+ Trace: &amp;println('Testing out range stuff: 0 =&gt; 50') at line 24
+ Testing out range stuff: 1 =&gt; 51
+@@ -41,7 +41,7 @@
+ Testing out range stuff: 9 =&gt; 59
+ Trace: &amp;println('Testing out range stuff: 9 =&gt; 59') at line 24
+ Trace: &amp;this('$start $stop') at line 29
+-Trace: &amp;_range2(70, 80) = &amp;closure13301441 at line 42
++Trace: &amp;_range2(70, 80) = &amp;closure11742932 at line 42
+ My third test: 0 =&gt; 70
+ Trace: &amp;println('My third test: 0 =&gt; 70') at line 44
+ My third test: 1 =&gt; 71
+
+Modified: sleep/tests/output/trace.sl
+===================================================================
+--- sleep/tests/output/trace.sl	2006-09-12 23:06:03 UTC (rev 114)
++++ sleep/tests/output/trace.sl	2006-09-15 02:33:38 UTC (rev 115)
+@@ -1,13 +1,13 @@
+ this is a test
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at fe8ce8</A> println: 'this is a test'] at line 6
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at d6b059</A> println: 'this is a test'] at line 6
+ Trace: [java.lang.Math pow: 3, 4] = 81.0 at line 7
+ 81.0
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at fe8ce8</A> println: 81.0] at line 7
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at d6b059</A> println: 81.0] at line 7
+ Trace: [java.lang.Math pow: 3, 5] = 243.0 at line 8
+ 243.0
+ Trace: &amp;println(243.0) at line 8
+ testing again...
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at fe8ce8</A> println: 'testing again...'] at line 10
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at d6b059</A> println: 'testing again...'] at line 10
+ Trace: [sleep.runtime.SleepUtils getListFromArray: @('a', 'b', 'c')] = [a, b, c] at line 12
+ Trace: [new java.util.LinkedList: [a, b, c]] = [a, b, c] at line 12
+ Warning: variable '$list' not declared at line 12
+
+Modified: sleep/tests/output/wrong.sl
+===================================================================
+--- sleep/tests/output/wrong.sl	2006-09-12 23:06:03 UTC (rev 114)
++++ sleep/tests/output/wrong.sl	2006-09-15 02:33:38 UTC (rev 115)
+@@ -1,32 +1,32 @@
+ Trace: [java.lang.Math pow: 3, 4] = 81.0 at line 6
+ 81.0
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at d6b059</A> println: 81.0] at line 6
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 94257f</A> println: 81.0] at line 6
+ Trace: &amp;casti(1, 'z') = true at line 9
+ true
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at d6b059</A> println: true] at line 9
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 94257f</A> println: true] at line 9
+ Trace: &amp;casti(0, 'z') = false at line 10
+ false
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at d6b059</A> println: false] at line 10
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 94257f</A> println: false] at line 10
+ Trace: &amp;casti(1, 'd') = 1.0 at line 13
+ 1.0
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at d6b059</A> println: 1.0] at line 13
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 94257f</A> println: 1.0] at line 13
+ Trace: &amp;casti(1, 'b') = 1 at line 16
+ 1
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at d6b059</A> println: 1] at line 16
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 94257f</A> println: 1] at line 16
+ Trace: &amp;casti(100, 'f') = 100.0 at line 19
+ 100.0
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at d6b059</A> println: 100.0] at line 19
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 94257f</A> println: 100.0] at line 19
+ Trace: &amp;casti('b', 'c') = b at line 22
+ b
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at d6b059</A> println: b] at line 22
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 94257f</A> println: b] at line 22
+ Trace: &amp;casti(63, 'i') = 63 at line 25
+ 63
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at d6b059</A> println: 63] at line 25
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 94257f</A> println: 63] at line 25
+ this is a string y0
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at d6b059</A> println: 'this is a string y0'] at line 28
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 94257f</A> println: 'this is a string y0'] at line 28
+ Trace: [new java.lang.StringBuilder: 'test'] = test at line 31
+ test
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at d6b059</A> println: test] at line 31
+-Trace: &amp;cast(@('a', 'b', 'c', 'd'), 'c') = [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">C at b03c1a</A> at line 34
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 94257f</A> println: test] at line 31
++Trace: &amp;cast(@('a', 'b', 'c', 'd'), 'c') = [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">C at f4bcf7</A> at line 34
+ abcd
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at d6b059</A> println: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">C at b03c1a</A>] at line 34
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 94257f</A> println: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">C at f4bcf7</A>] at line 34
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-09-12 23:06:03 UTC (rev 114)
++++ sleep/whatsnew.txt	2006-09-15 02:33:38 UTC (rev 115)
+@@ -18,8 +18,17 @@
+ 
+   The old semantics (object hashcode) were worthless so I doubt there will be 
+   many complaints.
++- added checksumming capability to sleep, the function has the following forms:
+ 
+-2.1-beta 4
++  $summer   = checksum($handle, &quot;[[&gt;]CRC32&quot;|&quot;[&gt;]Adler32&quot;);
++  $sumvalue = checksum($summer); # when I/O on $handle is complete
++  or:
++  $sumvalue = checksum(&quot;string of data&quot;, [&quot;CRC32&quot;|&quot;Adler32&quot;])
++
++  The CRC32 and Adler32 algorithms are supported.  With an I/O handle specifying
++  a &gt; before the algorithm name indicates that written data should be checksummed.
++
++2.1-beta 4  (11 Sept 06)
+ ===========
+ - added a literal form for arrays and hashes:
+   @(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;, &quot;d&quot;, &quot;e&quot;, @(&quot;f&quot;, &quot;g&quot;, &quot;h&quot;, &quot;i&quot;), &quot;j&quot;, &quot;k&quot;)
+@@ -46,7 +55,7 @@
+ - fixed lambda({}, $x =&gt; $y) sharing scalar container references (caused a 
+   change to $x inside of the closure to affect the value of $y)
+ 
+-2.1-beta 3
++2.1-beta 3  (18 Aug 06)
+ ===========
+ - added an optional timeout parameter for the socket connect function i.e.:
+   $socket = connect(&quot;host&quot;, port, [timeout in milliseconds]) 
+@@ -91,7 +100,7 @@
+   causing arrays/hashes to share scalar references with passed in data. 
+   &amp;add, &amp;addAll, &amp;array, &amp;filter, &amp;map, &amp;subarray, and &amp;map.
+ 
+-2.1-beta 2
++2.1-beta 2  (5 Aug 06)
+ ===========
+ - added a few more FP-style functions to Sleep:
+   &amp;reduce(&amp;closure, @array)
+@@ -146,7 +155,7 @@
+   YourCodeSucksException class.   should make reporting parser errors less of
+   a burden when embedding sleep into applications.
+ 
+-2.1-beta 1
++2.1-beta 1  (16 Jun 06)
+ ===========
+ - fixed the clean target in the sleep build.xml file
+ - added a continue keyword for flow control of while/for/foreach
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000096.html">[Sleep-svn] r114 - in sleep: . src/sleep/bridges src/sleep/engine	src/sleep/engine/atoms src/sleep/engine/types tests	tests/data tests/data/src/org/hick/blah tests/output
+</A></li>
+	<LI>Next message: <A HREF="000098.html">[Sleep-svn] r116 - in sleep: . src/sleep/bridges src/sleep/runtime	tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#97">[ date ]</a>
+              <a href="thread.html#97">[ thread ]</a>
+              <a href="subject.html#97">[ subject ]</a>
+              <a href="author.html#97">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

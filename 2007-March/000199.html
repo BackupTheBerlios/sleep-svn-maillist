@@ -1,0 +1,165 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r220 - in sleep/tests: . output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2007-March/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r220%20-%20in%20sleep/tests%3A%20.%20output&In-Reply-To=%3C200703170446.l2H4kNVo014193%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000198.html">
+   <LINK REL="Next"  HREF="000200.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r220 - in sleep/tests: . output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r220%20-%20in%20sleep/tests%3A%20.%20output&In-Reply-To=%3C200703170446.l2H4kNVo014193%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r220 - in sleep/tests: . output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Sat Mar 17 05:46:23 CET 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000198.html">[Sleep-svn] r219 - in sleep: . src/sleep/bridges src/sleep/engine	src/sleep/engine/atoms src/sleep/runtime tests tests/output
+</A></li>
+        <LI>Next message: <A HREF="000200.html">[Sleep-svn] r221 - in sleep: . src/sleep/bridges	src/sleep/bridges/io src/sleep/engine/atoms tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#199">[ date ]</a>
+              <a href="thread.html#199">[ thread ]</a>
+              <a href="subject.html#199">[ subject ]</a>
+              <a href="author.html#199">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2007-03-17 05:46:23 +0100 (Sat, 17 Mar 2007)
+New Revision: 220
+
+Added:
+   sleep/tests/output/tcatch6.sl
+   sleep/tests/tcatch6.sl
+Modified:
+   sleep/tests/output/debugce.sl
+   sleep/tests/output/squote.sl
+   sleep/tests/output/unicodeseq.sl
+Log:
+some updates to the test cases.
+
+
+
+Modified: sleep/tests/output/debugce.sl
+===================================================================
+--- sleep/tests/output/debugce.sl	2007-03-17 04:40:00 UTC (rev 219)
++++ sleep/tests/output/debugce.sl	2007-03-17 04:46:23 UTC (rev 220)
+@@ -1,3 +1,3 @@
+-Warning: checkError(): 2 error(s): Mismatched Parentheses - missing close paren at 1; Runaway string at 1 at debugce.sl:5
++Warning: checkError(): YourCodeSucksException: 2 error(s): Mismatched Parentheses - missing close paren at 1; Runaway string at 1 at debugce.sl:5
+ Warning: checkError(): java.io.FileNotFoundException: fjasjkfajskfjasfjksakjfsjkfjksafjk.txt (No such file or directory) at debugce.sl:9
+ I should be doing more stuff here...
+
+Modified: sleep/tests/output/squote.sl
+===================================================================
+--- sleep/tests/output/squote.sl	2007-03-17 04:40:00 UTC (rev 219)
++++ sleep/tests/output/squote.sl	2007-03-17 04:46:23 UTC (rev 220)
+@@ -3,4 +3,4 @@
+ \'\
+ \\\\\\\\
+ \a\b\c\d\e\f\g\h\i\j\k\l\m\n\o\p\q\r\s\t\u\v\w\x\y\z
+-Error running eval'd code: 2 error(s): Mismatched Parentheses - missing close paren at 1; Runaway string at 1
++Error running eval'd code: YourCodeSucksException: 2 error(s): Mismatched Parentheses - missing close paren at 1; Runaway string at 1
+
+Added: sleep/tests/output/tcatch6.sl
+===================================================================
+--- sleep/tests/output/tcatch6.sl	2007-03-17 04:40:00 UTC (rev 219)
++++ sleep/tests/output/tcatch6.sl	2007-03-17 04:46:23 UTC (rev 220)
+@@ -0,0 +1,4 @@
++uNF... basic cas3 baby!@%
++nothing wrong here, I promise!@#
++In the sluts() function...
++Warning: Uncaught exception: hehe... from bar baby!@#$ at tcatch6.sl:20
+
+Modified: sleep/tests/output/unicodeseq.sl
+===================================================================
+--- sleep/tests/output/unicodeseq.sl	2007-03-17 04:40:00 UTC (rev 219)
++++ sleep/tests/output/unicodeseq.sl	2007-03-17 04:46:23 UTC (rev 220)
+@@ -1,10 +1,10 @@
+ this is A test :)
+ this is A test :)AAAAAXA
+-Warning: checkError(): 1 error(s): invalid unicode escape \u004  - must be hex digits at 1 at unicodeseq.sl:13
+-Warning: checkError(): 2 error(s): invalid unicode escape \u004  - must be hex digits at 1; not enough remaining characters for \uXXXX at 1 at unicodeseq.sl:17
+-Warning: checkError(): 2 error(s): invalid unicode escape \uAZBC - must be hex digits at 1; not enough remaining characters for \uXXXX at 1 at unicodeseq.sl:21
++Warning: checkError(): YourCodeSucksException: 1 error(s): invalid unicode escape \u004  - must be hex digits at 1 at unicodeseq.sl:13
++Warning: checkError(): YourCodeSucksException: 2 error(s): invalid unicode escape \u004  - must be hex digits at 1; not enough remaining characters for \uXXXX at 1 at unicodeseq.sl:17
++Warning: checkError(): YourCodeSucksException: 2 error(s): invalid unicode escape \uAZBC - must be hex digits at 1; not enough remaining characters for \uXXXX at 1 at unicodeseq.sl:21
+ this is A test :)
+ this is A test :)AAAAAXA
+-Warning: checkError(): 1 error(s): invalid unicode escape \x4  - must be hex digits at 1 at unicodeseq.sl:35
+-Warning: checkError(): 2 error(s): invalid unicode escape \x4  - must be hex digits at 1; not enough remaining characters for \xXX at 1 at unicodeseq.sl:39
+-Warning: checkError(): 2 error(s): invalid unicode escape \xAZ - must be hex digits at 1; not enough remaining characters for \xXX at 1 at unicodeseq.sl:43
++Warning: checkError(): YourCodeSucksException: 1 error(s): invalid unicode escape \x4  - must be hex digits at 1 at unicodeseq.sl:35
++Warning: checkError(): YourCodeSucksException: 2 error(s): invalid unicode escape \x4  - must be hex digits at 1; not enough remaining characters for \xXX at 1 at unicodeseq.sl:39
++Warning: checkError(): YourCodeSucksException: 2 error(s): invalid unicode escape \xAZ - must be hex digits at 1; not enough remaining characters for \xXX at 1 at unicodeseq.sl:43
+
+Added: sleep/tests/tcatch6.sl
+===================================================================
+--- sleep/tests/tcatch6.sl	2007-03-17 04:40:00 UTC (rev 219)
++++ sleep/tests/tcatch6.sl	2007-03-17 04:46:23 UTC (rev 220)
+@@ -0,0 +1,29 @@
++#
++#
++#
++println(&quot;uNF... basic cas3 baby!@%&quot;);
++
++sub foo
++{
++   $x = 1 + 2;
++   println(&quot;In the sluts() function...&quot;);
++   if ($x == 3)
++   {
++      bar();
++   }
++   println(&quot;more stuff...&quot;);
++}
++
++sub bar
++{
++   $x = 3 + 4;
++   throw &quot;hehe... from bar baby!@#$&quot;;
++   println(&quot;Bar stuff wheee...&quot;);
++}
++
++$xyz = &quot;nothing wrong here, I promise!@#&quot;;
++println($xyz);
++$mmm = { foo(); };
++[$mmm test: &quot;this is a HOES call&quot;];
++println(&quot;More after foo&quot;);
++println(&quot;The beat does go on...&quot;);
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000198.html">[Sleep-svn] r219 - in sleep: . src/sleep/bridges src/sleep/engine	src/sleep/engine/atoms src/sleep/runtime tests tests/output
+</A></li>
+	<LI>Next message: <A HREF="000200.html">[Sleep-svn] r221 - in sleep: . src/sleep/bridges	src/sleep/bridges/io src/sleep/engine/atoms tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#199">[ date ]</a>
+              <a href="thread.html#199">[ thread ]</a>
+              <a href="subject.html#199">[ subject ]</a>
+              <a href="author.html#199">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

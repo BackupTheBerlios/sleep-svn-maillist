@@ -1,0 +1,259 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r137 - in sleep: . src/sleep/bridges tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2006-October/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r137%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20tests%20tests/output&In-Reply-To=%3C200610152358.k9FNwLVF027353%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000118.html">
+   <LINK REL="Next"  HREF="000120.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r137 - in sleep: . src/sleep/bridges tests tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r137%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20tests%20tests/output&In-Reply-To=%3C200610152358.k9FNwLVF027353%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r137 - in sleep: . src/sleep/bridges tests tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Mon Oct 16 01:58:21 CEST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000118.html">[Sleep-svn] r136 - in sleep: . src/sleep/bridges src/sleep/parser	tests tests/output
+</A></li>
+        <LI>Next message: <A HREF="000120.html">[Sleep-svn] r138 - in sleep: . src/sleep/console
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#119">[ date ]</a>
+              <a href="thread.html#119">[ thread ]</a>
+              <a href="subject.html#119">[ subject ]</a>
+              <a href="author.html#119">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2006-10-16 01:58:21 +0200 (Mon, 16 Oct 2006)
+New Revision: 137
+
+Modified:
+   sleep/src/sleep/bridges/BasicUtilities.java
+   sleep/tests/output/setfield.sl
+   sleep/tests/setfield.sl
+   sleep/whatsnew.txt
+Log:
+changed behavior of setfield.sl 
+
+
+
+Modified: sleep/src/sleep/bridges/BasicUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicUtilities.java	2006-10-15 23:40:37 UTC (rev 136)
++++ sleep/src/sleep/bridges/BasicUtilities.java	2006-10-15 23:58:21 UTC (rev 137)
+@@ -938,7 +938,7 @@
+           Class  aClass = null;
+           Object inst   = null;
+ 
+-          if (l.size() == 3 &amp;&amp; &quot;==CLASS==&quot;.equals(value.toString()))
++          if (&quot;==CLASS==&quot;.equals(value.toString()))
+           {
+              aClass = (Class)(BridgeUtilities.getScalar(l).objectValue());
+           }
+@@ -946,42 +946,43 @@
+           {
+              throw new IllegalArgumentException(&quot;&amp;setField: can not set field on a null object&quot;);
+           }
+-          else if (l.size() == 2)
++          else
+           {
+              inst   = value.objectValue();
+              aClass = inst.getClass();
+           }
+-          else
++
++          while (!l.isEmpty())
+           {
+-             throw new IllegalArgumentException(&quot;&amp;setField: not enough parameters&quot;);
+-          }
++             KeyValuePair pair = BridgeUtilities.getKeyValuePair(l);
+ 
+-          String name = BridgeUtilities.getString(l, null);
+-          Scalar arg  = BridgeUtilities.getScalar(l);
++             String name = pair.getKey().toString();
++             Scalar arg  = pair.getValue();
+ 
+-          try
+-          {
+-             setMe = aClass.getDeclaredField(name);
++             try
++             {
++                setMe = aClass.getDeclaredField(name);
+ 
+-             if (ObjectUtilities.isArgMatch(setMe.getType(), arg) != 0)
++                if (ObjectUtilities.isArgMatch(setMe.getType(), arg) != 0)
++                {
++                   setMe.setAccessible(true);
++                   setMe.set(inst, ObjectUtilities.buildArgument(setMe.getType(), arg, i));
++                }
++                else
++                {
++                   throw new RuntimeException(&quot;unable to convert &quot; + SleepUtils.describe(arg) + &quot; to a &quot; + setMe.getType());
++                }
++             }
++             catch (NoSuchFieldException fex)
+              {
+-                setMe.setAccessible(true);
+-                setMe.set(inst, ObjectUtilities.buildArgument(setMe.getType(), arg, i));
++                throw new RuntimeException(&quot;no field named &quot; + name + &quot; in &quot; + aClass);
+              }
+-             else
++             catch (RuntimeException rex) { throw (rex); }
++             catch (Exception ex)
+              {
+-                throw new RuntimeException(&quot;unable to convert &quot; + SleepUtils.describe(arg) + &quot; to a &quot; + setMe.getType());
++                throw new RuntimeException(&quot;cannot set &quot; + name + &quot; in &quot; + aClass + &quot;: &quot; + ex.getMessage());
+              }
+           }
+-          catch (NoSuchFieldException fex)
+-          {
+-             throw new RuntimeException(&quot;no field named &quot; + name + &quot; in &quot; + aClass);
+-          }
+-          catch (RuntimeException rex) { throw (rex); }
+-          catch (Exception ex)
+-          {
+-             throw new RuntimeException(&quot;cannot set &quot; + name + &quot; in &quot; + aClass + &quot;: &quot; + ex.getMessage());
+-          }
+        }
+ 
+        return SleepUtils.getEmptyScalar();
+
+Modified: sleep/tests/output/setfield.sl
+===================================================================
+--- sleep/tests/output/setfield.sl	2006-10-15 23:40:37 UTC (rev 136)
++++ sleep/tests/output/setfield.sl	2006-10-15 23:58:21 UTC (rev 137)
+@@ -39,8 +39,17 @@
+ instance members:
+ instanceStringField 'squeeze box 2' instanceBooleanField = true
+ ------------------------------------------------------------
+-Warning: no field named nofield in class org.hick.blah.SqueezeBox at line 39
+-Warning: unable to convert 'false and true?' to a boolean at line 43
++static members:
++aStringField 'the rain in spain, falls mainly on the plain' and aDoubleField = 5.0
++instance members:
++instanceStringField 'this is another test' instanceBooleanField = true
++static members:
++aStringField 'the rain in spain, falls mainly on the plain' and aDoubleField = 5.0
++instance members:
++instanceStringField 'squeeze box 2' instanceBooleanField = true
++------------------------------------------------------------
++Warning: no field named nofield in class org.hick.blah.SqueezeBox at line 45
++Warning: unable to convert 'false and true?' to a boolean at line 49
+ 34
+ 56
+ Done?
+
+Modified: sleep/tests/setfield.sl
+===================================================================
+--- sleep/tests/setfield.sl	2006-10-15 23:40:37 UTC (rev 136)
++++ sleep/tests/setfield.sl	2006-10-15 23:58:21 UTC (rev 137)
+@@ -10,41 +10,47 @@
+ println(&quot;Pre change:&quot;);
+ [$sb1 printValues];
+ 
+-setField(SqueezeBox, &quot;aDoubleField&quot;, 4);
++setField(SqueezeBox, aDoubleField =&gt; 4);
+ [$sb1 printValues];
+ [$sb2 printValues];
+ 
+ println(&quot;-&quot; x 60);
+ 
+-setField($sb1, &quot;instanceStringField&quot;, &quot;squeeze box 1&quot;);
+-setField($sb2, &quot;instanceStringField&quot;, &quot;squeeze box 2&quot;);
++setField($sb1, instanceStringField =&gt; &quot;squeeze box 1&quot;);
++setField($sb2, instanceStringField =&gt; &quot;squeeze box 2&quot;);
+ [$sb1 printValues];
+ [$sb2 printValues];
+ 
+ println(&quot;-&quot; x 60);
+ 
+-setField($sb1, &quot;instanceBooleanField&quot;, 0);
++setField($sb1, instanceBooleanField =&gt; 0);
+ [$sb1 printValues];
+ [$sb2 printValues];
+ 
+ println(&quot;-&quot; x 60);
+ 
+-setField($sb2, &quot;aStringField&quot;, &quot;the rain in spain, falls mainly on the plain&quot;);
++setField($sb2, aStringField =&gt; &quot;the rain in spain, falls mainly on the plain&quot;);
+ [$sb1 printValues];
+ [$sb2 printValues];
+ 
+ println(&quot;-&quot; x 60);
+ 
++setField($sb1, instanceBooleanField =&gt; 1, instanceStringField =&gt; &quot;this is another test&quot;, aDoubleField =&gt; 5.0);
++[$sb1 printValues];
++[$sb2 printValues];
++
++println(&quot;-&quot; x 60);
++
+ [{
+-   setField($sb2, &quot;nofield&quot;, 33);
++   setField($sb2, nofield =&gt; 33);
+ }];
+ 
+ [{
+-   setField($sb2, &quot;instanceBooleanField&quot;, &quot;false and true?&quot;);
++   setField($sb2, instanceBooleanField =&gt; &quot;false and true?&quot;);
+ }];
+ 
+ println([$sb1 squeeze]);
+-setField($sb1, &quot;sq&quot;, 55);
++setField($sb1, sq =&gt; 55);
+ println([$sb1 squeeze]);
+ 
+ println(&quot;Done?&quot;);
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-10-15 23:40:37 UTC (rev 136)
++++ sleep/whatsnew.txt	2006-10-15 23:58:21 UTC (rev 137)
+@@ -11,7 +11,11 @@
+ - added -isfunction predicate to check if a scalar contains a function or not
+ - added &amp;invoke(&amp;function, @args, [message]) to invoke a function with @args
+   passed as individual arguments.
++- updated &amp;setField to accept key/value pair arguments where the key specifies
++  the field to update and the argument the value, any number of args can be
++  specified.  this breaks to behavor set in 2.1-b6
+ 
++
+ 2.1-beta 6  (1 Oct 06)
+ ===========
+ - added named parameters for Sleep closures.  When a $key =&gt; value argument is
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000118.html">[Sleep-svn] r136 - in sleep: . src/sleep/bridges src/sleep/parser	tests tests/output
+</A></li>
+	<LI>Next message: <A HREF="000120.html">[Sleep-svn] r138 - in sleep: . src/sleep/console
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#119">[ date ]</a>
+              <a href="thread.html#119">[ thread ]</a>
+              <a href="subject.html#119">[ subject ]</a>
+              <a href="author.html#119">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

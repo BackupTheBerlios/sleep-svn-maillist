@@ -1,0 +1,106 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r346 - sleep/src/sleep/engine/atoms
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2008-April/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r346%20-%20sleep/src/sleep/engine/atoms&In-Reply-To=%3C200804251817.m3PIHVPu018358%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000323.html">
+   <LINK REL="Next"  HREF="000325.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r346 - sleep/src/sleep/engine/atoms</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r346%20-%20sleep/src/sleep/engine/atoms&In-Reply-To=%3C200804251817.m3PIHVPu018358%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r346 - sleep/src/sleep/engine/atoms">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Fri Apr 25 20:17:31 CEST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000323.html">[Sleep-svn] r345 - in sleep/src/sleep: engine parser
+</A></li>
+        <LI>Next message: <A HREF="000325.html">[Sleep-svn] r347 - in sleep/src/sleep: engine/atoms parser
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#324">[ date ]</a>
+              <a href="thread.html#324">[ thread ]</a>
+              <a href="subject.html#324">[ subject ]</a>
+              <a href="author.html#324">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2008-04-25 20:17:31 +0200 (Fri, 25 Apr 2008)
+New Revision: 346
+
+Modified:
+   sleep/src/sleep/engine/atoms/Assign.java
+   sleep/src/sleep/engine/atoms/AssignT.java
+Log:
+..
+
+
+Modified: sleep/src/sleep/engine/atoms/Assign.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/Assign.java	2008-04-25 17:37:04 UTC (rev 345)
++++ sleep/src/sleep/engine/atoms/Assign.java	2008-04-25 18:17:31 UTC (rev 346)
+@@ -30,9 +30,9 @@
+ public class Assign extends Step
+ {
+    Block   variable = null;
+-   Operate operator = null;
++   Step    operator = null;
+     
+-   public Assign(Block var, Operate op)
++   public Assign(Block var, Step op)
+    {
+       operator = op;
+       variable = var;
+
+Modified: sleep/src/sleep/engine/atoms/AssignT.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/AssignT.java	2008-04-25 17:37:04 UTC (rev 345)
++++ sleep/src/sleep/engine/atoms/AssignT.java	2008-04-25 18:17:31 UTC (rev 346)
+@@ -29,9 +29,9 @@
+ 
+ public class AssignT extends Step
+ {
+-   protected Operate operator;
++   protected Step operator;
+ 
+-   public AssignT(Operate op)
++   public AssignT(Step op)
+    {
+       operator = op;
+    }
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000323.html">[Sleep-svn] r345 - in sleep/src/sleep: engine parser
+</A></li>
+	<LI>Next message: <A HREF="000325.html">[Sleep-svn] r347 - in sleep/src/sleep: engine/atoms parser
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#324">[ date ]</a>
+              <a href="thread.html#324">[ thread ]</a>
+              <a href="subject.html#324">[ subject ]</a>
+              <a href="author.html#324">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

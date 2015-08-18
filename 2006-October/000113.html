@@ -1,0 +1,143 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r131 - in sleep: . src/sleep/bridges
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2006-October/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r131%20-%20in%20sleep%3A%20.%20src/sleep/bridges&In-Reply-To=%3C200610020211.k922Bcr1009665%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000112.html">
+   <LINK REL="Next"  HREF="000114.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r131 - in sleep: . src/sleep/bridges</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r131%20-%20in%20sleep%3A%20.%20src/sleep/bridges&In-Reply-To=%3C200610020211.k922Bcr1009665%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r131 - in sleep: . src/sleep/bridges">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Mon Oct  2 04:11:38 CEST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000112.html">[Sleep-svn] r130 - in sleep/tests: . output
+</A></li>
+        <LI>Next message: <A HREF="000114.html">[Sleep-svn] r132 - in sleep: . src/sleep/runtime
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#113">[ date ]</a>
+              <a href="thread.html#113">[ thread ]</a>
+              <a href="subject.html#113">[ subject ]</a>
+              <a href="author.html#113">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2006-10-02 04:11:38 +0200 (Mon, 02 Oct 2006)
+New Revision: 131
+
+Added:
+   sleep/src/sleep/bridges/Semaphore.java
+Modified:
+   sleep/whatsnew.txt
+Log:
+Yay...
+
+
+
+Added: sleep/src/sleep/bridges/Semaphore.java
+===================================================================
+--- sleep/src/sleep/bridges/Semaphore.java	2006-10-02 01:49:07 UTC (rev 130)
++++ sleep/src/sleep/bridges/Semaphore.java	2006-10-02 02:11:38 UTC (rev 131)
+@@ -0,0 +1,52 @@
++package sleep.bridges;
++
++/** A sleep synchronization primitive.  I know Java 1.5.0 has this stuff but since Sleep targets 1.4.2
++    I get to provide my own.  How exciting. */
++public class Semaphore
++{
++   private long count;
++
++   /** initializes this semaphore with the specified initial count */
++   public Semaphore(long initialCount)
++   {
++      count = initialCount;
++   }
++
++   /** aquires this semaphore by attempting to decrement the count.  blocks if the count is not &gt; 0 (prior to decrement).  */
++   public void P()
++   {
++      synchronized (this)
++      {
++         try
++         {
++            while (count &lt;= 0)
++            {
++               wait();
++            }
++
++            count--;
++         }
++         catch (InterruptedException ex)
++         { 
++            ex.printStackTrace();
++            notify();
++         }
++      }
++   }
++
++   /** returns the current count data associated with this semaphore.  note that this value is volatile */
++   public long getCount()
++   {
++      return count;
++   }
++
++   /** increments this semaphore */
++   public void V()
++   {
++      synchronized (this)
++      {
++         count++;
++         notify();
++      }
++   }
++}
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-10-02 01:49:07 UTC (rev 130)
++++ sleep/whatsnew.txt	2006-10-02 02:11:38 UTC (rev 131)
+@@ -1,4 +1,4 @@
+-2.1-beta 6 
++2.1-beta 6  (1 Oct 06)
+ ===========
+ - added named parameters for Sleep closures.  When a $key =&gt; value argument is
+   passed to a sleep closure the value will be installed into the local scope of
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000112.html">[Sleep-svn] r130 - in sleep/tests: . output
+</A></li>
+	<LI>Next message: <A HREF="000114.html">[Sleep-svn] r132 - in sleep: . src/sleep/runtime
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#113">[ date ]</a>
+              <a href="thread.html#113">[ thread ]</a>
+              <a href="subject.html#113">[ subject ]</a>
+              <a href="author.html#113">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

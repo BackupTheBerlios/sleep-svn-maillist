@@ -1,0 +1,303 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r147 - in sleep: . src/sleep/console
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2006-October/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r147%20-%20in%20sleep%3A%20.%20src/sleep/console&In-Reply-To=%3C200610292253.k9TMrsEU014644%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000128.html">
+   <LINK REL="Next"  HREF="000130.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r147 - in sleep: . src/sleep/console</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r147%20-%20in%20sleep%3A%20.%20src/sleep/console&In-Reply-To=%3C200610292253.k9TMrsEU014644%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r147 - in sleep: . src/sleep/console">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Sun Oct 29 23:53:54 CET 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000128.html">[Sleep-svn] r146 - in sleep: . src/sleep/bridges tests tests/output
+</A></li>
+        <LI>Next message: <A HREF="000130.html">[Sleep-svn] r148 - in sleep: . src/sleep/bridges tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#129">[ date ]</a>
+              <a href="thread.html#129">[ thread ]</a>
+              <a href="subject.html#129">[ subject ]</a>
+              <a href="author.html#129">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2006-10-29 23:53:54 +0100 (Sun, 29 Oct 2006)
+New Revision: 147
+
+Modified:
+   sleep/src/sleep/console/ConsoleImplementation.java
+   sleep/whatsnew.txt
+Log:
+updated the sleep console with a debug command and enhanced 'help' a little (but not too much)
+
+
+
+Modified: sleep/src/sleep/console/ConsoleImplementation.java
+===================================================================
+--- sleep/src/sleep/console/ConsoleImplementation.java	2006-10-29 22:23:19 UTC (rev 146)
++++ sleep/src/sleep/console/ConsoleImplementation.java	2006-10-29 22:53:54 UTC (rev 147)
+@@ -180,6 +180,10 @@
+              {
+                 getProxy().consolePrintln(SleepUtils.SLEEP_VERSION + &quot; (&quot; + SleepUtils.SLEEP_RELEASE + &quot;)&quot;);
+              }
++             else if (command.equals(&quot;help&quot;) &amp;&amp; args != null)
++             {
++                help(args);
++             }
+              else if (command.equals(&quot;help&quot;))
+              {
+                 help();
+@@ -192,6 +196,22 @@
+              {
+                 list();
+              }
++             else if (command.equals(&quot;debug&quot;) &amp;&amp; args != null) 
++             {
++                String[] splits = args.split(&quot; &quot;);
++                if (splits.length == 2)
++                {
++                   debug(splits[0], Integer.parseInt(splits[1]));
++                }
++                else if (splits.length == 1)
++                {
++                   debug(null, Integer.parseInt(splits[0]));
++                }
++                else
++                {
++                   getProxy().consolePrintln(&quot;Invalid usage: debug [script] &lt;level&gt;&quot;);
++                }
++             }
+              else if (command.equals(&quot;load&quot;) &amp;&amp; args != null)
+              {
+                 load(args);
+@@ -206,7 +226,7 @@
+              }
+              else if (command.equals(&quot;x&quot;) &amp;&amp; args != null)
+              {
+-                eval(&quot;println(&quot; + args + &quot;);&quot;);
++                getProxy().consolePrintln(eval(&quot;return &quot; + args + &quot;;&quot;));
+              }
+              else if (command.equals(&quot;quit&quot;) || command.equals(&quot;exit&quot;) || command.equals(&quot;done&quot;))
+              {
+@@ -232,34 +252,95 @@
+ 
+    private void help()
+    {
++       getProxy().consolePrintln(&quot;debug [script] &lt;level&gt;&quot;);
+        getProxy().consolePrintln(&quot;env [functions/other] [regex filter]&quot;);
+-       getProxy().consolePrintln(&quot;   dumps the shared environment, filters output with specified regex&quot;);
+-       getProxy().consolePrintln(&quot;help&quot;);
+-       getProxy().consolePrintln(&quot;   displays this message&quot;);
++       getProxy().consolePrintln(&quot;help [command]&quot;);
+        getProxy().consolePrintln(&quot;interact&quot;);
+-       getProxy().consolePrintln(&quot;   enters the console into interactive mode.&quot;);
+        getProxy().consolePrintln(&quot;list&quot;);
+-       getProxy().consolePrintln(&quot;   lists all of the currently loaded scripts&quot;);
+        getProxy().consolePrintln(&quot;load &lt;file&gt;&quot;);
+-       getProxy().consolePrintln(&quot;   loads a script file into the script loader&quot;);
+        getProxy().consolePrintln(&quot;unload &lt;file&gt;&quot;);
+-       getProxy().consolePrintln(&quot;   unloads a script file from the script loader&quot;);
+        getProxy().consolePrintln(&quot;tree [key]&quot;);
+-       getProxy().consolePrintln(&quot;   displays the Abstract Syntax Tree for the specified key&quot;);
+        getProxy().consolePrintln(&quot;quit&quot;);
+-       getProxy().consolePrintln(&quot;   stops the console&quot;);
+        getProxy().consolePrintln(&quot;version&quot;);
+-       getProxy().consolePrintln(&quot;   display the current Sleep version&quot;);
+        getProxy().consolePrintln(&quot;x &lt;expression&gt;&quot;);
+-       getProxy().consolePrintln(&quot;   evaluates a sleep expression and displays the value&quot;);
+ 
+    }
+ 
++   private void help(String command)
++   {
++       if (command.equals(&quot;debug&quot;))
++       {
++          getProxy().consolePrintln(&quot;debug [script] &lt;level&gt;&quot;);
++          getProxy().consolePrintln(&quot;   sets the debug level for the specified script&quot;);
++          getProxy().consolePrintln(&quot;   1 - show critical errors&quot;);
++          getProxy().consolePrintln(&quot;   2 - show warnings&quot;);
++          getProxy().consolePrintln(&quot;   4 - strict mode, complain about non-declared variables&quot;);
++          getProxy().consolePrintln(&quot;   8 - trace all function calls&quot;);
++          getProxy().consolePrintln(&quot;   to combine options, add their numbers together&quot;);
++       }
++       else if (command.equals(&quot;env&quot;))
++       {
++          getProxy().consolePrintln(&quot;env [functions/other] [regex filter]&quot;);
++          getProxy().consolePrintln(&quot;   dumps the shared environment, filters output with specified regex&quot;);
++       }
++       else if (command.equals(&quot;interact&quot;))
++       {
++          getProxy().consolePrintln(&quot;interact&quot;);
++          getProxy().consolePrintln(&quot;   enters the console into interactive mode.&quot;);
++       }
++       else if (command.equals(&quot;list&quot;))
++       {
++          getProxy().consolePrintln(&quot;list&quot;);
++          getProxy().consolePrintln(&quot;   lists all of the currently loaded scripts&quot;);
++       }
++       else if (command.equals(&quot;load&quot;))
++       {
++          getProxy().consolePrintln(&quot;load &lt;file&gt;&quot;);
++          getProxy().consolePrintln(&quot;   loads a script file into the script loader&quot;);
++       }
++       else if (command.equals(&quot;unload&quot;))
++       {
++          getProxy().consolePrintln(&quot;unload &lt;file&gt;&quot;);
++          getProxy().consolePrintln(&quot;   unloads a script file from the script loader&quot;);
++       }
++       else if (command.equals(&quot;tree&quot;))
++       {
++          getProxy().consolePrintln(&quot;tree [key]&quot;);
++          getProxy().consolePrintln(&quot;   displays the Abstract Syntax Tree for the specified key&quot;);
++       }
++       else if (command.equals(&quot;quit&quot;))
++       {
++          getProxy().consolePrintln(&quot;quit&quot;);
++          getProxy().consolePrintln(&quot;   stops the console&quot;);
++       }
++       else if (command.equals(&quot;version&quot;))
++       {
++          getProxy().consolePrintln(&quot;version&quot;);
++          getProxy().consolePrintln(&quot;   display the current Sleep version&quot;);
++       }
++       else if (command.equals(&quot;x&quot;))
++       {
++          getProxy().consolePrintln(&quot;x &lt;expression&gt;&quot;);
++          getProxy().consolePrintln(&quot;   evaluates a sleep expression and displays the value&quot;);
++       }
++       else
++       {
++          getProxy().consolePrintln(&quot;help [command]&quot;);
++          getProxy().consolePrintln(&quot;   displays a help message for the specified command&quot;);
++       }
++   }
++
+    private void load(String file)
+    {
+        try
+        {
+           ScriptInstance script = loader.loadScript(file, sharedEnvironment);
++
++          if (System.getProperty(&quot;sleep.debug&quot;) != null)
++          {
++             script.setDebugFlags(Integer.parseInt(System.getProperty(&quot;sleep.debug&quot;)));
++          }
++
+           script.runScript();
+        }
+        catch (YourCodeSucksException yex)
+@@ -380,6 +461,29 @@
+        }
+    }
+ 
++   private void debug(String item, int level)
++   {
++       if (item == null)
++       {
++          System.setProperty(&quot;sleep.debug&quot;, &quot;&quot;+level);
++          getProxy().consolePrintln(&quot;Default debug level set&quot;);
++       }
++       else
++       {
++          HashMap temp = loader.getScriptsByKey();
++
++          if (temp.get(getFullScript(item)) != null)
++          {
++             ((ScriptInstance)temp.get(getFullScript(item))).setDebugFlags(level);
++             getProxy().consolePrintln(&quot;Debug level set for &quot;+item);
++          }
++          else
++          {
++             getProxy().consolePrintln(&quot;Could not find script &quot;+item+&quot; to set debug level for&quot;);
++          }
++       }
++   }
++
+    private void interact()
+    {
+        interact = true;
+@@ -388,13 +492,19 @@
+        getProxy().consolePrintln(&quot;Type Ctrl+D or 'done' on a line by itself to leave interactive mode.&quot;);
+    }
+ 
+-   private void eval (String expression)
++   private Scalar eval (String expression)
+    {
+        try
+        {
+           Block parsed = SleepUtils.ParseCode(expression.toString());
+           script = loader.loadScript(&quot;&lt;interact mode&gt;&quot;, parsed, sharedEnvironment);
+-          script.runScript();
++
++          if (System.getProperty(&quot;sleep.debug&quot;) != null)
++          {
++             script.setDebugFlags(Integer.parseInt(System.getProperty(&quot;sleep.debug&quot;)));
++          }
++
++          return script.runScript();
+        }
+        catch (YourCodeSucksException yex)
+        {
+@@ -404,6 +514,8 @@
+        {
+           getProxy().consolePrintln(&quot;Oops, an error occured with &quot; + expression + &quot;: &quot; + ex.toString());
+        }
++
++       return null;
+    }
+ 
+    /** a convienence method that formats and writes each syntax error to the proxy output */
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-10-29 22:23:19 UTC (rev 146)
++++ sleep/whatsnew.txt	2006-10-29 22:53:54 UTC (rev 147)
+@@ -19,6 +19,8 @@
+   environment =&gt; &amp;closure - accepts a closure whose this scope is to be used
+      in lieu of the closures normal environment.  
+   message =&gt; &quot;some string&quot; - the message value to send to the called function
++- updated the sleep console with an ehanced 'help' command and a command 'debug'
++  to set the debug level of a script.
+ 
+ 2.1-beta 7  (15 Oct 06)
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000128.html">[Sleep-svn] r146 - in sleep: . src/sleep/bridges tests tests/output
+</A></li>
+	<LI>Next message: <A HREF="000130.html">[Sleep-svn] r148 - in sleep: . src/sleep/bridges tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#129">[ date ]</a>
+              <a href="thread.html#129">[ thread ]</a>
+              <a href="subject.html#129">[ subject ]</a>
+              <a href="author.html#129">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

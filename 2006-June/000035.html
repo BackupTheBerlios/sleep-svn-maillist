@@ -1,0 +1,513 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r52 - in sleep: src/sleep/bridges src/sleep/engine src/sleep/engine/atoms src/sleep/parser src/sleep/runtime tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2006-June/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r52%20-%20in%20sleep%3A%20src/sleep/bridges%20src/sleep/engine%20src/sleep/engine/atoms%20src/sleep/parser%20src/sleep/runtime%20tests%20tests/output&In-Reply-To=%3C200606101840.k5AIecj2020067%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000034.html">
+   <LINK REL="Next"  HREF="000036.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r52 - in sleep: src/sleep/bridges src/sleep/engine src/sleep/engine/atoms src/sleep/parser src/sleep/runtime tests tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r52%20-%20in%20sleep%3A%20src/sleep/bridges%20src/sleep/engine%20src/sleep/engine/atoms%20src/sleep/parser%20src/sleep/runtime%20tests%20tests/output&In-Reply-To=%3C200606101840.k5AIecj2020067%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r52 - in sleep: src/sleep/bridges src/sleep/engine src/sleep/engine/atoms src/sleep/parser src/sleep/runtime tests tests/output">rsmudge at berlios.de
+       </A><BR>
+    <I>Sat Jun 10 20:40:38 CEST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000034.html">[Sleep-svn] r51 - in sleep: . src/sleep/engine src/sleep/engine/atoms src/sleep/parser src/sleep/runtime tests
+</A></li>
+        <LI>Next message: <A HREF="000036.html">[Sleep-svn] r53 - in sleep: src/sleep/bridges src/sleep/engine src/sleep/runtime tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#35">[ date ]</a>
+              <a href="thread.html#35">[ thread ]</a>
+              <a href="subject.html#35">[ subject ]</a>
+              <a href="author.html#35">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2006-06-10 20:40:32 +0200 (Sat, 10 Jun 2006)
+New Revision: 52
+
+Added:
+   sleep/tests/output/elfbug.sl
+   sleep/tests/output/yield.sl
+   sleep/tests/yield.sl
+Modified:
+   sleep/src/sleep/bridges/SleepClosure.java
+   sleep/src/sleep/engine/Block.java
+   sleep/src/sleep/engine/atoms/Goto.java
+   sleep/src/sleep/parser/CodeGenerator.java
+   sleep/src/sleep/runtime/ScriptEnvironment.java
+Log:
+Wow, coroutines are on the way.  Still need to write more unit tests and make it possible for foreach loops to
+yield correctly but at the moment the basic mechanism is in place.
+
+
+
+Modified: sleep/src/sleep/bridges/SleepClosure.java
+===================================================================
+--- sleep/src/sleep/bridges/SleepClosure.java	2006-06-04 22:25:51 UTC (rev 51)
++++ sleep/src/sleep/bridges/SleepClosure.java	2006-06-10 18:40:32 UTC (rev 52)
+@@ -48,6 +48,9 @@
+     /** the owning script associated with this sleep closure */
+     ScriptInstance      owner; 
+ 
++    /** the saved context of this closure */
++    Stack             context;
++
+     /** Creates a new Sleep Closure, with a brand new set of internal variables.  Don't be afraid, you can call this constructor from your code. */
+     public SleepClosure(ScriptInstance si, Block _code)
+     {
+@@ -59,6 +62,7 @@
+     {
+        code     = _code;
+        owner    = si;
++       context  = null;
+ 
+        _var.putScalar(&quot;$this&quot;, SleepUtils.getScalar(this));
+        setVariables(_var);
+@@ -119,6 +123,8 @@
+ 
+        synchronized (vars)
+        {
++          env.loadContext(context);
++
+           vars.pushClosureLevel(this);
+           vars.pushLocalLevel();
+ 
+@@ -142,16 +148,17 @@
+           //
+           // call the function, save the scalar that was returned. 
+           //
+-          temp = code.evaluate(env);
+-
+-/*          if (getOwner() != si &amp;&amp; env.isReturn())
++          if (context != null &amp;&amp; ! context.isEmpty())
+           {
+-             env.clearReturn();
+-             si.getScriptEnvironment().flagReturn(temp);
+-          } 
+-          
+-          This commented out block is no longer needed if the environment of the calling script is always used... */
++             temp = env.evaluateOldContext();
++          }
++          else
++          {
++             temp = code.evaluate(env);
++          }
+ 
++          context = env.saveContext();
++
+           vars.popLocalLevel();
+           vars.popClosureLevel();
+        }
+
+Modified: sleep/src/sleep/engine/Block.java
+===================================================================
+--- sleep/src/sleep/engine/Block.java	2006-06-04 22:25:51 UTC (rev 51)
++++ sleep/src/sleep/engine/Block.java	2006-06-10 18:40:32 UTC (rev 52)
+@@ -49,8 +49,8 @@
+  */
+ public class Block implements Serializable
+ {
+-    Step  first;
+-    Step  last;
++    protected Step  first;
++    protected Step  last;
+ 
+     public String toString(String prefix)
+     { 
+@@ -124,12 +124,20 @@
+         code.  don't call this method yourself.  okay? */
+     public Scalar evaluate(ScriptEnvironment environment)
+     {
++        return evaluate(environment, first);
++    }
++
++    /** evaluates this block of code.  please note that if the block has a return statement and the method clearReturn() is not 
++        called on the corresponding script environment chaos will ensue.  use SleepUtils.runCode() to safely execute a block of
++        code.  don't call this method yourself.  okay? */
++    public Scalar evaluate(ScriptEnvironment environment, Step start)
++    {
+         if (environment.isReturn())
+         {
+            return environment.getReturnValue();
+         }
+ 
+-        Step temp = first;
++        Step temp = start;
+         while (temp != null)
+         {
+            try
+@@ -156,6 +164,18 @@
+ 
+            if (environment.isReturn())
+            {
++              if (environment.getFlowControlRequest() == ScriptEnvironment.FLOW_CONTROL_YIELD)
++              {
++                 if (temp instanceof sleep.engine.atoms.Return)
++                 {
++                    environment.addToContext(this, temp.next);
++                 }
++                 else
++                 {
++                    environment.addToContext(this, temp);
++                 }
++              }
++
+               return environment.getReturnValue();
+            }
+ 
+
+Modified: sleep/src/sleep/engine/atoms/Goto.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/Goto.java	2006-06-04 22:25:51 UTC (rev 51)
++++ sleep/src/sleep/engine/atoms/Goto.java	2006-06-10 18:40:32 UTC (rev 52)
+@@ -90,8 +90,6 @@
+ 
+    public Scalar evaluate(ScriptEnvironment e)
+    {
+-      Scalar temp = null;
+-
+       if (start.check(e))
+       {
+           iftrue.evaluate(e);
+
+Modified: sleep/src/sleep/parser/CodeGenerator.java
+===================================================================
+--- sleep/src/sleep/parser/CodeGenerator.java	2006-06-04 22:25:51 UTC (rev 51)
++++ sleep/src/sleep/parser/CodeGenerator.java	2006-06-10 18:40:32 UTC (rev 52)
+@@ -971,6 +971,11 @@
+               atom = GeneratedSteps.Return(ScriptEnvironment.FLOW_CONTROL_CONTINUE);
+               add(atom, tokens[0]);
+            }
++           else if (strings[0].equals(&quot;yield&quot;))
++           {
++              atom = GeneratedSteps.Return(ScriptEnvironment.FLOW_CONTROL_YIELD);
++              add(atom, tokens[0]);
++           }
+            else
+            {
+               atom = GeneratedSteps.Return(ScriptEnvironment.FLOW_CONTROL_RETURN);
+
+Modified: sleep/src/sleep/runtime/ScriptEnvironment.java
+===================================================================
+--- sleep/src/sleep/runtime/ScriptEnvironment.java	2006-06-04 22:25:51 UTC (rev 51)
++++ sleep/src/sleep/runtime/ScriptEnvironment.java	2006-06-10 18:40:32 UTC (rev 52)
+@@ -26,6 +26,7 @@
+ 
+ import sleep.runtime.Scalar;
+ import sleep.engine.Block;
++import sleep.engine.Step;
+ 
+ import sleep.bridges.BasicNumbers;
+ import sleep.bridges.BasicStrings;
+@@ -206,6 +207,62 @@
+     }
+ 
+     //
++    // ******** Context Management **********
++    //
++    
++    protected static class Context
++    {
++       public Block block;
++       public Step  last;       
++
++       public String toString() { return &quot;[&quot; + last.toString() + &quot;:&quot; + last.getLineNumber() + &quot;]&quot;; }
++    }
++
++    protected Stack contextStack = null;
++
++    public void loadContext(Stack c)
++    {
++       contextStack = c;
++    }
++
++    public void addToContext(Block b, Step s)
++    {
++       if (contextStack == null)
++           contextStack = new Stack();
++
++       Context temp = new Context();
++       temp.block = b;
++       temp.last  = s;
++       contextStack.add(0, temp);
++    }
++
++    public Scalar evaluateOldContext()
++    {
++       Scalar rv = SleepUtils.getEmptyScalar();
++
++       if (contextStack == null)
++           return rv;
++
++       Stack cstack = contextStack;
++       contextStack = null;
++
++       while (!cstack.isEmpty())
++       {
++          Context temp = (Context)cstack.pop();
++          rv = temp.block.evaluate(this, temp.last);
++       }
++
++       return rv;
++    }
++
++    public Stack saveContext()
++    {
++       Stack temp   = contextStack;
++       contextStack = null;
++       return temp;
++    }
++
++    //
+     // ******** Flow Control **********
+     //
+ 
+@@ -220,6 +277,9 @@
+ 
+     /** adding a continue keyword as people keep demanding it */
+     public static final int FLOW_CONTROL_CONTINUE = 3;
++
++    /** adding a yield keyword */
++    public static final int FLOW_CONTROL_YIELD    = 4;
+     
+     protected Scalar rv      = null;
+     protected int    request = 0;
+
+Added: sleep/tests/output/elfbug.sl
+===================================================================
+--- sleep/tests/output/elfbug.sl	2006-06-04 22:25:51 UTC (rev 51)
++++ sleep/tests/output/elfbug.sl	2006-06-10 18:40:32 UTC (rev 52)
+@@ -0,0 +1,9 @@
++This will echo the first one only: abc
++This will echo the first one only: def
++This will echo the first one only: ghi
++This will echo the first one only: jkl
++This will echo the first one only: mno
++This will echo the first one only: pqr
++This will echo the first one only: stu
++This will echo the first one only: vwx
++This will echo the first one only: yz
+
+Added: sleep/tests/output/yield.sl
+===================================================================
+--- sleep/tests/output/yield.sl	2006-06-04 22:25:51 UTC (rev 51)
++++ sleep/tests/output/yield.sl	2006-06-10 18:40:32 UTC (rev 52)
+@@ -0,0 +1,115 @@
++Test 1
++1
++Test 2
++2
++Test 3
++3
++Test 4
++4
++Test 5
++5
++Test 6
++6
++Test 7
++7
++Done
++In range? 0
++In range? 1
++In range? 2
++In range? 3
++In range? 4
++In range? 5
++In range? 6
++In range? 7
++In range? 8
++In range? 9
++In range? 10
++In range? 11
++In range? 12
++In range? 13
++In range? 14
++In range? 15
++In range? 16
++In range? 17
++In range? 18
++In range? 19
++In range? 20
++In range? 21
++In range? 22
++In range? 23
++In range? 24
++In range? 25
++In range? 26
++In range? 27
++In range? 28
++In range? 29
++In range? 30
++In range? 31
++In range? 32
++In range? 33
++In range? 34
++In range? 35
++In range? 36
++In range? 37
++In range? 38
++In range? 39
++In range? 40
++In range? 41
++In range? 42
++In range? 43
++In range? 44
++In range? 45
++In range? 46
++In range? 47
++In range? 48
++In range? 49
++In range? 50
++In range? 51
++In range? 52
++In range? 53
++In range? 54
++In range? 55
++In range? 56
++In range? 57
++In range? 58
++In range? 59
++In range? 60
++In range? 61
++In range? 62
++In range? 63
++In range? 64
++In range? 65
++In range? 66
++In range? 67
++In range? 68
++In range? 69
++In range? 70
++In range? 71
++In range? 72
++In range? 73
++In range? 74
++In range? 75
++In range? 76
++In range? 77
++In range? 78
++In range? 79
++In range? 80
++In range? 81
++In range? 82
++In range? 83
++In range? 84
++In range? 85
++In range? 86
++In range? 87
++In range? 88
++In range? 89
++In range? 90
++In range? 91
++In range? 92
++In range? 93
++In range? 94
++In range? 95
++In range? 96
++In range? 97
++In range? 98
++In range? 99
+
+Added: sleep/tests/yield.sl
+===================================================================
+--- sleep/tests/yield.sl	2006-06-04 22:25:51 UTC (rev 51)
++++ sleep/tests/yield.sl	2006-06-10 18:40:32 UTC (rev 52)
+@@ -0,0 +1,58 @@
++sub simple
++{
++   println(&quot;Test 1&quot;);
++   yield 1;
++
++   println(&quot;Test 2&quot;);
++   yield 2;
++
++   println(&quot;Test 3&quot;);
++   yield 3;
++ 
++   println(&quot;Test 4&quot;);
++   yield 4;
++
++   println(&quot;Test 5&quot;);
++   yield 5;
++
++   println(&quot;Test 6&quot;);
++   yield 6;
++
++   println(&quot;Test 7&quot;);
++   yield 7;
++
++   println(&quot;Done&quot;);
++   yield 0;
++}
++
++$x = simple();
++while ($x != 0)
++{
++   println($x);
++   $x = simple();
++}
++
++#
++#
++#
++
++sub range
++{
++   local('$y');
++   $y = 0;
++   while ($y &lt; 100)
++   {
++      yield $y;
++      $y++;
++   }
++
++   return -1;
++}
++
++$x = range();
++while ($x != -1)
++{
++   println(&quot;In range? $x&quot;);
++   $x = range();
++}
++
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000034.html">[Sleep-svn] r51 - in sleep: . src/sleep/engine src/sleep/engine/atoms src/sleep/parser src/sleep/runtime tests
+</A></li>
+	<LI>Next message: <A HREF="000036.html">[Sleep-svn] r53 - in sleep: src/sleep/bridges src/sleep/engine src/sleep/runtime tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#35">[ date ]</a>
+              <a href="thread.html#35">[ thread ]</a>
+              <a href="subject.html#35">[ subject ]</a>
+              <a href="author.html#35">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,234 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r316 - in sleep: . docs src/sleep/bridges	src/sleep/console src/sleep/parser tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2007-December/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r316%20-%20in%20sleep%3A%20.%20docs%20src/sleep/bridges%0A%09src/sleep/console%20src/sleep/parser%20tests%20tests/output&In-Reply-To=%3C200712210336.lBL3aLwq028630%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   
+   <LINK REL="Next"  HREF="000295.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r316 - in sleep: . docs src/sleep/bridges	src/sleep/console src/sleep/parser tests tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r316%20-%20in%20sleep%3A%20.%20docs%20src/sleep/bridges%0A%09src/sleep/console%20src/sleep/parser%20tests%20tests/output&In-Reply-To=%3C200712210336.lBL3aLwq028630%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r316 - in sleep: . docs src/sleep/bridges	src/sleep/console src/sleep/parser tests tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Fri Dec 21 04:36:21 CET 2007</I>
+    <P><UL>
+        
+        <LI>Next message: <A HREF="000295.html">[Sleep-svn] r317 - in sleep: . src/sleep/parser tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#294">[ date ]</a>
+              <a href="thread.html#294">[ thread ]</a>
+              <a href="subject.html#294">[ subject ]</a>
+              <a href="author.html#294">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2007-12-21 04:36:20 +0100 (Fri, 21 Dec 2007)
+New Revision: 316
+
+Added:
+   sleep/tests/debug64.sl
+   sleep/tests/output/debug64.sl
+Modified:
+   sleep/build.xml
+   sleep/docs/console.txt
+   sleep/src/sleep/bridges/BasicUtilities.java
+   sleep/src/sleep/console/ConsoleImplementation.java
+   sleep/src/sleep/parser/CodeGenerator.java
+   sleep/whatsnew.txt
+Log:
+a few changes... lots o fun.
+
+
+Modified: sleep/build.xml
+===================================================================
+--- sleep/build.xml	2007-11-13 00:58:42 UTC (rev 315)
++++ sleep/build.xml	2007-12-21 03:36:20 UTC (rev 316)
+@@ -16,7 +16,7 @@
+            destdir=&quot;${project.build}&quot;
+            nowarn=&quot;yes&quot;
+            depend=&quot;yes&quot;
+-           debug=&quot;false&quot;
++           debug=&quot;true&quot;
+            source=&quot;1.4&quot;
+            target=&quot;1.4&quot;
+            optimize=&quot;yes&quot;
+
+Modified: sleep/docs/console.txt
+===================================================================
+--- sleep/docs/console.txt	2007-11-13 00:58:42 UTC (rev 315)
++++ sleep/docs/console.txt	2007-12-21 03:36:20 UTC (rev 316)
+@@ -69,3 +69,6 @@
+ 
+ x &lt;expression&gt;
+    Evaluates a sleep expression and displays the value.
++
++? &lt;predicate expression&gt;
++   Evaluates a sleep predicate expression and displays the truth value.
+
+Modified: sleep/src/sleep/bridges/BasicUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicUtilities.java	2007-11-13 00:58:42 UTC (rev 315)
++++ sleep/src/sleep/bridges/BasicUtilities.java	2007-12-21 03:36:20 UTC (rev 316)
+@@ -79,6 +79,7 @@
+         temp.put(&quot;&amp;splice&quot;, this);
+         temp.put(&quot;&amp;subarray&quot;, this);
+         temp.put(&quot;&amp;copy&quot;,  new copy());
++        temp.put(&quot;&amp;value&quot;, this);
+  
+         map map_f = new map();
+ 
+@@ -1108,6 +1109,10 @@
+ 
+           return a;
+        }
++       else if (n.equals(&quot;&amp;value&quot;))
++       {
++          return SleepUtils.getScalar(value);
++       }
+        else if (n.equals(&quot;&amp;subarray&quot;))
+        {
+           return subarray(value, BridgeUtilities.getInt(l, 0), BridgeUtilities.getInt(l, value.getArray().size()));
+
+Modified: sleep/src/sleep/console/ConsoleImplementation.java
+===================================================================
+--- sleep/src/sleep/console/ConsoleImplementation.java	2007-11-13 00:58:42 UTC (rev 315)
++++ sleep/src/sleep/console/ConsoleImplementation.java	2007-12-21 03:36:20 UTC (rev 316)
+@@ -241,6 +241,11 @@
+                 Scalar value = eval(&quot;return &quot; + args + &quot;;&quot;, args);
+                 if (value != null) { getProxy().consolePrintln(value + &quot;&quot;); }
+              }
++             else if (command.equals(&quot;?&quot;) &amp;&amp; args != null)
++             {
++                Scalar value = eval(&quot;return iff(&quot; + args + &quot;, 'true', 'false');&quot;, args);
++                if (value != null) { getProxy().consolePrintln(value + &quot;&quot;); }
++             }
+              else if (command.equals(&quot;quit&quot;) || command.equals(&quot;exit&quot;) || command.equals(&quot;done&quot;))
+              {
+                 getProxy().consolePrintln(&quot;Good bye!&quot;);
+@@ -276,7 +281,7 @@
+        getProxy().consolePrintln(&quot;quit&quot;);
+        getProxy().consolePrintln(&quot;version&quot;);
+        getProxy().consolePrintln(&quot;x &lt;expression&gt;&quot;);
+-
++       getProxy().consolePrintln(&quot;? &lt;predicate expression&gt;&quot;);
+    }
+ 
+    private void help(String command)
+@@ -336,6 +341,11 @@
+           getProxy().consolePrintln(&quot;x &lt;expression&gt;&quot;);
+           getProxy().consolePrintln(&quot;   evaluates a sleep expression and displays the value&quot;);
+        }
++       else if (command.equals(&quot;?&quot;))
++       {
++          getProxy().consolePrintln(&quot;? &lt;predicate expression&gt;&quot;);
++          getProxy().consolePrintln(&quot;   evaluates a sleep predicate expression and displays the truth value&quot;);
++       }
+        else
+        {
+           getProxy().consolePrintln(&quot;help [command]&quot;);
+
+Modified: sleep/src/sleep/parser/CodeGenerator.java
+===================================================================
+--- sleep/src/sleep/parser/CodeGenerator.java	2007-11-13 00:58:42 UTC (rev 315)
++++ sleep/src/sleep/parser/CodeGenerator.java	2007-12-21 03:36:20 UTC (rev 316)
+@@ -864,7 +864,10 @@
+            a = restore();
+ 
+            // dew the lewp while the assigned value is not $null
+-           atom = GeneratedSteps.Goto(new Check(&quot;!is&quot;, a), b, null);
++           tempp = GeneratedSteps.Check(&quot;!is&quot;, a);
++           tempp.setInfo(tokens[1].getHint());
++
++           atom = GeneratedSteps.Goto(tempp, b, null);
+            add(atom, tokens[1]);
+ 
+            break;
+
+Added: sleep/tests/debug64.sl
+===================================================================
+--- sleep/tests/debug64.sl	2007-11-13 00:58:42 UTC (rev 315)
++++ sleep/tests/debug64.sl	2007-12-21 03:36:20 UTC (rev 316)
+@@ -0,0 +1,15 @@
++debug(64);
++
++$handle = fork({
++   while $text (readln($source))
++   {
++      println(&quot;read: $text&quot;);
++   }
++   println(&quot;done!&quot;);
++});
++
++println($handle, &quot;this is a test... *pHEAR*&quot;);
++printEOF($handle);
++wait($handle);
++
++println(&quot;Whee... we are done now :)&quot;);
+
+Added: sleep/tests/output/debug64.sl
+===================================================================
+--- sleep/tests/output/debug64.sl	2007-11-13 00:58:42 UTC (rev 315)
++++ sleep/tests/output/debug64.sl	2007-12-21 03:36:20 UTC (rev 316)
+@@ -0,0 +1,5 @@
++Trace: 'this is a test... *pHEAR*' !is $null ? TRUE at debug64.sl:4
++read: this is a test... *pHEAR*
++Trace: $null !is $null ? FALSE at debug64.sl:4
++done!
++Whee... we are done now :)
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2007-11-13 00:58:42 UTC (rev 315)
++++ sleep/whatsnew.txt	2007-12-21 03:36:20 UTC (rev 316)
+@@ -1,3 +1,14 @@
++2.1-beta 21 
++===========
++- added &amp;value function to return a new scalar container with the
++  same value as its argument.  This should be used when one does 
++  not want to pass a reference of a scalar that can be affected:
++  
++  function arguments, lambda, let, and fork all pass by reference.
++- assignment loops now record proper line number information for
++  error reporting purposes.
++- added a ? command to evaluate predicates in the Sleep console.
++
+ 2.1-beta 20  (12 Nov 07)
+ ===========
+ - fix debug mode 24 error handling inconsistency bug.
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	
+	<LI>Next message: <A HREF="000295.html">[Sleep-svn] r317 - in sleep: . src/sleep/parser tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#294">[ date ]</a>
+              <a href="thread.html#294">[ thread ]</a>
+              <a href="subject.html#294">[ subject ]</a>
+              <a href="author.html#294">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

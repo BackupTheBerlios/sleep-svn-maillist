@@ -1,0 +1,1159 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r364 - in sleep: . src/sleep/bridges src/sleep/engine	src/sleep/engine/types src/sleep/runtime src/sleep/taint	tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2008-May/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r364%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20src/sleep/engine%0A%09src/sleep/engine/types%20src/sleep/runtime%20src/sleep/taint%0A%09tests%20tests/output&In-Reply-To=%3C200805141834.m4EIYUgc013405%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000339.html">
+   <LINK REL="Next"  HREF="000341.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r364 - in sleep: . src/sleep/bridges src/sleep/engine	src/sleep/engine/types src/sleep/runtime src/sleep/taint	tests tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r364%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20src/sleep/engine%0A%09src/sleep/engine/types%20src/sleep/runtime%20src/sleep/taint%0A%09tests%20tests/output&In-Reply-To=%3C200805141834.m4EIYUgc013405%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r364 - in sleep: . src/sleep/bridges src/sleep/engine	src/sleep/engine/types src/sleep/runtime src/sleep/taint	tests tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Wed May 14 20:34:30 CEST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000339.html">[Sleep-svn] r363 - in sleep: . src/sleep/bridges tests tests/output
+</A></li>
+        <LI>Next message: <A HREF="000341.html">[Sleep-svn] r365 - in sleep: . src/sleep/bridges tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#340">[ date ]</a>
+              <a href="thread.html#340">[ thread ]</a>
+              <a href="subject.html#340">[ subject ]</a>
+              <a href="author.html#340">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2008-05-14 20:34:29 +0200 (Wed, 14 May 2008)
+New Revision: 364
+
+Added:
+   sleep/src/sleep/engine/types/ListContainer.java
+   sleep/tests/inlined2.sl
+   sleep/tests/inlined3.sl
+   sleep/tests/output/inlined2.sl
+   sleep/tests/output/inlined3.sl
+Removed:
+   sleep/src/sleep/bridges/ArgumentArray.java
+   sleep/src/sleep/engine/types/ArrayContainer.bak
+   sleep/src/sleep/engine/types/ArrayContainer.java
+   sleep/src/sleep/engine/types/ArrayContainer.java.array
+   sleep/src/sleep/engine/types/ArrayContainer.java.list
+   sleep/src/sleep/engine/types/ArrayContainer.java.stack
+   sleep/src/sleep/engine/types/ArrayContainer.java.vector
+   sleep/src/sleep/engine/types/ArrayContainer.list
+Modified:
+   sleep/src/sleep/bridges/BridgeUtilities.java
+   sleep/src/sleep/bridges/RegexBridge.java
+   sleep/src/sleep/bridges/SleepClosure.java
+   sleep/src/sleep/engine/Block.java
+   sleep/src/sleep/engine/CallRequest.java
+   sleep/src/sleep/runtime/CollectionWrapper.java
+   sleep/src/sleep/runtime/ScalarArray.java
+   sleep/src/sleep/runtime/SleepUtils.java
+   sleep/src/sleep/taint/TaintArray.java
+   sleep/tests/output/inlined.sl
+   sleep/tests/output/native_arrays.sl
+   sleep/tests/output/typeof.sl
+   sleep/whatsnew.txt
+Log:
+all kinds of evil changes.
+
+
+
+Deleted: sleep/src/sleep/bridges/ArgumentArray.java
+===================================================================
+--- sleep/src/sleep/bridges/ArgumentArray.java	2008-05-14 07:45:49 UTC (rev 363)
++++ sleep/src/sleep/bridges/ArgumentArray.java	2008-05-14 18:34:29 UTC (rev 364)
+@@ -1,66 +0,0 @@
+-/*
+-   SLEEP - Simple Language for Environment Extension Purposes
+- .-----------------------.
+- | sleep.bridges.BasicIO |____________________________________________________
+- |                                                                            |
+-   Author: Raphael Mudge (<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">raffi at hick.org</A>)
+-           <A HREF="http://www.hick.org/~raffi/">http://www.hick.org/~raffi/</A>
+-
+-   Description:
+-       Implementation of the subroutine concept.
+-
+-   Documentation:
+-
+-   Changelog:
+-
+-   * This software is distributed under the artistic license, see license.txt
+-     for more information. *
+-
+- |____________________________________________________________________________|
+- */
+-
+-package sleep.bridges;
+- 
+-import java.util.*;
+-import java.io.*;
+-
+-import sleep.engine.*;
+-import sleep.interfaces.*;
+-import sleep.runtime.*;
+-
+-public class ArgumentArray extends sleep.engine.types.ArrayContainer
+-{
+-       private int      sz;
+-       private Variable store;
+-
+-       public ArgumentArray(int size, Variable varStore)
+-       {
+-          sz     = size - 1;
+-          store  = varStore;
+-          values = null;
+-       }
+-
+-       private void check()
+-       {
+-          if (values == null)
+-          {
+-             values = new Stack();
+-             for (int x = 0; x &lt; sz; x++)
+-             {
+-                values.push(store.getScalar(&quot;$&quot;+(x+1)));
+-             }
+-          }
+-       }
+-
+-       public Scalar   pop() { check(); return super.pop(); }
+-       public Scalar   push(Scalar value) { check(); return super.push(value); }
+-       public int      size() { if (values == null) { return sz; } else { return super.size(); } }
+-       public Scalar   getAt(int index) { check(); return super.getAt(index); }
+-       public Iterator scalarIterator() { check(); return super.scalarIterator(); }
+-       public Scalar   add(Scalar value, int index) { check(); return super.add(value, index); }
+-       public void     remove(Scalar value) { check(); super.remove(value); }
+-       public Scalar   remove(int index) { check(); return super.remove(index); }
+-       public void     sort(Comparator compare) { check(); super.sort(compare); }
+-       public String   toString() { check(); return super.toString(); }
+-}
+-
+
+Modified: sleep/src/sleep/bridges/BridgeUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BridgeUtilities.java	2008-05-14 07:45:49 UTC (rev 363)
++++ sleep/src/sleep/bridges/BridgeUtilities.java	2008-05-14 18:34:29 UTC (rev 364)
+@@ -331,6 +331,8 @@
+    {
+       int name = 1;
+ 
++      Scalar args = SleepUtils.getArrayScalar();
++
+       while (!locals.isEmpty())
+       {
+          Scalar lvar = (Scalar)locals.pop();
+@@ -350,12 +352,13 @@
+          }
+          else
+          {
++            args.getArray().push(lvar);
+             vars.setScalarLevel(&quot;$&quot;+name, lvar, localLevel);
+             name++;
+          }
+       }
+ 
+-//      vars.setScalarLevel(&quot;@_&quot;, SleepUtils.getArrayScalar(new ArgumentArray(name, localLevel)), localLevel);
++      vars.setScalarLevel(&quot;@_&quot;, args, localLevel);
+       return name;
+    }
+ 
+
+Modified: sleep/src/sleep/bridges/RegexBridge.java
+===================================================================
+--- sleep/src/sleep/bridges/RegexBridge.java	2008-05-14 07:45:49 UTC (rev 363)
++++ sleep/src/sleep/bridges/RegexBridge.java	2008-05-14 18:34:29 UTC (rev 364)
+@@ -100,7 +100,7 @@
+ 
+           Pattern pattern  = RegexBridge.getPattern(patterns);
+           Matcher matchit  = pattern.matcher(string);
+-          int     start    = BridgeUtilities.getInt(l, 0);
++          int     start    = BridgeUtilities.normalize(BridgeUtilities.getInt(l, 0), string.length());
+           
+           boolean check    = matchit.find(start);
+ 
+@@ -246,13 +246,14 @@
+ 
+           String results[] = pattern.split(b);
+           
+-          ArrayContainer value = new ArrayContainer();
++          Scalar array = SleepUtils.getArrayScalar();
++
+           for (int x = 0; x &lt; results.length; x++)
+           {
+-             value.push(SleepUtils.getScalar(results[x]));
++             array.getArray().push(SleepUtils.getScalar(results[x]));
+           }
+ 
+-          return SleepUtils.getArrayScalar(value);
++          return array;
+        }
+     }
+ 
+
+Modified: sleep/src/sleep/bridges/SleepClosure.java
+===================================================================
+--- sleep/src/sleep/bridges/SleepClosure.java	2008-05-14 07:45:49 UTC (rev 363)
++++ sleep/src/sleep/bridges/SleepClosure.java	2008-05-14 18:34:29 UTC (rev 364)
+@@ -229,8 +229,7 @@
+           // initialize local variables...
+           //
+           vars.setScalarLevel(&quot;$0&quot;, SleepUtils.getScalar(message), localLevel);
+-          int targs = BridgeUtilities.initLocalScope(vars, localLevel, locals);
+-          vars.setScalarLevel(&quot;@_&quot;, SleepUtils.getArrayScalar(new ArgumentArray(targs, localLevel)), localLevel);
++          BridgeUtilities.initLocalScope(vars, localLevel, locals);
+ 
+           //
+           // call the function, save the scalar that was returned. 
+
+Modified: sleep/src/sleep/engine/Block.java
+===================================================================
+--- sleep/src/sleep/engine/Block.java	2008-05-14 07:45:49 UTC (rev 363)
++++ sleep/src/sleep/engine/Block.java	2008-05-14 18:34:29 UTC (rev 364)
+@@ -234,7 +234,7 @@
+               {
+                  environment.getScriptInstance().fireWarning(ex.getMessage(), temp.getLineNumber());
+               }
+-              else if (ex instanceof ArrayIndexOutOfBoundsException)
++              else if (ex instanceof IndexOutOfBoundsException)
+               {
+                  environment.getScriptInstance().fireWarning(&quot;attempted an invalid index&quot;, temp.getLineNumber());
+               }
+
+Modified: sleep/src/sleep/engine/CallRequest.java
+===================================================================
+--- sleep/src/sleep/engine/CallRequest.java	2008-05-14 07:45:49 UTC (rev 363)
++++ sleep/src/sleep/engine/CallRequest.java	2008-05-14 18:34:29 UTC (rev 364)
+@@ -328,15 +328,25 @@
+          synchronized (vars)
+          {
+             Variable localLevel = vars.getLocalVariables();
++            Scalar   oldargs    = localLevel.getScalar(&quot;@_&quot;);     /* save the current local variables */
+ 
+             int targs = sleep.bridges.BridgeUtilities.initLocalScope(vars, localLevel, getScriptEnvironment().getCurrentFrame());
+-
+-            if ((targs - 1) &gt; 0)
++            Scalar eval = inline.evaluate(getScriptEnvironment());
++    
++            /* restore the argument variables */
++            localLevel.putScalar(&quot;@_&quot;, oldargs);
++            if (targs &gt; 0 &amp;&amp; oldargs != null)
+             {
+-               vars.setScalarLevel(&quot;@_&quot;, SleepUtils.getArrayScalar(new sleep.bridges.ArgumentArray(targs, localLevel)), localLevel);
++               Iterator i = oldargs.getArray().scalarIterator();
++               int      count = 1;
++               while (i.hasNext() &amp;&amp; count &lt;= targs)
++               {
++                  Scalar temp = (Scalar)i.next();
++                  localLevel.putScalar(&quot;$&quot; + count, temp);
++                  count++;
++               }
+             }
+ 
+-            Scalar eval = inline.evaluate(getScriptEnvironment());
+             return eval;
+          }
+       }
+
+Deleted: sleep/src/sleep/engine/types/ArrayContainer.bak
+===================================================================
+--- sleep/src/sleep/engine/types/ArrayContainer.bak	2008-05-14 07:45:49 UTC (rev 363)
++++ sleep/src/sleep/engine/types/ArrayContainer.bak	2008-05-14 18:34:29 UTC (rev 364)
+@@ -1,78 +0,0 @@
+-package sleep.engine.types;
+-
+-import sleep.runtime.*;
+-import java.util.*;
+-
+-public class ArrayContainer implements ScalarArray
+-{
+-   protected LinkedList values;
+-
+-   public ArrayContainer()
+-   {
+-      values = new LinkedList();
+-   }
+-
+-   /** initial values must be a collection of Scalar's */
+-   public ArrayContainer(Collection initialValues)
+-   {
+-      values = new LinkedList(initialValues);
+-   }
+-
+-   public Scalar pop()
+-   {
+-      return (Scalar)values.removeFirst();
+-   }
+-
+-   public Scalar push(Scalar value)
+-   {
+-      values.addFirst(value);
+-      return value;
+-   }
+-
+-   public int size()
+-   {
+-      return values.size();
+-   }
+-
+-   public Scalar getAt(int index)
+-   {
+-      if (index &gt;= values.size())
+-      {
+-         return expand(index, SleepUtils.getEmptyScalar());
+-      }
+-
+-      return (Scalar)values.get(index);
+-   }
+-
+-   private Scalar expand(int index, Scalar value)
+-   {
+-      for (int x = values.size(); x &lt; index; x++)
+-      {
+-         values.add(SleepUtils.getEmptyScalar());
+-      }
+-
+-      values.add(value);
+-
+-      return (Scalar)value;
+-   }
+-
+-   public Scalar setAt(int index, Scalar value)
+-   {
+-      if (index &gt;= values.size())
+-      {
+-         return expand(index, value);
+-      }
+-
+-      return (Scalar)values.set(index, value);
+-   }
+-
+-   public Iterator scalarIterator()
+-   {
+-      return values.listIterator();
+-   }
+-
+-   public void add(Scalar value)
+-   {
+-      values.add(value);
+-   }
+-}
+
+Deleted: sleep/src/sleep/engine/types/ArrayContainer.java
+===================================================================
+--- sleep/src/sleep/engine/types/ArrayContainer.java	2008-05-14 07:45:49 UTC (rev 363)
++++ sleep/src/sleep/engine/types/ArrayContainer.java	2008-05-14 18:34:29 UTC (rev 364)
+@@ -1,80 +0,0 @@
+-package sleep.engine.types;
+-
+-import sleep.runtime.*;
+-import java.util.*;
+-
+-public class ArrayContainer implements ScalarArray
+-{
+-   protected Stack values;
+-
+-   public ArrayContainer()
+-   {
+-      values = new Stack();
+-   }
+-
+-   /** initial values must be a collection of Scalar's */
+-   public ArrayContainer(Collection initialValues)
+-   {
+-      values = new Stack();
+-      values.addAll(initialValues);
+-   }
+-
+-   public Scalar pop()
+-   {
+-      return (Scalar)values.pop();
+-   }
+-
+-   public Scalar push(Scalar value)
+-   {
+-      values.push(value);
+-      return value;
+-   }
+-
+-   public int size()
+-   {
+-      return values.size();
+-   }
+-
+-   public void sort(Comparator compare)
+-   {
+-      Collections.sort(values, compare);
+-   }
+-
+-   public Scalar getAt(int index)
+-   {
+-      if (index &gt;= size())
+-      {
+-          Scalar temp = SleepUtils.getEmptyScalar();
+-          values.add(temp);
+-          return temp;   
+-      }
+-
+-      return (Scalar)values.get(index);
+-   }
+-
+-   public void remove(Scalar key)
+-   {
+-      SleepUtils.removeScalar(values.iterator(), key);
+-   }
+-
+-   public Scalar remove(int index)
+-   {
+-      return (Scalar)values.remove(index);
+-   }
+-
+-   public Iterator scalarIterator()
+-   {
+-      return values.iterator();
+-   }
+-
+-   public Scalar add(Scalar value, int index)
+-   {
+-      values.add(index, value);
+-      return value;
+-   }
+-
+-   public String toString()
+-   {
+-      return values.toString();
+-   }
+-}
+
+Deleted: sleep/src/sleep/engine/types/ArrayContainer.java.array
+===================================================================
+--- sleep/src/sleep/engine/types/ArrayContainer.java.array	2008-05-14 07:45:49 UTC (rev 363)
++++ sleep/src/sleep/engine/types/ArrayContainer.java.array	2008-05-14 18:34:29 UTC (rev 364)
+@@ -1,59 +0,0 @@
+-package sleep.engine.types;
+-
+-import sleep.runtime.*;
+-import java.util.*;
+-
+-public class ArrayContainer implements ScalarArray
+-{
+-   protected ArrayList values;
+-
+-   public ArrayContainer()
+-   {
+-      values = new ArrayList();
+-   }
+-
+-   /** initial values must be a collection of Scalar's */
+-   public ArrayContainer(Collection initialValues)
+-   {
+-      values = new ArrayList(initialValues);
+-   }
+-
+-   public Scalar pop()
+-   {
+-      return (Scalar)values.remove(0);
+-   }
+-
+-   public Scalar push(Scalar value)
+-   {
+-      values.add(0, value);
+-      return value;
+-   }
+-
+-   public int size()
+-   {
+-      return values.size();
+-   }
+-
+-   public Scalar getAt(int index)
+-   {
+-      if (index &gt;= values.size())
+-      {
+-         Scalar temp = SleepUtils.getEmptyScalar();
+-         values.add(temp);
+-         return temp;
+-      }
+-
+-      return (Scalar)values.get(index);
+-   }
+-
+-   public Iterator scalarIterator()
+-   {
+-      return values.iterator();
+-   }
+-
+-   public Scalar add(Scalar value)
+-   {
+-      values.add(value);
+-      return value;
+-   }
+-}
+
+Deleted: sleep/src/sleep/engine/types/ArrayContainer.java.list
+===================================================================
+--- sleep/src/sleep/engine/types/ArrayContainer.java.list	2008-05-14 07:45:49 UTC (rev 363)
++++ sleep/src/sleep/engine/types/ArrayContainer.java.list	2008-05-14 18:34:29 UTC (rev 364)
+@@ -1,59 +0,0 @@
+-package sleep.engine.types;
+-
+-import sleep.runtime.*;
+-import java.util.*;
+-
+-public class ArrayContainer implements ScalarArray
+-{
+-   protected LinkedList values;
+-
+-   public ArrayContainer()
+-   {
+-      values = new LinkedList();
+-   }
+-
+-   /** initial values must be a collection of Scalar's */
+-   public ArrayContainer(Collection initialValues)
+-   {
+-      values = new LinkedList(initialValues);
+-   }
+-
+-   public Scalar pop()
+-   {
+-      return (Scalar)values.removeFirst();
+-   }
+-
+-   public Scalar push(Scalar value)
+-   {
+-      values.addFirst(value);
+-      return value;
+-   }
+-
+-   public int size()
+-   {
+-      return values.size();
+-   }
+-
+-   public Scalar getAt(int index)
+-   {
+-      if (index &gt;= values.size())
+-      {
+-         Scalar temp = SleepUtils.getEmptyScalar();
+-         values.add(temp);
+-         return temp;
+-      }
+-
+-      return (Scalar)values.get(index);
+-   }
+-
+-   public Iterator scalarIterator()
+-   {
+-      return values.iterator();
+-   }
+-
+-   public Scalar add(Scalar value)
+-   {
+-      values.add(value);
+-      return value;
+-   }
+-}
+
+Deleted: sleep/src/sleep/engine/types/ArrayContainer.java.stack
+===================================================================
+--- sleep/src/sleep/engine/types/ArrayContainer.java.stack	2008-05-14 07:45:49 UTC (rev 363)
++++ sleep/src/sleep/engine/types/ArrayContainer.java.stack	2008-05-14 18:34:29 UTC (rev 364)
+@@ -1,60 +0,0 @@
+-package sleep.engine.types;
+-
+-import sleep.runtime.*;
+-import java.util.*;
+-
+-public class ArrayContainer implements ScalarArray
+-{
+-   protected Stack values;
+-
+-   public ArrayContainer()
+-   {
+-      values = new Stack();
+-   }
+-
+-   /** initial values must be a collection of Scalar's */
+-   public ArrayContainer(Collection initialValues)
+-   {
+-      values = new Stack();
+-      values.addAll(initialValues);
+-   }
+-
+-   public Scalar pop()
+-   {
+-      return (Scalar)values.pop();
+-   }
+-
+-   public Scalar push(Scalar value)
+-   {
+-      values.push(value);
+-      return value;
+-   }
+-
+-   public int size()
+-   {
+-      return values.size();
+-   }
+-
+-   public Scalar getAt(int index)
+-   {
+-      if (index &gt;= size())
+-      {
+-          Scalar temp = SleepUtils.getEmptyScalar();
+-          values.add(temp);
+-          return temp;   
+-      }
+-
+-      return (Scalar)values.get(index);
+-   }
+-
+-   public Iterator scalarIterator()
+-   {
+-      return values.iterator();
+-   }
+-
+-   public Scalar add(Scalar value)
+-   {
+-      values.add(value);
+-      return value;
+-   }
+-}
+
+Deleted: sleep/src/sleep/engine/types/ArrayContainer.java.vector
+===================================================================
+--- sleep/src/sleep/engine/types/ArrayContainer.java.vector	2008-05-14 07:45:49 UTC (rev 363)
++++ sleep/src/sleep/engine/types/ArrayContainer.java.vector	2008-05-14 18:34:29 UTC (rev 364)
+@@ -1,71 +0,0 @@
+-package sleep.engine.types;
+-
+-import sleep.runtime.*;
+-import java.util.*;
+-
+-public class ArrayContainer implements ScalarArray
+-{
+-   protected Stack values;
+-
+-   public ArrayContainer()
+-   {
+-      values = new Stack();
+-   }
+-
+-   /** initial values must be a collection of Scalar's */
+-   public ArrayContainer(Collection initialValues)
+-   {
+-      values = new Stack(initialValues);
+-   }
+-
+-   public Scalar pop()
+-   {
+-      return (Scalar)values.pop();
+-   }
+-
+-   public Scalar push(Scalar value)
+-   {
+-      values.push(value);
+-      return value;
+-   }
+-
+-   public int size()
+-   {
+-      return values.size();
+-   }
+-
+-   public Scalar getAt(int index)
+-   {
+-      try
+-      {
+-         Scalar temp = (Scalar)values.get(index);
+-
+-         if (temp == null)
+-         {
+-           temp = SleepUtils.getEmptyScalar();
+-           values.set(index, temp);
+-         }
+-
+-         return temp;
+-      } catch (Exception ex) { ex.printStackTrace(); }
+-      return null;
+-   }
+-
+-   public Scalar setAt(int index, Scalar value)
+-   {
+-      values.ensureCapacity(index + 1);
+-
+-      return (Scalar)values.set(index, value);
+-   }
+-
+-   public Iterator scalarIterator()
+-   {
+-      return values.iterator();
+-   }
+-
+-   public Scalar add(Scalar value)
+-   {
+-      values.add(value);
+-      return value;
+-   }
+-}
+
+Deleted: sleep/src/sleep/engine/types/ArrayContainer.list
+===================================================================
+--- sleep/src/sleep/engine/types/ArrayContainer.list	2008-05-14 07:45:49 UTC (rev 363)
++++ sleep/src/sleep/engine/types/ArrayContainer.list	2008-05-14 18:34:29 UTC (rev 364)
+@@ -1,59 +0,0 @@
+-package sleep.engine.types;
+-
+-import sleep.runtime.*;
+-import java.util.*;
+-
+-public class ArrayContainer implements ScalarArray
+-{
+-   protected LinkedList values;
+-
+-   public ArrayContainer()
+-   {
+-      values = new LinkedList();
+-   }
+-
+-   /** initial values must be a collection of Scalar's */
+-   public ArrayContainer(Collection initialValues)
+-   {
+-      values = new LinkedList(initialValues);
+-   }
+-
+-   public Scalar pop()
+-   {
+-      return (Scalar)values.removeFirst();
+-   }
+-
+-   public Scalar push(Scalar value)
+-   {
+-      values.addFirst(value);
+-      return value;
+-   }
+-
+-   public int size()
+-   {
+-      return values.size();
+-   }
+-
+-   public Scalar getAt(int index)
+-   {
+-      if (index &gt;= values.size())
+-      {
+-          Scalar temp = SleepUtils.getEmptyScalar();
+-          values.add(temp);
+-          return temp;
+-      }
+-
+-      return (Scalar)values.get(index);
+-   }
+-
+-   public Iterator scalarIterator()
+-   {
+-      return values.iterator();
+-   }
+-
+-   public Scalar add(Scalar value)
+-   {
+-      values.add(value);
+-      return value;
+-   }
+-}
+
+Added: sleep/src/sleep/engine/types/ListContainer.java
+===================================================================
+--- sleep/src/sleep/engine/types/ListContainer.java	2008-05-14 07:45:49 UTC (rev 363)
++++ sleep/src/sleep/engine/types/ListContainer.java	2008-05-14 18:34:29 UTC (rev 364)
+@@ -0,0 +1,91 @@
++package sleep.engine.types;
++
++import sleep.runtime.*;
++import java.util.*;
++
++/** A linked list backing for Sleep Arrays. Most array ops are better off with this type of backing */
++public class ListContainer implements ScalarArray
++{
++   protected List values;
++
++   public ListContainer()
++   {
++      values = new LinkedList();
++   }
++
++   public ListContainer(List list)
++   {
++      values = list;
++   }
++
++   public ScalarArray sublist(int from, int to)
++   {
++      return new ListContainer((List)values.subList(from, to));
++   }
++
++   /** initial values must be a collection of Scalar's */
++   public ListContainer(Collection initialValues)
++   {
++      this();
++      values.addAll(initialValues);
++   }
++
++   public Scalar pop()
++   {
++      return (Scalar)values.remove(values.size() - 1);
++   }
++
++   public Scalar push(Scalar value)
++   {
++      values.add(value);
++      return value;
++   }
++
++   public int size()
++   {
++      return values.size();
++   }
++
++   public void sort(Comparator compare)
++   {
++      Collections.sort(values, compare);
++   }
++
++   public Scalar getAt(int index)
++   {
++      if (index &gt;= size())
++      {
++          Scalar temp = SleepUtils.getEmptyScalar();
++          values.add(temp);
++          return temp;   
++      }
++
++      return (Scalar)values.get(index);
++   }
++
++   public void remove(Scalar key)
++   {
++      SleepUtils.removeScalar(values.iterator(), key);
++   }
++
++   public Scalar remove(int index)
++   {
++      return (Scalar)values.remove(index);
++   }
++
++   public Iterator scalarIterator()
++   {
++      return values.iterator();
++   }
++
++   public Scalar add(Scalar value, int index)
++   {
++      values.add(index, value);
++      return value;
++   }
++
++   public String toString()
++   {
++      return values.toString();
++   }
++}
+
+Modified: sleep/src/sleep/runtime/CollectionWrapper.java
+===================================================================
+--- sleep/src/sleep/runtime/CollectionWrapper.java	2008-05-14 07:45:49 UTC (rev 363)
++++ sleep/src/sleep/runtime/CollectionWrapper.java	2008-05-14 18:34:29 UTC (rev 364)
+@@ -10,6 +10,24 @@
+    protected Collection values;
+    protected Object[]   array  = null;
+ 
++   public ScalarArray sublist(int begin, int end)
++   {
++      List temp = new LinkedList();
++      Iterator i = values.iterator();
++
++      int count = 0;
++      while (i.hasNext() &amp;&amp; count &lt; end)
++      {
++         if (count &gt;= begin)
++         {
++            temp.add(i.next());
++         }
++         count++;
++      }
++
++      return new CollectionWrapper(temp);
++   }  
++ 
+    public CollectionWrapper(Collection _values)
+    {
+       values = _values;
+
+Modified: sleep/src/sleep/runtime/ScalarArray.java
+===================================================================
+--- sleep/src/sleep/runtime/ScalarArray.java	2008-05-14 07:45:49 UTC (rev 363)
++++ sleep/src/sleep/runtime/ScalarArray.java	2008-05-14 18:34:29 UTC (rev 364)
+@@ -15,13 +15,33 @@
+  */
+ public interface ScalarArray extends java.io.Serializable
+ {
++   /** remove the topmost element from the array */
+    public Scalar   pop();
++
++   /** add an element onto the end of the array */
+    public Scalar   push(Scalar value);
++
++   /** return the size of the array */
+    public int      size();
++
++   /** get an element at the specified index */
+    public Scalar   getAt(int index);
++
++   /** return an iterator */
+    public Iterator scalarIterator();
++
++   /** add an element to the array at the specified index */
+    public Scalar   add(Scalar value, int index); 
++
++   /** remove all elements with the same identity as the specified scalar */
+    public void     remove(Scalar value);
++
++   /** remove an element at the specified index */
+    public Scalar   remove(int index);
++
++   /** sort this array with the specified comparator */
+    public void     sort(Comparator compare);
++
++   /** return a view into the array, ideally one that uses the same backing store */
++   public ScalarArray sublist(int start, int end);
+ }
+
+Modified: sleep/src/sleep/runtime/SleepUtils.java
+===================================================================
+--- sleep/src/sleep/runtime/SleepUtils.java	2008-05-14 07:45:49 UTC (rev 363)
++++ sleep/src/sleep/runtime/SleepUtils.java	2008-05-14 18:34:29 UTC (rev 364)
+@@ -215,7 +215,7 @@
+    public static Scalar getArrayScalar()
+    {
+       Scalar temp = new Scalar();
+-      temp.setValue(new ArrayContainer());
++      temp.setValue(new ListContainer());
+ 
+       return temp;
+    }
+
+Modified: sleep/src/sleep/taint/TaintArray.java
+===================================================================
+--- sleep/src/sleep/taint/TaintArray.java	2008-05-14 07:45:49 UTC (rev 363)
++++ sleep/src/sleep/taint/TaintArray.java	2008-05-14 18:34:29 UTC (rev 364)
+@@ -9,9 +9,14 @@
+ {
+    protected ScalarArray source;
+ 
++   public ScalarArray sublist(int begin, int end)
++   {
++      return new TaintArray(source.sublist(begin, end));
++   }
++
+    public TaintArray(ScalarArray src)
+    {
+-      source = src;;
++      source = src;
+    }
+ 
+    public String toString()
+
+Added: sleep/tests/inlined2.sl
+===================================================================
+--- sleep/tests/inlined2.sl	2008-05-14 07:45:49 UTC (rev 363)
++++ sleep/tests/inlined2.sl	2008-05-14 18:34:29 UTC (rev 364)
+@@ -0,0 +1,20 @@
++#
++#
++#
++
++# doit()
++inline doit
++{
++   println(&quot;doit: &quot; . @_);
++
++   $1 = $1 * $2;
++   println($1);
++}
++
++sub foo
++{
++   doit(3, 4);
++   println(&quot;foo: $1 and $2 and $3 and $4 etc.. and &quot; . @_);
++}
++
++foo(&quot;phear&quot;, &quot;u&quot;, &quot;fear&quot;, &quot;me&quot;);
+
+Added: sleep/tests/inlined3.sl
+===================================================================
+--- sleep/tests/inlined3.sl	2008-05-14 07:45:49 UTC (rev 363)
++++ sleep/tests/inlined3.sl	2008-05-14 18:34:29 UTC (rev 364)
+@@ -0,0 +1,29 @@
++#
++#
++#
++
++inline didit
++{
++   println(&quot;didit: &quot; . @_);
++   $2 = $1 + $2;
++   println(&quot;Whirred: $2&quot;);
++}
++
++# doit()
++inline doit
++{
++   println(&quot;doit: &quot; . @_);
++
++   didit(40.2, 9.1);
++
++   $1 = $1 * $2;
++   println($1);
++}
++
++sub foo
++{
++   doit(3, 4);
++   println(&quot;foo: $1 and $2 and $3 and $4 etc.. and &quot; . @_);
++}
++
++foo(&quot;phear&quot;, &quot;u&quot;, &quot;fear&quot;, &quot;me&quot;);
+
+Modified: sleep/tests/output/inlined.sl
+===================================================================
+--- sleep/tests/output/inlined.sl	2008-05-14 07:45:49 UTC (rev 363)
++++ sleep/tests/output/inlined.sl	2008-05-14 18:34:29 UTC (rev 364)
+@@ -1,5 +1,5 @@
+ @_: @('apple', 'bannana', 'cow') and apple and bannana
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">- at _</A>: @('apple', 'bannana', 'cow') and x-ray and yak
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">- at _</A>: @('aaa', 'bbb') and x-ray and yak
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">- at _</A>: @('aaa', 'bbb') and XXX and YYY
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">+ at _</A>: @() and x-ray and yak
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">+ at _</A>: @() and x-ray and yak
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">+ at _</A>: @() and XXX and YYY
+ @_ is: @('aaa', 'bbb') and aaa and bbb
+
+Added: sleep/tests/output/inlined2.sl
+===================================================================
+--- sleep/tests/output/inlined2.sl	2008-05-14 07:45:49 UTC (rev 363)
++++ sleep/tests/output/inlined2.sl	2008-05-14 18:34:29 UTC (rev 364)
+@@ -0,0 +1,3 @@
++doit: @(3, 4)
++12
++foo: phear and u and fear and me etc.. and @('phear', 'u', 'fear', 'me')
+
+Added: sleep/tests/output/inlined3.sl
+===================================================================
+--- sleep/tests/output/inlined3.sl	2008-05-14 07:45:49 UTC (rev 363)
++++ sleep/tests/output/inlined3.sl	2008-05-14 18:34:29 UTC (rev 364)
+@@ -0,0 +1,5 @@
++doit: @(3, 4)
++didit: @(40.2, 9.1)
++Whirred: 49.300000000000004
++12
++foo: phear and u and fear and me etc.. and @('phear', 'u', 'fear', 'me')
+
+Modified: sleep/tests/output/native_arrays.sl
+===================================================================
+--- sleep/tests/output/native_arrays.sl	2008-05-14 07:45:49 UTC (rev 363)
++++ sleep/tests/output/native_arrays.sl	2008-05-14 18:34:29 UTC (rev 364)
+@@ -18,14 +18,14 @@
+ $temp[1][1][1] = 11
+ $temp[1][1][2] = 12
+ &lt;---------------------------------------------------&gt;
+-We have @(1, 2, 3, 4, 5, 6) and class sleep.engine.types.ArrayContainer
++We have @(1, 2, 3, 4, 5, 6) and class sleep.engine.types.ListContainer
+ $temp[0][0] = 1
+ $temp[0][1] = 2
+ $temp[0][2] = 3
+ $temp[0][3] = 4
+ $temp[0][4] = 5
+ $temp[0][5] = 6
+-We have @(7, 8, 9, 10, 11, 12) and class sleep.engine.types.ArrayContainer
++We have @(7, 8, 9, 10, 11, 12) and class sleep.engine.types.ListContainer
+ $temp[1][0] = 7
+ $temp[1][1] = 8
+ $temp[1][2] = 9
+
+Modified: sleep/tests/output/typeof.sl
+===================================================================
+--- sleep/tests/output/typeof.sl	2008-05-14 07:45:49 UTC (rev 363)
++++ sleep/tests/output/typeof.sl	2008-05-14 18:34:29 UTC (rev 364)
+@@ -3,6 +3,6 @@
+ class sleep.engine.types.DoubleValue
+ class sleep.engine.types.NullValue
+ class sleep.engine.types.HashContainer
+-class sleep.engine.types.ArrayContainer
++class sleep.engine.types.ListContainer
+ class sleep.engine.types.ObjectValue
+ class sleep.engine.types.ObjectValue
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2008-05-14 07:45:49 UTC (rev 363)
++++ sleep/whatsnew.txt	2008-05-14 18:34:29 UTC (rev 364)
+@@ -23,8 +23,16 @@
+   &amp;matched() works to retrieve the matched groups from the
+   substring.
+ - conducted a 3am cleanup of the RegexBridge--you know what 
+-  that means.
+-
++  that means.  consequently, nesting of loops that iterate
++  hasmatch no longer works.  This is to prevent a memory leak
++  from unremoved regex state.
++- updated array implementation to use a LinkedList in lieu of
++  a Stack.  This offers better performance characteristics for
++  most array operations.  The only real losing operation is
++  random access which now has a worst case of O(n)
++- inline functions now restore anonymous arguments and @_ prior
++  to returning control to the parent function.
++  
+ 2.1-beta 25  (8 May 08) [will this beta process ever end?]
+ ===========
+ - added &amp;chdir() to change the current working directory of the
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000339.html">[Sleep-svn] r363 - in sleep: . src/sleep/bridges tests tests/output
+</A></li>
+	<LI>Next message: <A HREF="000341.html">[Sleep-svn] r365 - in sleep: . src/sleep/bridges tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#340">[ date ]</a>
+              <a href="thread.html#340">[ thread ]</a>
+              <a href="subject.html#340">[ subject ]</a>
+              <a href="author.html#340">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

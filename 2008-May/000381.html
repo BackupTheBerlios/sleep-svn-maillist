@@ -1,0 +1,197 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r405 - in sleep: . src/sleep/parser src/sleep/runtime	tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2008-May/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r405%20-%20in%20sleep%3A%20.%20src/sleep/parser%20src/sleep/runtime%0A%09tests%20tests/output&In-Reply-To=%3C200805302122.m4ULMMh5002965%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000380.html">
+   <LINK REL="Next"  HREF="000382.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r405 - in sleep: . src/sleep/parser src/sleep/runtime	tests tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r405%20-%20in%20sleep%3A%20.%20src/sleep/parser%20src/sleep/runtime%0A%09tests%20tests/output&In-Reply-To=%3C200805302122.m4ULMMh5002965%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r405 - in sleep: . src/sleep/parser src/sleep/runtime	tests tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Fri May 30 23:22:22 CEST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000380.html">[Sleep-svn] r404 - in sleep/tests: . output
+</A></li>
+        <LI>Next message: <A HREF="000382.html">[Sleep-svn] r406 - in sleep/jsr223: . src/org/dashnine/sleep
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#381">[ date ]</a>
+              <a href="thread.html#381">[ thread ]</a>
+              <a href="subject.html#381">[ subject ]</a>
+              <a href="author.html#381">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2008-05-30 23:22:21 +0200 (Fri, 30 May 2008)
+New Revision: 405
+
+Added:
+   sleep/tests/makebadscript.sl
+   sleep/tests/output/makebadscript.sl
+Modified:
+   sleep/build.xml
+   sleep/readme.txt
+   sleep/src/sleep/parser/LexicalAnalyzer.java
+   sleep/src/sleep/runtime/SleepUtils.java
+   sleep/whatsnew.txt
+Log:
+blah...
+
+
+Modified: sleep/build.xml
+===================================================================
+--- sleep/build.xml	2008-05-30 20:41:11 UTC (rev 404)
++++ sleep/build.xml	2008-05-30 21:22:21 UTC (rev 405)
+@@ -16,7 +16,7 @@
+            destdir=&quot;${project.build}&quot;
+            nowarn=&quot;yes&quot;
+            depend=&quot;yes&quot;
+-           debug=&quot;true&quot;
++           debug=&quot;false&quot;
+            source=&quot;1.4&quot;
+            target=&quot;1.4&quot;
+            optimize=&quot;yes&quot;
+
+Modified: sleep/readme.txt
+===================================================================
+--- sleep/readme.txt	2008-05-30 20:41:11 UTC (rev 404)
++++ sleep/readme.txt	2008-05-30 21:22:21 UTC (rev 405)
+@@ -1,5 +1,5 @@
+  ------- -------------------- ---------   ---------------  ------- ---------
+-Sleep - 2.1 beta 26 - README   
++Sleep - 2.1 beta 27 - README   
+ -  ------------- -------- -   ---------------- --       -    -     -     - - -
+ 
+ &quot;You got the language, all you need now is the O'Reilly book&quot;.  That is
+
+Modified: sleep/src/sleep/parser/LexicalAnalyzer.java
+===================================================================
+--- sleep/src/sleep/parser/LexicalAnalyzer.java	2008-05-30 20:41:11 UTC (rev 404)
++++ sleep/src/sleep/parser/LexicalAnalyzer.java	2008-05-30 21:22:21 UTC (rev 405)
+@@ -77,7 +77,7 @@
+ 
+    private static boolean isEndOfLine(char f)
+    {
+-      return (f == '\n');
++      return (f == '\n' || f == '\r');
+    }
+ 
+    /** a general pass over the list of tokens, we create terms and then pass over them creating combined terms */
+
+Modified: sleep/src/sleep/runtime/SleepUtils.java
+===================================================================
+--- sleep/src/sleep/runtime/SleepUtils.java	2008-05-30 20:41:11 UTC (rev 404)
++++ sleep/src/sleep/runtime/SleepUtils.java	2008-05-30 21:22:21 UTC (rev 405)
+@@ -26,7 +26,7 @@
+ public class SleepUtils
+ {
+    /** A date stamp of this Sleep release in YYYYMMDD format */
+-   public static final int    SLEEP_RELEASE = 20080515;
++   public static final int    SLEEP_RELEASE = 20080530;
+ 
+    /** A string description of this Sleep release */
+    public static final String SLEEP_VERSION = &quot;Sleep 2.1&quot;;
+
+Added: sleep/tests/makebadscript.sl
+===================================================================
+--- sleep/tests/makebadscript.sl	2008-05-30 20:41:11 UTC (rev 404)
++++ sleep/tests/makebadscript.sl	2008-05-30 21:22:21 UTC (rev 405)
+@@ -0,0 +1,15 @@
++debug(3);
++
++$script = 'println(&quot;hello world!&quot;);
++println(&quot;this is a test&quot;);
++warn(&quot;everything work ok?&quot;);';
++
++$a = join(chr(10), split(&quot;\n&quot;, $script));
++eval($a);
++
++# sleep doesn't recognize \r by itself as a newline format...
++$b = join(chr(13), split(&quot;\n&quot;, $script));
++eval($b);
++
++$c = join(chr(13) . chr(10), split(&quot;\n&quot;, $script));
++eval($c);
+
+Added: sleep/tests/output/makebadscript.sl
+===================================================================
+--- sleep/tests/output/makebadscript.sl	2008-05-30 20:41:11 UTC (rev 404)
++++ sleep/tests/output/makebadscript.sl	2008-05-30 21:22:21 UTC (rev 405)
+@@ -0,0 +1,9 @@
++hello world!
++this is a test
++Warning: everything work ok? at eval:2
++hello world!
++this is a test
++Warning: everything work ok? at eval:0
++hello world!
++this is a test
++Warning: everything work ok? at eval:2
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2008-05-30 20:41:11 UTC (rev 404)
++++ sleep/whatsnew.txt	2008-05-30 21:22:21 UTC (rev 405)
+@@ -1,4 +1,4 @@
+-2.1-beta 27 
++2.1-beta 27  (30 May 08)
+ ===========
+ - Virtual machine errors (stack overflow, out of memory) etc.
+   are now caught within the interpreter and used to coerce
+@@ -22,8 +22,7 @@
+   hasmatch from eating all of the memory.
+ - bad index errors (IndexOutOfBoundsException) are now more
+   descriptive in some cases.
+-- sublists are now serializable--when serialized only the 
+-  sublist contents is serialized.
++- sublists are now serializable
+ - function(&quot;blah&quot;) will now throw an error if argument does not
+   begin with &amp;
+ - empty functions now retain proper line number information 
+@@ -44,6 +43,7 @@
+      as local variables
+   -- $__SCRIPT__ and @ARGV are now available to Sleep scripts
+      executed with jrunscript.
++- sleep parser now ignores &quot;\r&quot; inside of script files.
+ 
+ 2.1-beta 26  (15 May 08)
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000380.html">[Sleep-svn] r404 - in sleep/tests: . output
+</A></li>
+	<LI>Next message: <A HREF="000382.html">[Sleep-svn] r406 - in sleep/jsr223: . src/org/dashnine/sleep
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#381">[ date ]</a>
+              <a href="thread.html#381">[ thread ]</a>
+              <a href="subject.html#381">[ subject ]</a>
+              <a href="author.html#381">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

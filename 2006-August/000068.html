@@ -1,0 +1,423 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r86 - in sleep: . docs src/sleep/bridges	src/sleep/bridges/io
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2006-August/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r86%20-%20in%20sleep%3A%20.%20docs%20src/sleep/bridges%0A%09src/sleep/bridges/io&In-Reply-To=%3C200608050521.k755LI8W013085%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   
+   <LINK REL="Next"  HREF="000069.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r86 - in sleep: . docs src/sleep/bridges	src/sleep/bridges/io</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r86%20-%20in%20sleep%3A%20.%20docs%20src/sleep/bridges%0A%09src/sleep/bridges/io&In-Reply-To=%3C200608050521.k755LI8W013085%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r86 - in sleep: . docs src/sleep/bridges	src/sleep/bridges/io">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Sat Aug  5 07:21:18 CEST 2006</I>
+    <P><UL>
+        
+        <LI>Next message: <A HREF="000069.html">[Sleep-svn] r87 - in sleep: . docs src/sleep/console	src/sleep/error src/sleep/parser src/sleep/runtime tests	tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#68">[ date ]</a>
+              <a href="thread.html#68">[ thread ]</a>
+              <a href="subject.html#68">[ subject ]</a>
+              <a href="author.html#68">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2006-08-05 07:20:58 +0200 (Sat, 05 Aug 2006)
+New Revision: 86
+
+Modified:
+   sleep/docs/sleepguide.html
+   sleep/docs/sleeplang.html
+   sleep/src/sleep/bridges/BasicIO.java
+   sleep/src/sleep/bridges/io/IOObject.java
+   sleep/whatsnew.txt
+Log:
+Lots of work on the I/O stuff, reworked the read/write pipelines, made all writes autoflush, and added an available()
+function to allow scripts to poll I/O handles.
+
+
+
+Modified: sleep/docs/sleepguide.html
+===================================================================
+--- sleep/docs/sleepguide.html	2006-06-17 23:04:44 UTC (rev 85)
++++ sleep/docs/sleepguide.html	2006-08-05 05:20:58 UTC (rev 86)
+@@ -49,8 +49,8 @@
+    &lt;ul&gt;
+    &lt;li&gt;&lt;a href=&quot;#3a.1&quot;&gt;The Input/Output World&lt;/a&gt;&lt;/li&gt;
+    &lt;li&gt;&lt;a href=&quot;#3a.2&quot;&gt;The IOObject Class&lt;/a&gt;&lt;/li&gt;
+-   &lt;li&gt;&lt;a href=&quot;#3a.2&quot;&gt;An IO Source Implementation&lt;/a&gt;&lt;/li&gt;
+-   &lt;li&gt;&lt;a href=&quot;#3a.2&quot;&gt;An IO Bridge&lt;/a&gt;&lt;/li&gt;
++   &lt;li&gt;&lt;a href=&quot;#3a.3&quot;&gt;An IO Source Implementation&lt;/a&gt;&lt;/li&gt;
++   &lt;li&gt;&lt;a href=&quot;#3a.4&quot;&gt;An IO Bridge&lt;/a&gt;&lt;/li&gt;
+    &lt;/ul&gt;
+ &lt;li&gt;&lt;a href=&quot;#3&quot;&gt;Part 4: Working with Scalars&lt;/a&gt;&lt;/li&gt;
+    &lt;ul&gt;
+
+Modified: sleep/docs/sleeplang.html
+===================================================================
+--- sleep/docs/sleeplang.html	2006-06-17 23:04:44 UTC (rev 85)
++++ sleep/docs/sleeplang.html	2006-08-05 05:20:58 UTC (rev 86)
+@@ -1020,6 +1020,8 @@
+ is required use the getConsole() function.  The predicate operator -eof is one such case where a handle must always be 
+ specified.&lt;/p&gt;
+ 
++&lt;p&gt;Sleep I/O read functions return the empty scalar $null to indicate the read operation failed.&lt;/p&gt;
++
+ &lt;p&gt;To write data to a file you have to first open the file for writing.&lt;/p&gt;
+    
+ &lt;pre&gt;$handle = openf(&quot;&gt;&gt;/etc/passwd&quot;);
+@@ -1916,6 +1918,18 @@
+   &lt;th&gt;Description&lt;/th&gt;
+  &lt;/tr&gt;  
+  &lt;tr&gt;
++  &lt;td&gt;$&lt;/td&gt;
++  &lt;td&gt;available([$handle])&lt;/td&gt;
++  &lt;td&gt;returns the number of bytes available for reading from $handle&lt;/td&gt;
++ &lt;/tr&gt;
++ &lt;tr&gt;
++  &lt;td&gt;$&lt;/td&gt;
++  &lt;td&gt;available($handle, &quot;delim&quot;)&lt;/td&gt;
++  &lt;td&gt;reads ahead in the specified handle looking to see if the specified delimeter string is present in the read
++      buffer or not.  this operation uses mark and reset (meaning it will invalidate any mark you may have set on 
++      the specified handle).&lt;/td&gt;
++ &lt;/tr&gt;
++ &lt;tr&gt;
+   &lt;td&gt;@&lt;/td&gt;
+   &lt;td&gt;bread([$handle], 'format')&lt;/td&gt;
+   &lt;td&gt;reads data from $handle.  Returned as a scalar array with types specified by the format string&lt;/td&gt;
+
+Modified: sleep/src/sleep/bridges/BasicIO.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicIO.java	2006-06-17 23:04:44 UTC (rev 85)
++++ sleep/src/sleep/bridges/BasicIO.java	2006-08-05 05:20:58 UTC (rev 86)
+@@ -77,6 +77,7 @@
+         temp.put(&quot;&amp;pack&quot;,       new pack());
+         temp.put(&quot;&amp;unpack&quot;,     new unpack());
+ 
++        temp.put(&quot;&amp;available&quot;,  new available());
+         temp.put(&quot;&amp;mark&quot;,       new mark());
+         temp.put(&quot;&amp;skip&quot;,       new skip());
+         temp.put(&quot;&amp;reset&quot;,      new reset());
+@@ -248,7 +249,7 @@
+ 
+           if (temp == null)
+           {
+-             temp = &quot;EOF&quot;;
++             return SleepUtils.getEmptyScalar();
+           }
+ 
+           return SleepUtils.getScalar(temp);
+@@ -726,19 +727,57 @@
+        public Scalar evaluate(String n, ScriptInstance i, Stack l)
+        {
+           IOObject        a = chooseSource(l, 2);
+-          a.getReader().mark(BridgeUtilities.getInt(l, 1024 * 10 * 10));
++          a.getInputBuffer().mark(BridgeUtilities.getInt(l, 1024 * 10 * 10));
+ 
+           return SleepUtils.getEmptyScalar();
+        }
+     }
+ 
++    private static class available implements Function
++    {
++       public Scalar evaluate(String n, ScriptInstance i, Stack l)
++       {
++          try
++          {
++             IOObject        a = chooseSource(l, 1);
++
++             if (l.isEmpty())
++             {
++                return SleepUtils.getScalar(a.getInputBuffer().available());
++             }
++             else
++             {
++                String delim = BridgeUtilities.getString(l, &quot;\n&quot;);
++
++                StringBuffer temp = new StringBuffer();
++
++                int x = 0;
++                int y = a.getInputBuffer().available();
++
++                a.getInputBuffer().mark(y);
++                
++                while (x &lt; y)
++                {
++                   temp.append((char)a.getReader().readUnsignedByte());
++                   x++;
++                }
++
++                a.getInputBuffer().reset();
++      
++                return SleepUtils.getScalar(temp.indexOf(delim) &gt; -1);
++             }
++          }
++          catch (Exception ex) { return SleepUtils.getEmptyScalar(); }
++       }
++    }
++
+     private static class skip implements Function
+     {
+        public Scalar evaluate(String n, ScriptInstance i, Stack l)
+        {
+           try {
+           IOObject        a = chooseSource(l, 2);
+-          a.getReader().skip(BridgeUtilities.getLong(l, 0));
++          a.getInputBuffer().skip(BridgeUtilities.getLong(l, 0));
+           } catch (Exception ex) { }
+ 
+           return SleepUtils.getEmptyScalar();
+@@ -751,7 +790,7 @@
+        {
+           try {
+           IOObject        a = chooseSource(l, 1);
+-          a.getReader().reset();
++          a.getInputBuffer().reset();
+           } catch (Exception ex) { }
+ 
+           return SleepUtils.getEmptyScalar();
+
+Modified: sleep/src/sleep/bridges/io/IOObject.java
+===================================================================
+--- sleep/src/sleep/bridges/io/IOObject.java	2006-06-17 23:04:44 UTC (rev 85)
++++ sleep/src/sleep/bridges/io/IOObject.java	2006-08-05 05:20:58 UTC (rev 86)
+@@ -13,26 +13,28 @@
+  *
+  *  &lt;p&gt;The pipeline for reading data looks like this:&lt;/p&gt;
+  *
+- *  &lt;pre&gt;BufferedReader &lt;- DataInputStream &lt;- Original Input Stream&lt;/pre&gt;
++ *  &lt;pre&gt;DataInputStream &lt;- BufferedInputStream &lt;- Original Input Stream&lt;/pre&gt;
+  *
+  *  &lt;p&gt;The pipeline for writing data is:&lt;/p&gt;
+  *
+- *  &lt;pre&gt;PrintWriter -&gt; DataOutputStream -&gt; Original Output Stream&lt;/pre&gt;
++ *  &lt;pre&gt;DataOutputStream -&gt; Original Output Stream&lt;/pre&gt;
+  */
+ 
+ public class IOObject
+ {
+    private static IOObject console = null;
+ 
+-   protected InputStream     in       = null;
+-   protected OutputStream    out      = null;
++   /* input pipeline */ 
+ 
+-   protected BufferedReader  reader   = null;
+-   protected PrintWriter     writer   = null;
++   protected DataInputStream     readerb = null; /* used to support the binary read/write stuffz */
++   protected BufferedInputStream reader  = null; /* used to support mark and reset functionality y0 */
++   protected InputStream         in      = null; /* the original stream, love it, hold it... yeah right */
+ 
+-   protected DataInputStream  readerb = null;
+-   protected DataOutputStream writerb = null;
++   /* output pipeline */
+ 
++   protected DataOutputStream writerb = null; /* high level method for writing stuff out, fun fun fun */
++   protected OutputStream     out     = null; /* original output stream */
++
+    protected Thread           thread  = null;
+    protected Scalar           token   = null;
+ 
+@@ -97,8 +99,8 @@
+       
+       if (in != null)
+       {
+-         readerb = new DataInputStream(in);
+-         reader  = new BufferedReader(new InputStreamReader(readerb));
++         reader  = new BufferedInputStream(in);
++         readerb = new DataInputStream(reader);
+       }
+    }
+ 
+@@ -110,7 +112,6 @@
+       if (out != null)
+       {
+          writerb = new DataOutputStream(out);
+-         writer  = new PrintWriter(writerb, true);
+       }
+    }
+ 
+@@ -128,9 +129,6 @@
+          if (readerb != null)
+            readerb.close();
+ 
+-         if (writer != null)
+-           writer.close();
+-
+          if (writerb != null)
+            writerb.close();
+ 
+@@ -149,7 +147,6 @@
+          in     = null;
+          out    = null;
+          reader = null;
+-         writer = null;
+          readerb = null;
+          writerb = null;
+       }
+@@ -160,19 +157,25 @@
+    {
+       try
+       {
+-         if (reader != null)
++         if (readerb != null)
+          {
+-            String temp = reader.readLine();
++            String temp = readerb.readLine(); /* deprecated, I know, but it has the behavior I want */
+ 
+             if (temp == null)
+-              reader = null;
++            {
++               readerb = null;
++               reader  = null;
++            }
+ 
+             return temp;
+          }
+       }
+-      catch (Exception ex) { }
++      catch (Exception ex) 
++      { 
++         readerb = null;
++         reader  = null;
++      }
+ 
+-      reader = null;
+       return null;
+    }
+ 
+@@ -185,9 +188,6 @@
+    /** Closes down the output streams effectively sending an end of file message to the reading end. */
+    public void sendEOF()
+    {
+-      if (writer != null)
+-        writer.close();
+-
+       try
+       {
+          if (writerb != null)
+@@ -200,17 +200,11 @@
+    }
+  
+    /** Returns the ascii data reader */
+-   public BufferedReader getPrimaryReader()
++   public BufferedInputStream getInputBuffer()
+    {
+        return reader;
+    }
+ 
+-   /** Returns the ascii data writer */
+-   public PrintWriter getPrimaryWriter()
+-   {
+-       return writer;
+-   }
+-
+    /** Returns the binary data reader */
+    public DataInputStream getReader()
+    {
+@@ -223,22 +217,32 @@
+        return writerb;
+    }
+ 
++   private static final String lineSeparator = System.getProperty(&quot;line.separator&quot;);
++
+    /** Prints out a line of text with a newline character appended */
+    public void printLine(String text)
+    {
+-      if (writer != null)
+-      {
+-         writer.println(text);
+-      }
++      print(text + lineSeparator);
+    }
+ 
+    /** Prints out a line of text with no newline character appended */
+    public void print(String text)
+    {
+-      if (writer != null)
++      if (writerb != null)
+       {
+-         writer.print(text);
+-         writer.flush();
++         try
++         {
++            for (int x = 0; x &lt; text.length(); x++)
++            {
++               writerb.writeByte((byte)text.charAt(x));
++            }
++
++            writerb.flush(); /* we don't know if the underlying stream does this or not, so we'll force it */
++         }
++         catch (Exception ex)
++         {
++            writerb = null;
++         }
+       }
+    }
+ }
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-06-17 23:04:44 UTC (rev 85)
++++ sleep/whatsnew.txt	2006-08-05 05:20:58 UTC (rev 86)
+@@ -37,7 +37,23 @@
+   @ retainAll(@a, @b) - modifies @a to contain the intersection of @a and @b
+ - added methods to SleepUtils to generate a java.util.Map from a 
+   Sleep Hash scalar and to generate a java.util.List from a Sleep Array.
++- readln in Sleep I/O now returns the empty scalar at the end of the stream
++  this can be checked for using is.. i.e.
+ 
++  $temp = readln($handle);
++  while ($temp !is $null)
++  {
++     # do something with $temp
++     $temp = readln($temp);
++  }
++
++- sleep I/O streams now autoflush on all writes.  this should solve many
++  frustrations that the I/O pipeline has occasionally caused scripters.
++- added &amp;available($handle) to determine the number of available bytes 
++  for a given stream.  also an option is &amp;available($handle, &quot;substring&quot;)
++  to determine if the specified &quot;substring&quot; is contained in the data
++  available to be read.
++
+ 2.1-beta 1
+ ===========
+ - fixed the clean target in the sleep build.xml file
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	
+	<LI>Next message: <A HREF="000069.html">[Sleep-svn] r87 - in sleep: . docs src/sleep/console	src/sleep/error src/sleep/parser src/sleep/runtime tests	tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#68">[ date ]</a>
+              <a href="thread.html#68">[ thread ]</a>
+              <a href="subject.html#68">[ subject ]</a>
+              <a href="author.html#68">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

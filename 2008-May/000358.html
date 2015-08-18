@@ -1,0 +1,104 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r382 - in sleep: . src/sleep/engine
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2008-May/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r382%20-%20in%20sleep%3A%20.%20src/sleep/engine&In-Reply-To=%3C200805170016.m4H0GJKD020127%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000357.html">
+   <LINK REL="Next"  HREF="000359.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r382 - in sleep: . src/sleep/engine</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r382%20-%20in%20sleep%3A%20.%20src/sleep/engine&In-Reply-To=%3C200805170016.m4H0GJKD020127%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r382 - in sleep: . src/sleep/engine">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Sat May 17 02:16:19 CEST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000357.html">[Sleep-svn] r381 - in sleep: . src/sleep/runtime
+</A></li>
+        <LI>Next message: <A HREF="000359.html">[Sleep-svn] r383 - in sleep: . src/sleep/bridges	src/sleep/engine/atoms tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#358">[ date ]</a>
+              <a href="thread.html#358">[ thread ]</a>
+              <a href="subject.html#358">[ subject ]</a>
+              <a href="author.html#358">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2008-05-17 02:16:17 +0200 (Sat, 17 May 2008)
+New Revision: 382
+
+Modified:
+   sleep/src/sleep/engine/Block.java
+   sleep/whatsnew.txt
+Log:
+change to the interpreter to note critical errors.
+
+
+Modified: sleep/src/sleep/engine/Block.java
+===================================================================
+--- sleep/src/sleep/engine/Block.java	2008-05-15 22:58:46 UTC (rev 381)
++++ sleep/src/sleep/engine/Block.java	2008-05-17 00:16:17 UTC (rev 382)
+@@ -268,6 +268,11 @@
+               cleanupEnvironment(environment);
+               return SleepUtils.getEmptyScalar();
+            } 
++           catch (Error th)
++           {
++              environment.getScriptInstance().fireWarning(&quot;critical internal error - &quot; + th.toString(), temp.getLineNumber());
++              throw th;
++           }
+ 
+            while (environment.isReturn())
+            {
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2008-05-15 22:58:46 UTC (rev 381)
++++ sleep/whatsnew.txt	2008-05-17 00:16:17 UTC (rev 382)
+@@ -1,3 +1,9 @@
++2.1-beta 27 
++===========
++- Virtual machine errors (stack overflow, out of memory) etc.
++  are now caught within the interpreter and used to coerce
++  a printout of the location of each Sleep stack frame.
++
+ 2.1-beta 26  (15 May 08)
+ ===========
+ - removed extra key string conversion within ordered hashes.  
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000357.html">[Sleep-svn] r381 - in sleep: . src/sleep/runtime
+</A></li>
+	<LI>Next message: <A HREF="000359.html">[Sleep-svn] r383 - in sleep: . src/sleep/bridges	src/sleep/engine/atoms tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#358">[ date ]</a>
+              <a href="thread.html#358">[ thread ]</a>
+              <a href="subject.html#358">[ subject ]</a>
+              <a href="author.html#358">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

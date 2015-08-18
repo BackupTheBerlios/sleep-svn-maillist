@@ -1,0 +1,125 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r425 - in sleep: . src/sleep/bridges tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2008-August/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r425%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20tests%20tests/output&In-Reply-To=%3C200808042233.m74MXS20014096%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000400.html">
+   <LINK REL="Next"  HREF="000402.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r425 - in sleep: . src/sleep/bridges tests tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r425%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20tests%20tests/output&In-Reply-To=%3C200808042233.m74MXS20014096%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r425 - in sleep: . src/sleep/bridges tests tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Tue Aug  5 00:33:28 CEST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000400.html">[Sleep-svn] r424 - in sleep: . src/sleep/engine/atoms tests	tests/output
+</A></li>
+        <LI>Next message: <A HREF="000402.html">[Sleep-svn] r426 - in sleep: . src/sleep/bridges	src/sleep/engine/atoms src/sleep/runtime tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#401">[ date ]</a>
+              <a href="thread.html#401">[ thread ]</a>
+              <a href="subject.html#401">[ subject ]</a>
+              <a href="author.html#401">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2008-08-05 00:33:21 +0200 (Tue, 05 Aug 2008)
+New Revision: 425
+
+Added:
+   sleep/tests/excheck.sl
+   sleep/tests/output/excheck.sl
+Modified:
+   sleep/src/sleep/bridges/BridgeUtilities.java
+   sleep/whatsnew.txt
+Log:
+fixed bug with -exists
+
+
+
+Modified: sleep/src/sleep/bridges/BridgeUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BridgeUtilities.java	2008-08-04 22:25:13 UTC (rev 424)
++++ sleep/src/sleep/bridges/BridgeUtilities.java	2008-08-04 22:33:21 UTC (rev 425)
+@@ -266,7 +266,7 @@
+ 
+       File f = new File(text);
+ 
+-      if (!f.isAbsolute())
++      if (!f.isAbsolute() &amp;&amp; text.length() &gt; 0)
+       {
+          return new File(i.cwd(), text);
+       }
+
+Added: sleep/tests/excheck.sl
+===================================================================
+--- sleep/tests/excheck.sl	2008-08-04 22:25:13 UTC (rev 424)
++++ sleep/tests/excheck.sl	2008-08-04 22:33:21 UTC (rev 425)
+@@ -0,0 +1,8 @@
++if (-exists &quot;&quot;)
++{
++   println('&quot;&quot; exists?');
++}
++else
++{
++   println('&quot;&quot; does not exist :)');
++} 
+
+Added: sleep/tests/output/excheck.sl
+===================================================================
+--- sleep/tests/output/excheck.sl	2008-08-04 22:25:13 UTC (rev 424)
++++ sleep/tests/output/excheck.sl	2008-08-04 22:33:21 UTC (rev 425)
+@@ -0,0 +1 @@
++&quot;&quot; does not exist :)
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2008-08-04 22:25:13 UTC (rev 424)
++++ sleep/whatsnew.txt	2008-08-04 22:33:21 UTC (rev 425)
+@@ -20,6 +20,8 @@
+ - foreach on a hash now skips over keys with $null values
+   (a $null value is removed at the first convienence from a
+   Sleep hash--usually by keys() or values() functions)
++- Fixed bug causing -exists &quot;&quot; to return true..  turns out
++  toSleepFile evaluated &quot;&quot; to the current working directory
+ 
+ 2.1-release  (1 Jul 08)
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000400.html">[Sleep-svn] r424 - in sleep: . src/sleep/engine/atoms tests	tests/output
+</A></li>
+	<LI>Next message: <A HREF="000402.html">[Sleep-svn] r426 - in sleep: . src/sleep/bridges	src/sleep/engine/atoms src/sleep/runtime tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#401">[ date ]</a>
+              <a href="thread.html#401">[ thread ]</a>
+              <a href="subject.html#401">[ subject ]</a>
+              <a href="author.html#401">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,496 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r302 - in sleep: . src/sleep/engine	src/sleep/engine/atoms tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2007-October/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r302%20-%20in%20sleep%3A%20.%20src/sleep/engine%0A%09src/sleep/engine/atoms%20tests/output&In-Reply-To=%3C200710150202.l9F22seM030019%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000280.html">
+   <LINK REL="Next"  HREF="000282.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r302 - in sleep: . src/sleep/engine	src/sleep/engine/atoms tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r302%20-%20in%20sleep%3A%20.%20src/sleep/engine%0A%09src/sleep/engine/atoms%20tests/output&In-Reply-To=%3C200710150202.l9F22seM030019%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r302 - in sleep: . src/sleep/engine	src/sleep/engine/atoms tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Mon Oct 15 04:02:54 CEST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000280.html">[Sleep-svn] r301 - in sleep: . src/sleep/bridges src/sleep/engine	src/sleep/engine/atoms src/sleep/runtime tests tests/output
+</A></li>
+        <LI>Next message: <A HREF="000282.html">[Sleep-svn] r304 - in sleep: . src/sleep/engine/atoms tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#281">[ date ]</a>
+              <a href="thread.html#281">[ thread ]</a>
+              <a href="subject.html#281">[ subject ]</a>
+              <a href="author.html#281">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2007-10-15 04:02:53 +0200 (Mon, 15 Oct 2007)
+New Revision: 302
+
+Modified:
+   sleep/src/sleep/engine/CallRequest.java
+   sleep/src/sleep/engine/atoms/ObjectAccess.java
+   sleep/tests/output/cast.sl
+   sleep/tests/output/convertds3.sl
+   sleep/tests/output/trace.sl
+   sleep/tests/output/wrong.sl
+   sleep/whatsnew.txt
+Log:
+refactored HOES calls into the new CallRequest methodology... ah code cleanup.
+
+
+
+Modified: sleep/src/sleep/engine/CallRequest.java
+===================================================================
+--- sleep/src/sleep/engine/CallRequest.java	2007-10-14 00:15:34 UTC (rev 301)
++++ sleep/src/sleep/engine/CallRequest.java	2007-10-15 02:02:53 UTC (rev 302)
+@@ -51,7 +51,7 @@
+    /** actually execute the function call */
+    public void CallFunction()
+    {
+-      Scalar temp;
++      Scalar temp = null;
+       ScriptEnvironment e = getScriptEnvironment();
+       int mark = getScriptEnvironment().markFrame();
+ 
+@@ -90,10 +90,16 @@
+              }
+              catch (RuntimeException rex)
+              {
+-                e.cleanFrame(mark);
+-                e.KillFrame();
+                 e.getScriptInstance().fireWarning(formatCall(args) + &quot; - FAILED!&quot;, getLineNumber(), true);
+-                throw(rex);
++
++                if (rex.getCause() == null || ! (  (java.lang.reflect.InvocationTargetException.class).isInstance(rex.getCause())  ))
++                {
++                   /* swallow invocation target exceptions please */
++
++                   e.cleanFrame(mark);
++                   e.KillFrame();
++                   throw(rex);
++                }
+              }
+          }
+       }
+@@ -105,9 +111,14 @@
+          }
+          catch (RuntimeException rex)
+          {
+-             e.cleanFrame(mark);
+-             e.KillFrame();
+-             throw(rex);
++             if (rex.getCause() == null || ! (  (java.lang.reflect.InvocationTargetException.class).isInstance(rex.getCause())  ))
++             {
++                 /* swallow invocation target exceptions please */
++
++                e.cleanFrame(mark);
++                e.KillFrame();
++                throw(rex);
++             }
+          }
+       }
+ 
+@@ -116,6 +127,9 @@
+          e.getScriptInstance().recordStackFrame(getFrameDescription(), getLineNumber());
+       }
+ 
++      if (temp == null)
++        temp = SleepUtils.getEmptyScalar();
++
+       e.cleanFrame(mark);
+       e.FrameResult(temp);
+    }
+
+Modified: sleep/src/sleep/engine/atoms/ObjectAccess.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/ObjectAccess.java	2007-10-14 00:15:34 UTC (rev 301)
++++ sleep/src/sleep/engine/atoms/ObjectAccess.java	2007-10-15 02:02:53 UTC (rev 302)
+@@ -46,6 +46,83 @@
+       return &quot;[Object Access]: &quot;+classRef+&quot;#&quot;+name+&quot;\n&quot;;
+    }
+ 
++   private static class MethodCallRequest extends CallRequest
++   {
++      protected Method theMethod;
++      protected Scalar scalar;
++      protected String name;
++      protected Class  theClass;
++
++      public MethodCallRequest(ScriptEnvironment e, int lineNo, Method method, Scalar _scalar, String _name, Class _class)
++      {
++         super(e, lineNo);
++         theMethod = method;
++         scalar    = _scalar;
++         name      = _name;
++         theClass  = _class;
++      }
++
++      public String getFunctionName()
++      {
++         return theMethod.toString();
++      }
++
++      public String getFrameDescription()
++      {
++         return theMethod.toString();   
++      }
++
++      public String formatCall(String args)
++      {
++         StringBuffer trace = new StringBuffer(&quot;[&quot;);
++
++         if (args != null &amp;&amp; args.length() &gt; 0) { args = &quot;: &quot; + args; }
++
++         if (scalar == null)
++         {
++            trace.append(theClass.getName() + &quot; &quot; + name + args + &quot;]&quot;);
++         }
++         else if (Proxy.isProxyClass(theClass))
++         {
++            trace.append(theClass.getName() + &quot; &quot; + name + args + &quot;]&quot;);
++         }
++         else
++         {
++            trace.append(SleepUtils.describe(scalar) + &quot; &quot; + name + args + &quot;]&quot;);
++         }
++
++         return trace.toString();
++      }
++
++      protected Scalar execute()
++      {
++         Object[] parameters = ObjectUtilities.buildArgumentArray(theMethod.getParameterTypes(), getScriptEnvironment().getCurrentFrame(), getScriptEnvironment().getScriptInstance());
++
++         try
++         {
++            return ObjectUtilities.BuildScalar(true, theMethod.invoke(scalar != null ? scalar.objectValue() : null, parameters));
++         }
++         catch (InvocationTargetException ite)
++         {
++            if (ite.getCause() != null)
++               getScriptEnvironment().flagError(ite.getCause());
++
++            throw new RuntimeException(ite);
++         }
++         catch (IllegalArgumentException aex)
++         {
++            aex.printStackTrace();
++            getScriptEnvironment().getScriptInstance().fireWarning(ObjectUtilities.buildArgumentErrorMessage(theClass, name, theMethod.getParameterTypes(), parameters), getLineNumber());
++         }
++         catch (IllegalAccessException iax)
++         {
++            getScriptEnvironment().getScriptInstance().fireWarning(&quot;cannot access &quot; + name + &quot; in &quot; + theClass + &quot;: &quot; + iax.getMessage(), getLineNumber());
++         }
++
++         return SleepUtils.getEmptyScalar();
++      }
++   }
++ 
+    private static class ClosureCallRequest extends CallRequest
+    {
+       protected String name;
+@@ -171,93 +248,27 @@
+       // try to invoke stuff on the object...
+       //
+ 
+-      Method theMethod    = null;
+-      Object[] parameters = null;
++      Method theMethod = ObjectUtilities.findMethod(theClass, name, e.getCurrentFrame());
+ 
+-      try
+-      {
+-         theMethod  = ObjectUtilities.findMethod(theClass, name, e.getCurrentFrame());
+-
+-         if (theMethod != null &amp;&amp; (classRef == null || (theMethod.getModifiers() &amp; Modifier.STATIC) == Modifier.STATIC))
+-         {  
+-            try
+-            {
+-               theMethod.setAccessible(true);
+-            }
+-            catch (Exception ex) { }
+-
+-            if (isTrace)
+-            {
+-               if (e.getScriptInstance().isProfileOnly())
+-               {
+-                  long stat = System.currentTimeMillis();
+-
+-                  parameters = ObjectUtilities.buildArgumentArray(theMethod.getParameterTypes(), e.getCurrentFrame(), e.getScriptInstance());
+-                  result = ObjectUtilities.BuildScalar(true, theMethod.invoke(accessMe, parameters));
+-
+-                  stat = System.currentTimeMillis() - stat;
+-                  e.getScriptInstance().collect(theMethod.toString(), getLineNumber(), stat);
+-               }
+-               else
+-               {
+-                  String args = SleepUtils.describe(e.getCurrentFrame());
+-
+-                  if (args.length() &gt; 0) { args = &quot;: &quot; + args; }
+-
+-                  parameters = ObjectUtilities.buildArgumentArray(theMethod.getParameterTypes(), e.getCurrentFrame(), e.getScriptInstance());
+-
+-                  /* construct the actual trace message */
+-
+-                  StringBuffer trace = new StringBuffer(&quot;[&quot;);
+-
+-                  if (scalar == null)
+-                  {
+-                     trace.append(theClass.getName() + &quot; &quot; + name + args + &quot;]&quot;);
+-                  }
+-                  else if (Proxy.isProxyClass(theClass))
+-                  {
+-                     trace.append(theClass.getName() + &quot; &quot; + name + args + &quot;]&quot;);
+-                  }
+-                  else
+-                  {
+-                     trace.append(SleepUtils.describe(scalar) + &quot; &quot; + name + args + &quot;]&quot;);
+-                  }
+-
+-                  try
+-                  {
+-                     long stat = System.currentTimeMillis();
+-                     result = ObjectUtilities.BuildScalar(true, theMethod.invoke(accessMe, parameters));
+-                     stat = System.currentTimeMillis() - stat;
+-                     e.getScriptInstance().collect(theMethod.toString(), getLineNumber(), stat);
+-
+-                     if (!SleepUtils.isEmptyScalar(result))
+-                     {
+-                        trace.append(&quot; = &quot; + SleepUtils.describe(result));
+-                     }
+-
+-                     e.getScriptInstance().fireWarning(trace.toString(), getLineNumber(), true); 
+-                  }
+-                  catch (InvocationTargetException ite)
+-                  {
+-                     ObjectUtilities.handleExceptionFromJava(ite.getCause(), e, theMethod + &quot;&quot;, getLineNumber());
+-                     trace.append(&quot; - FAILED!&quot;);
+-                     e.getScriptInstance().fireWarning(trace.toString(), getLineNumber(), true); 
+-                  }
+-                  catch (RuntimeException rex)
+-                  {
+-                     trace.append(&quot; - FAILED!&quot;);
+-                     e.getScriptInstance().fireWarning(trace.toString(), getLineNumber(), true); 
+-                     throw(rex);
+-                  }
+-               }
+-            }
+-            else
+-            {
+-               parameters = ObjectUtilities.buildArgumentArray(theMethod.getParameterTypes(), e.getCurrentFrame(), e.getScriptInstance());
+-               result = ObjectUtilities.BuildScalar(true, theMethod.invoke(accessMe, parameters));
+-            }
++      if (theMethod != null &amp;&amp; (classRef == null || (theMethod.getModifiers() &amp; Modifier.STATIC) == Modifier.STATIC))
++      {  
++         try
++         {
++            theMethod.setAccessible(true);
+          }
+-         else
++         catch (Exception ex) { }
++
++         MethodCallRequest request = new MethodCallRequest(e, getLineNumber(), theMethod, scalar, name, theClass);
++         request.CallFunction();
++         return null;
++      }
++      else if (theMethod == null &amp;&amp; !e.getCurrentFrame().isEmpty())
++      {
++         e.getScriptInstance().fireWarning(&quot;there is no method that matches &quot; + name + &quot;(&quot;+SleepUtils.describe(e.getCurrentFrame()) + &quot;) in &quot; + theClass.getName(), getLineNumber());
++      }
++      else
++      {
++         try
+          {
+             Field aField = theClass.getField(name);
+ 
+@@ -276,33 +287,15 @@
+                result = SleepUtils.getEmptyScalar();
+             }
+          }
+-      }
+-      catch (InvocationTargetException ite)
+-      {
+-         ObjectUtilities.handleExceptionFromJava(ite.getCause(), e, theMethod + &quot;&quot;, getLineNumber());
+-      }
+-      catch (IllegalArgumentException aex)
+-      {
+-         aex.printStackTrace();
+-
+-         e.getScriptInstance().fireWarning(ObjectUtilities.buildArgumentErrorMessage(theClass, name, theMethod.getParameterTypes(), 
+-                                     parameters), getLineNumber());
+-      }
+-      catch (NoSuchFieldException fex)
+-      {
+-         if (!e.getCurrentFrame().isEmpty())
++         catch (NoSuchFieldException fex)
+          {
+-            e.getScriptInstance().fireWarning(&quot;there is no method that matches &quot; + name + &quot;(&quot;+SleepUtils.describe(e.getCurrentFrame()) + &quot;) in &quot; + theClass.getName(), getLineNumber());
++            e.getScriptInstance().fireWarning(&quot;no field/method named &quot; + name + &quot; in &quot; + theClass, getLineNumber());
+          }
+-         else
++         catch (IllegalAccessException iax)
+          {
+-            e.getScriptInstance().fireWarning(&quot;no field/method named &quot; + name + &quot; in &quot; + theClass, getLineNumber());
++            e.getScriptInstance().fireWarning(&quot;cannot access &quot; + name + &quot; in &quot; + theClass + &quot;: &quot; + iax.getMessage(), getLineNumber());
+          }
+       }
+-      catch (IllegalAccessException iax)
+-      {
+-         e.getScriptInstance().fireWarning(&quot;cannot access &quot; + name + &quot; in &quot; + theClass + &quot;: &quot; + iax.getMessage(), getLineNumber());
+-      }
+ 
+       e.cleanFrame(mark);
+       e.FrameResult(result);
+
+Modified: sleep/tests/output/cast.sl
+===================================================================
+--- sleep/tests/output/cast.sl	2007-10-14 00:15:34 UTC (rev 301)
++++ sleep/tests/output/cast.sl	2007-10-15 02:02:53 UTC (rev 302)
+@@ -1,2 +1,2 @@
+-[Ljava.lang.CharSequence;@6b496d class [Ljava.lang.CharSequence;
+-[Ljava.util.List;@648016 class [Ljava.util.List;
++[Ljava.lang.CharSequence;@aae86e class [Ljava.lang.CharSequence;
++[Ljava.util.List;@bf053f class [Ljava.util.List;
+
+Modified: sleep/tests/output/convertds3.sl
+===================================================================
+--- sleep/tests/output/convertds3.sl	2007-10-14 00:15:34 UTC (rev 301)
++++ sleep/tests/output/convertds3.sl	2007-10-15 02:02:53 UTC (rev 302)
+@@ -32,9 +32,9 @@
+ int[] a
+ Collection a
+ Collection a
+-Warning: there is no method that matches mar([<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">Z at 19762f</A>) in sleep.ArrayTest1 at convertds3.sl:36
+-Warning: there is no method that matches mar([<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">F at 9e215b</A>) in sleep.ArrayTest1 at convertds3.sl:37
+-Warning: there is no method that matches mar([Ljava.lang.Object;@9ff0a8) in sleep.ArrayTest1 at convertds3.sl:38
++Warning: there is no method that matches mar([<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">Z at 502819</A>) in sleep.ArrayTest1 at convertds3.sl:36
++Warning: there is no method that matches mar([<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">F at 78aa80</A>) in sleep.ArrayTest1 at convertds3.sl:37
++Warning: there is no method that matches mar([Ljava.lang.Object;@1d98a) in sleep.ArrayTest1 at convertds3.sl:38
+ int[] a
+ Collection a
+ Collection a
+
+Modified: sleep/tests/output/trace.sl
+===================================================================
+--- sleep/tests/output/trace.sl	2007-10-14 00:15:34 UTC (rev 301)
++++ sleep/tests/output/trace.sl	2007-10-15 02:02:53 UTC (rev 302)
+@@ -1,13 +1,13 @@
+ this is a test
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at a83a13</A> println: 'this is a test'] at trace.sl:6
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at aae86e</A> println: 'this is a test'] at trace.sl:6
+ Trace: [java.lang.Math pow: 3, 4] = 81.0 at trace.sl:7
+ 81.0
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at a83a13</A> println: 81.0] at trace.sl:7
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at aae86e</A> println: 81.0] at trace.sl:7
+ Trace: [java.lang.Math pow: 3, 5] = 243.0 at trace.sl:8
+ 243.0
+ Trace: &amp;println(243.0) at trace.sl:8
+ testing again...
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at a83a13</A> println: 'testing again...'] at trace.sl:10
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at aae86e</A> println: 'testing again...'] at trace.sl:10
+ Trace: [sleep.runtime.SleepUtils getListFromArray: @('a', 'b', 'c')] = [a, b, c] at trace.sl:12
+ Trace: [new java.util.LinkedList: [a, b, c]] = [a, b, c] at trace.sl:12
+ Warning: variable '$list' not declared at trace.sl:12
+
+Modified: sleep/tests/output/wrong.sl
+===================================================================
+--- sleep/tests/output/wrong.sl	2007-10-14 00:15:34 UTC (rev 301)
++++ sleep/tests/output/wrong.sl	2007-10-15 02:02:53 UTC (rev 302)
+@@ -1,32 +1,32 @@
+ Trace: [java.lang.Math pow: 3, 4] = 81.0 at wrong.sl:6
+ 81.0
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 7eb6e2</A> println: 81.0] at wrong.sl:6
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 6ed322</A> println: 81.0] at wrong.sl:6
+ Trace: &amp;casti(1, 'z') = true at wrong.sl:9
+ true
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 7eb6e2</A> println: true] at wrong.sl:9
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 6ed322</A> println: true] at wrong.sl:9
+ Trace: &amp;casti(0, 'z') = false at wrong.sl:10
+ false
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 7eb6e2</A> println: false] at wrong.sl:10
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 6ed322</A> println: false] at wrong.sl:10
+ Trace: &amp;casti(1, 'd') = 1.0 at wrong.sl:13
+ 1.0
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 7eb6e2</A> println: 1.0] at wrong.sl:13
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 6ed322</A> println: 1.0] at wrong.sl:13
+ Trace: &amp;casti(1, 'b') = 1 at wrong.sl:16
+ 1
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 7eb6e2</A> println: 1] at wrong.sl:16
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 6ed322</A> println: 1] at wrong.sl:16
+ Trace: &amp;casti(100, 'f') = 100.0 at wrong.sl:19
+ 100.0
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 7eb6e2</A> println: 100.0] at wrong.sl:19
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 6ed322</A> println: 100.0] at wrong.sl:19
+ Trace: &amp;casti('b', 'c') = b at wrong.sl:22
+ b
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 7eb6e2</A> println: b] at wrong.sl:22
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 6ed322</A> println: b] at wrong.sl:22
+ Trace: &amp;casti(63, 'i') = 63 at wrong.sl:25
+ 63
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 7eb6e2</A> println: 63] at wrong.sl:25
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 6ed322</A> println: 63] at wrong.sl:25
+ this is a string y0
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 7eb6e2</A> println: 'this is a string y0'] at wrong.sl:28
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 6ed322</A> println: 'this is a string y0'] at wrong.sl:28
+ Trace: [new java.lang.StringBuilder: 'test'] = test at wrong.sl:31
+ test
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 7eb6e2</A> println: test] at wrong.sl:31
+-Trace: &amp;cast(@('a', 'b', 'c', 'd'), 'c') = [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">C at bf053f</A> at wrong.sl:34
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 6ed322</A> println: test] at wrong.sl:31
++Trace: &amp;cast(@('a', 'b', 'c', 'd'), 'c') = [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">C at 884a40</A> at wrong.sl:34
+ abcd
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 7eb6e2</A> println: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">C at bf053f</A>] at wrong.sl:34
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 6ed322</A> println: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">C at 884a40</A>] at wrong.sl:34
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2007-10-14 00:15:34 UTC (rev 301)
++++ sleep/whatsnew.txt	2007-10-15 02:02:53 UTC (rev 302)
+@@ -35,8 +35,8 @@
+ 
+   inline return12 { return 12; }
+ 
+-- refactored Sleep's logic flow for managing function calls, debug 
+-  options, etc.. to one file.  
++- major refactor of Sleep's logic flow for managing function calls, debug 
++  options, etc.. to one file.  please report any bugs 
+ 
+ 2.1-beta 18  (5 Jul 07)
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000280.html">[Sleep-svn] r301 - in sleep: . src/sleep/bridges src/sleep/engine	src/sleep/engine/atoms src/sleep/runtime tests tests/output
+</A></li>
+	<LI>Next message: <A HREF="000282.html">[Sleep-svn] r304 - in sleep: . src/sleep/engine/atoms tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#281">[ date ]</a>
+              <a href="thread.html#281">[ thread ]</a>
+              <a href="subject.html#281">[ subject ]</a>
+              <a href="author.html#281">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

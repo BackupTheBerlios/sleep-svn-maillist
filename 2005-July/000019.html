@@ -1,0 +1,171 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r31 - in sleep/tests: . output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2005-July/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r31%20-%20in%20sleep/tests%3A%20.%20output&In-Reply-To=%3C200507010402.j6142VHP027688%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000018.html">
+   <LINK REL="Next"  HREF="000020.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r31 - in sleep/tests: . output</H1>
+    <B>Raphael Mudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r31%20-%20in%20sleep/tests%3A%20.%20output&In-Reply-To=%3C200507010402.j6142VHP027688%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r31 - in sleep/tests: . output">rsmudge at sheep.berlios.de
+       </A><BR>
+    <I>Fri Jul  1 06:02:31 CEST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000018.html">[Sleep-svn] r30 - in sleep: . docs src/sleep/bridges src/sleep/parser
+</A></li>
+        <LI>Next message: <A HREF="000020.html">[Sleep-svn] r32 - in sleep: . src/sleep/bridges src/sleep/bridges/io src/sleep/engine/atoms src/sleep/runtime tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#19">[ date ]</a>
+              <a href="thread.html#19">[ thread ]</a>
+              <a href="subject.html#19">[ subject ]</a>
+              <a href="author.html#19">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2005-07-01 06:02:29 +0200 (Fri, 01 Jul 2005)
+New Revision: 31
+
+Added:
+   sleep/tests/closure2.sl
+   sleep/tests/output/closure2.sl
+Log:
+Added another unit test for more closure examples
+
+
+Added: sleep/tests/closure2.sl
+===================================================================
+--- sleep/tests/closure2.sl	2005-07-01 03:48:15 UTC (rev 30)
++++ sleep/tests/closure2.sl	2005-07-01 04:02:29 UTC (rev 31)
+@@ -0,0 +1,75 @@
++#
++# more miscellaneous closures... (taken mostly from the sleeplang document)
++#
++
++# 1
++
++$closure = {
++   println(&quot;My name is: $1&quot;); 
++};
++
++[$closure: &quot;Raphael&quot;];
++
++# 2
++
++sub my_sub {
++   println(&quot;My name is: $1&quot;);
++}
++
++[&amp;my_sub: &quot;Raphael&quot;];
++
++# 3
++
++$myfunc = lambda({
++   println(&quot;My initial name is $name&quot;);
++},  $name =&gt; &quot;Raffi&quot;);
++
++[$myfunc];
++
++# 4
++
++sub accum 
++{
++   return lambda(
++          {
++             $i = $i + $1; 
++             return $i;
++          },  $i =&gt; $1);
++}
++
++$accum_a = accum(3);
++$accum_b = accum(30);
++
++println(&quot;a: &quot; . [$accum_a: 1]);
++println(&quot;b: &quot; . [$accum_b: 2]);
++
++println(&quot;a: &quot; . [$accum_a: 1]);
++println(&quot;b: &quot; . [$accum_b: 2]);
++
++# 5
++
++sub BuildStack
++{
++   return {
++             this('@stack');
++
++             if ($0 eq &quot;push&quot;) { push(@stack, $1); }
++             if ($0 eq &quot;pop&quot;)  { return pop(@stack); }
++          };
++}
++
++$mystack = BuildStack();  # construct a new stack closure...
++[$mystack push: &quot;test&quot;];  # push the string &quot;test&quot; onto the stack
++
++println(&quot;Top value is: &quot; . [$mystack pop]); # pop the top value off of the stack and print it
++
++# 6 - not a closure example per se, but worth looking at
++
++import java.util.*;
++
++$scalar = [new StringTokenizer: &quot;this is a test&quot;, &quot; &quot;];
++
++while ([$scalar hasMoreTokens])
++{
++   println(&quot;Token: &quot; . [$scalar nextToken]);
++}
+
+Added: sleep/tests/output/closure2.sl
+===================================================================
+--- sleep/tests/output/closure2.sl	2005-07-01 03:48:15 UTC (rev 30)
++++ sleep/tests/output/closure2.sl	2005-07-01 04:02:29 UTC (rev 31)
+@@ -0,0 +1,12 @@
++My name is: Raphael
++My name is: Raphael
++My initial name is Raffi
++a: 4
++b: 32
++a: 5
++b: 34
++Top value is: test
++Token: this
++Token: is
++Token: a
++Token: test
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000018.html">[Sleep-svn] r30 - in sleep: . docs src/sleep/bridges src/sleep/parser
+</A></li>
+	<LI>Next message: <A HREF="000020.html">[Sleep-svn] r32 - in sleep: . src/sleep/bridges src/sleep/bridges/io src/sleep/engine/atoms src/sleep/runtime tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#19">[ date ]</a>
+              <a href="thread.html#19">[ thread ]</a>
+              <a href="subject.html#19">[ subject ]</a>
+              <a href="author.html#19">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

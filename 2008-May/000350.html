@@ -1,0 +1,106 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r373 - sleep
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2008-May/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r373%20-%20sleep&In-Reply-To=%3C200805150106.m4F16TOK014895%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000351.html">
+   <LINK REL="Next"  HREF="000349.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r373 - sleep</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r373%20-%20sleep&In-Reply-To=%3C200805150106.m4F16TOK014895%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r373 - sleep">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Thu May 15 03:06:29 CEST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000351.html">[Sleep-svn] r372 - in sleep/jsr223: . src src/org src/org/dashnine	src/org/dashnine/sleep src/services
+</A></li>
+        <LI>Next message: <A HREF="000349.html">[Sleep-svn] r374 - sleep/jsr223
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#350">[ date ]</a>
+              <a href="thread.html#350">[ thread ]</a>
+              <a href="subject.html#350">[ subject ]</a>
+              <a href="author.html#350">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2008-05-15 03:06:25 +0200 (Thu, 15 May 2008)
+New Revision: 373
+
+Modified:
+   sleep/build.xml
+   sleep/whatsnew.txt
+Log:
+..
+
+
+Modified: sleep/build.xml
+===================================================================
+--- sleep/build.xml	2008-05-15 01:01:25 UTC (rev 372)
++++ sleep/build.xml	2008-05-15 01:06:25 UTC (rev 373)
+@@ -66,8 +66,12 @@
+      &lt;unzip src=&quot;jsr223/sleep-engine.jar&quot; dest=&quot;bin&quot; /&gt;
+      &lt;jar destfile=&quot;sleep.jar&quot;
+           basedir=&quot;bin&quot;
+-          includes=&quot;**/*&quot; filesetmanifest=&quot;mergewithoutmain&quot;&gt;
++          includes=&quot;**/*&quot;&gt;
+ 
++         &lt;manifest&gt;
++           &lt;attribute name=&quot;Main-Class&quot; value=&quot;sleep.console.TextConsole&quot; /&gt;
++         &lt;/manifest&gt;
++
+         &lt;!-- wow talk about jumping through hoops, whatever happened to Make? --&gt;
+         &lt;metainf dir=&quot;jsr223/src&quot;&gt;
+            &lt;include name=&quot;services/**&quot; /&gt;
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2008-05-15 01:01:25 UTC (rev 372)
++++ sleep/whatsnew.txt	2008-05-15 01:06:25 UTC (rev 373)
+@@ -44,6 +44,9 @@
+   parameter to allow partial splits of text.
+ - added function inline({ .. }) to invoke the specified block
+   inline
++- added JSR223/javax.script API support.  sleep.jar is now a 
++  service provider for this API.  See jsr223/readme-jsr223.txt
++  for more information.
+   
+ 2.1-beta 25  (8 May 08) [will this beta process ever end?]
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000351.html">[Sleep-svn] r372 - in sleep/jsr223: . src src/org src/org/dashnine	src/org/dashnine/sleep src/services
+</A></li>
+	<LI>Next message: <A HREF="000349.html">[Sleep-svn] r374 - sleep/jsr223
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#350">[ date ]</a>
+              <a href="thread.html#350">[ thread ]</a>
+              <a href="subject.html#350">[ subject ]</a>
+              <a href="author.html#350">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,586 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r250 - in sleep: . src/sleep/engine tests tests/data2	tests/data2/src tests/data2/src/sleep tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2007-April/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r250%20-%20in%20sleep%3A%20.%20src/sleep/engine%20tests%20tests/data2%0A%09tests/data2/src%20tests/data2/src/sleep%20tests/output&In-Reply-To=%3C200704110122.l3B1MRZL023235%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000228.html">
+   <LINK REL="Next"  HREF="000230.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r250 - in sleep: . src/sleep/engine tests tests/data2	tests/data2/src tests/data2/src/sleep tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r250%20-%20in%20sleep%3A%20.%20src/sleep/engine%20tests%20tests/data2%0A%09tests/data2/src%20tests/data2/src/sleep%20tests/output&In-Reply-To=%3C200704110122.l3B1MRZL023235%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r250 - in sleep: . src/sleep/engine tests tests/data2	tests/data2/src tests/data2/src/sleep tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Wed Apr 11 03:22:27 CEST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000228.html">[Sleep-svn] r249 - in sleep: . src/sleep/bridges tests tests/output
+</A></li>
+        <LI>Next message: <A HREF="000230.html">[Sleep-svn] r251 - sleep/src/sleep/engine
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#229">[ date ]</a>
+              <a href="thread.html#229">[ thread ]</a>
+              <a href="subject.html#229">[ subject ]</a>
+              <a href="author.html#229">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2007-04-11 03:22:25 +0200 (Wed, 11 Apr 2007)
+New Revision: 250
+
+Added:
+   sleep/tests/convertds2.sl
+   sleep/tests/convertds3.sl
+   sleep/tests/convertds4.sl
+   sleep/tests/data2/
+   sleep/tests/data2/build.xml
+   sleep/tests/data2/src/
+   sleep/tests/data2/src/sleep/
+   sleep/tests/data2/src/sleep/ArrayTest1.java
+   sleep/tests/data2/test.jar
+   sleep/tests/output/convertds2.sl
+   sleep/tests/output/convertds3.sl
+   sleep/tests/output/convertds4.sl
+Modified:
+   sleep/src/sleep/engine/ObjectUtilities.java
+   sleep/tests/output/multih.sl
+   sleep/whatsnew.txt
+Log:
+massive work to the marshalling of sleep arrays to Java arrays.
+
+
+
+Modified: sleep/src/sleep/engine/ObjectUtilities.java
+===================================================================
+--- sleep/src/sleep/engine/ObjectUtilities.java	2007-04-08 23:03:39 UTC (rev 249)
++++ sleep/src/sleep/engine/ObjectUtilities.java	2007-04-11 01:22:25 UTC (rev 250)
+@@ -115,33 +115,30 @@
+                compType = compType.getComponentType();
+             }
+ 
+-            if (compType == Object.class)
++            Class mytype = getArrayType(scalar, null);
++ 
++            if (mytype != null &amp;&amp; compType.isAssignableFrom(mytype))
+             {
+-               return ARG_MATCH_MAYBE;
++               return ARG_MATCH_YES;
+             }
+             else
+             {
+-               Class mytype = getArrayType(scalar, null);
+- 
+-               if (mytype == compType)
+-               {
+-                  return ARG_MATCH_YES;
+-               }
+-               else
+-               {
+-                  return ARG_MATCH_NO;
+-               }
++               return ARG_MATCH_NO;
+             }
+          }
+-         else if (check.isAssignableFrom(java.util.List.class))
++         else if (check == java.util.List.class || check == java.util.Collection.class)
+          {
+             // would a java.util.List or java.util.Collection satisfy the argument?
+             return ARG_MATCH_YES;
+          }
+-         else if (check.isInstance(scalar.objectValue()))
++         else if (check == ScalarArray.class)
+          {
+             return ARG_MATCH_YES;
+          }
++         else if (check == java.lang.Object.class)
++         {
++            return ARG_MATCH_MAYBE;
++         }
+          else
+          {
+             return ARG_MATCH_NO;
+@@ -149,12 +146,12 @@
+       }
+       else if (scalar.getHash() != null)
+       {
+-         if (check.isAssignableFrom(java.util.Map.class))
++         if (check == java.util.Map.class)
+          {
+             // would a java.util.Map or java.util.Collection satisfy the argument?
+             return ARG_MATCH_YES;
+          }
+-         else if (check.isInstance(scalar.objectValue()))
++         else if (check == ScalarHash.class)
+          {
+             return ARG_MATCH_YES;
+          }
+@@ -309,6 +306,12 @@
+          case 'd':
+             atype = Double.TYPE;
+             break;
++         case 'o':
++            atype = Object.class;
++            break;
++         case '*':
++            atype = null; 
++            break;
+       }
+ 
+       return atype;
+@@ -334,7 +337,23 @@
+                while (i.hasNext())
+                {
+                    Scalar temp = (Scalar)i.next();
+-                   Array.set(arrayV, x, buildArgument(atype, temp, script));
++                   Object blah = buildArgument(atype, temp, script);
++
++                   if (blah != null &amp;&amp; (atype.isInstance(blah) || atype.isPrimitive()))
++                   {
++                      Array.set(arrayV, x, blah);
++                   }
++                   else
++                   {
++                      if (atype.isArray())
++                      {
++                         throw new RuntimeException(&quot;incorrect dimensions for conversion to &quot; + type);
++                      }
++                      else
++                      {
++                         throw new RuntimeException(SleepUtils.describe(temp) + &quot; at &quot;+x+&quot; is not compatible with &quot; + atype.getName());
++                      }
++                   }
+                    x++;
+                }
+ 
+@@ -342,27 +361,32 @@
+             }
+             catch (Exception ex)
+             {
++               if (ex instanceof RuntimeException)
++               {
++                  throw (RuntimeException)ex;
++               }
++
+                throw new RuntimeException(ex.getMessage() + &quot; - maybe the dimensions are wrong?&quot;);
+             }
+          }
+-         else if (type.isAssignableFrom(java.util.List.class))
++         else if (type == ScalarArray.class)
+          {
+-            return SleepUtils.getListFromArray(value);
++            return value.objectValue();
+          }
+          else
+          {
+-            return value.objectValue();
++            return SleepUtils.getListFromArray(value);
+          }
+       }
+       else if (value.getHash() != null)
+       {
+-         if (type.isAssignableFrom(java.util.Map.class))
++         if (type == ScalarHash.class)
+          {
+-            return SleepUtils.getMapFromHash(value);
++            return value.objectValue();
+          }
+          else
+          {
+-            return value.objectValue();
++            return SleepUtils.getMapFromHash(value);
+          }
+       }
+       else if (type.isPrimitive())
+
+Added: sleep/tests/convertds2.sl
+===================================================================
+--- sleep/tests/convertds2.sl	2007-04-08 23:03:39 UTC (rev 249)
++++ sleep/tests/convertds2.sl	2007-04-11 01:22:25 UTC (rev 250)
+@@ -0,0 +1,12 @@
++import sleep.* from: data2/test.jar;
++
++$a = [new ArrayTest1];
++[$a foo: @(&quot;x&quot;, 1, 2, 3, &quot;str&quot;)]; # array of strings
++[$a foo: @(1, 2, 3, &quot;str&quot;)];      # array of integers
++[$a foo: @(1.0, 2, 3, &quot;str&quot;)];    # array of doubles
++[$a foo: @(1L, 2, 3, &quot;str&quot;)];     # array of longs
++[$a foo: cast(@(1L, 2, 3, &quot;str&quot;), &quot;z&quot;)];     # array of booleans anyone?
++[$a foo: cast(@(1L, 2, 3, &quot;str&quot;), &quot;f&quot;)];     # array of floats
++[$a foo: cast(@(1L, 2, 3, &quot;str&quot;), &quot;o&quot;)];     # array of objects 
++
++[$a foo: @([new HashSet])]; # array of objects?
+
+Added: sleep/tests/convertds3.sl
+===================================================================
+--- sleep/tests/convertds3.sl	2007-04-08 23:03:39 UTC (rev 249)
++++ sleep/tests/convertds3.sl	2007-04-11 01:22:25 UTC (rev 250)
+@@ -0,0 +1,45 @@
++import sleep.* from: data2/test.jar;
++
++$a = [new ArrayTest1];
++
++println(&quot;Primitive arrays:&quot;);
++[$a bar: @(1, 2, 3, &quot;str&quot;)];      # array of integers
++[$a bar: @(1.0, 2, 3, &quot;str&quot;)];    # array of doubles
++[$a bar: @(1L, 2, 3, &quot;str&quot;)];     # array of longs
++
++println(&quot;Explicit conversions:&quot;);
++[$a bar: cast(@(1L, 2, 3, &quot;str&quot;), &quot;z&quot;)];     # array of booleans anyone?
++[$a bar: cast(@(1L, 2, 3, &quot;str&quot;), &quot;f&quot;)];     # array of floats
++
++println(&quot;Should be objects:&quot;);
++[$a bar: cast(@(1L, 2, 3, &quot;str&quot;), &quot;o&quot;)];     # array of objects
++
++if (1) { [$a bar: @([new HashSet], 4, 5, 6)]; } # array of objects?
++
++println(&quot;This stuff is strings, why?&quot;);
++[$a bar: @(&quot;x&quot;, 1, 2, 3, &quot;str&quot;)]; # array of strings
++
++println(&quot;Car tests:&quot;);
++[$a car: @(1, 2, 3, &quot;str&quot;)];      # array of integers - casts to int[]
++[$a car: @(1.0, 2, 3, &quot;str&quot;)];    # array of doubles
++[$a car: @(1L, 2, 3, &quot;str&quot;)];     # array of longs
++[$a car: cast(@(1L, 2, 3, &quot;str&quot;), &quot;z&quot;)];     # array of booleans anyone?
++[$a car: cast(@(1L, 2, 3, &quot;str&quot;), &quot;f&quot;)];     # array of floats
++[$a car: cast(@(1L, 2, 3, &quot;str&quot;), &quot;o&quot;)];     # array of objects
++[$a car: @([new HashSet])]; # array of objects?
++[$a car: @(&quot;x&quot;, 1, 2, 3, &quot;str&quot;)]; # array of strings
++
++println(&quot;Mar tests:&quot;);
++[$a mar: @(1, 2, 3, &quot;str&quot;)];      # array of integers - casts to int[]
++[$a mar: @(1.0, 2, 3, &quot;str&quot;)];    # array of doubles
++[$a mar: @(1L, 2, 3, &quot;str&quot;)];     # array of longs
++[$a mar: cast(@(1L, 2, 3, &quot;str&quot;), &quot;z&quot;)];     # array of booleans anyone?
++[$a mar: cast(@(1L, 2, 3, &quot;str&quot;), &quot;f&quot;)];     # array of floats
++[$a mar: cast(@(1L, 2, 3, &quot;str&quot;), &quot;o&quot;)];     # array of objects
++[$a mar: cast(@(1L, 2, 3, &quot;str&quot;), &quot;i&quot;)];     # array of integers
++[$a mar: @([new HashSet])]; # array of objects?
++[$a mar: @(&quot;x&quot;, 1, 2, 3, &quot;str&quot;)]; # array of strings
++
++println(&quot;Tar test:&quot;);
++[$a tar: @(1, 2, 3)];
++
+
+Added: sleep/tests/convertds4.sl
+===================================================================
+--- sleep/tests/convertds4.sl	2007-04-08 23:03:39 UTC (rev 249)
++++ sleep/tests/convertds4.sl	2007-04-11 01:22:25 UTC (rev 250)
+@@ -0,0 +1,20 @@
++import sleep.* from: data2/test.jar;
++
++$a = [new ArrayTest1];
++
++[$a foo: @(casti(1L, &quot;f&quot;), casti(2L, &quot;f&quot;))]; # array of floats?
++[$a foo: @(casti(1L, &quot;h&quot;), casti(2L, &quot;h&quot;))]; # array of shorts?
++
++[$a bar: @(casti(1L, &quot;f&quot;), casti(2L, &quot;f&quot;))]; # array of floats?
++[$a bar: @(casti(1L, &quot;h&quot;), casti(2L, &quot;h&quot;))]; # array of shorts?
++
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">+ at zz</A> = @(casti(1L, &quot;f&quot;), 2, 3, &quot;str&quot;);
++filter({ $1 = casti($1, &quot;f&quot;); }, @zz);
++[$a bar: @zz];
++
++[$a car: @(casti(1L, &quot;i&quot;), 2, 3, &quot;str&quot;)];
++[$a car: @(1, 2, 3, &quot;str&quot;)];
++
++[$a bar: @(casti(1L, &quot;l&quot;), 2, 3, &quot;str&quot;)]; 
++
++
+
+Added: sleep/tests/data2/build.xml
+===================================================================
+--- sleep/tests/data2/build.xml	2007-04-08 23:03:39 UTC (rev 249)
++++ sleep/tests/data2/build.xml	2007-04-11 01:22:25 UTC (rev 250)
+@@ -0,0 +1,40 @@
++&lt;project name=&quot;sleep&quot; default=&quot;all&quot; basedir=&quot;.&quot;&gt;
++  &lt;property name=&quot;project.src&quot;   location=&quot;src&quot; /&gt;
++  &lt;property name=&quot;project.build&quot; location=&quot;bin&quot; /&gt;
++
++  &lt;property name=&quot;project.path&quot;  value=&quot;sleep&quot; /&gt;
++
++  &lt;target name=&quot;all&quot; depends=&quot;init, compile, jar&quot; /&gt;
++
++  &lt;target name=&quot;init&quot;&gt;
++    &lt;tstamp /&gt;
++    &lt;mkdir dir=&quot;${project.build}&quot; /&gt;
++  &lt;/target&gt;
++
++  &lt;target name=&quot;compile&quot; depends=&quot;init&quot; description=&quot;compile the source &quot; &gt;
++    &lt;javac srcdir=&quot;${project.src}/&quot;
++           destdir=&quot;${project.build}&quot;
++           classpath=&quot;../../sleep.jar&quot;
++           nowarn=&quot;yes&quot;
++           depend=&quot;yes&quot;
++           debug=&quot;no&quot;
++           optimize=&quot;yes&quot;
++    &gt;
++    &lt;/javac&gt;
++  &lt;/target&gt;
++
++  &lt;target name=&quot;jar&quot; depends=&quot;compile&quot;&gt;
++     &lt;jar destfile=&quot;test.jar&quot;
++          basedir=&quot;bin&quot;
++          includes=&quot;**/*.class&quot;&gt;
++         &lt;manifest&gt;
++           &lt;attribute name=&quot;Main-Class&quot; value=&quot;sleep.console.TextConsole&quot; /&gt;
++         &lt;/manifest&gt;
++      &lt;/jar&gt;
++  &lt;/target&gt;
++
++  &lt;target name=&quot;clean&quot; description=&quot;clean up&quot; &gt;
++    &lt;delete dir=&quot;${build}&quot;/&gt;
++  &lt;/target&gt;
++&lt;/project&gt;
++
+
+Added: sleep/tests/data2/src/sleep/ArrayTest1.java
+===================================================================
+--- sleep/tests/data2/src/sleep/ArrayTest1.java	2007-04-08 23:03:39 UTC (rev 249)
++++ sleep/tests/data2/src/sleep/ArrayTest1.java	2007-04-11 01:22:25 UTC (rev 250)
+@@ -0,0 +1,83 @@
++package sleep;
++
++public class ArrayTest1
++{
++   public void foo(int[] a)
++   {
++      System.out.println(&quot;int[] a&quot;);
++   }
++
++   public void foo(double[] a)
++   {
++      System.out.println(&quot;double[] a&quot;);
++   }
++
++   public void foo(long[] a)
++   {
++      System.out.println(&quot;long[] a&quot;);
++   }
++
++   public void foo(float[] a)
++   {
++      System.out.println(&quot;float[] a&quot;);
++   }
++
++   public void foo(boolean[] a)
++   {
++      System.out.println(&quot;boolean[] a&quot;);
++   }
++
++   public void foo(Object[] a)
++   {
++      System.out.println(&quot;Object[] a&quot;);
++   }
++
++   public void foo(String[] a)
++   {
++      System.out.println(&quot;String[] a&quot;);
++   }
++
++   public void bar(Object[] a)
++   {
++      System.out.println(&quot;Object[] a: &quot; + a.getClass());
++      for (int x = 0; x &lt; a.length; x++)
++      {
++         System.out.println(&quot;a[&quot;+x+&quot;] - &quot; + a[x] + &quot; - &quot; + a[x].getClass());
++      }
++   }
++
++   public void bar(Object a)
++   {
++      System.out.println(&quot;Object a: &quot; + a.getClass());
++   }
++
++   public void car(int[] a)
++   {
++      System.out.println(&quot;int[] a&quot;);
++   }
++
++   public void car(Object a)
++   {
++      System.out.println(&quot;Object a&quot;);
++   }
++
++   public void mar(int[] a)
++   {
++      System.out.println(&quot;int[] a&quot;);
++   }
++
++   public void mar(java.util.Collection a)
++   {
++      System.out.println(&quot;Collection a&quot;);
++   }
++
++   public void tar(java.util.Collection a)
++   {
++      System.out.println(&quot;Collection a: &quot; + a.getClass());
++   }
++
++   public void tar(java.util.List a)
++   {
++      System.out.println(&quot;List a: &quot; + a.getClass());
++   }
++}
+
+Added: sleep/tests/data2/test.jar
+===================================================================
+(Binary files differ)
+
+
+Property changes on: sleep/tests/data2/test.jar
+___________________________________________________________________
+Name: svn:mime-type
+   + application/octet-stream
+
+Added: sleep/tests/output/convertds2.sl
+===================================================================
+--- sleep/tests/output/convertds2.sl	2007-04-08 23:03:39 UTC (rev 249)
++++ sleep/tests/output/convertds2.sl	2007-04-11 01:22:25 UTC (rev 250)
+@@ -0,0 +1,8 @@
++String[] a
++int[] a
++double[] a
++long[] a
++boolean[] a
++float[] a
++Object[] a
++Object[] a
+
+Added: sleep/tests/output/convertds3.sl
+===================================================================
+--- sleep/tests/output/convertds3.sl	2007-04-08 23:03:39 UTC (rev 249)
++++ sleep/tests/output/convertds3.sl	2007-04-11 01:22:25 UTC (rev 250)
+@@ -0,0 +1,42 @@
++Primitive arrays:
++Object a: class java.util.LinkedList
++Object a: class java.util.LinkedList
++Object a: class java.util.LinkedList
++Explicit conversions:
++Object a: class [Z
++Object a: class [F
++Should be objects:
++Object[] a: class [Ljava.lang.Object;
++a[0] - 1 - class java.lang.Long
++a[1] - 2 - class java.lang.Integer
++a[2] - 3 - class java.lang.Integer
++a[3] - str - class java.lang.String
++Warning: 4 at 1 is not compatible with java.util.HashSet at convertds3.sl:17
++This stuff is strings, why?
++Object[] a: class [Ljava.lang.String;
++a[0] - x - class java.lang.String
++a[1] - 1 - class java.lang.String
++a[2] - 2 - class java.lang.String
++a[3] - 3 - class java.lang.String
++a[4] - str - class java.lang.String
++Car tests:
++int[] a
++Object a
++Object a
++Object a
++Object a
++Object a
++Object a
++Object a
++Mar tests:
++int[] a
++Collection a
++Collection a
++Warning: there is no method that matches mar([<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">Z at b51c29</A>) in sleep.ArrayTest1 at convertds3.sl:36
++Warning: there is no method that matches mar([<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">F at 4bf53e</A>) in sleep.ArrayTest1 at convertds3.sl:37
++Warning: there is no method that matches mar([Ljava.lang.Object;@d1e7c2) in sleep.ArrayTest1 at convertds3.sl:38
++int[] a
++Collection a
++Collection a
++Tar test:
++List a: class java.util.LinkedList
+
+Added: sleep/tests/output/convertds4.sl
+===================================================================
+--- sleep/tests/output/convertds4.sl	2007-04-08 23:03:39 UTC (rev 249)
++++ sleep/tests/output/convertds4.sl	2007-04-11 01:22:25 UTC (rev 250)
+@@ -0,0 +1,16 @@
++Object[] a
++Object[] a
++Object[] a: class [Ljava.lang.Float;
++a[0] - 1.0 - class java.lang.Float
++a[1] - 2.0 - class java.lang.Float
++Object[] a: class [Ljava.lang.Short;
++a[0] - 1 - class java.lang.Short
++a[1] - 2 - class java.lang.Short
++Object[] a: class [Ljava.lang.Float;
++a[0] - 1.0 - class java.lang.Float
++a[1] - 2.0 - class java.lang.Float
++a[2] - 3.0 - class java.lang.Float
++a[3] - 0.0 - class java.lang.Float
++Object a
++int[] a
++Warning: 2 at 1 is not compatible with java.lang.Long at convertds4.sl:18
+
+Modified: sleep/tests/output/multih.sl
+===================================================================
+--- sleep/tests/output/multih.sl	2007-04-08 23:03:39 UTC (rev 249)
++++ sleep/tests/output/multih.sl	2007-04-11 01:22:25 UTC (rev 250)
+@@ -11,4 +11,4 @@
+ 5.0; 6.0; 
+ 6.5; 7.0; 
+ 8.0; 9.0; 
+-Warning: array element type mismatch - maybe the dimensions are wrong? at multih.sl:13
++Warning: incorrect dimensions for conversion to class [[D at multih.sl:13
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2007-04-08 23:03:39 UTC (rev 249)
++++ sleep/whatsnew.txt	2007-04-11 01:22:25 UTC (rev 250)
+@@ -29,6 +29,16 @@
+   with include() will be purged from the cache as well.
+ - fixed a bug with iswm and using \ as a character literal in the match
+   pattern, use \\ to specifiy a literal \
++- altered HOES argument resolution for Sleep hashes and arrays; no longer
++  will either of these types match to a method requiring a generic Object
++  as an argument.  Collection/List/Object[]/ScalarArray for Sleep arrays
++  and Map/ScalarHash for Sleep hashes.
++- updated cast/casti with a new pattern character, 'o' which will create
++  a java.lang.Object based on the specified scalar.
++- reworked conversion of array scalars to native Java arrays and enhanced
++  error messages.  In general Sleep will try its best to convert all of
++  the array elements to the same type (type determined by first elements).
++  Use cast(@array, &quot;t&quot;) to cast the array to the type you really desire.
+ 
+ 2.1-beta 14  (24 Mar 07)
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000228.html">[Sleep-svn] r249 - in sleep: . src/sleep/bridges tests tests/output
+</A></li>
+	<LI>Next message: <A HREF="000230.html">[Sleep-svn] r251 - sleep/src/sleep/engine
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#229">[ date ]</a>
+              <a href="thread.html#229">[ thread ]</a>
+              <a href="subject.html#229">[ subject ]</a>
+              <a href="author.html#229">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

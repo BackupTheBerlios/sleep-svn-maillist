@@ -1,0 +1,152 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r225 - in sleep: src/sleep/bridges tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2007-March/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r225%20-%20in%20sleep%3A%20src/sleep/bridges%20tests%20tests/output&In-Reply-To=%3C200703171312.l2HDCDSJ026174%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000203.html">
+   <LINK REL="Next"  HREF="000205.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r225 - in sleep: src/sleep/bridges tests tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r225%20-%20in%20sleep%3A%20src/sleep/bridges%20tests%20tests/output&In-Reply-To=%3C200703171312.l2HDCDSJ026174%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r225 - in sleep: src/sleep/bridges tests tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Sat Mar 17 14:12:13 CET 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000203.html">[Sleep-svn] r224 - in sleep: . src/sleep/bridges tests tests/output
+</A></li>
+        <LI>Next message: <A HREF="000205.html">[Sleep-svn] r226 - in sleep/tests: . output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#204">[ date ]</a>
+              <a href="thread.html#204">[ thread ]</a>
+              <a href="subject.html#204">[ subject ]</a>
+              <a href="author.html#204">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2007-03-17 14:12:12 +0100 (Sat, 17 Mar 2007)
+New Revision: 225
+
+Modified:
+   sleep/src/sleep/bridges/BasicIO.java
+   sleep/src/sleep/bridges/BasicUtilities.java
+   sleep/tests/output/include.sl
+   sleep/tests/output/useerr.sl
+   sleep/tests/useerr.sl
+Log:
+more fixes...
+
+
+
+Modified: sleep/src/sleep/bridges/BasicIO.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicIO.java	2007-03-17 12:56:56 UTC (rev 224)
++++ sleep/src/sleep/bridges/BasicIO.java	2007-03-17 13:12:12 UTC (rev 225)
+@@ -845,7 +845,7 @@
+                         break;
+ 
+                       default:
+-                        env.flagError(new Exception(&quot;unknown file pattern character: &quot; + pattern.value));
++                        env.showDebugMessage(&quot;unknown file pattern character: &quot; + pattern.value);
+                    }
+                 }
+                 catch (Exception ex) 
+
+Modified: sleep/src/sleep/bridges/BasicUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicUtilities.java	2007-03-17 12:56:56 UTC (rev 224)
++++ sleep/src/sleep/bridges/BasicUtilities.java	2007-03-17 13:12:12 UTC (rev 225)
+@@ -229,7 +229,8 @@
+ 
+           if (parent != null &amp;&amp; !parent.exists())
+           {
+-             throw new IllegalArgumentException(n + &quot;: could not locate source '&quot; + parent + &quot;'&quot;);
++             si.getScriptEnvironment().flagError(new IllegalArgumentException(n + &quot;: could not locate source '&quot; + parent + &quot;'&quot;));
++             return SleepUtils.getEmptyScalar();
+           }
+ 
+           try
+@@ -291,11 +292,11 @@
+           }
+           catch (YourCodeSucksException yex)
+           {
+-             throw new RuntimeException(className + &quot;: &quot; + yex.getMessage());
++             si.getScriptEnvironment().flagError(yex);             
+           }
+           catch (Exception ex)
+           {
+-             throw new RuntimeException(ex.toString());
++             si.getScriptEnvironment().flagError(ex);             
+           }
+ 
+           return SleepUtils.getEmptyScalar();
+
+Modified: sleep/tests/output/include.sl
+===================================================================
+--- sleep/tests/output/include.sl	2007-03-17 12:56:56 UTC (rev 224)
++++ sleep/tests/output/include.sl	2007-03-17 13:12:12 UTC (rev 225)
+@@ -10,5 +10,5 @@
+ Warning: variable '$x' not declared at injar.sl:17
+ Trace: &amp;debug(7) = 7 at include.sl:19
+ Eh?!? Hello from injar.sl
+-Warning: scripts/errors1.sl: 3 error(s): Mismatched Parentheses - missing close paren at 9; Mismatched Braces - missing close brace at 6; Runaway string at 9 at include.sl:24
+-Warning: java.io.IOException: unable to locate scripts/does_not_exist.sl from: data/scripts.jar at include.sl:27
++Warning: checkError(): YourCodeSucksException: 3 error(s): Mismatched Parentheses - missing close paren at 9; Mismatched Braces - missing close brace at 6; Runaway string at 9 at include.sl:24
++Warning: checkError(): java.io.IOException: unable to locate scripts/does_not_exist.sl from: data/scripts.jar at include.sl:27
+
+Modified: sleep/tests/output/useerr.sl
+===================================================================
+--- sleep/tests/output/useerr.sl	2007-03-17 12:56:56 UTC (rev 224)
++++ sleep/tests/output/useerr.sl	2007-03-17 13:12:12 UTC (rev 225)
+@@ -1,2 +1,2 @@
+-Warning: &amp;use: could not locate source '/Users/raffi/jdbc.jar' at eval:0
+-Warning: java.lang.ClassNotFoundException: ABCDE at eval:0
++Warning: checkError(): java.lang.IllegalArgumentException: &amp;use: could not locate source '/Users/raffi/jdbc.jar' at eval:0
++Warning: checkError(): java.lang.ClassNotFoundException: ABCDE at eval:0
+
+Modified: sleep/tests/useerr.sl
+===================================================================
+--- sleep/tests/useerr.sl	2007-03-17 12:56:56 UTC (rev 224)
++++ sleep/tests/useerr.sl	2007-03-17 13:12:12 UTC (rev 225)
+@@ -1,2 +1,4 @@
++debug(2);
++
+ eval('use(&quot;/Users/raffi/jdbc.jar&quot;, &quot;JDBC&quot;);');
+ eval('use(&quot;ABCDE&quot;);');
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000203.html">[Sleep-svn] r224 - in sleep: . src/sleep/bridges tests tests/output
+</A></li>
+	<LI>Next message: <A HREF="000205.html">[Sleep-svn] r226 - in sleep/tests: . output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#204">[ date ]</a>
+              <a href="thread.html#204">[ thread ]</a>
+              <a href="subject.html#204">[ subject ]</a>
+              <a href="author.html#204">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

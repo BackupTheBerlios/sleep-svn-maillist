@@ -1,0 +1,368 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r363 - in sleep: . src/sleep/bridges tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2008-May/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r363%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20tests%20tests/output&In-Reply-To=%3C200805140745.m4E7joYm016066%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000338.html">
+   <LINK REL="Next"  HREF="000340.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r363 - in sleep: . src/sleep/bridges tests tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r363%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20tests%20tests/output&In-Reply-To=%3C200805140745.m4E7joYm016066%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r363 - in sleep: . src/sleep/bridges tests tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Wed May 14 09:45:50 CEST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000338.html">[Sleep-svn] r362 - in sleep: . src/sleep/bridges tests tests/output
+</A></li>
+        <LI>Next message: <A HREF="000340.html">[Sleep-svn] r364 - in sleep: . src/sleep/bridges src/sleep/engine	src/sleep/engine/types src/sleep/runtime src/sleep/taint	tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#339">[ date ]</a>
+              <a href="thread.html#339">[ thread ]</a>
+              <a href="subject.html#339">[ subject ]</a>
+              <a href="author.html#339">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2008-05-14 09:45:49 +0200 (Wed, 14 May 2008)
+New Revision: 363
+
+Added:
+   sleep/tests/find.sl
+   sleep/tests/output/find.sl
+Modified:
+   sleep/build.xml
+   sleep/src/sleep/bridges/RegexBridge.java
+   sleep/tests/behavior.sl
+   sleep/whatsnew.txt
+Log:
+regex changes... 
+
+
+Modified: sleep/build.xml
+===================================================================
+--- sleep/build.xml	2008-05-14 06:15:20 UTC (rev 362)
++++ sleep/build.xml	2008-05-14 07:45:49 UTC (rev 363)
+@@ -16,7 +16,7 @@
+            destdir=&quot;${project.build}&quot;
+            nowarn=&quot;yes&quot;
+            depend=&quot;yes&quot;
+-           debug=&quot;false&quot;
++           debug=&quot;true&quot;
+            source=&quot;1.4&quot;
+            target=&quot;1.4&quot;
+            optimize=&quot;yes&quot;
+
+Modified: sleep/src/sleep/bridges/RegexBridge.java
+===================================================================
+--- sleep/src/sleep/bridges/RegexBridge.java	2008-05-14 06:15:20 UTC (rev 362)
++++ sleep/src/sleep/bridges/RegexBridge.java	2008-05-14 07:45:49 UTC (rev 363)
+@@ -48,20 +48,24 @@
+ 
+     private static Pattern getPattern(String pattern)
+     {
+-       if (patternCache.containsKey(pattern))
++       Pattern temp = (Pattern)patternCache.get(pattern);
++
++       if (temp != null)
+        {
+-          return (Pattern)patternCache.get(pattern);  
++          return temp;
+        }
+-
+-       if (patternCache.size() &gt; 1024)
++       else
+        {
+-          patternCache.clear(); /* ensure the pattern cache is flushed once in awhile */
+-       }
++          if (patternCache.size() &gt; 1024)
++          {
++             patternCache.clear(); /* ensure the pattern cache is flushed once in awhile */
++          }
+      
+-       Pattern temp = Pattern.compile(pattern);
+-       patternCache.put(pattern, temp);
++          temp = Pattern.compile(pattern);
++          patternCache.put(pattern, temp);
+ 
+-       return temp;
++          return temp;
++       }
+     }
+ 
+     public void scriptUnloaded(ScriptInstance aScript)
+@@ -84,64 +88,90 @@
+         temp.put(&quot;&amp;join&quot;,  new join());
+         temp.put(&quot;&amp;matches&quot;, new getMatches());
+         temp.put(&quot;&amp;replace&quot;, new rreplace());
++        temp.put(&quot;&amp;find&quot;, new ffind());
+     }
+ 
+-    private static class isMatch implements Predicate, Function
++    private static class ffind implements Function
+     {
+-       public boolean decide(String n, ScriptInstance i, Stack l)
++       public Scalar evaluate(String n, ScriptInstance i, Stack l)
+        {
+-          ScriptEnvironment env = i.getScriptEnvironment();
++          String string = BridgeUtilities.getString(l, &quot;&quot;);
++          String patterns = BridgeUtilities.getString(l, &quot;&quot;);
+ 
+-          /* do some tainter checking plz */
+-          Scalar bb = (Scalar)l.pop();
+-          Scalar aa = (Scalar)l.pop();
++          Pattern pattern  = RegexBridge.getPattern(patterns);
++          Matcher matchit  = pattern.matcher(string);
++          int     start    = BridgeUtilities.getInt(l, 0);
++          
++          boolean check    = matchit.find(start);
+ 
+-          if (TaintUtils.isTainted(bb) || TaintUtils.isTainted(aa))
++          if (check)
+           {
+-             env.setContextMetadata(&quot;retaint&quot;, Boolean.TRUE);
++             i.getScriptEnvironment().setContextMetadata(&quot;matcher&quot;, SleepUtils.getScalar(matchit));
+           }
+           else
+           {
+-             env.setContextMetadata(&quot;retaint&quot;, null);
++             i.getScriptEnvironment().setContextMetadata(&quot;matcher&quot;, null);
+           }
+-  
+-          /* continue with normal ops */
+-          String b = bb.toString(); // PATTERN
+-          String a = aa.toString(); // TEXT TO MATCH AGAINST
+ 
+-          Matcher matcher;
++          return check ? SleepUtils.getScalar(matchit.start()) : SleepUtils.getEmptyScalar();
++       }
++    }
+ 
+-          Pattern pattern = RegexBridge.getPattern(b);
++    /** a helper utility to get the matcher out of the script environment */
++    private static Scalar getMatcher(ScriptEnvironment env, String text, Pattern p)
++    {
++       Scalar temp = (Scalar)env.getContextMetadata(&quot;matcher&quot;);
++
++       if (temp == null &amp;&amp; text == null &amp;&amp; p == null)
++       {
++          return SleepUtils.getEmptyScalar();
++       }
++       else if (temp == null || (p != null &amp;&amp; ((Matcher)temp.objectValue()).pattern() != p))
++       {
++          temp = SleepUtils.getScalar(p.matcher(text));
++          env.setContextMetadata(&quot;matcher&quot;, temp);
++          return temp;
++       }
++       else
++       {
++          return temp;
++       }
++    }
++
++    private static class isMatch implements Predicate, Function
++    {
++       public boolean decide(String n, ScriptInstance i, Stack l)
++       {
+           boolean rv;
+ 
++          /* do some tainter checking plz */
++          Scalar bb = (Scalar)l.pop(); // PATTERN
++          Scalar aa = (Scalar)l.pop(); // TEXT TO MATCH AGAINST
++
++          Pattern pattern = RegexBridge.getPattern(bb.toString());
++
++          Scalar container = getMatcher(i.getScriptEnvironment(), aa.toString(), pattern);
++          Matcher matcher  = (Matcher)container.objectValue();
++
++          /* check our taint value please */ 
++          if (TaintUtils.isTainted(aa) || TaintUtils.isTainted(bb))
++          {
++             TaintUtils.taintAll(container);
++          }
++
+           if (n.equals(&quot;hasmatch&quot;))
+           {
+-              matcher = (Matcher)env.getContextMetadata(a + b);
+-
+-              if (matcher != null)
+-              {
+-                 env.setContextMetadata(&quot;matcher&quot;, matcher);
+-              }
+-              else
+-              {
+-                 matcher = pattern.matcher(a);
+-                 env.setContextMetadata(a + b, matcher);
+-                 env.setContextMetadata(&quot;matcher&quot;, matcher);
+-              }
+               rv = matcher.find();
+           }
+           else
+           {
+-              matcher = pattern.matcher(a);
+-              env.setContextMetadata(&quot;matcher&quot;, matcher);
+-              rv =  matcher.matches();
++              matcher.reset(aa.toString());
++              rv = matcher.matches();
+           }
+ 
+           if (!rv) 
+           {
+-             matcher  = null;           
+-             env.setContextMetadata(&quot;matcher&quot;, null);
+-             env.setContextMetadata(a + b, null);
++             i.getScriptEnvironment().setContextMetadata(&quot;matcher&quot;, null);
+           }
+ 
+           return rv;
+@@ -151,11 +181,12 @@
+        {
+           Scalar value = SleepUtils.getArrayScalar();            
+ 
+-          ScriptEnvironment env = i.getScriptEnvironment();
+-          Matcher matcher = (Matcher)env.getContextMetadata(&quot;matcher&quot;);
++          Scalar container = getMatcher(i.getScriptEnvironment(), null, null);
+ 
+-          if (matcher != null)
++          if (!SleepUtils.isEmptyScalar(container))
+           {
++             Matcher matcher = (Matcher)container.objectValue();
++
+              int count = matcher.groupCount();  
+ 
+              for (int x = 1; x &lt;= count; x++)
+@@ -164,14 +195,7 @@
+              }
+           }
+ 
+-          if (env.getContextMetadata(&quot;retaint&quot;) == Boolean.TRUE)
+-          {
+-             return TaintUtils.taintAll(value);
+-          }
+-          else
+-          {
+-             return value;
+-          }
++          return TaintUtils.isTainted(container) ? TaintUtils.taintAll(value) : value;
+        }
+     }
+ 
+@@ -241,7 +265,6 @@
+ 
+           StringBuffer result = new StringBuffer();
+ 
+-
+           if (i.hasNext())
+           {
+              result.append(i.next().toString());
+
+Modified: sleep/tests/behavior.sl
+===================================================================
+--- sleep/tests/behavior.sl	2008-05-14 06:15:20 UTC (rev 362)
++++ sleep/tests/behavior.sl	2008-05-14 07:45:49 UTC (rev 363)
+@@ -1,11 +1,15 @@
+-while ('(654) 555-1212(248) 399-8219(734) 586-9912' hasmatch '\((\d\d\d)\) (\d\d\d-\d\d\d\d)')
++sub foo
+ {
+-   ($areaCode, $phoneNumber) = matched();
+-   println(&quot;$areaCode and $phoneNumber&quot;);
+-
+    while ('(123) 456-7890 sfdsdf (453) 443-3455' hasmatch '\((\d\d\d)\) (\d\d\d-\d\d\d\d)')
+    {
+       ($areaCode, $phoneNumber) = matched();
+       println(&quot;    $areaCode and $phoneNumber&quot;);
+    }
+ }
++
++while ('(654) 555-1212(248) 399-8219(734) 586-9912' hasmatch '\((\d\d\d)\) (\d\d\d-\d\d\d\d)')
++{
++   ($areaCode, $phoneNumber) = matched();
++   println(&quot;$areaCode and $phoneNumber&quot;);
++   foo();
++}
+
+Added: sleep/tests/find.sl
+===================================================================
+--- sleep/tests/find.sl	2008-05-14 06:15:20 UTC (rev 362)
++++ sleep/tests/find.sl	2008-05-14 07:45:49 UTC (rev 363)
+@@ -0,0 +1,12 @@
++$string = &quot;this is some string, phear   it dude&quot;;
++
++$start = 0;
++while $index (find($string, '(\s+)', $start))
++{
++   $delim = strlen(matched()[0]);
++
++   println(&quot;'&quot; . substr($string, $start, $index + $delim) . &quot;'&quot;);
++   $start = $index + $delim;
++} 
++
++println(&quot;'&quot; . substr($string, $start) . &quot;'&quot;);
+
+Added: sleep/tests/output/find.sl
+===================================================================
+--- sleep/tests/output/find.sl	2008-05-14 06:15:20 UTC (rev 362)
++++ sleep/tests/output/find.sl	2008-05-14 07:45:49 UTC (rev 363)
+@@ -0,0 +1,7 @@
++'this '
++'is '
++'some '
++'string, '
++'phear   '
++'it '
++'dude'
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2008-05-14 06:15:20 UTC (rev 362)
++++ sleep/whatsnew.txt	2008-05-14 07:45:49 UTC (rev 363)
+@@ -18,6 +18,12 @@
+      # ...
+   }
+   # do something with substr($string, $start + 1) 
++- added &amp;find(&quot;string&quot;, &quot;regex&quot;, n) which returns the index of
++  the substring matching the specified regex beginning at n.
++  &amp;matched() works to retrieve the matched groups from the
++  substring.
++- conducted a 3am cleanup of the RegexBridge--you know what 
++  that means.
+ 
+ 2.1-beta 25  (8 May 08) [will this beta process ever end?]
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000338.html">[Sleep-svn] r362 - in sleep: . src/sleep/bridges tests tests/output
+</A></li>
+	<LI>Next message: <A HREF="000340.html">[Sleep-svn] r364 - in sleep: . src/sleep/bridges src/sleep/engine	src/sleep/engine/types src/sleep/runtime src/sleep/taint	tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#339">[ date ]</a>
+              <a href="thread.html#339">[ thread ]</a>
+              <a href="subject.html#339">[ subject ]</a>
+              <a href="author.html#339">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

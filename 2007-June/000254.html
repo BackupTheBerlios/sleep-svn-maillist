@@ -1,0 +1,286 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r275 - in sleep: . src/sleep/bridges src/sleep/parser	tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2007-June/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r275%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20src/sleep/parser%0A%09tests%20tests/output&In-Reply-To=%3C200706151447.l5FElRn1030922%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000253.html">
+   <LINK REL="Next"  HREF="000255.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r275 - in sleep: . src/sleep/bridges src/sleep/parser	tests tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r275%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20src/sleep/parser%0A%09tests%20tests/output&In-Reply-To=%3C200706151447.l5FElRn1030922%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r275 - in sleep: . src/sleep/bridges src/sleep/parser	tests tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Fri Jun 15 16:47:27 CEST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000253.html">[Sleep-svn] r274 - in sleep: . src/sleep/parser tests tests/output
+</A></li>
+        <LI>Next message: <A HREF="000255.html">[Sleep-svn] r276 - in sleep: . src/sleep/bridges src/sleep/engine
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#254">[ date ]</a>
+              <a href="thread.html#254">[ thread ]</a>
+              <a href="subject.html#254">[ subject ]</a>
+              <a href="author.html#254">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2007-06-15 16:47:26 +0200 (Fri, 15 Jun 2007)
+New Revision: 275
+
+Added:
+   sleep/tests/output/use2.sl
+   sleep/tests/use2.sl
+Modified:
+   sleep/src/sleep/bridges/BasicUtilities.java
+   sleep/src/sleep/parser/CodeGenerator.java
+   sleep/tests/setfield.sl
+   sleep/whatsnew.txt
+Log:
+more changes...
+
+
+Modified: sleep/src/sleep/bridges/BasicUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicUtilities.java	2007-06-15 02:38:54 UTC (rev 274)
++++ sleep/src/sleep/bridges/BasicUtilities.java	2007-06-15 14:47:26 UTC (rev 275)
+@@ -232,8 +232,9 @@
+ 
+        public Scalar evaluate(String n, ScriptInstance si, Stack l)
+        {
+-          File   parent;
+-          String className;
++          File   parent    = null;
++          String className = &quot;&quot;;
++          Class  bridge    = null;
+ 
+           if (l.size() == 2)
+           {
+@@ -242,10 +243,18 @@
+           }
+           else
+           {
+-             File a    = sleep.parser.ParserConfig.findJarFile(l.pop().toString());
++             Scalar obj = (Scalar)l.pop();
++             if (obj.objectValue() instanceof Class &amp;&amp; n.equals(&quot;&amp;use&quot;))
++             {
++                bridge = (Class)obj.objectValue();
++             }
++             else
++             {
++                File a     = sleep.parser.ParserConfig.findJarFile(obj.toString());
+ 
+-             parent    = a.getParentFile();
+-             className = a.getName();
++                parent     = a.getParentFile();
++                className  = a.getName();
++             }
+           }
+ 
+           if (parent != null &amp;&amp; !parent.exists())
+@@ -257,17 +266,18 @@
+           {
+              if (n.equals(&quot;&amp;use&quot;))
+              {
+-                Class bridge;
+-
+-                if (parent != null)
++                if (bridge == null)
+                 {
+-                   URLClassLoader loader = new URLClassLoader(new URL[] { parent.toURL() });
+-                   bridge = Class.forName(className, true, loader);
++                   if (parent != null)
++                   {
++                      URLClassLoader loader = new URLClassLoader(new URL[] { parent.toURL() });
++                      bridge = Class.forName(className, true, loader);
++                   }
++                   else
++                   {
++                      bridge = Class.forName(className);
++                   }
+                 }
+-                else
+-                {
+-                   bridge = Class.forName(className);
+-                }
+ 
+                 Loadable temp;
+ 
+@@ -1121,13 +1131,14 @@
+           Class  aClass = null;
+           Object inst   = null;
+ 
+-          if (&quot;==CLASS==&quot;.equals(value.toString()))
++          if (value.objectValue() == null)
+           {
+-             aClass = (Class)(BridgeUtilities.getScalar(l).objectValue());
++             throw new IllegalArgumentException(&quot;&amp;setField: can not set field on a null object&quot;);
+           }
+-          else if (value.objectValue() == null)
++          else if (value.objectValue() instanceof Class)
+           {
+-             throw new IllegalArgumentException(&quot;&amp;setField: can not set field on a null object&quot;);
++             aClass = (Class)value.objectValue();
++             inst   = null;
+           }
+           else
+           {
+
+Modified: sleep/src/sleep/parser/CodeGenerator.java
+===================================================================
+--- sleep/src/sleep/parser/CodeGenerator.java	2007-06-15 02:38:54 UTC (rev 274)
++++ sleep/src/sleep/parser/CodeGenerator.java	2007-06-15 14:47:26 UTC (rev 275)
+@@ -789,16 +789,6 @@
+               atom = GeneratedSteps.Decide(parsePredicate(termsAr[0]), a, b);
+               add(atom, tokens[0]); 
+            }
+-           else if (strings[0].equals(&quot;&amp;setField&quot;))
+-           {
+-              atom = GeneratedSteps.CreateFrame();
+-              add(atom, tokens[0]);
+-
+-              parseSpecialParameters(ParserUtilities.extract(tokens[1]));
+-
+-              atom = GeneratedSteps.Call(strings[0]);
+-              add(atom, tokens[0]);
+-           }
+            else if (tokens.length &gt; 1)
+            {
+               atom = GeneratedSteps.CreateFrame();
+@@ -1192,39 +1182,6 @@
+       }     
+    }
+ 
+-   /** checks if the first token is potentially a class literal, if it is creates an
+-       object scalar for it.  otherwise it is parsed as a normal literal idea */
+-   public void parseSpecialParameters(Token token)
+-   {
+-      TokenList terms   = ParserUtilities.groupByParameterTerm(parser, token);
+-      Token[]   termsAr = terms.getTokens();
+-
+-      for (int x = termsAr.length - 1; x &gt;= 0; x--)
+-      {
+-         if (x == 0)
+-         {
+-            Class aClass = parser.findImportedClass(termsAr[x].toString());
+-
+-            if (aClass == null)
+-            {
+-               parseIdea(termsAr[x]);
+-            }
+-            else
+-            {
+-               Scalar  ascalar = SleepUtils.getScalar(aClass);
+-               Step    atom    = GeneratedSteps.SValue(ascalar);
+-               add(atom, termsAr[x]);
+-
+-               parseIdea(ParserUtilities.makeToken(&quot;'==CLASS=='&quot;, termsAr[x]));
+-            }
+-         }
+-         else
+-         {
+-            parseIdea(termsAr[x]);
+-         }
+-      }
+-   }
+-
+    public void parseParameters(Token token)
+    {
+       TokenList terms   = ParserUtilities.groupByParameterTerm(parser, token);
+
+Added: sleep/tests/output/use2.sl
+===================================================================
+--- sleep/tests/output/use2.sl	2007-06-15 02:38:54 UTC (rev 274)
++++ sleep/tests/output/use2.sl	2007-06-15 14:47:26 UTC (rev 275)
+@@ -0,0 +1,4 @@
++Foo has been called with args: []
++Foo has been called with args: [c, b, a]
++Foo has been called with args: []
++3
+
+Modified: sleep/tests/setfield.sl
+===================================================================
+--- sleep/tests/setfield.sl	2007-06-15 02:38:54 UTC (rev 274)
++++ sleep/tests/setfield.sl	2007-06-15 14:47:26 UTC (rev 275)
+@@ -10,7 +10,7 @@
+ println(&quot;Pre change:&quot;);
+ [$sb1 printValues];
+ 
+-setField(SqueezeBox, aDoubleField =&gt; 4);
++setField(^SqueezeBox, aDoubleField =&gt; 4);
+ [$sb1 printValues];
+ [$sb2 printValues];
+ 
+
+Added: sleep/tests/use2.sl
+===================================================================
+--- sleep/tests/use2.sl	2007-06-15 02:38:54 UTC (rev 274)
++++ sleep/tests/use2.sl	2007-06-15 14:47:26 UTC (rev 275)
+@@ -0,0 +1,14 @@
++#
++# A quick test of the use() function 
++#
++
++# assume we're running this from the toplevel sleep directory.
++
++import org.hick.tests.* from: &quot;./data/test.jar&quot;;
++
++use(^TestLoadable);
++
++foo();
++foo(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;);
++
++println(&quot;Testing: &quot; + foo());
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2007-06-15 02:38:54 UTC (rev 274)
++++ sleep/whatsnew.txt	2007-06-15 14:47:26 UTC (rev 275)
+@@ -16,6 +16,11 @@
+   specified scalars value.  
+ - added the ability to specify a failure message with an assert i.e.:
+   assert &lt;predicate&gt; : &lt;message&gt;; 
++- setField can now accept a class literal as its first argument for
++  updating a static field
++- &amp;use can now accept a class literal as its first argument (safer
++  than specifying bridge as a string as class literals are resolved 
++  at compile time)
+ 
+ 2.1-beta 16  (11 Jun 07)
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000253.html">[Sleep-svn] r274 - in sleep: . src/sleep/parser tests tests/output
+</A></li>
+	<LI>Next message: <A HREF="000255.html">[Sleep-svn] r276 - in sleep: . src/sleep/bridges src/sleep/engine
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#254">[ date ]</a>
+              <a href="thread.html#254">[ thread ]</a>
+              <a href="subject.html#254">[ subject ]</a>
+              <a href="author.html#254">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

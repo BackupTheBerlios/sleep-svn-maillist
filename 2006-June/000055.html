@@ -1,0 +1,163 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r73 - in sleep: . src/sleep/bridges tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2006-June/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r73%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20tests%20tests/output&In-Reply-To=%3C200606170643.k5H6hKRD016811%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000054.html">
+   <LINK REL="Next"  HREF="000056.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r73 - in sleep: . src/sleep/bridges tests tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r73%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20tests%20tests/output&In-Reply-To=%3C200606170643.k5H6hKRD016811%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r73 - in sleep: . src/sleep/bridges tests tests/output">rsmudge at berlios.de
+       </A><BR>
+    <I>Sat Jun 17 08:43:20 CEST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000054.html">[Sleep-svn] r72 - in sleep: . src/sleep/bridges
+</A></li>
+        <LI>Next message: <A HREF="000056.html">[Sleep-svn] r74 - in sleep: . src/sleep/bridges/io
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#55">[ date ]</a>
+              <a href="thread.html#55">[ thread ]</a>
+              <a href="subject.html#55">[ subject ]</a>
+              <a href="author.html#55">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2006-06-17 08:43:19 +0200 (Sat, 17 Jun 2006)
+New Revision: 73
+
+Added:
+   sleep/tests/output/stringf.sl
+   sleep/tests/stringf.sl
+Modified:
+   sleep/src/sleep/bridges/BasicStrings.java
+   sleep/whatsnew.txt
+Log:
+Added &amp;mid function
+
+
+
+Modified: sleep/src/sleep/bridges/BasicStrings.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicStrings.java	2006-06-17 06:21:42 UTC (rev 72)
++++ sleep/src/sleep/bridges/BasicStrings.java	2006-06-17 06:43:19 UTC (rev 73)
+@@ -62,7 +62,11 @@
+         temp.put(&quot;&amp;charAt&quot;,  new func_charAt());
+         temp.put(&quot;&amp;uc&quot;,      new func_uc());
+         temp.put(&quot;&amp;lc&quot;,      new func_lc());
+-        temp.put(&quot;&amp;substr&quot;,  new func_substr());
++
++        func_substr f_substr = new func_substr();
++        temp.put(&quot;&amp;substr&quot;,  f_substr);
++        temp.put(&quot;&amp;mid&quot;,  f_substr);
++
+         temp.put(&quot;&amp;indexOf&quot;, new func_indexOf());
+         temp.put(&quot;&amp;strlen&quot;,  new func_strlen());
+         temp.put(&quot;&amp;strrep&quot;,  new func_strrep());
+@@ -414,10 +418,20 @@
+     {
+         public Scalar evaluate(String n, ScriptInstance i, Stack l)
+         {
+-           String value = l.pop().toString();
+-           int    start = BridgeUtilities.getInt(l);
+-           int    stop  = BridgeUtilities.getInt(l, value.length());
+-          
++           String value = BridgeUtilities.getString(l, &quot;&quot;);
++
++           int start, stop;
++           start = BridgeUtilities.getInt(l);
++
++           if (n.equals(&quot;&amp;mid&quot;))
++           {
++              stop  = BridgeUtilities.getInt(l, value.length() - start) + start;
++           }
++           else
++           {
++              stop  = BridgeUtilities.getInt(l, value.length());
++           }
++                    
+            return SleepUtils.getScalar(value.substring(start, stop));
+         }
+     }
+
+Added: sleep/tests/output/stringf.sl
+===================================================================
+--- sleep/tests/output/stringf.sl	2006-06-17 06:21:42 UTC (rev 72)
++++ sleep/tests/output/stringf.sl	2006-06-17 06:43:19 UTC (rev 73)
+@@ -0,0 +1,6 @@
++Test 1: this a test
++Test 2: this is a function test
++Test 3: is
++Test 4: is a test
++Test 5: a test
++Test 6: te
+
+Added: sleep/tests/stringf.sl
+===================================================================
+--- sleep/tests/stringf.sl	2006-06-17 06:21:42 UTC (rev 72)
++++ sleep/tests/stringf.sl	2006-06-17 06:43:19 UTC (rev 73)
+@@ -0,0 +1,12 @@
++#
++# test some of the string functions
++#
++
++println(&quot;Test 1: &quot; . replaceAt(&quot;this is a test&quot;, &quot;&quot;, 4, 3));
++println(&quot;Test 2: &quot; . replaceAt(&quot;this is a test&quot;, &quot;function &quot;, 10, 0));
++
++println(&quot;Test 3: &quot; . mid(&quot;this is a test&quot;, 5, 2));
++println(&quot;Test 4: &quot; . mid(&quot;this is a test&quot;, 5));
++println(&quot;Test 5: &quot; . substr(&quot;this is a test&quot;, 8));
++println(&quot;Test 6: &quot; . substr(&quot;this is a test&quot;, 10, 12));
++     #                       01234567890123
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-06-17 06:21:42 UTC (rev 72)
++++ sleep/whatsnew.txt	2006-06-17 06:43:19 UTC (rev 73)
+@@ -5,6 +5,8 @@
+   &amp;search(@array, &amp;closure, [index])
+   &amp;filter(@array, &amp;closure)
+ - added &amp;replaceAt(&quot;original&quot;, &quot;new&quot;, index, [chars to delete]);
++- added &amp;mid(&quot;string&quot;, index, n chars) to extract a substring
++  equivalent to &amp;substr(&quot;string&quot;, index, index + n chars) 
+ 
+ 2.1-beta 1
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000054.html">[Sleep-svn] r72 - in sleep: . src/sleep/bridges
+</A></li>
+	<LI>Next message: <A HREF="000056.html">[Sleep-svn] r74 - in sleep: . src/sleep/bridges/io
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#55">[ date ]</a>
+              <a href="thread.html#55">[ thread ]</a>
+              <a href="subject.html#55">[ subject ]</a>
+              <a href="author.html#55">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

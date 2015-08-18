@@ -1,0 +1,3459 @@
+From rsmudge at mail.berlios.de  Sat Aug  5 07:21:18 2006
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Sat, 5 Aug 2006 07:21:18 +0200
+Subject: [Sleep-svn] r86 - in sleep: . docs src/sleep/bridges
+	src/sleep/bridges/io
+Message-ID: <200608050521.k755LI8W013085@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-08-05 07:20:58 +0200 (Sat, 05 Aug 2006)
+New Revision: 86
+
+Modified:
+   sleep/docs/sleepguide.html
+   sleep/docs/sleeplang.html
+   sleep/src/sleep/bridges/BasicIO.java
+   sleep/src/sleep/bridges/io/IOObject.java
+   sleep/whatsnew.txt
+Log:
+Lots of work on the I/O stuff, reworked the read/write pipelines, made all writes autoflush, and added an available()
+function to allow scripts to poll I/O handles.
+
+
+
+Modified: sleep/docs/sleepguide.html
+===================================================================
+--- sleep/docs/sleepguide.html	2006-06-17 23:04:44 UTC (rev 85)
++++ sleep/docs/sleepguide.html	2006-08-05 05:20:58 UTC (rev 86)
+@@ -49,8 +49,8 @@
+    <ul>
+    <li><a href="#3a.1">The Input/Output World</a></li>
+    <li><a href="#3a.2">The IOObject Class</a></li>
+-   <li><a href="#3a.2">An IO Source Implementation</a></li>
+-   <li><a href="#3a.2">An IO Bridge</a></li>
++   <li><a href="#3a.3">An IO Source Implementation</a></li>
++   <li><a href="#3a.4">An IO Bridge</a></li>
+    </ul>
+ <li><a href="#3">Part 4: Working with Scalars</a></li>
+    <ul>
+
+Modified: sleep/docs/sleeplang.html
+===================================================================
+--- sleep/docs/sleeplang.html	2006-06-17 23:04:44 UTC (rev 85)
++++ sleep/docs/sleeplang.html	2006-08-05 05:20:58 UTC (rev 86)
+@@ -1020,6 +1020,8 @@
+ is required use the getConsole() function.  The predicate operator -eof is one such case where a handle must always be 
+ specified.</p>
+ 
++<p>Sleep I/O read functions return the empty scalar $null to indicate the read operation failed.</p>
++
+ <p>To write data to a file you have to first open the file for writing.</p>
+    
+ <pre>$handle = openf(">>/etc/passwd");
+@@ -1916,6 +1918,18 @@
+   <th>Description</th>
+  </tr>  
+  <tr>
++  <td>$</td>
++  <td>available([$handle])</td>
++  <td>returns the number of bytes available for reading from $handle</td>
++ </tr>
++ <tr>
++  <td>$</td>
++  <td>available($handle, "delim")</td>
++  <td>reads ahead in the specified handle looking to see if the specified delimeter string is present in the read
++      buffer or not.  this operation uses mark and reset (meaning it will invalidate any mark you may have set on 
++      the specified handle).</td>
++ </tr>
++ <tr>
+   <td>@</td>
+   <td>bread([$handle], 'format')</td>
+   <td>reads data from $handle.  Returned as a scalar array with types specified by the format string</td>
+
+Modified: sleep/src/sleep/bridges/BasicIO.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicIO.java	2006-06-17 23:04:44 UTC (rev 85)
++++ sleep/src/sleep/bridges/BasicIO.java	2006-08-05 05:20:58 UTC (rev 86)
+@@ -77,6 +77,7 @@
+         temp.put("&pack",       new pack());
+         temp.put("&unpack",     new unpack());
+ 
++        temp.put("&available",  new available());
+         temp.put("&mark",       new mark());
+         temp.put("&skip",       new skip());
+         temp.put("&reset",      new reset());
+@@ -248,7 +249,7 @@
+ 
+           if (temp == null)
+           {
+-             temp = "EOF";
++             return SleepUtils.getEmptyScalar();
+           }
+ 
+           return SleepUtils.getScalar(temp);
+@@ -726,19 +727,57 @@
+        public Scalar evaluate(String n, ScriptInstance i, Stack l)
+        {
+           IOObject        a = chooseSource(l, 2);
+-          a.getReader().mark(BridgeUtilities.getInt(l, 1024 * 10 * 10));
++          a.getInputBuffer().mark(BridgeUtilities.getInt(l, 1024 * 10 * 10));
+ 
+           return SleepUtils.getEmptyScalar();
+        }
+     }
+ 
++    private static class available implements Function
++    {
++       public Scalar evaluate(String n, ScriptInstance i, Stack l)
++       {
++          try
++          {
++             IOObject        a = chooseSource(l, 1);
++
++             if (l.isEmpty())
++             {
++                return SleepUtils.getScalar(a.getInputBuffer().available());
++             }
++             else
++             {
++                String delim = BridgeUtilities.getString(l, "\n");
++
++                StringBuffer temp = new StringBuffer();
++
++                int x = 0;
++                int y = a.getInputBuffer().available();
++
++                a.getInputBuffer().mark(y);
++                
++                while (x < y)
++                {
++                   temp.append((char)a.getReader().readUnsignedByte());
++                   x++;
++                }
++
++                a.getInputBuffer().reset();
++      
++                return SleepUtils.getScalar(temp.indexOf(delim) > -1);
++             }
++          }
++          catch (Exception ex) { return SleepUtils.getEmptyScalar(); }
++       }
++    }
++
+     private static class skip implements Function
+     {
+        public Scalar evaluate(String n, ScriptInstance i, Stack l)
+        {
+           try {
+           IOObject        a = chooseSource(l, 2);
+-          a.getReader().skip(BridgeUtilities.getLong(l, 0));
++          a.getInputBuffer().skip(BridgeUtilities.getLong(l, 0));
+           } catch (Exception ex) { }
+ 
+           return SleepUtils.getEmptyScalar();
+@@ -751,7 +790,7 @@
+        {
+           try {
+           IOObject        a = chooseSource(l, 1);
+-          a.getReader().reset();
++          a.getInputBuffer().reset();
+           } catch (Exception ex) { }
+ 
+           return SleepUtils.getEmptyScalar();
+
+Modified: sleep/src/sleep/bridges/io/IOObject.java
+===================================================================
+--- sleep/src/sleep/bridges/io/IOObject.java	2006-06-17 23:04:44 UTC (rev 85)
++++ sleep/src/sleep/bridges/io/IOObject.java	2006-08-05 05:20:58 UTC (rev 86)
+@@ -13,26 +13,28 @@
+  *
+  *  <p>The pipeline for reading data looks like this:</p>
+  *
+- *  <pre>BufferedReader <- DataInputStream <- Original Input Stream</pre>
++ *  <pre>DataInputStream <- BufferedInputStream <- Original Input Stream</pre>
+  *
+  *  <p>The pipeline for writing data is:</p>
+  *
+- *  <pre>PrintWriter -> DataOutputStream -> Original Output Stream</pre>
++ *  <pre>DataOutputStream -> Original Output Stream</pre>
+  */
+ 
+ public class IOObject
+ {
+    private static IOObject console = null;
+ 
+-   protected InputStream     in       = null;
+-   protected OutputStream    out      = null;
++   /* input pipeline */ 
+ 
+-   protected BufferedReader  reader   = null;
+-   protected PrintWriter     writer   = null;
++   protected DataInputStream     readerb = null; /* used to support the binary read/write stuffz */
++   protected BufferedInputStream reader  = null; /* used to support mark and reset functionality y0 */
++   protected InputStream         in      = null; /* the original stream, love it, hold it... yeah right */
+ 
+-   protected DataInputStream  readerb = null;
+-   protected DataOutputStream writerb = null;
++   /* output pipeline */
+ 
++   protected DataOutputStream writerb = null; /* high level method for writing stuff out, fun fun fun */
++   protected OutputStream     out     = null; /* original output stream */
++
+    protected Thread           thread  = null;
+    protected Scalar           token   = null;
+ 
+@@ -97,8 +99,8 @@
+       
+       if (in != null)
+       {
+-         readerb = new DataInputStream(in);
+-         reader  = new BufferedReader(new InputStreamReader(readerb));
++         reader  = new BufferedInputStream(in);
++         readerb = new DataInputStream(reader);
+       }
+    }
+ 
+@@ -110,7 +112,6 @@
+       if (out != null)
+       {
+          writerb = new DataOutputStream(out);
+-         writer  = new PrintWriter(writerb, true);
+       }
+    }
+ 
+@@ -128,9 +129,6 @@
+          if (readerb != null)
+            readerb.close();
+ 
+-         if (writer != null)
+-           writer.close();
+-
+          if (writerb != null)
+            writerb.close();
+ 
+@@ -149,7 +147,6 @@
+          in     = null;
+          out    = null;
+          reader = null;
+-         writer = null;
+          readerb = null;
+          writerb = null;
+       }
+@@ -160,19 +157,25 @@
+    {
+       try
+       {
+-         if (reader != null)
++         if (readerb != null)
+          {
+-            String temp = reader.readLine();
++            String temp = readerb.readLine(); /* deprecated, I know, but it has the behavior I want */
+ 
+             if (temp == null)
+-              reader = null;
++            {
++               readerb = null;
++               reader  = null;
++            }
+ 
+             return temp;
+          }
+       }
+-      catch (Exception ex) { }
++      catch (Exception ex) 
++      { 
++         readerb = null;
++         reader  = null;
++      }
+ 
+-      reader = null;
+       return null;
+    }
+ 
+@@ -185,9 +188,6 @@
+    /** Closes down the output streams effectively sending an end of file message to the reading end. */
+    public void sendEOF()
+    {
+-      if (writer != null)
+-        writer.close();
+-
+       try
+       {
+          if (writerb != null)
+@@ -200,17 +200,11 @@
+    }
+  
+    /** Returns the ascii data reader */
+-   public BufferedReader getPrimaryReader()
++   public BufferedInputStream getInputBuffer()
+    {
+        return reader;
+    }
+ 
+-   /** Returns the ascii data writer */
+-   public PrintWriter getPrimaryWriter()
+-   {
+-       return writer;
+-   }
+-
+    /** Returns the binary data reader */
+    public DataInputStream getReader()
+    {
+@@ -223,22 +217,32 @@
+        return writerb;
+    }
+ 
++   private static final String lineSeparator = System.getProperty("line.separator");
++
+    /** Prints out a line of text with a newline character appended */
+    public void printLine(String text)
+    {
+-      if (writer != null)
+-      {
+-         writer.println(text);
+-      }
++      print(text + lineSeparator);
+    }
+ 
+    /** Prints out a line of text with no newline character appended */
+    public void print(String text)
+    {
+-      if (writer != null)
++      if (writerb != null)
+       {
+-         writer.print(text);
+-         writer.flush();
++         try
++         {
++            for (int x = 0; x < text.length(); x++)
++            {
++               writerb.writeByte((byte)text.charAt(x));
++            }
++
++            writerb.flush(); /* we don't know if the underlying stream does this or not, so we'll force it */
++         }
++         catch (Exception ex)
++         {
++            writerb = null;
++         }
+       }
+    }
+ }
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-06-17 23:04:44 UTC (rev 85)
++++ sleep/whatsnew.txt	2006-08-05 05:20:58 UTC (rev 86)
+@@ -37,7 +37,23 @@
+   @ retainAll(@a, @b) - modifies @a to contain the intersection of @a and @b
+ - added methods to SleepUtils to generate a java.util.Map from a 
+   Sleep Hash scalar and to generate a java.util.List from a Sleep Array.
++- readln in Sleep I/O now returns the empty scalar at the end of the stream
++  this can be checked for using is.. i.e.
+ 
++  $temp = readln($handle);
++  while ($temp !is $null)
++  {
++     # do something with $temp
++     $temp = readln($temp);
++  }
++
++- sleep I/O streams now autoflush on all writes.  this should solve many
++  frustrations that the I/O pipeline has occasionally caused scripters.
++- added &available($handle) to determine the number of available bytes 
++  for a given stream.  also an option is &available($handle, "substring")
++  to determine if the specified "substring" is contained in the data
++  available to be read.
++
+ 2.1-beta 1
+ ===========
+ - fixed the clean target in the sleep build.xml file
+
+
+
+From rsmudge at mail.berlios.de  Sun Aug  6 02:07:41 2006
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Sun, 6 Aug 2006 02:07:41 +0200
+Subject: [Sleep-svn] r87 - in sleep: . docs src/sleep/console
+	src/sleep/error src/sleep/parser src/sleep/runtime tests
+	tests/output
+Message-ID: <200608060007.k7607fpH020924@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-08-06 02:07:11 +0200 (Sun, 06 Aug 2006)
+New Revision: 87
+
+Added:
+   sleep/tests/output/while2.sl
+   sleep/tests/while2.sl
+Modified:
+   sleep/docs/sleeplang.html
+   sleep/src/sleep/console/ConsoleImplementation.java
+   sleep/src/sleep/error/YourCodeSucksException.java
+   sleep/src/sleep/parser/Checkers.java
+   sleep/src/sleep/parser/CodeGenerator.java
+   sleep/src/sleep/parser/ParserConstants.java
+   sleep/src/sleep/parser/TokenParser.java
+   sleep/src/sleep/runtime/ScriptEnvironment.java
+   sleep/whatsnew.txt
+Log:
+added assignment loops by extending the potential syntax for while loops.
+
+
+
+Modified: sleep/docs/sleeplang.html
+===================================================================
+--- sleep/docs/sleeplang.html	2006-08-05 05:20:58 UTC (rev 86)
++++ sleep/docs/sleeplang.html	2006-08-06 00:07:11 UTC (rev 87)
+@@ -455,6 +455,30 @@
+ 
+ <pre>for ($x = 0; $x < 100; $x = $x + 1) { }</pre>
+ 
++<h3>Assignment Loops</h3>
++
++<p>While loops can be used in another way.  Namely to assign the results of an expression to a scalar and then execute
++a series of commands while the specified expression does not evaluate to $null.</p>
++
++<p>The syntax for these assignment loops looks like:</p>
++
++<pre>while <b>$variable</b> (<b>expression</b>) { <b>commands</b> }</pre>
++
++<p>This form of a while loop has numerous uses including easily reading from a file.  For example:</p>
++
++<pre>$handle = openf("myfile.txt");
++while $text (readln($handle))
++{
++   println("Read a line of text from myfile.txt: $text");
++}</pre>
++
++<p>In the example above, myfile.txt is opened and the handle is assigned to $handle.  readln is then continuously called
++on $handle and the result assigned to $text.  Each time this happens the print function in the body of the loop is called.
++When there is no more text to be read the function readln returns $null.  When this happens the loop finishes.</p>
++
++<p>Assignment loops are used to iterate over any type of expression where as foreach loops are used to iterate over any
++type of collection of date.  The assignment loop is the flexible cousin of the foreach loop.</p>
++
+ <h3>The Break Command</h3>
+ 
+ <p>Sometimes you may want to end a loop before it has completed.  An easy way to do this is with the break command.</p>
+@@ -683,6 +707,9 @@
+ <p>The current element of a foreach loop can be removed by calling <code>remove()</code> with no parameters.  This only works 
+ when iterating over an <var>@array</var>.</p>
+ 
++<p>Foreach loops can also iterate over closures.  This use of foreach loops is described when closures and coroutines are
++described in the <a href="#10a">closures section</a>.</p>
++
+ <h3>Arrays as Stacks</h3>
+ 
+ <p>A stack is a data structure that has a push and pop operation.  Push puts data on top of the stack.  Pop takes data off the 
+@@ -1549,6 +1576,10 @@
+ Value is 998
+ Value is 999</pre>
+ 
++<p>This use of foreach is a limited version of the assignment loops using the extended while syntax.  Assignment loops
++evaluate an expression each iteration of a loop where as foreach is iterating over a closure reference.  The difference is
++pretty much in the implementation, the end result is the same.</p>
++
+ <a name="11"><h2>Function Library</h2></a>
+ 
+ <p>This appendix is a list of the application neutral built-in functions for sleep.  I expect this list to grow as time goes on.  
+
+Modified: sleep/src/sleep/console/ConsoleImplementation.java
+===================================================================
+--- sleep/src/sleep/console/ConsoleImplementation.java	2006-08-05 05:20:58 UTC (rev 86)
++++ sleep/src/sleep/console/ConsoleImplementation.java	2006-08-06 00:07:11 UTC (rev 87)
+@@ -409,17 +409,7 @@
+    /** a convienence method that formats and writes each syntax error to the proxy output */
+    public void processScriptErrors(YourCodeSucksException ex)
+    {
+-      LinkedList errors = ex.getErrors();
+-      Iterator i = errors.iterator();
+-      while (i.hasNext())
+-      {
+-         SyntaxError anError = (SyntaxError)i.next();
+-         getProxy().consolePrintln("Error: " + anError.getDescription() + " at line " + anError.getLineNumber());
+-         getProxy().consolePrintln("       " + anError.getCodeSnippet());
+-                         
+-         if (anError.getMarker() != null)
+-           getProxy().consolePrintln("       " + anError.getMarker());
+-      }
++      getProxy().consolePrint(ex.formatErrors());
+    }
+ 
+    public void processScriptWarning(ScriptWarning warning)
+
+Modified: sleep/src/sleep/error/YourCodeSucksException.java
+===================================================================
+--- sleep/src/sleep/error/YourCodeSucksException.java	2006-08-05 05:20:58 UTC (rev 86)
++++ sleep/src/sleep/error/YourCodeSucksException.java	2006-08-06 00:07:11 UTC (rev 87)
+@@ -17,6 +17,7 @@
+ package sleep.error;
+ 
+ import java.util.*;
++import java.io.*;
+ 
+ /**
+  * Syntax errors are a reality of programming.  Any time a syntax error occurs when attempting to load a script the 
+@@ -76,12 +77,40 @@
+        return buf.toString();
+     }
+ 
+-    /** Returns a string representation of the errors within this exception */
++    /** Returns a simple string representation of the errors within this exception */
+     public String toString()
+     {
+        return "YourCodeSucksException: " + getMessage();
+     }
+ 
++    /** print a nicely formatted version of the script errors to the specified stream */
++    public void printErrors(OutputStream out)
++    {
++       PrintWriter pout = new PrintWriter(out);
++       pout.print(formatErrors());
++       pout.flush();
++    }
++
++    /** generate a nicely formatted string representation of the script errors in this exception */
++    public String formatErrors()
++    {
++       StringBuffer representation = new StringBuffer();
++
++       LinkedList errors = getErrors();
++       Iterator i = errors.iterator();
++       while (i.hasNext())
++       {
++           SyntaxError anError = (SyntaxError)i.next();
++           representation.append("Error: " + anError.getDescription() + " at line " + anError.getLineNumber() + "\n");
++           representation.append("       " + anError.getCodeSnippet() + "\n");
++
++           if (anError.getMarker() != null)
++             representation.append("       " + anError.getMarker() + "\n");
++       }
++
++       return representation.toString();
++    }
++
+     /** All of the errors are stored in a linked list.  The linked list contains {@link sleep.error.SyntaxError SyntaxError} objects. */
+     public LinkedList getErrors()
+     {
+
+Modified: sleep/src/sleep/parser/Checkers.java
+===================================================================
+--- sleep/src/sleep/parser/Checkers.java	2006-08-05 05:20:58 UTC (rev 86)
++++ sleep/src/sleep/parser/Checkers.java	2006-08-06 00:07:11 UTC (rev 87)
+@@ -206,6 +206,11 @@
+        return true;
+    }
+ 
++   public static final boolean isSpecialWhile(String a, String b, String c, String d)
++   {
++       return isWhile(a, c, d) && isVariable(b);
++   }
++
+    public static final boolean isWhile (String a, String b, String c)
+    {
+        return (a.equals("while") && isExpression(b) && isBlock(c));
+
+Modified: sleep/src/sleep/parser/CodeGenerator.java
+===================================================================
+--- sleep/src/sleep/parser/CodeGenerator.java	2006-08-05 05:20:58 UTC (rev 86)
++++ sleep/src/sleep/parser/CodeGenerator.java	2006-08-06 00:07:11 UTC (rev 87)
+@@ -789,6 +789,35 @@
+            atom = GeneratedSteps.Goto(parsePredicate(ParserUtilities.extract(tokens[1])), restore(), null);
+            add(atom, tokens[1]);
+            break;
++         case EXPR_WHILE_SPECIAL:                                        // done
++           /* 0 = while
++              1 = $var
++              2 = (expression) 
++              3 = {block} */
++
++           // handle the actual block of code
++           backup();
++           parseBlock(tokens[3]);    
++           b = restore(); 
++
++           // handle the assignment step please (Assign will push the RHS onto the stack)
++           backup();
++
++           atom = GeneratedSteps.CreateFrame(); /* overall create the frame please */
++           add(atom, tokens[0]);
++        
++           parseBlock(new Token(strings[1] + " = " + strings[2] + ";", tokens[2].getHint()));
++           
++           // push $null onto the current frame as well...
++           add(GeneratedSteps.SValue(SleepUtils.getEmptyScalar()), tokens[2]);
++
++           a = restore();
++
++           // dew the lewp while the assigned value is not $null
++           atom = GeneratedSteps.Goto(new Check("!is", a), b, null);
++           add(atom, tokens[1]);
++
++           break;
+          case EXPR_ASSIGNMENT_T:                                  // implemented
+            atom = GeneratedSteps.CreateFrame();
+            add(atom, tokens[0]);
+
+Modified: sleep/src/sleep/parser/ParserConstants.java
+===================================================================
+--- sleep/src/sleep/parser/ParserConstants.java	2006-08-05 05:20:58 UTC (rev 86)
++++ sleep/src/sleep/parser/ParserConstants.java	2006-08-06 00:07:11 UTC (rev 87)
+@@ -2,26 +2,27 @@
+ 
+ public interface ParserConstants
+ {
+-   public static final int EXPR_BLOCK        = 150;       
+-   public static final int EXPR_WHILE        = 100;       
+-   public static final int EXPR_ASSIGNMENT   = 200;
+-   public static final int EXPR_ASSIGNMENT_T = 202;
+-   public static final int EXPR_IF           = 300;
+-   public static final int EXPR_IF_ELSE      = 301;
+-   public static final int EXPR_FOREACH      = 400;
+-   public static final int EXPR_FOR          = 401;
++   public static final int EXPR_BLOCK           = 150;       
++   public static final int EXPR_WHILE           = 100;
++   public static final int EXPR_WHILE_SPECIAL   = 101;       
++   public static final int EXPR_ASSIGNMENT      = 200;
++   public static final int EXPR_ASSIGNMENT_T    = 202;
++   public static final int EXPR_IF              = 300;
++   public static final int EXPR_IF_ELSE         = 301;
++   public static final int EXPR_FOREACH         = 400;
++   public static final int EXPR_FOR             = 401;
+    public static final int EXPR_FOREACH_SPECIAL = 402;
+-   public static final int EXPR_RETURN       = 500;
+-   public static final int EXPR_BREAK        = 501;
+-   public static final int EXPR_BIND         = 502;
+-   public static final int EXPR_ESCAPE       = 503;
+-   public static final int EXPR_BIND_PRED    = 504;
+-   public static final int EXPR_BIND_FILTER  = 505;
++   public static final int EXPR_RETURN          = 500;
++   public static final int EXPR_BREAK           = 501;
++   public static final int EXPR_BIND            = 502;
++   public static final int EXPR_ESCAPE          = 503;
++   public static final int EXPR_BIND_PRED       = 504;
++   public static final int EXPR_BIND_FILTER     = 505;
+ 
+-   public static final int EXPR_EVAL_STRING  = 506; // used for `backtick` strings that do something cool :)
++   public static final int EXPR_EVAL_STRING     = 506; // used for `backtick` strings that do something cool :)
+  
+-   public static final int IDEA_EXPR       = 601;
+-   public static final int IDEA_OPER       = 603;
++   public static final int IDEA_EXPR            = 601;
++   public static final int IDEA_OPER            = 603;
+    public static final int IDEA_FUNC       = 604;
+    public static final int IDEA_STRING     = 605;
+    public static final int IDEA_LITERAL    = 606;
+
+Modified: sleep/src/sleep/parser/TokenParser.java
+===================================================================
+--- sleep/src/sleep/parser/TokenParser.java	2006-08-05 05:20:58 UTC (rev 86)
++++ sleep/src/sleep/parser/TokenParser.java	2006-08-06 00:07:11 UTC (rev 87)
+@@ -484,6 +484,15 @@
+             myToken.add(tokens[x+5]);
+             x += 5;
+          }
++         else if ((x + 3) < tokens.length && Checkers.isSpecialWhile(strings[x], strings[x+1], strings[x+2], strings[x+3]))
++         {
++            myToken.setType(EXPR_WHILE_SPECIAL);
++            myToken.add(tokens[x]);
++            myToken.add(tokens[x+1]);
++            myToken.add(tokens[x+2]);
++            myToken.add(tokens[x+3]);
++            x += 3;
++         }
+          else if ((x + 3) < tokens.length && Checkers.isForeach(strings[x], strings[x+1], strings[x+2], strings[x+3]))
+          {
+             myToken.setType(EXPR_FOREACH);
+
+Modified: sleep/src/sleep/runtime/ScriptEnvironment.java
+===================================================================
+--- sleep/src/sleep/runtime/ScriptEnvironment.java	2006-08-05 05:20:58 UTC (rev 86)
++++ sleep/src/sleep/runtime/ScriptEnvironment.java	2006-08-06 00:07:11 UTC (rev 87)
+@@ -384,6 +384,7 @@
+        return (Stack)frames.get(findex);    
+     }
+ 
++    /** kills the current frame and if there is a parent frame pushes the specified value on to it */
+     public void FrameResult(Scalar value)
+     {
+        KillFrame();
+
+Added: sleep/tests/output/while2.sl
+===================================================================
+--- sleep/tests/output/while2.sl	2006-08-05 05:20:58 UTC (rev 86)
++++ sleep/tests/output/while2.sl	2006-08-06 00:07:11 UTC (rev 87)
+@@ -0,0 +1,57 @@
++The repeat function has been called
++Testing new while syntax: 0
++The repeat function has been called
++Testing new while syntax: 1
++The repeat function has been called
++Testing new while syntax: 2
++The repeat function has been called
++Testing new while syntax: 3
++The repeat function has been called
++Testing new while syntax: 4
++The repeat function has been called
++Testing new while syntax: 5
++The repeat function has been called
++Testing new while syntax: 6
++The repeat function has been called
++Testing new while syntax: 7
++The repeat function has been called
++Testing new while syntax: 8
++The repeat function has been called
++Testing new while syntax: 9
++The repeat function has been called
++Read: #
++Read: # test the extended syntax for while loops...
++Read: #
++Read: 
++Read: sub callto
++Read: {
++Read:    this('$x');
++Read:    $x = 0;
++Read:    while ($x < $1)
++Read:    {
++Read:       yield $x;
++Read:       $x++;
++Read:    }
++Read: 
++Read:    return $null;
++Read: }
++Read: 
++Read: sub repeat
++Read: {
++Read:    println("The repeat function has been called");
++Read:    return 10;
++Read: }
++Read: 
++Read: while $check (callto(repeat()))
++Read: {
++Read:    println("Testing new while syntax: $check");
++Read: }
++Read: 
++Read: # test 2.
++Read: 
++Read: $handle = openf("while2.sl");
++Read: 
++Read: while $value (readln($handle))
++Read: {
++Read:    println("Read: $value");
++Read: }
+
+Added: sleep/tests/while2.sl
+===================================================================
+--- sleep/tests/while2.sl	2006-08-05 05:20:58 UTC (rev 86)
++++ sleep/tests/while2.sl	2006-08-06 00:07:11 UTC (rev 87)
+@@ -0,0 +1,36 @@
++#
++# test the extended syntax for while loops...
++#
++
++sub callto
++{
++   this('$x');
++   $x = 0;
++   while ($x < $1)
++   {
++      yield $x;
++      $x++;
++   }
++
++   return $null;
++}
++
++sub repeat
++{
++   println("The repeat function has been called");
++   return 10;
++}
++
++while $check (callto(repeat()))
++{
++   println("Testing new while syntax: $check");
++}
++
++# test 2.
++
++$handle = openf("while2.sl");
++
++while $value (readln($handle))
++{
++   println("Read: $value");
++}
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-08-05 05:20:58 UTC (rev 86)
++++ sleep/whatsnew.txt	2006-08-06 00:07:11 UTC (rev 87)
+@@ -5,55 +5,54 @@
+   &search(@array, &closure, [index])
+   &filter(@array, &closure)
+ - added &replaceAt("original", "new", index, [chars to delete]);
+-- added &mid("string", index, n chars) to extract a substring
+-  equivalent to &substr("string", index, index + n chars) 
+-- exposed the IO Process, File, and Socket using a new method
+-  added to IOObject: getSource().  This will allow scripters to
+-  query the IO source using HOES if there is some API Sleep does
+-  not bridge. (i.e. exit value of a process)
+-- added an API to SleepUtils for building an IO handle scalar 
+-  from a Java InputStream/OutputStream
+-- added a debug flag to each script instance.  the options consist 
+-  of:
+-  DEBUG_SHOW_ERRORS = 1 - this is the typical behavior that causes
+-     a runtime warning to be fired whenever an uncaught exception
+-     occurs within a bridge.
++- added &mid("string", index, n chars) to extract a substring equivalent to 
++  &substr("string", index, index + n chars) 
++- exposed the IO Process, File, and Socket using a new method added to 
++  IOObject: getSource().  This will allow scripters to query the IO source 
++  using HOES if there is some API Sleep does not bridge. (i.e. exit value of a
++  process)
++- added an API to SleepUtils for building an IO handle scalar from a Java 
++  InputStream/OutputStream
++- added a debug flag to each script instance.  the options consist of:
++
++  DEBUG_SHOW_ERRORS = 1 - this is the typical behavior that causes a runtime 
++     warning to be fired whenever an uncaught exception occurs within a bridge.
+   DEBUG_SHOW_WARNINGS = 2 - fires a runtime warning any time an error
+-     is flagged using flagError() in the script environment.  
+-     runtime warnings are typically errors a scripter is meant to
+-     check for with checkError($error).  
+-  DEBUG_NONE = 0 - disables all firing of runtime warnings (not 
+-     recommended)
++     is flagged using flagError() in the script environment.  runtime warnings
++     are typically errors a scripter is meant to check for with 
++     checkError($error).  
++  DEBUG_NONE = 0 - disables all firing of runtime warnings (not recommended)
+ 
+-  Sleep scripts on the command line can run with different debug 
+-  levels using:
++  Sleep scripts on the command line can run with different debug levels using:
+   java -Dsleep.debug=3 -jar sleep.jar filename.sl
+-- foreach can now iterate over closures..  if a closure is passed to
+-  foreach then the closure will be called continuously until a $null
+-  is returned.
++- foreach can now iterate over closures..  if a closure is passed to foreach 
++  then the closure will be called continuously until a $null is returned.
+ - added a few functions for performing set type operations on @arrays
+   @ removeAll(@a, @b) - modifies @a with the difference of @a - @b
+   @ addAll(@a, @b) - modifies @a with the union of @a + @b
+   @ retainAll(@a, @b) - modifies @a to contain the intersection of @a and @b
+-- added methods to SleepUtils to generate a java.util.Map from a 
+-  Sleep Hash scalar and to generate a java.util.List from a Sleep Array.
++- added methods to SleepUtils to generate a java.util.Map from a Sleep Hash 
++  scalar and to generate a java.util.List from a Sleep Array.
+ - readln in Sleep I/O now returns the empty scalar at the end of the stream
+-  this can be checked for using is.. i.e.
+-
+-  $temp = readln($handle);
+-  while ($temp !is $null)
+-  {
+-     # do something with $temp
+-     $temp = readln($temp);
+-  }
+-
+ - sleep I/O streams now autoflush on all writes.  this should solve many
+   frustrations that the I/O pipeline has occasionally caused scripters.
+-- added &available($handle) to determine the number of available bytes 
+-  for a given stream.  also an option is &available($handle, "substring")
+-  to determine if the specified "substring" is contained in the data
+-  available to be read.
++- added &available($handle) to determine the number of available bytes for a 
++  given stream.  also an option is &available($handle, "substring") to 
++  determine if the specified "substring" is contained in the data available to
++  be read.
++- added an extended version of the while loop that continuously evaluates an 
++  expression, assigns it to a variable, and executes a block of code so long as
++  the specified variable is not null.  example:
+ 
++  $handle = openf("somefile.txt");
++  while $data (readln($handle))
++  {
++     println("Read: $data");
++  } 
++- added formatErrors() and printErrors(OutputStream out) functions to the
++  YourCodeSucksException class.   should make reporting parser errors less of
++  a burden when embedding sleep into applications.
++
+ 2.1-beta 1
+ ===========
+ - fixed the clean target in the sleep build.xml file
+
+
+
+From rsmudge at mail.berlios.de  Sun Aug  6 02:08:29 2006
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Sun, 6 Aug 2006 02:08:29 +0200
+Subject: [Sleep-svn] r88 - sleep
+Message-ID: <200608060008.k7608TF7021273@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-08-06 02:08:28 +0200 (Sun, 06 Aug 2006)
+New Revision: 88
+
+Modified:
+   sleep/readme.txt
+Log:
+updated the readme 
+
+
+
+Modified: sleep/readme.txt
+===================================================================
+--- sleep/readme.txt	2006-08-06 00:07:11 UTC (rev 87)
++++ sleep/readme.txt	2006-08-06 00:08:28 UTC (rev 88)
+@@ -1,5 +1,5 @@
+  ------- -------------------- ---------   ---------------  ------- ---------
+-Sleep - 2.1 beta 1 - README   
++Sleep - 2.1 beta 2 - README   
+ -  ------------- -------- -   ---------------- --       -    -     -     - - -
+ 
+ "You got the language, all you need now is the O'Reilly book".  That is
+@@ -31,13 +31,13 @@
+ 
+ Contained in the docs/ directory:
+ 
+-sleeplang.pdf
++sleeplang.htm
+    A tutorial on the sleep language from an end-users perspective.  Covers
+    the basic language constructs, built in functions, and relevant 
+    background information.  Fun for the whole family.  Now in its 6th 
+    revision. 
+ 
+-sleepguide.pdf
++sleepguide.htm
+    This document is a guide to integrating the sleep language into your
+    application.  Part 1 of this document is an absolute must read if you plan 
+    to integrate sleep into your application.
+
+
+
+From rsmudge at mail.berlios.de  Sun Aug  6 02:23:48 2006
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Sun, 6 Aug 2006 02:23:48 +0200
+Subject: [Sleep-svn] r89 - sleep/tests
+Message-ID: <200608060023.k760Nm1o026404@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-08-06 02:23:41 +0200 (Sun, 06 Aug 2006)
+New Revision: 89
+
+Modified:
+   sleep/tests/test.pl
+   sleep/tests/use.sl
+Log:
+smoothed some issues out with the test script.
+
+
+
+Modified: sleep/tests/test.pl
+===================================================================
+--- sleep/tests/test.pl	2006-08-06 00:08:28 UTC (rev 88)
++++ sleep/tests/test.pl	2006-08-06 00:23:41 UTC (rev 89)
+@@ -23,23 +23,21 @@
+    `mkdir output`;
+ }
+ 
+-chdir("..");
+-
+ foreach $var (@files)
+ {
+    $PROPS = "";
+    if ($var eq "debugce.sl") { $PROPS = "-Dsleep.debug=3"; }
+ 
+-   if (!-e "./tests/output/$var")
++   if (!-e "./output/$var")
+    {
+-      `java $PROPS -jar sleep.jar ./tests/$var >./tests/output/$var`;
++      `java $PROPS -jar ../sleep.jar ./$var >./output/$var`;
+       push @errors, "$var output does not exist, creating it";
+    }
+    else
+    {
+-      $expected_value = join("", `cat ./tests/output/$var`);
++      $expected_value = join("", `cat ./output/$var`);
+ 
+-      $script_value   = join("", `java $PROPS -jar sleep.jar ./tests/$var`);
++      $script_value   = join("", `java $PROPS -jar ../sleep.jar ./$var`);
+ 
+       if ($expected_value ne $script_value)
+       {
+@@ -47,7 +45,7 @@
+ 
+          if ($ARGV[0] eq "-dump")
+          {
+-            print "\njava -classpath . sleep.console.TextConsole ../tests/$var\n";
++            print "\njava $PROPS -jar ../sleep.jar ./$var\n";
+             print "\n".$script_value."\n";
+          }
+       }  
+
+Modified: sleep/tests/use.sl
+===================================================================
+--- sleep/tests/use.sl	2006-08-06 00:08:28 UTC (rev 88)
++++ sleep/tests/use.sl	2006-08-06 00:23:41 UTC (rev 89)
+@@ -4,7 +4,7 @@
+ 
+ # assume we're running this from the toplevel sleep directory.
+ 
+-use("tests/data/test.jar", "org.hick.tests.TestLoadable");
++use("./data/test.jar", "org.hick.tests.TestLoadable");
+ 
+ if (checkError($error))
+ {
+
+
+
+From rsmudge at mail.berlios.de  Sun Aug  6 03:01:31 2006
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Sun, 6 Aug 2006 03:01:31 +0200
+Subject: [Sleep-svn] r90 - sleep/src/sleep/runtime
+Message-ID: <200608060101.k7611V7S001779@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-08-06 03:01:06 +0200 (Sun, 06 Aug 2006)
+New Revision: 90
+
+Modified:
+   sleep/src/sleep/runtime/SleepUtils.java
+Log:
+Forgot to update the version number.
+
+
+
+Modified: sleep/src/sleep/runtime/SleepUtils.java
+===================================================================
+--- sleep/src/sleep/runtime/SleepUtils.java	2006-08-06 00:23:41 UTC (rev 89)
++++ sleep/src/sleep/runtime/SleepUtils.java	2006-08-06 01:01:06 UTC (rev 90)
+@@ -50,7 +50,7 @@
+ public class SleepUtils
+ {
+    /** A date stamp of this Sleep release in YYYYMMDD format */
+-   public static final int    SLEEP_RELEASE = 20060616;
++   public static final int    SLEEP_RELEASE = 20060805;
+ 
+    /** A string description of this Sleep release */
+    public static final String SLEEP_VERSION = "Sleep 2.1";
+
+
+
+From rsmudge at mail.berlios.de  Sun Aug  6 18:27:14 2006
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Sun, 6 Aug 2006 18:27:14 +0200
+Subject: [Sleep-svn] r91 - in sleep: . src/sleep/bridges src/sleep/bridges/io
+Message-ID: <200608061627.k76GREWT015308@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-08-06 18:27:14 +0200 (Sun, 06 Aug 2006)
+New Revision: 91
+
+Modified:
+   sleep/src/sleep/bridges/BasicIO.java
+   sleep/src/sleep/bridges/io/SocketObject.java
+   sleep/whatsnew.txt
+Log:
+Added timeout parameter for connect function
+
+
+
+Modified: sleep/src/sleep/bridges/BasicIO.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicIO.java	2006-08-06 01:01:06 UTC (rev 90)
++++ sleep/src/sleep/bridges/BasicIO.java	2006-08-06 16:27:14 UTC (rev 91)
+@@ -215,6 +215,7 @@
+           {
+              handler.host     = BridgeUtilities.getString(l, "127.0.0.1");
+              handler.port     = BridgeUtilities.getInt(l, 1);
++             handler.timeout  = BridgeUtilities.getInt(l, 60 * 1000);   // timeout
+ 
+              handler.type     = CONNECT_FUNCTION;
+           }
+@@ -1047,7 +1048,7 @@
+           }
+           else
+           {
+-             socket.open(host, port, script.getScriptEnvironment());
++             socket.open(host, port, timeout, script.getScriptEnvironment());
+           }
+ 
+           if (function != null)
+
+Modified: sleep/src/sleep/bridges/io/SocketObject.java
+===================================================================
+--- sleep/src/sleep/bridges/io/SocketObject.java	2006-08-06 01:01:06 UTC (rev 90)
++++ sleep/src/sleep/bridges/io/SocketObject.java	2006-08-06 16:27:14 UTC (rev 91)
+@@ -14,12 +14,13 @@
+       return socket;
+    }
+ 
+-   public void open(String server, int port, ScriptEnvironment env)
++   public void open(String server, int port, int timeout, ScriptEnvironment env)
+    {
+       try
+       {
+          socket = new Socket(server, port);
+          socket.setSoLinger(true, 5);
++         socket.setSoTimeout(timeout);
+ 
+          openRead(socket.getInputStream());
+          openWrite(socket.getOutputStream());
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-08-06 01:01:06 UTC (rev 90)
++++ sleep/whatsnew.txt	2006-08-06 16:27:14 UTC (rev 91)
+@@ -1,3 +1,9 @@
++2.1-beta 3
++===========
++- added an optional timeout parameter for the socket connect function i.e.:
++  $socket = connect("host", port, [timeout]) 
++  default is 60 seconds, -1 means never timeout.
++
+ 2.1-beta 2
+ ===========
+ - added a few more FP-style functions to Sleep:
+
+
+
+From rsmudge at mail.berlios.de  Sun Aug  6 19:16:56 2006
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Sun, 6 Aug 2006 19:16:56 +0200
+Subject: [Sleep-svn] r92 - sleep/src/sleep/bridges/io
+Message-ID: <200608061716.k76HGuph031150@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-08-06 19:16:55 +0200 (Sun, 06 Aug 2006)
+New Revision: 92
+
+Modified:
+   sleep/src/sleep/bridges/io/SocketObject.java
+Log:
+Fixed issues with listen, the listen call now immediately releases the listening port once a connection has been accepted.
+
+
+
+Modified: sleep/src/sleep/bridges/io/SocketObject.java
+===================================================================
+--- sleep/src/sleep/bridges/io/SocketObject.java	2006-08-06 16:27:14 UTC (rev 91)
++++ sleep/src/sleep/bridges/io/SocketObject.java	2006-08-06 17:16:55 UTC (rev 92)
+@@ -33,14 +33,19 @@
+ 
+    public void listen(int port, int timeout, Scalar data, ScriptEnvironment env)
+    {
++      ServerSocket server = null;
++
+       try
+       {
+-         ServerSocket server = new ServerSocket(port);
++         server = new ServerSocket(port);
+          server.setSoTimeout(timeout);
+         
+          socket = server.accept();
+          socket.setSoLinger(true, 5);
+ 
++         server.close(); /* releases the bound and listening port, probably not a good idea for a massive server but for a scripting
++                            lang API who cares */
++
+          data.setValue(SleepUtils.getScalar(socket.getInetAddress().getHostAddress()));
+ 
+          openRead(socket.getInputStream());
+
+
+
+From rsmudge at mail.berlios.de  Sun Aug  6 19:33:03 2006
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Sun, 6 Aug 2006 19:33:03 +0200
+Subject: [Sleep-svn] r93 - sleep/src/sleep/bridges/io
+Message-ID: <200608061733.k76HX35u003534@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-08-06 19:33:02 +0200 (Sun, 06 Aug 2006)
+New Revision: 93
+
+Modified:
+   sleep/src/sleep/bridges/io/SocketObject.java
+Log:
+one little adjustment to make sure listen gives up a port immediately upon completion even if there is an error
+
+
+
+Modified: sleep/src/sleep/bridges/io/SocketObject.java
+===================================================================
+--- sleep/src/sleep/bridges/io/SocketObject.java	2006-08-06 17:16:55 UTC (rev 92)
++++ sleep/src/sleep/bridges/io/SocketObject.java	2006-08-06 17:33:02 UTC (rev 93)
+@@ -50,11 +50,19 @@
+ 
+          openRead(socket.getInputStream());
+          openWrite(socket.getOutputStream());
++
++         return;
+       }
+       catch (Exception ex)
+       {
+          env.flagError(ex.toString());
+       }
++
++      try
++      {
++         if (server != null) { server.close(); }
++      }
++      catch (Exception ex) { }
+    }
+ 
+    public void close()
+
+
+
+From rsmudge at mail.berlios.de  Wed Aug  9 01:56:15 2006
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Wed, 9 Aug 2006 01:56:15 +0200
+Subject: [Sleep-svn] r94 - in sleep: . src/sleep/bridges/io
+Message-ID: <200608082356.k78NuFXn030364@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-08-09 01:56:03 +0200 (Wed, 09 Aug 2006)
+New Revision: 94
+
+Modified:
+   sleep/src/sleep/bridges/io/SocketObject.java
+   sleep/whatsnew.txt
+Log:
+Fixed a bug with connect timeout
+
+
+
+Modified: sleep/src/sleep/bridges/io/SocketObject.java
+===================================================================
+--- sleep/src/sleep/bridges/io/SocketObject.java	2006-08-06 17:33:02 UTC (rev 93)
++++ sleep/src/sleep/bridges/io/SocketObject.java	2006-08-08 23:56:03 UTC (rev 94)
+@@ -18,9 +18,10 @@
+    {
+       try
+       {
+-         socket = new Socket(server, port);
++         socket = new Socket();
++
++         socket.connect(new InetSocketAddress(server, port), timeout);
+          socket.setSoLinger(true, 5);
+-         socket.setSoTimeout(timeout);
+ 
+          openRead(socket.getInputStream());
+          openWrite(socket.getOutputStream());
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-08-06 17:33:02 UTC (rev 93)
++++ sleep/whatsnew.txt	2006-08-08 23:56:03 UTC (rev 94)
+@@ -1,8 +1,8 @@
+ 2.1-beta 3
+ ===========
+ - added an optional timeout parameter for the socket connect function i.e.:
+-  $socket = connect("host", port, [timeout]) 
+-  default is 60 seconds, -1 means never timeout.
++  $socket = connect("host", port, [timeout in milliseconds]) 
++  default is 60 seconds.
+ 
+ 2.1-beta 2
+ ===========
+
+
+
+From rsmudge at mail.berlios.de  Wed Aug  9 02:25:20 2006
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Wed, 9 Aug 2006 02:25:20 +0200
+Subject: [Sleep-svn] r95 - in sleep: . src/sleep/bridges src/sleep/bridges/io
+Message-ID: <200608090025.k790PK9r005700@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-08-09 02:25:15 +0200 (Wed, 09 Aug 2006)
+New Revision: 95
+
+Modified:
+   sleep/src/sleep/bridges/BasicIO.java
+   sleep/src/sleep/bridges/io/SocketObject.java
+   sleep/whatsnew.txt
+Log:
+Modifications to how server sockets are done.
+
+
+
+Modified: sleep/src/sleep/bridges/BasicIO.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicIO.java	2006-08-08 23:56:03 UTC (rev 94)
++++ sleep/src/sleep/bridges/BasicIO.java	2006-08-09 00:25:15 UTC (rev 95)
+@@ -233,8 +233,16 @@
+     {
+        public Scalar evaluate(String n, ScriptInstance i, Stack l)
+        {
+-          IOObject a = (IOObject)BridgeUtilities.getObject(l);
+-          a.close();
++          if (!l.isEmpty() && l.peek() instanceof IOObject)
++          {
++             IOObject a = (IOObject)BridgeUtilities.getObject(l);
++             a.close();
++          }
++          else
++          {
++             int port = BridgeUtilities.getInt(l, 80);
++             SocketObject.release(port);
++          }
+ 
+           return SleepUtils.getEmptyScalar();
+        }
+
+Modified: sleep/src/sleep/bridges/io/SocketObject.java
+===================================================================
+--- sleep/src/sleep/bridges/io/SocketObject.java	2006-08-08 23:56:03 UTC (rev 94)
++++ sleep/src/sleep/bridges/io/SocketObject.java	2006-08-09 00:25:15 UTC (rev 95)
+@@ -4,6 +4,8 @@
+ import java.net.*;
+ import sleep.runtime.*;
+ 
++import java.util.*;
++
+ public class SocketObject extends IOObject
+ {
+    protected Socket socket;
+@@ -32,19 +34,69 @@
+       }
+    }
+ 
++   /** releases the socket binding for the specified port */
++   public static void release(int port)
++   {
++      String key = port + "";
++      
++      ServerSocket temp = null;
++      if (servers != null && servers.containsKey(key))
++      {
++         temp = (ServerSocket)servers.get(key);
++         servers.remove(key);
++ 
++         try
++         {
++            temp.close();
++         }
++         catch (Exception ex)
++         {
++            ex.printStackTrace();
++         }
++      }
++   }
++
++   private static Map servers;
++
++   private static ServerSocket getServerSocket(int port) throws Exception
++   {
++      String key = port + "";
++
++      if (servers == null)
++      {
++         servers = Collections.synchronizedMap(new HashMap());
++      }
++
++      ServerSocket server = null;
++
++      if (servers.containsKey(key))
++      {
++         server = (ServerSocket)servers.get(key);
++      }
++      else
++      {
++         server = new ServerSocket(port);
++         servers.put(key, server);
++      }
++
++      return server;
++   }
++ 
+    public void listen(int port, int timeout, Scalar data, ScriptEnvironment env)
+    {
+       ServerSocket server = null;
+ 
+       try
+       {
+-         server = new ServerSocket(port);
++//         server = new ServerSocket(port);
++         server = getServerSocket(port);
+          server.setSoTimeout(timeout);
+         
+          socket = server.accept();
+          socket.setSoLinger(true, 5);
+ 
+-         server.close(); /* releases the bound and listening port, probably not a good idea for a massive server but for a scripting
++  //       server.close();
++ /* releases the bound and listening port, probably not a good idea for a massive server but for a scripting
+                             lang API who cares */
+ 
+          data.setValue(SleepUtils.getScalar(socket.getInetAddress().getHostAddress()));
+@@ -61,7 +113,7 @@
+ 
+       try
+       {
+-         if (server != null) { server.close(); }
++//         if (server != null) { server.close(); }
+       }
+       catch (Exception ex) { }
+    }
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-08-08 23:56:03 UTC (rev 94)
++++ sleep/whatsnew.txt	2006-08-09 00:25:15 UTC (rev 95)
+@@ -3,6 +3,9 @@
+ - added an optional timeout parameter for the socket connect function i.e.:
+   $socket = connect("host", port, [timeout in milliseconds]) 
+   default is 60 seconds.
++- modified listen to create bind to the specified port, each call to listen
++  is a call to accept a connection on the specified port.  to stop listening
++  on the specified port use closef(port number) instead of $handle.
+ 
+ 2.1-beta 2
+ ===========
+
+
+
+From rsmudge at mail.berlios.de  Wed Aug  9 02:43:49 2006
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Wed, 9 Aug 2006 02:43:49 +0200
+Subject: [Sleep-svn] r96 - in sleep: . src/sleep/bridges
+	src/sleep/engine/atoms src/sleep/runtime
+Message-ID: <200608090043.k790hnQv011396@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-08-09 02:43:44 +0200 (Wed, 09 Aug 2006)
+New Revision: 96
+
+Modified:
+   sleep/src/sleep/bridges/BasicUtilities.java
+   sleep/src/sleep/engine/atoms/Get.java
+   sleep/src/sleep/runtime/ScriptInstance.java
+   sleep/whatsnew.txt
+Log:
+Added DEBUG_STRICT, every one will love it... also added global()
+
+
+
+Modified: sleep/src/sleep/bridges/BasicUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicUtilities.java	2006-08-09 00:25:15 UTC (rev 95)
++++ sleep/src/sleep/bridges/BasicUtilities.java	2006-08-09 00:43:44 UTC (rev 96)
+@@ -87,6 +87,7 @@
+ 
+         temp.put("&local",    scopeFunctions);
+         temp.put("&this",     scopeFunctions);
++        temp.put("&global",     scopeFunctions);
+ 
+         temp.put("&reverse",  new reverse());      // @array2 = &reverse(@array) 
+         temp.put("&removeAt", new removeAt());   // not safe within foreach loops yada yada yada...
+@@ -500,6 +501,7 @@
+ 
+           if (n.equals("&local")) { level = i.getScriptVariables().getLocalVariables(); }
+           else if (n.equals("&this")) { level = i.getScriptVariables().getClosureVariables(); }
++          else if (n.equals("&global")) { level = i.getScriptVariables().getGlobalVariables(); }
+ 
+           String temp = l.pop().toString();
+ 
+
+Modified: sleep/src/sleep/engine/atoms/Get.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/Get.java	2006-08-09 00:25:15 UTC (rev 95)
++++ sleep/src/sleep/engine/atoms/Get.java	2006-08-09 00:43:44 UTC (rev 96)
+@@ -64,6 +64,11 @@
+                structure = SleepUtils.getEmptyScalar();
+ 
+             e.putScalar(value, structure);
++
++            if ((e.getScriptInstance().getDebugFlags() & ScriptInstance.DEBUG_REQUIRE_STRICT) == ScriptInstance.DEBUG_REQUIRE_STRICT)
++            {
++               e.showDebugMessage("variable '" + value + "' not declared");
++            }
+          }
+ 
+          e.getCurrentFrame().push(structure);
+
+Modified: sleep/src/sleep/runtime/ScriptInstance.java
+===================================================================
+--- sleep/src/sleep/runtime/ScriptInstance.java	2006-08-09 00:25:15 UTC (rev 95)
++++ sleep/src/sleep/runtime/ScriptInstance.java	2006-08-09 00:43:44 UTC (rev 96)
+@@ -80,6 +80,9 @@
+     /** fire runtime warnings for anything flagged for retrieval with checkError() */
+     public static final int DEBUG_SHOW_WARNINGS = 2;
+ 
++    /** fire runtime warning whenever an undeclared variable is fired */
++    public static final int DEBUG_REQUIRE_STRICT = 4;
++
+     /** track all of the flagged debug options for this script (set to DEBUG_SHOW_ERRORS by default) */
+     protected int debug = DEBUG_SHOW_ERRORS;
+ 
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-08-09 00:25:15 UTC (rev 95)
++++ sleep/whatsnew.txt	2006-08-09 00:43:44 UTC (rev 96)
+@@ -6,6 +6,11 @@
+ - modified listen to create bind to the specified port, each call to listen
+   is a call to accept a connection on the specified port.  to stop listening
+   on the specified port use closef(port number) instead of $handle.
++- added a function global to declare a series of variables into the global 
++  scope
++- added a require strict debug flag, this flag causes a runtime warning to
++  be fired whenever a script uses a variable without delcaring it using
++  global, local, or this.
+ 
+ 2.1-beta 2
+ ===========
+
+
+
+From rsmudge at mail.berlios.de  Wed Aug  9 02:58:08 2006
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Wed, 9 Aug 2006 02:58:08 +0200
+Subject: [Sleep-svn] r97 - in sleep: . src/sleep/bridges tests tests/output
+Message-ID: <200608090058.k790w8pu015234@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-08-09 02:57:51 +0200 (Wed, 09 Aug 2006)
+New Revision: 97
+
+Added:
+   sleep/tests/dtest1.sl
+   sleep/tests/output/dtest1.sl
+Modified:
+   sleep/src/sleep/bridges/BasicUtilities.java
+   sleep/whatsnew.txt
+Log:
+Added &debug for programatically setting the debug level of a script
+
+
+
+Modified: sleep/src/sleep/bridges/BasicUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicUtilities.java	2006-08-09 00:43:44 UTC (rev 96)
++++ sleep/src/sleep/bridges/BasicUtilities.java	2006-08-09 00:57:51 UTC (rev 97)
+@@ -89,6 +89,8 @@
+         temp.put("&this",     scopeFunctions);
+         temp.put("&global",     scopeFunctions);
+ 
++        temp.put("&debug", this);
++
+         temp.put("&reverse",  new reverse());      // @array2 = &reverse(@array) 
+         temp.put("&removeAt", new removeAt());   // not safe within foreach loops yada yada yada...
+         temp.put("&shift",    new shift());   // not safe within foreach loops yada yada yada...
+@@ -627,7 +629,18 @@
+          
+           return SleepUtils.getEmptyScalar();
+        }
++       else if (n.equals("&debug"))
++       {
++          /* allow the script to programatically set the debug level */
++          if (!l.isEmpty())
++          {
++             int flag = BridgeUtilities.getInt(l, 0);
++             i.setDebugFlags(flag);
++          }
+ 
++          return SleepUtils.getScalar(i.getDebugFlags());
++       }
++
+        Scalar value = BridgeUtilities.getScalar(l);
+ 
+        if (n.equals("&push"))
+
+Added: sleep/tests/dtest1.sl
+===================================================================
+--- sleep/tests/dtest1.sl	2006-08-09 00:43:44 UTC (rev 96)
++++ sleep/tests/dtest1.sl	2006-08-09 00:57:51 UTC (rev 97)
+@@ -0,0 +1,18 @@
++#
++# test out strict debug mode...
++#
++
++global('$a');
++
++debug(7); # turn on all debugging options (4 is strict)
++
++$a = "hello";
++$b = "world";
++
++println("$a $b");
++
++debug(0);
++
++$c = "hi";
++
++println("$c $b");
+
+Added: sleep/tests/output/dtest1.sl
+===================================================================
+--- sleep/tests/output/dtest1.sl	2006-08-09 00:43:44 UTC (rev 96)
++++ sleep/tests/output/dtest1.sl	2006-08-09 00:57:51 UTC (rev 97)
+@@ -0,0 +1,3 @@
++Warning: variable '$b' not declared at line 10
++hello world
++hi world
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-08-09 00:43:44 UTC (rev 96)
++++ sleep/whatsnew.txt	2006-08-09 00:57:51 UTC (rev 97)
+@@ -11,7 +11,21 @@
+ - added a require strict debug flag, this flag causes a runtime warning to
+   be fired whenever a script uses a variable without delcaring it using
+   global, local, or this.
++- added &debug(mode) allows scripters to programatically set the debug flags
++  for their script..  debug with no arguments returns the current debug flags
+ 
++  levels are:
++  1 - show errors: dump all critical script errors as runtime warnings, this
++      should never be turned off.
++  2 - show warnings: dump all non-critical script exceptions as runtime 
++      warnings.  These can be checked for programatically with &checkError
++  4 - require strict: dump all first time uses of non-declared variables as
++      runtime warnings.  
++
++  any of these flags can be OR'd together i.e.:
++
++  debug(1 | 4); # show all errors and uses of non-declared variables
++
+ 2.1-beta 2
+ ===========
+ - added a few more FP-style functions to Sleep:
+
+
+
+From rsmudge at mail.berlios.de  Wed Aug  9 04:27:09 2006
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Wed, 9 Aug 2006 04:27:09 +0200
+Subject: [Sleep-svn] r98 - in sleep: . src/sleep/bridges src/sleep/bridges/io
+Message-ID: <200608090227.k792R9t8015211@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-08-09 04:27:05 +0200 (Wed, 09 Aug 2006)
+New Revision: 98
+
+Modified:
+   sleep/src/sleep/bridges/BasicIO.java
+   sleep/src/sleep/bridges/BasicNumbers.java
+   sleep/src/sleep/bridges/io/IOObject.java
+   sleep/src/sleep/bridges/io/ProcessObject.java
+   sleep/whatsnew.txt
+Log:
+Did alot of work on the wait function
+
+
+
+Modified: sleep/src/sleep/bridges/BasicIO.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicIO.java	2006-08-09 00:57:51 UTC (rev 97)
++++ sleep/src/sleep/bridges/BasicIO.java	2006-08-09 02:27:05 UTC (rev 98)
+@@ -35,7 +35,7 @@
+ import sleep.bridges.io.*;
+ 
+ /** provides IO functions for the sleep language */
+-public class BasicIO implements Loadable
++public class BasicIO implements Loadable, Function
+ {
+     public boolean scriptUnloaded(ScriptInstance aScript)
+     {
+@@ -81,7 +81,7 @@
+         temp.put("&mark",       new mark());
+         temp.put("&skip",       new skip());
+         temp.put("&reset",      new reset());
+-        temp.put("&wait",       new wait());
++        temp.put("&wait",       this);
+ 
+         // typical ASCII'sh output functions
+         temp.put("&print",      new print());
+@@ -97,6 +97,21 @@
+         return true;
+     }
+ 
++    public Scalar evaluate(String n, ScriptInstance i, Stack l)
++    {
++       if (n.equals("&wait"))
++       {
++          IOObject a = (IOObject)BridgeUtilities.getObject(l);
++          long    to = BridgeUtilities.getLong(l, 0);
++
++          return a.wait(i.getScriptEnvironment(), to);
++       }
++
++       System.out.println("apparently we were wrong about '" + n + "'");
++
++       return SleepUtils.getEmptyScalar();
++    }
++
+     private static class openf implements Function
+     {
+        public Scalar evaluate(String n, ScriptInstance i, Stack l)
+@@ -806,32 +821,6 @@
+        }
+     }
+ 
+-    private static class wait implements Function
+-    {
+-       public Scalar evaluate(String n, ScriptInstance i, Stack l)
+-       {
+-          IOObject a     = chooseSource(l, 1);
+-          long     times = BridgeUtilities.getLong(l, -1);
+-          long     stamp = System.currentTimeMillis();
+-
+-          if (a.getThread() != null)
+-          {
+-             while (a.getThread().isAlive())
+-             {
+-                 if (times > -1 && (System.currentTimeMillis() - stamp) > times)
+-                 {
+-                    i.getScriptEnvironment().flagError("wait on object timed out");
+-                    return SleepUtils.getEmptyScalar();
+-                 }
+-
+-                 Thread.yield();
+-             }
+-          }
+-
+-          return a.getToken();
+-       }
+-    }
+-
+     private static class unpack implements Function
+     {
+        public Scalar evaluate(String n, ScriptInstance i, Stack l)
+
+Modified: sleep/src/sleep/bridges/BasicNumbers.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicNumbers.java	2006-08-09 00:57:51 UTC (rev 97)
++++ sleep/src/sleep/bridges/BasicNumbers.java	2006-08-09 02:27:05 UTC (rev 98)
+@@ -184,8 +184,17 @@
+        {
+           if (! args.isEmpty())
+           {
+-             int to = BridgeUtilities.getInt(args);
+-             return SleepUtils.getScalar((int)(Math.random() * to));
++             Scalar temp = (Scalar)args.pop();
++
++             if (temp.getArray() != null)
++             {
++                int potential = (int)(Math.random() * temp.getArray().size());
++                return temp.getArray().getAt(potential);
++             }
++             else
++             {
++                return SleepUtils.getScalar((int)(Math.random() * temp.intValue()));
++             }
+           }
+           
+           return SleepUtils.getScalar(Math.random());
+
+Modified: sleep/src/sleep/bridges/io/IOObject.java
+===================================================================
+--- sleep/src/sleep/bridges/io/IOObject.java	2006-08-09 00:57:51 UTC (rev 97)
++++ sleep/src/sleep/bridges/io/IOObject.java	2006-08-09 02:27:05 UTC (rev 98)
+@@ -56,6 +56,30 @@
+       return thread;
+    }
+ 
++   public Scalar wait(ScriptEnvironment env, long timeout)
++   {
++      if (getThread() != null && getThread().isAlive())
++      {
++         try
++         {
++            getThread().join(timeout);
++
++            if (getThread().isAlive())
++            {
++               env.flagError("wait on object timed out");
++               return SleepUtils.getEmptyScalar();
++            }
++         }
++         catch (Exception ex)
++         {
++            env.flagError("wait on object failed: " + ex.getMessage());
++            return SleepUtils.getEmptyScalar();
++         }
++      }
++
++      return getToken();
++   }
++
+    /** returns a scalar token associated with this IOObject.  Will return the empty scalar if the token is null.  The token is essentially the stored return value of an executing thread.  */
+    public Scalar getToken()
+    {
+
+Modified: sleep/src/sleep/bridges/io/ProcessObject.java
+===================================================================
+--- sleep/src/sleep/bridges/io/ProcessObject.java	2006-08-09 00:57:51 UTC (rev 97)
++++ sleep/src/sleep/bridges/io/ProcessObject.java	2006-08-09 02:27:05 UTC (rev 98)
+@@ -1,7 +1,7 @@
+ package sleep.bridges.io;
+ 
+ import java.io.*;
+-import sleep.runtime.ScriptEnvironment;
++import sleep.runtime.*;
+ 
+ public class ProcessObject extends IOObject
+ {
+@@ -36,6 +36,26 @@
+       }
+    }
+ 
++   public Scalar wait(ScriptEnvironment env, long timeout)
++   {
++      if (getThread() != null && getThread().isAlive())
++      {
++         super.wait(env, timeout);
++      }
++
++      try
++      {
++         process.waitFor();
++         return SleepUtils.getScalar(process.waitFor());
++      }
++      catch (Exception ex)
++      {
++         env.flagError("wait for process failed: " + ex);
++      }
++
++      return SleepUtils.getEmptyScalar();
++   }
++
+    public void close()
+    {
+       super.close();
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-08-09 00:57:51 UTC (rev 97)
++++ sleep/whatsnew.txt	2006-08-09 02:27:05 UTC (rev 98)
+@@ -3,9 +3,10 @@
+ - added an optional timeout parameter for the socket connect function i.e.:
+   $socket = connect("host", port, [timeout in milliseconds]) 
+   default is 60 seconds.
+-- modified listen to create bind to the specified port, each call to listen
+-  is a call to accept a connection on the specified port.  to stop listening
+-  on the specified port use closef(port number) instead of $handle.
++- modified listen to create a server socket and bind to the specified port, 
++  each call to listen is a call to accept a connection on the specified port.
++  to stop listening on the specified port use closef(port number) instead of 
++  $handle.
+ - added a function global to declare a series of variables into the global 
+   scope
+ - added a require strict debug flag, this flag causes a runtime warning to
+@@ -25,6 +26,12 @@
+   any of these flags can be OR'd together i.e.:
+ 
+   debug(1 | 4); # show all errors and uses of non-declared variables
++- when passed an array parameter, &rand will return a random element of the
++  array.
++- eliminated the use of a busy loop to wait for a timeout within the &wait
++  function
++- &wait when called on a process will now wait for that process to exit
++  and return the exit value of the process.
+ 
+ 2.1-beta 2
+ ===========
+
+
+
+From rsmudge at mail.berlios.de  Wed Aug 16 03:28:33 2006
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Wed, 16 Aug 2006 03:28:33 +0200
+Subject: [Sleep-svn] r99 - in sleep: . src/sleep/bridges
+	src/sleep/engine/atoms tests tests/output
+Message-ID: <200608160128.k7G1SXPF008466@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-08-16 03:28:14 +0200 (Wed, 16 Aug 2006)
+New Revision: 99
+
+Added:
+   sleep/tests/confused.sl
+   sleep/tests/genfun.sl
+   sleep/tests/output/confused.sl
+   sleep/tests/output/genfun.sl
+Modified:
+   sleep/src/sleep/bridges/BasicIO.java
+   sleep/src/sleep/bridges/BasicUtilities.java
+   sleep/src/sleep/bridges/BridgeUtilities.java
+   sleep/src/sleep/bridges/SleepClosure.java
+   sleep/src/sleep/engine/atoms/Iterate.java
+   sleep/whatsnew.txt
+Log:
+Lots of fun fixing this mess...
+
+
+
+Modified: sleep/src/sleep/bridges/BasicIO.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicIO.java	2006-08-09 02:27:05 UTC (rev 98)
++++ sleep/src/sleep/bridges/BasicIO.java	2006-08-16 01:28:14 UTC (rev 99)
+@@ -316,9 +316,8 @@
+        public Scalar evaluate(String n, ScriptInstance inst, Stack l)
+        {
+           IOObject a       = chooseSource(l, 2);
+-          ScalarArray   ar = BridgeUtilities.getArray(l);
+ 
+-          Iterator i = ar.scalarIterator();
++          Iterator i = BridgeUtilities.getIterator(l, inst);
+           while (i.hasNext())
+           {
+              a.printLine(i.next().toString());
+
+Modified: sleep/src/sleep/bridges/BasicUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicUtilities.java	2006-08-09 02:27:05 UTC (rev 98)
++++ sleep/src/sleep/bridges/BasicUtilities.java	2006-08-16 01:28:14 UTC (rev 99)
+@@ -231,7 +231,7 @@
+            
+           while (!l.isEmpty())
+           {
+-             value.getArray().push(BridgeUtilities.getScalar(l));
++             value.getArray().push(SleepUtils.getScalar(BridgeUtilities.getScalar(l)));
+           }
+ 
+           return value;
+@@ -419,12 +419,11 @@
+        public Scalar evaluate(String n, ScriptInstance si, Stack l)
+        {
+           SleepClosure temp  = BridgeUtilities.getFunction(l, si);           
+-          ScalarArray  value = BridgeUtilities.getArray(l); 
++          Iterator     i     = BridgeUtilities.getIterator(l, si);
+ 
+-          Scalar       rv    = SleepUtils.getArrayScalar();
++          Scalar       rv     = SleepUtils.getArrayScalar();
+           Stack        locals = new Stack();
+ 
+-          Iterator i = value.scalarIterator();
+           while (i.hasNext())
+           {
+              locals.push(i.next());
+@@ -433,7 +432,7 @@
+ 
+              if (!SleepUtils.isEmptyScalar(val) || n.equals("&map"))
+              {
+-                rv.getArray().push(val);
++                rv.getArray().push(SleepUtils.getScalar(val));
+              }
+ 
+              locals.clear();
+@@ -448,9 +447,8 @@
+        public Scalar evaluate(String n, ScriptInstance si, Stack l)
+        {
+           Scalar      value = SleepUtils.getArrayScalar();
+-          ScalarArray temp  = BridgeUtilities.getArray(l);           
++          Iterator    i     = BridgeUtilities.getIterator(l, si);
+ 
+-          Iterator i = temp.scalarIterator();
+           while (i.hasNext())
+           {
+              value.getArray().push(SleepUtils.getScalar((Scalar)i.next()));
+@@ -482,10 +480,9 @@
+     {
+        public Scalar evaluate(String n, ScriptInstance si, Stack l)
+        {
+-          ScalarArray temp  = BridgeUtilities.getArray(l);
+           Scalar value = SleepUtils.getArrayScalar();
++          Iterator  i  = BridgeUtilities.getIterator(l, si);
+ 
+-          Iterator i = temp.scalarIterator();
+           while (i.hasNext())
+           {
+              value.getArray().add(SleepUtils.getScalar((Scalar)i.next()), 0);
+@@ -695,7 +692,7 @@
+ 
+              if (!s.contains(temp.toString()))
+              {
+-                a.push(temp);
++                a.push(SleepUtils.getScalar(temp));
+              }
+           }
+ 
+@@ -705,7 +702,7 @@
+        {
+           Scalar item = BridgeUtilities.getScalar(l);
+           int index = BridgeUtilities.getInt(l, value.getArray().size());  
+-          return value.getArray().add(item, index);
++          return value.getArray().add(SleepUtils.getScalar(item), index);
+        }
+        else if (n.equals("&pop"))
+        {
+@@ -765,10 +762,9 @@
+        else if (n.equals("&reduce") && SleepUtils.isFunctionScalar(value))
+        {
+           SleepClosure f    = SleepUtils.getFunctionFromScalar(value, i); 
+-          ScalarArray array = BridgeUtilities.getArray(l);
+           Stack locals      = new Stack();
+ 
+-          Iterator iter = array.scalarIterator();
++          Iterator iter = BridgeUtilities.getIterator(l, i);
+ 
+           Scalar a      = iter.hasNext() ? (Scalar)iter.next() : SleepUtils.getEmptyScalar();
+           Scalar b      = iter.hasNext() ? (Scalar)iter.next() : SleepUtils.getEmptyScalar();
+@@ -808,7 +804,7 @@
+              Scalar rv = SleepUtils.getArrayScalar();
+              while (begin < end)
+              {
+-                rv.getArray().push(value.getArray().getAt(begin));
++                rv.getArray().push(SleepUtils.getScalar(value.getArray().getAt(begin)));
+                 begin++;
+              }
+ 
+@@ -850,7 +846,7 @@
+ 
+              while (ih.hasNext())
+              {
+-                  temp.getArray().push(value.getHash().getAt((Scalar)ih.next()));
++                  temp.getArray().push(SleepUtils.getScalar(value.getHash().getAt((Scalar)ih.next())));
+              }
+ 
+              return temp;
+
+Modified: sleep/src/sleep/bridges/BridgeUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BridgeUtilities.java	2006-08-09 02:27:05 UTC (rev 98)
++++ sleep/src/sleep/bridges/BridgeUtilities.java	2006-08-16 01:28:14 UTC (rev 99)
+@@ -98,6 +98,22 @@
+       return ((Scalar)arguments.pop()).doubleValue();
+    }
+ 
++   /** grabs a scalar iterator, this can come from either an array or a closure called continuously until $null is returned. */
++   public static Iterator getIterator(Stack arguments, ScriptInstance script)
++   {
++      if (arguments.isEmpty())
++        return getArray(arguments).scalarIterator();
++
++      Scalar temp = (Scalar)arguments.pop();
++
++      if (temp.getArray() != null)
++      {
++         return temp.getArray().scalarIterator();
++      }      
++
++      return SleepUtils.getFunctionFromScalar(temp, script).scalarIterator();
++   }
++
+    /** grab a sleep array, if the stack is empty a scalar array with no elements will be returned. */
+    public static ScalarArray getArray(Stack arguments)
+    {
+
+Modified: sleep/src/sleep/bridges/SleepClosure.java
+===================================================================
+--- sleep/src/sleep/bridges/SleepClosure.java	2006-08-09 02:27:05 UTC (rev 98)
++++ sleep/src/sleep/bridges/SleepClosure.java	2006-08-16 01:28:14 UTC (rev 99)
+@@ -31,6 +31,32 @@
+ /** The Sleep Closure class.  This class represents a Function object that is also a self contained closure */
+ public class SleepClosure implements Function
+ {
++    private class ClosureIterator implements Iterator
++    {
++       protected Scalar            current;
++       protected Stack             locals = new Stack();
++
++       public boolean hasNext()
++       {
++          current = callClosure("eval", null, locals);
++          return !SleepUtils.isEmptyScalar(current);
++       }
++
++       public Object next()
++       {
++          return current;
++       }
++
++       public void remove()
++       {
++       }
++    }
++
++    public Iterator scalarIterator()
++    {
++       return new ClosureIterator();
++    }
++
+     public static Class CLOSURE_CLASS;
+ 
+     static
+
+Modified: sleep/src/sleep/engine/atoms/Iterate.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/Iterate.java	2006-08-09 02:27:05 UTC (rev 98)
++++ sleep/src/sleep/engine/atoms/Iterate.java	2006-08-16 01:28:14 UTC (rev 99)
+@@ -43,35 +43,6 @@
+       public int      count    = 0;
+    }
+ 
+-   private static class FunctionIterator implements Iterator
+-   {
+-      protected SleepClosure      closure;
+-      protected ScriptInstance    si;
+-      protected Scalar            current;
+-      protected Stack             locals = new Stack();
+-
+-      public FunctionIterator(SleepClosure c, ScriptInstance i)
+-      {
+-         closure = c;
+-         si      = i;
+-      }
+-
+-      public boolean hasNext()
+-      {
+-         current = closure.callClosure("eval", si, locals);
+-         return !SleepUtils.isEmptyScalar(current);
+-      }
+-
+-      public Object next()
+-      {
+-         return current;
+-      }
+-
+-      public void remove()
+-      {
+-      }
+-   }
+-
+    public static final int ITERATOR_CREATE   = 1;
+    public static final int ITERATOR_DESTROY  = 2;
+    public static final int ITERATOR_NEXT     = 3;
+@@ -152,7 +123,7 @@
+       }
+       else if (SleepUtils.isFunctionScalar(data.source))
+       {
+-         data.iterator = new FunctionIterator(SleepUtils.getFunctionFromScalar(data.source, e.getScriptInstance()), e.getScriptInstance()); 
++         data.iterator = SleepUtils.getFunctionFromScalar(data.source, e.getScriptInstance()).scalarIterator();
+       }
+       else
+       {
+
+Added: sleep/tests/confused.sl
+===================================================================
+--- sleep/tests/confused.sl	2006-08-09 02:27:05 UTC (rev 98)
++++ sleep/tests/confused.sl	2006-08-16 01:28:14 UTC (rev 99)
+@@ -0,0 +1,41 @@
++#
++# this file replicates a bug found in Sleep 2.1 where many array functions were not
++# creating a new scalar container with a reference to a scalar value rather they shared
++# the old scalar container they were passed resulting in all kinds of unpredictable behavior
++# 
++# push took the right measures to copy but functions like add and many others did not.
++#
++debug(7);
++global('@a @b $temp1 $temp2');
++
++#
++# test 1
++#
++$temp1 = "this is a test";
++push(@a, $temp1);
++
++println("Before: Contents of @a (temp1 is $temp1 $+ )");
++printAll(@a);
++
++ at a[0] = "this is a changed value";
++
++println("After: Contents of @a (temp1 is $temp1 $+ )");
++printAll(@a);
++
++
++#
++# test 2
++#
++$temp2 = "this is a test";
++add(@b, $temp2);
++
++println("Before: Contents of @b (temp2 is $temp2 $+ )");
++printAll(@b);
++
++ at b[0] = "this is a changed value";
++
++println("After: Contents of @b (temp2 is $temp2 $+ )");
++printAll(@b);
++
++
++
+
+Added: sleep/tests/genfun.sl
+===================================================================
+--- sleep/tests/genfun.sl	2006-08-09 02:27:05 UTC (rev 98)
++++ sleep/tests/genfun.sl	2006-08-16 01:28:14 UTC (rev 99)
+@@ -0,0 +1,39 @@
++#
++# testing out some fun with closures/arrays being semi-interchangeable
++# 
++debug(7); # a good habit I should try to fall into more often
++
++global('$r1 $r2 @temp @temp2 @output');
++
++sub generator
++{
++   this('$current');
++   $current = $start;
++
++   while ($current < $end)
++   {
++      yield $current;
++      $current++;
++   }
++
++   return $null;
++}
++
++$r1 = lambda(&generator, $start => 0, $end => 100);
++$r2 = lambda(&generator, $start => 5, $end => 20);
++
++printAll($r2);
++
++ at temp = copy($r1);
++println("Size of @temp is: " . size(@temp));
++
++printAll(reverse($r2));
++
++ at temp2 = copy($r2);
++println("Size of @temp2 is: ". size(@temp2));
++printAll(@temp2);
++
++println("All of the even numbered elements of @temp2 are: ");
++
++ at output = filter({ return iff(($1 % 2) == 0, $1, $null); }, $r2);
++printAll(@output);
+
+Added: sleep/tests/output/confused.sl
+===================================================================
+--- sleep/tests/output/confused.sl	2006-08-09 02:27:05 UTC (rev 98)
++++ sleep/tests/output/confused.sl	2006-08-16 01:28:14 UTC (rev 99)
+@@ -0,0 +1,8 @@
++Before: Contents of @a (temp1 is this is a test)
++this is a test
++After: Contents of @a (temp1 is this is a test)
++this is a changed value
++Before: Contents of @b (temp2 is this is a test)
++this is a test
++After: Contents of @b (temp2 is this is a test)
++this is a changed value
+
+Added: sleep/tests/output/genfun.sl
+===================================================================
+--- sleep/tests/output/genfun.sl	2006-08-09 02:27:05 UTC (rev 98)
++++ sleep/tests/output/genfun.sl	2006-08-16 01:28:14 UTC (rev 99)
+@@ -0,0 +1,55 @@
++5
++6
++7
++8
++9
++10
++11
++12
++13
++14
++15
++16
++17
++18
++19
++Size of @temp is: 100
++19
++18
++17
++16
++15
++14
++13
++12
++11
++10
++9
++8
++7
++6
++5
++Size of @temp2 is: 15
++5
++6
++7
++8
++9
++10
++11
++12
++13
++14
++15
++16
++17
++18
++19
++All of the even numbered elements of @temp2 are: 
++6
++8
++10
++12
++14
++16
++18
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-08-09 02:27:05 UTC (rev 98)
++++ sleep/whatsnew.txt	2006-08-16 01:28:14 UTC (rev 99)
+@@ -32,6 +32,16 @@
+   function
+ - &wait when called on a process will now wait for that process to exit
+   and return the exit value of the process.
++- added a new function to BridgeUtilities to extract an "iterator" from the
++  argument stack, this iterator will be generated if the argument is an array
++  or generator function.  This allows certain functions to accept an array
++  or generator function interchangeably.
++- updated several functions in the sleep utility library to use this new
++  iterator extractor mechanism:
++  &map, &filter, &copy, &reverse, &reduce, &printAll
++- fixed a bug where several bridge utility functions were inadvertently 
++  causing arrays/hashes to share scalar references with passed in data. 
++  &add, &addAll, &array, &filter, &map, &subarray, and &map.
+ 
+ 2.1-beta 2
+ ===========
+
+
+
+From rsmudge at mail.berlios.de  Wed Aug 16 04:36:41 2006
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Wed, 16 Aug 2006 04:36:41 +0200
+Subject: [Sleep-svn] r100 - in sleep: . docs
+Message-ID: <200608160236.k7G2afRo004132@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-08-16 04:36:36 +0200 (Wed, 16 Aug 2006)
+New Revision: 100
+
+Modified:
+   sleep/build.xml
+   sleep/docs/sleeplang.html
+   sleep/whatsnew.txt
+Log:
+Updates.. blah
+
+
+
+Modified: sleep/build.xml
+===================================================================
+--- sleep/build.xml	2006-08-16 01:28:14 UTC (rev 99)
++++ sleep/build.xml	2006-08-16 02:36:36 UTC (rev 100)
+@@ -16,7 +16,7 @@
+            destdir="${project.build}"
+            nowarn="yes"
+            depend="yes"
+-           debug="true"
++           debug="false"
+            optimize="yes"
+     >
+     </javac>
+
+Modified: sleep/docs/sleeplang.html
+===================================================================
+--- sleep/docs/sleeplang.html	2006-08-16 01:28:14 UTC (rev 99)
++++ sleep/docs/sleeplang.html	2006-08-16 02:36:36 UTC (rev 100)
+@@ -587,6 +587,22 @@
+ <p>The special array <var>@_</var> contains all of the arguments for a subroutine as well.  <var>@_[0]</var> is <var>$1</var>, 
+ <var>@_[1]</var> is <var>$2</var>, etc.</p>
+ 
++<h4>Pass by Reference</h4>
++
++<p>Arguments passed to a Sleep subroutine are passed by "reference".  This means if you pass 
++$fluffy as the first argument of a subroutine and that subroutine places a new value into $1 
++then $fluffy will reflect that new value as well.  Example:</p>
++
++<pre>sub test
++{
++  $1 = "bar";
++}
++
++$fluffy = "foo";
++test($fluffy);</pre>
++
++<p>The value of <var>$fluffy</var> after the code snippet above is executed is <b>bar</b>.</p>
++
+ <h3>The Return Command</h3>
+ 
+ <p>The return command causes the current subroutine to stop executing and return to where it started.  You can specify a scalar 
+@@ -1600,6 +1616,8 @@
+ <p>Optional parameters will be enclosed in [ ] square brackets.  The ellipse ... as a parameter indicates the function can handle 
+ as many arguments as you are willing to specify.</p>
+ 
++<p>Parameters specified as <code>@|&</code> represent that either an @array can be passed or a &generator function.  A generator function is a closure that iterates over a sequence with the yield keyword and returns $null when no values are left to iterate over.</p>
++
+ <p>Note, the $ is not part of the function name.  It is solely shorthand for specifying the return type of the function.</p>
+ 
+ <h3>Array Functions</h3>
+@@ -1640,13 +1658,13 @@
+  </tr>
+  <tr>
+   <td>@</td>
+-  <td>copy(@array)</td>
+-  <td>returns a copy of @array with copies of its elements</td>
++  <td>copy(@|&)</td>
++  <td>returns an array with copies of the elements of @array or &generator</td>
+  </tr>
+  <tr>
+   <td>@</td>
+-  <td>filter(&amp;closure, @array)</td>
+-  <td>Evaluates the specified closure against each element of @array.  Each non-null value returned by &amp;closure is collected into an array that is returned by the filter() call.</td>
++  <td>filter(&amp;closure, @|&)</td>
++  <td>Evaluates the specified closure against each element of @array or &generator.  Each non-null value returned by &amp;closure is collected into an array that is returned by the filter() call.</td>
+  </tr>
+  <tr>
+   <td>@</td>
+@@ -1655,8 +1673,8 @@
+  </tr>
+  <tr>
+   <td>@</td>
+-  <td>map(&amp;closure, @array)</td>
+-  <td>Evaluates the specified closure against each element of @array.  Each value returned by &amp;closure is collected into an array that is returned by the map() call.</td>
++  <td>map(&amp;closure, @|&)</td>
++  <td>Evaluates the specified closure against each element of @array or &generator.  Each value returned by &amp;closure is collected into an array that is returned by the map() call.</td>
+  </tr>
+  <tr>
+   <td>$</td>
+@@ -1670,8 +1688,8 @@
+  </tr>
+  <tr>
+   <td>@</td>
+-  <td>reduce(@array, &amp;closure)</td>
+-  <td>I probably should have learned from python and not added this but here it is anyways.  Applies &amp;closure to first two elements of @array.  Takes the resulting value and applies it to the next element of @array, so on and so forth.  Returns one value.</td>
++  <td>reduce(@|&, &amp;closure)</td>
++  <td>I probably should have learned from python and not added this but here it is anyways.  Applies &amp;closure to first two elements of @array or &generator.  Takes the resulting value and applies it to the next element of @array or &generator, so on and so forth.  Returns one value.</td>
+  </tr>
+  <tr>
+   <td></td>
+@@ -1695,8 +1713,8 @@
+  </tr>
+  <tr>
+   <td>@</td>
+-  <td>reverse(@array)</td>
+-  <td>returns a copy of @array in reverse order</td>
++  <td>reverse(@|&)</td>
++  <td>returns a copy of @array or &generator in reverse order</td>
+  </tr>
+  <tr>
+   <td>@</td>
+@@ -1977,8 +1995,14 @@
+   <td>closes the IO for $handle</td>
+  </tr>
+  <tr>
++  <td></td>
++  <td>closef(port)</td>
++  <td>if a port number is specified, forces Sleep to stop listening for socket connections on 
++      the specified port.</td>
++ </tr>
++ <tr>
+   <td>$</td>
+-  <td>connect("host", port, [&amp;closure])</td>
++  <td>connect("host", port, [timeout], [&amp;closure])</td>
+   <td>connects to the specified host:port and returns a $handle.  Check for issues connecting to a host with checkError().  If 
+      &amp;closure is specified, this call will not block.  &amp;closure will be called when a connection is established.</td>
+  </tr>
+@@ -2030,8 +2054,8 @@
+  </tr>
+  <tr>
+   <td></td>
+-  <td>printAll([$handle], @array)</td>
+-  <td>prints entire contents of @array to $handle</td>
++  <td>printAll([$handle], @|&)</td>
++  <td>prints entire contents of passed in @array or &generator to $handle</td>
+  </tr>
+  <tr>
+   <td></td>
+@@ -2084,8 +2108,8 @@
+  <tr>
+   <td>$</td>
+   <td>wait($handle, [timeout])</td>
+-  <td>waits for the callback or fork associated with $handle to finish.  if $handle is a fork, the return value of the fork 
+-will be returned by &amp;wait.  If the specified timeout is reached $null will be returned.</td>
++  <td>waits for the callback, process, or fork associated with $handle to finish.  if $handle is a fork, the return value of the fork 
++will be returned by &amp;wait.  if $handle is a process, the return value of the process will be returned by &amp;wait. If the specified timeout is reached $null will be returned.</td>
+  </tr>
+  <tr>
+   <td></td>
+@@ -2202,6 +2226,11 @@
+  </tr>
+  <tr>
+   <td>$</td>
++  <td>rand(@array)</td>
++  <td>returns a random element of @array</td>
++ </tr>
++ <tr>
++  <td>$</td>
+   <td>round($scalar)</td>
+   <td>rounds $scalar to the nearest whole number</td>
+  </tr>
+@@ -2365,6 +2394,11 @@
+  </tr>
+  <tr>
+   <td>$</td>
++  <td>debug(level)</td>
++  <td>explicitly enables the specified debug level for this script: 0 - no debugging; 1 - show only critical errors (default); 2 - show all warnings; 4 - show first time use of non-declared variables.  any of the levels can be |'d together.</td>
++ </tr>
++ <tr>
++  <td>$</td>
+   <td width="240">eval("code")</td>
+   <td>parses and evaluates the specified code returning the return value of the code.  syntax errors can be obtained with &amp;checkError()</td>
+  </tr>
+@@ -2379,6 +2413,11 @@
+   <td>obtains the function handle for the function bound to the specified string</td>
+  </tr>
+  <tr>
++  <td>$</td>
++  <td>global('$x $y')</td>
++  <td>parses the specified string and declares all variables in the string as global variables.</td>
++ </tr>
++ <tr>
+   <td>&amp;</td>
+   <td>lambda(&amp;closure,&nbsp;$key&nbsp;=&gt;&nbsp;"value",&nbsp;...)</td>
+   <td>copies &amp;closure into a new closure.  The closure environment is initialized with all of the key/value pair arguments.</td>
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-08-16 01:28:14 UTC (rev 99)
++++ sleep/whatsnew.txt	2006-08-16 02:36:36 UTC (rev 100)
+@@ -38,7 +38,7 @@
+   or generator function interchangeably.
+ - updated several functions in the sleep utility library to use this new
+   iterator extractor mechanism:
+-  &map, &filter, &copy, &reverse, &reduce, &printAll
++  &map, &filter, &copy, &reverse, &reduce, &printAll, &addAll
+ - fixed a bug where several bridge utility functions were inadvertently 
+   causing arrays/hashes to share scalar references with passed in data. 
+   &add, &addAll, &array, &filter, &map, &subarray, and &map.
+
+
+
+From rsmudge at mail.berlios.de  Fri Aug 18 06:23:22 2006
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Fri, 18 Aug 2006 06:23:22 +0200
+Subject: [Sleep-svn] r101 - sleep/src/sleep/bridges
+Message-ID: <200608180423.k7I4NM0T024948@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-08-18 06:23:21 +0200 (Fri, 18 Aug 2006)
+New Revision: 101
+
+Modified:
+   sleep/src/sleep/bridges/BasicIO.java
+Log:
+fixing my own bug...
+
+
+
+Modified: sleep/src/sleep/bridges/BasicIO.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicIO.java	2006-08-16 02:36:36 UTC (rev 100)
++++ sleep/src/sleep/bridges/BasicIO.java	2006-08-18 04:23:21 UTC (rev 101)
+@@ -248,7 +248,7 @@
+     {
+        public Scalar evaluate(String n, ScriptInstance i, Stack l)
+        {
+-          if (!l.isEmpty() && l.peek() instanceof IOObject)
++          if (!l.isEmpty() && ((Scalar)l.peek()).objectValue() instanceof IOObject)
+           {
+              IOObject a = (IOObject)BridgeUtilities.getObject(l);
+              a.close();
+
+
+
+From rsmudge at mail.berlios.de  Fri Aug 18 06:25:10 2006
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Fri, 18 Aug 2006 06:25:10 +0200
+Subject: [Sleep-svn] r102 - in sleep: . src/sleep/runtime
+Message-ID: <200608180425.k7I4PAmO025074@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-08-18 06:25:09 +0200 (Fri, 18 Aug 2006)
+New Revision: 102
+
+Modified:
+   sleep/readme.txt
+   sleep/src/sleep/runtime/SleepUtils.java
+Log:
+release! release!
+
+
+
+Modified: sleep/readme.txt
+===================================================================
+--- sleep/readme.txt	2006-08-18 04:23:21 UTC (rev 101)
++++ sleep/readme.txt	2006-08-18 04:25:09 UTC (rev 102)
+@@ -1,5 +1,5 @@
+  ------- -------------------- ---------   ---------------  ------- ---------
+-Sleep - 2.1 beta 2 - README   
++Sleep - 2.1 beta 3 - README   
+ -  ------------- -------- -   ---------------- --       -    -     -     - - -
+ 
+ "You got the language, all you need now is the O'Reilly book".  That is
+
+Modified: sleep/src/sleep/runtime/SleepUtils.java
+===================================================================
+--- sleep/src/sleep/runtime/SleepUtils.java	2006-08-18 04:23:21 UTC (rev 101)
++++ sleep/src/sleep/runtime/SleepUtils.java	2006-08-18 04:25:09 UTC (rev 102)
+@@ -50,7 +50,7 @@
+ public class SleepUtils
+ {
+    /** A date stamp of this Sleep release in YYYYMMDD format */
+-   public static final int    SLEEP_RELEASE = 20060805;
++   public static final int    SLEEP_RELEASE = 20060818;
+ 
+    /** A string description of this Sleep release */
+    public static final String SLEEP_VERSION = "Sleep 2.1";
+
+
+
+From rsmudge at mail.berlios.de  Fri Aug 18 07:11:52 2006
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Fri, 18 Aug 2006 07:11:52 +0200
+Subject: [Sleep-svn] r103 - sleep
+Message-ID: <200608180511.k7I5Bqxc004445@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-08-18 07:11:27 +0200 (Fri, 18 Aug 2006)
+New Revision: 103
+
+Modified:
+   sleep/build.xml
+Log:
+fsf
+
+
+Modified: sleep/build.xml
+===================================================================
+--- sleep/build.xml	2006-08-18 04:25:09 UTC (rev 102)
++++ sleep/build.xml	2006-08-18 05:11:27 UTC (rev 103)
+@@ -17,6 +17,7 @@
+            nowarn="yes"
+            depend="yes"
+            debug="false"
++           source="1.4"
+            optimize="yes"
+     >
+     </javac>
+
+
+
+From rsmudge at mail.berlios.de  Sat Aug 19 01:53:21 2006
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Sat, 19 Aug 2006 01:53:21 +0200
+Subject: [Sleep-svn] r104 - in sleep: . src/sleep/parser tests tests/output
+Message-ID: <200608182353.k7INrL9b026642@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-08-19 01:53:05 +0200 (Sat, 19 Aug 2006)
+New Revision: 104
+
+Added:
+   sleep/tests/dsliteral.sl
+   sleep/tests/multilit.sl
+   sleep/tests/output/dsliteral.sl
+   sleep/tests/output/multilit.sl
+Modified:
+   sleep/src/sleep/parser/Checkers.java
+   sleep/src/sleep/parser/CodeGenerator.java
+   sleep/src/sleep/parser/ParserConstants.java
+   sleep/src/sleep/parser/Token.java
+   sleep/src/sleep/parser/TokenParser.java
+   sleep/whatsnew.txt
+Log:
+added literal forms of arrays and hashes...  
+
+
+
+Modified: sleep/src/sleep/parser/Checkers.java
+===================================================================
+--- sleep/src/sleep/parser/Checkers.java	2006-08-18 05:11:27 UTC (rev 103)
++++ sleep/src/sleep/parser/Checkers.java	2006-08-18 23:53:05 UTC (rev 104)
+@@ -159,6 +159,16 @@
+       return (a.charAt(0) == '{' && a.charAt(a.length() - 1) == '}');
+    }
+ 
++   public static boolean isArrayLiteral(String a)
++   {
++      return (a.length() > 3 && a.charAt(0) == '@' && isIndex(a.substring(1)));
++   }
++
++   public static boolean isHashLiteral(String a)
++   {
++      return (a.length() > 3 && a.charAt(0) == '%' && isIndex(a.substring(1)));
++   }
++
+    public static boolean isFunctionCall(String a, String b)
+    {
+       return (isFunction(a) && isExpression(b));
+
+Modified: sleep/src/sleep/parser/CodeGenerator.java
+===================================================================
+--- sleep/src/sleep/parser/CodeGenerator.java	2006-08-18 05:11:27 UTC (rev 103)
++++ sleep/src/sleep/parser/CodeGenerator.java	2006-08-18 23:53:05 UTC (rev 104)
+@@ -731,6 +731,24 @@
+            atom    = GeneratedSteps.CreateClosure(restore());
+            add(atom, tokens[0]);
+            break;
++         case IDEA_HASH_LIT:
++           atom = GeneratedSteps.CreateFrame();
++           add(atom, tokens[0]);
++
++           parseParameters(ParserUtilities.extract(tokens[0].substring(1)));
++
++           atom = GeneratedSteps.Call("&hash");
++           add(atom, tokens[0]);
++           break;
++         case IDEA_ARRAY_LIT:
++           atom = GeneratedSteps.CreateFrame();
++           add(atom, tokens[0]);
++
++           parseParameters(ParserUtilities.extract(tokens[0].substring(1)));
++
++           atom = GeneratedSteps.Call("&array");
++           add(atom, tokens[0]);
++           break;
+          case IDEA_FUNC: // implemented 
+            TokenList funcParms = LexicalAnalyzer.CreateTerms(parser, new StringIterator(strings[0], tokens[0].getHint()));
+ 
+
+Modified: sleep/src/sleep/parser/ParserConstants.java
+===================================================================
+--- sleep/src/sleep/parser/ParserConstants.java	2006-08-18 05:11:27 UTC (rev 103)
++++ sleep/src/sleep/parser/ParserConstants.java	2006-08-18 23:53:05 UTC (rev 104)
+@@ -33,6 +33,8 @@
+    public static final int IDEA_EXPR_I     = 611;
+    public static final int IDEA_HASH_PAIR  = 612;
+    public static final int IDEA_BLOCK      = 613;
++   public static final int IDEA_HASH_LIT   = 614;
++   public static final int IDEA_ARRAY_LIT  = 615;
+   
+    public static final int OBJECT_NEW      = 441;
+    public static final int OBJECT_ACCESS   = 442;
+
+Modified: sleep/src/sleep/parser/Token.java
+===================================================================
+--- sleep/src/sleep/parser/Token.java	2006-08-18 05:11:27 UTC (rev 103)
++++ sleep/src/sleep/parser/Token.java	2006-08-18 23:53:05 UTC (rev 104)
+@@ -50,6 +50,16 @@
+       return marker;
+    }
+ 
++   public Token substring(int x, int y)
++   {
++      return new Token(term.substring(x, y), getHint());
++   }    
++
++   public Token substring(int x)
++   {
++      return new Token(term.substring(x), getHint());
++   }    
++
+    public Token copy(String text)
+    {
+       return new Token(text, getHint());
+
+Modified: sleep/src/sleep/parser/TokenParser.java
+===================================================================
+--- sleep/src/sleep/parser/TokenParser.java	2006-08-18 05:11:27 UTC (rev 103)
++++ sleep/src/sleep/parser/TokenParser.java	2006-08-18 23:53:05 UTC (rev 104)
+@@ -365,6 +365,16 @@
+                }
+             }
+          }
++         else if (Checkers.isArrayLiteral(strings[x]))
++         {
++            myToken.setType(IDEA_ARRAY_LIT);
++            myToken.add(tokens[x]);
++         }
++         else if (Checkers.isHashLiteral(strings[x]))
++         {
++            myToken.setType(IDEA_HASH_LIT);
++            myToken.add(tokens[x]);
++         }
+          else if (Checkers.isIndexableItem(strings[x]))
+          {
+             myToken.setType(VALUE_INDEXED);
+
+Added: sleep/tests/dsliteral.sl
+===================================================================
+--- sleep/tests/dsliteral.sl	2006-08-18 05:11:27 UTC (rev 103)
++++ sleep/tests/dsliteral.sl	2006-08-18 23:53:05 UTC (rev 104)
+@@ -0,0 +1,26 @@
++#
++# literal instantiation of sleep data structures
++#
++
++ at array = @[ "a", "b", "c", "d", "e", "f" ];
++printAll(@array);
++
++#
++
++printAll(@[ "this",
++  "is", 
++  "a",
++  "test",
++  "of",
++  "a",
++  "new",
++  "syntax"]);
++
++#
++
++foreach $key => $value (%[ a => "apple", b => "bannana", c => "cambodia", e => "elephant" ])
++{
++   println("$key => $value");
++}
++
++
+
+Added: sleep/tests/multilit.sl
+===================================================================
+--- sleep/tests/multilit.sl	2006-08-18 05:11:27 UTC (rev 103)
++++ sleep/tests/multilit.sl	2006-08-18 23:53:05 UTC (rev 104)
+@@ -0,0 +1,126 @@
++# 
++# Test of data structure robustness with multiple levels of stuff...
++#
++
++sub recurse
++{
++   if (-isarray $1)
++   {
++      recurseA($1);
++   }
++   else if (-ishash $1)
++   {
++      recurseH($1);
++   }
++}
++
++sub recurseA
++{
++   local('$var');
++
++   foreach $var ($1)
++   {
++      if (-isarray $var)
++      {
++         recurseA($var, "$2  ");
++      }
++      else if (-ishash $var)
++      {
++         recurseH($var, "$2  ");
++      }
++      else
++      {
++         println("$2 $var");
++      }
++   }
++}
++
++sub recurseH
++{
++   local('$key %hash $value');
++   %hash = $1;
++
++   foreach $key (keys(%hash))
++   {
++      $value = %hash[$key];
++
++      if (-ishash $value)
++      {
++         println("$2 $key is:");
++         recurseH($value, "$2  ");
++      }
++      else if (-isarray $value)
++      {
++         println("$2 $key is");
++         recurseA($value, "$2  ");
++      }
++      else
++      {
++         println("$2 $key => $value");
++      }
++   }
++}
++
++#
++# Array of Arrays / Scalars
++#
++
++ at data =     @['item 1', 
++              'item 2',  
++              @[
++                  'sub array 1',
++                  'sub array 2',
++                  'sub array 3',
++                  'sub array 4',
++               ],
++               'item 4',
++               'item 5'];
++
++recurse(@data);
++
++#
++# Hash of Hashes / Scalars
++#
++
++sub test
++{
++   return "kvp op takes functions";
++}
++
++%data2 =    %[key1 => "value 1",
++              key2 => "value 2",
++              key3 => test(), 
++              %key3 => %[
++                  key3a => "value a",
++                  key3b => "value b",
++                  key3c => "value c",
++                  key3d => "value d"],
++              key4 => "value 4"];
++
++recurse(%data2);
++
++#
++# Hash of Arrays
++#
++%data3 =    %[letters => @["a", "b", "c"],
++              numbers => @[1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
++              puncs   => @["!", "@", "%", ".", ",", "^"],
++              letters+numbers+puncs => @[
++                  array("a", "b", "c"),    # just for giggles to make sure functions still work.. :)
++                  @[1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
++                  @["!", "@", "%", ".", ",", "^"]
++              ],
++              astring => "this is just a string for good measure"];
++
++recurse(%data3);
++
++#
++# Array of Hashes
++#
++
++ at data4 = @[%[rsmudge => "Raphael Mudge", fvmudge => "Frances Mudge", bjmudge => "Brad Mudge"],
++               %[olopez  => "Orlando Lopez", hlopez  => "Heather Lopez"],
++               %[jsmith  => "John Smith", jjsmith => "Jimmy John Smith", rj => "Rick James!!!"]
++              ];
++
++recurse(@data4);
+
+Added: sleep/tests/output/dsliteral.sl
+===================================================================
+--- sleep/tests/output/dsliteral.sl	2006-08-18 05:11:27 UTC (rev 103)
++++ sleep/tests/output/dsliteral.sl	2006-08-18 23:53:05 UTC (rev 104)
+@@ -0,0 +1,18 @@
++a
++b
++c
++d
++e
++f
++this
++is
++a
++test
++of
++a
++new
++syntax
++a => apple
++c => cambodia
++b => bannana
++e => elephant
+
+Added: sleep/tests/output/multilit.sl
+===================================================================
+--- sleep/tests/output/multilit.sl	2006-08-18 05:11:27 UTC (rev 103)
++++ sleep/tests/output/multilit.sl	2006-08-18 23:53:05 UTC (rev 104)
+@@ -0,0 +1,68 @@
++ item 1
++ item 2
++   sub array 1
++   sub array 2
++   sub array 3
++   sub array 4
++ item 4
++ item 5
++ key1 => value 1
++ key3 => kvp op takes functions
++ %key3 is:
++   key3a => value a
++   key3c => value c
++   key3d => value d
++   key3b => value b
++ key2 => value 2
++ key4 => value 4
++ puncs is
++   !
++   @
++   %
++   .
++   ,
++   ^
++ numbers is
++   1
++   2
++   3
++   4
++   5
++   6
++   7
++   8
++   9
++   10
++ letters is
++   a
++   b
++   c
++ astring => this is just a string for good measure
++ letters+numbers+puncs is
++     a
++     b
++     c
++     1
++     2
++     3
++     4
++     5
++     6
++     7
++     8
++     9
++     10
++     !
++     @
++     %
++     .
++     ,
++     ^
++   rsmudge => Raphael Mudge
++   fvmudge => Frances Mudge
++   bjmudge => Brad Mudge
++   olopez => Orlando Lopez
++   hlopez => Heather Lopez
++   jjsmith => Jimmy John Smith
++   rj => Rick James!!!
++   jsmith => John Smith
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-08-18 05:11:27 UTC (rev 103)
++++ sleep/whatsnew.txt	2006-08-18 23:53:05 UTC (rev 104)
+@@ -1,3 +1,11 @@
++2.1-beta 4
++===========
++- added literal forms of arrays and hashes...  
++  %[ key => "value", ... ] # hash literal form
++  @[ 1, 2, 3, 4, 5, "6", ... ] # array literal form
++  saves typing a few characters at least.
++
++
+ 2.1-beta 3
+ ===========
+ - added an optional timeout parameter for the socket connect function i.e.:
+
+
+
+From rsmudge at mail.berlios.de  Sat Aug 19 19:33:09 2006
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Sat, 19 Aug 2006 19:33:09 +0200
+Subject: [Sleep-svn] r105 - in sleep: . src/sleep/parser
+Message-ID: <200608191733.k7JHX91Z020614@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-08-19 19:33:07 +0200 (Sat, 19 Aug 2006)
+New Revision: 105
+
+Modified:
+   sleep/src/sleep/parser/Checkers.java
+   sleep/src/sleep/parser/CodeGenerator.java
+   sleep/src/sleep/parser/ParserConstants.java
+   sleep/src/sleep/parser/Token.java
+   sleep/src/sleep/parser/TokenParser.java
+   sleep/whatsnew.txt
+Log:
+undid some damage..
+
+
+
+Modified: sleep/src/sleep/parser/Checkers.java
+===================================================================
+--- sleep/src/sleep/parser/Checkers.java	2006-08-18 23:53:05 UTC (rev 104)
++++ sleep/src/sleep/parser/Checkers.java	2006-08-19 17:33:07 UTC (rev 105)
+@@ -159,16 +159,6 @@
+       return (a.charAt(0) == '{' && a.charAt(a.length() - 1) == '}');
+    }
+ 
+-   public static boolean isArrayLiteral(String a)
+-   {
+-      return (a.length() > 3 && a.charAt(0) == '@' && isIndex(a.substring(1)));
+-   }
+-
+-   public static boolean isHashLiteral(String a)
+-   {
+-      return (a.length() > 3 && a.charAt(0) == '%' && isIndex(a.substring(1)));
+-   }
+-
+    public static boolean isFunctionCall(String a, String b)
+    {
+       return (isFunction(a) && isExpression(b));
+
+Modified: sleep/src/sleep/parser/CodeGenerator.java
+===================================================================
+--- sleep/src/sleep/parser/CodeGenerator.java	2006-08-18 23:53:05 UTC (rev 104)
++++ sleep/src/sleep/parser/CodeGenerator.java	2006-08-19 17:33:07 UTC (rev 105)
+@@ -731,24 +731,6 @@
+            atom    = GeneratedSteps.CreateClosure(restore());
+            add(atom, tokens[0]);
+            break;
+-         case IDEA_HASH_LIT:
+-           atom = GeneratedSteps.CreateFrame();
+-           add(atom, tokens[0]);
+-
+-           parseParameters(ParserUtilities.extract(tokens[0].substring(1)));
+-
+-           atom = GeneratedSteps.Call("&hash");
+-           add(atom, tokens[0]);
+-           break;
+-         case IDEA_ARRAY_LIT:
+-           atom = GeneratedSteps.CreateFrame();
+-           add(atom, tokens[0]);
+-
+-           parseParameters(ParserUtilities.extract(tokens[0].substring(1)));
+-
+-           atom = GeneratedSteps.Call("&array");
+-           add(atom, tokens[0]);
+-           break;
+          case IDEA_FUNC: // implemented 
+            TokenList funcParms = LexicalAnalyzer.CreateTerms(parser, new StringIterator(strings[0], tokens[0].getHint()));
+ 
+
+Modified: sleep/src/sleep/parser/ParserConstants.java
+===================================================================
+--- sleep/src/sleep/parser/ParserConstants.java	2006-08-18 23:53:05 UTC (rev 104)
++++ sleep/src/sleep/parser/ParserConstants.java	2006-08-19 17:33:07 UTC (rev 105)
+@@ -33,8 +33,6 @@
+    public static final int IDEA_EXPR_I     = 611;
+    public static final int IDEA_HASH_PAIR  = 612;
+    public static final int IDEA_BLOCK      = 613;
+-   public static final int IDEA_HASH_LIT   = 614;
+-   public static final int IDEA_ARRAY_LIT  = 615;
+   
+    public static final int OBJECT_NEW      = 441;
+    public static final int OBJECT_ACCESS   = 442;
+
+Modified: sleep/src/sleep/parser/Token.java
+===================================================================
+--- sleep/src/sleep/parser/Token.java	2006-08-18 23:53:05 UTC (rev 104)
++++ sleep/src/sleep/parser/Token.java	2006-08-19 17:33:07 UTC (rev 105)
+@@ -50,16 +50,6 @@
+       return marker;
+    }
+ 
+-   public Token substring(int x, int y)
+-   {
+-      return new Token(term.substring(x, y), getHint());
+-   }    
+-
+-   public Token substring(int x)
+-   {
+-      return new Token(term.substring(x), getHint());
+-   }    
+-
+    public Token copy(String text)
+    {
+       return new Token(text, getHint());
+
+Modified: sleep/src/sleep/parser/TokenParser.java
+===================================================================
+--- sleep/src/sleep/parser/TokenParser.java	2006-08-18 23:53:05 UTC (rev 104)
++++ sleep/src/sleep/parser/TokenParser.java	2006-08-19 17:33:07 UTC (rev 105)
+@@ -365,16 +365,6 @@
+                }
+             }
+          }
+-         else if (Checkers.isArrayLiteral(strings[x]))
+-         {
+-            myToken.setType(IDEA_ARRAY_LIT);
+-            myToken.add(tokens[x]);
+-         }
+-         else if (Checkers.isHashLiteral(strings[x]))
+-         {
+-            myToken.setType(IDEA_HASH_LIT);
+-            myToken.add(tokens[x]);
+-         }
+          else if (Checkers.isIndexableItem(strings[x]))
+          {
+             myToken.setType(VALUE_INDEXED);
+@@ -400,6 +390,11 @@
+             myToken.setType(IDEA_EXPR_I);
+             myToken.add(tokens[x]);
+          }
++         else if (Checkers.isFunctionCall(strings[x])) /* moved above isVariable since @() and %() are now "function" calls */
++         {
++            myToken.setType(IDEA_FUNC);
++            myToken.add(tokens[x]);
++         }
+          else if (Checkers.isVariable(strings[x]))
+          {
+             myToken.setType(VALUE_SCALAR);
+@@ -410,11 +405,6 @@
+             myToken.setType(IDEA_EXPR);
+             myToken.add(tokens[x]);
+          }
+-         else if (Checkers.isFunctionCall(strings[x]))
+-         {
+-            myToken.setType(IDEA_FUNC);
+-            myToken.add(tokens[x]);
+-         }
+          else if (Checkers.isFunction(strings[x]))
+          {
+             myToken.setType(IDEA_FUNC);
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-08-18 23:53:05 UTC (rev 104)
++++ sleep/whatsnew.txt	2006-08-19 17:33:07 UTC (rev 105)
+@@ -1,11 +1,6 @@
+ 2.1-beta 4
+ ===========
+-- added literal forms of arrays and hashes...  
+-  %[ key => "value", ... ] # hash literal form
+-  @[ 1, 2, 3, 4, 5, "6", ... ] # array literal form
+-  saves typing a few characters at least.
+ 
+-
+ 2.1-beta 3
+ ===========
+ - added an optional timeout parameter for the socket connect function i.e.:
+
+
+
+From rsmudge at mail.berlios.de  Sat Aug 19 19:45:40 2006
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Sat, 19 Aug 2006 19:45:40 +0200
+Subject: [Sleep-svn] r106 - in sleep: . src/sleep/bridges src/sleep/parser
+	tests tests/output
+Message-ID: <200608191745.k7JHjeKX025298@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-08-19 19:45:38 +0200 (Sat, 19 Aug 2006)
+New Revision: 106
+
+Modified:
+   sleep/src/sleep/bridges/BasicUtilities.java
+   sleep/src/sleep/parser/Checkers.java
+   sleep/tests/dsliteral.sl
+   sleep/tests/multilit.sl
+   sleep/tests/output/dsliteral.sl
+   sleep/whatsnew.txt
+Log:
+added a literal form for arrays and hashes
+
+
+
+Modified: sleep/src/sleep/bridges/BasicUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicUtilities.java	2006-08-19 17:33:07 UTC (rev 105)
++++ sleep/src/sleep/bridges/BasicUtilities.java	2006-08-19 17:45:38 UTC (rev 106)
+@@ -52,9 +52,15 @@
+         // functions
+         //
+ 
++        Function f_array = new array();
++        Function f_hash  = new hash();
++
++        temp.put("&array", f_array); 
++        temp.put("&hash", f_hash);
++        temp.put("&@", f_array);
++        temp.put("&%", f_hash);  
++
+         // array & hashtable related
+-        temp.put("&array",   new array());    // &keys(%hash) = @array
+-        temp.put("&hash",   new hash());      // &keys(%hash) = @array
+         temp.put("&keys",  this);      // &keys(%hash) = @array
+         temp.put("&size",  this);      // &size(@array) = <int>
+         temp.put("&push",  this);      // &push(@array, $value) = $scalar
+
+Modified: sleep/src/sleep/parser/Checkers.java
+===================================================================
+--- sleep/src/sleep/parser/Checkers.java	2006-08-19 17:33:07 UTC (rev 105)
++++ sleep/src/sleep/parser/Checkers.java	2006-08-19 17:45:38 UTC (rev 106)
+@@ -161,7 +161,7 @@
+ 
+    public static boolean isFunctionCall(String a, String b)
+    {
+-      return (isFunction(a) && isExpression(b));
++      return ((isFunction(a) || a.equals("@") || a.equals("%")) && isExpression(b));
+    }
+ 
+    public static boolean isFunction(String a)
+@@ -169,9 +169,14 @@
+       return ((Character.isJavaIdentifierStart(a.charAt(0)) || a.charAt(0) == '&') && a.charAt(0) != '$' && keywords.get(a) == null);
+    }
+ 
++   public static boolean isDataLiteral(String a)
++   {
++      return (a.length() > 2) && (  a.substring(0, 2).equals("@(") || a.substring(0, 2).equals("%(")  );
++   }
++
+    public static boolean isFunctionCall(String a)
+    {
+-      return (isFunction(a) && (a.indexOf('(') > -1) && (a.indexOf(')') > -1));
++      return ((isFunction(a) || isDataLiteral(a)) && (a.indexOf('(') > -1) && (a.indexOf(')') > -1));
+    }
+ 
+    public static boolean isIndexableItem(String a, String b)
+
+Modified: sleep/tests/dsliteral.sl
+===================================================================
+--- sleep/tests/dsliteral.sl	2006-08-19 17:33:07 UTC (rev 105)
++++ sleep/tests/dsliteral.sl	2006-08-19 17:45:38 UTC (rev 106)
+@@ -2,25 +2,27 @@
+ # literal instantiation of sleep data structures
+ #
+ 
+- at array = @[ "a", "b", "c", "d", "e", "f" ];
++ at array = @("a", "b", "c", "d", "e", "f");
+ printAll(@array);
+ 
+ #
+ 
+-printAll(@[ "this",
++printAll(@( "this",
+   "is", 
+   "a",
+   "test",
+   "of",
+   "a",
+   "new",
+-  "syntax"]);
++  "syntax"));
+ 
+ #
+ 
+-foreach $key => $value (%[ a => "apple", b => "bannana", c => "cambodia", e => "elephant" ])
++foreach $key => $value (%(a => "apple", b => "bannana", c => "cambodia", e => "elephant"))
+ {
+    println("$key => $value");
+ }
+ 
++#
+ 
++println("This is a test: " . @("a", "b", "c", @("d", "e", "f"), "g")[3][2]);
+
+Modified: sleep/tests/multilit.sl
+===================================================================
+--- sleep/tests/multilit.sl	2006-08-19 17:33:07 UTC (rev 105)
++++ sleep/tests/multilit.sl	2006-08-19 17:45:38 UTC (rev 106)
+@@ -65,16 +65,16 @@
+ # Array of Arrays / Scalars
+ #
+ 
+- at data =     @['item 1', 
++ at data = @('item 1', 
+               'item 2',  
+-              @[
++               @(
+                   'sub array 1',
+                   'sub array 2',
+                   'sub array 3',
+                   'sub array 4',
+-               ],
++               ),
+                'item 4',
+-               'item 5'];
++               'item 5');
+ 
+ recurse(@data);
+ 
+@@ -87,30 +87,30 @@
+    return "kvp op takes functions";
+ }
+ 
+-%data2 =    %[key1 => "value 1",
++%data2 = %(key1 => "value 1",
+               key2 => "value 2",
+               key3 => test(), 
+-              %key3 => %[
++              %key3 => %(
+                   key3a => "value a",
+                   key3b => "value b",
+                   key3c => "value c",
+-                  key3d => "value d"],
+-              key4 => "value 4"];
++                  key3d => "value d"),
++              key4 => "value 4");
+ 
+ recurse(%data2);
+ 
+ #
+ # Hash of Arrays
+ #
+-%data3 =    %[letters => @["a", "b", "c"],
+-              numbers => @[1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+-              puncs   => @["!", "@", "%", ".", ",", "^"],
+-              letters+numbers+puncs => @[
+-                  array("a", "b", "c"),    # just for giggles to make sure functions still work.. :)
+-                  @[1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+-                  @["!", "@", "%", ".", ",", "^"]
+-              ],
+-              astring => "this is just a string for good measure"];
++%data3 = hash(letters => @("a", "b", "c"),
++              numbers => @(1, 2, 3, 4, 5, 6, 7, 8, 9, 10),
++              puncs   => @("!", "@", "%", ".", ",", "^"),
++              letters+numbers+puncs => @(
++                  @("a", "b", "c"),
++                  @(1, 2, 3, 4, 5, 6, 7, 8, 9, 10),
++                  @("!", "@", "%", ".", ",", "^")
++              ),
++              astring => "this is just a string for good measure");
+ 
+ recurse(%data3);
+ 
+@@ -118,9 +118,9 @@
+ # Array of Hashes
+ #
+ 
+- at data4 = @[%[rsmudge => "Raphael Mudge", fvmudge => "Frances Mudge", bjmudge => "Brad Mudge"],
+-               %[olopez  => "Orlando Lopez", hlopez  => "Heather Lopez"],
+-               %[jsmith  => "John Smith", jjsmith => "Jimmy John Smith", rj => "Rick James!!!"]
+-              ];
++ at data4 = @(%(rsmudge => "Raphael Mudge", fvmudge => "Frances Mudge", bjmudge => "Brad Mudge"),
++               %(olopez  => "Orlando Lopez", hlopez  => "Heather Lopez"),
++               %(jsmith  => "John Smith", jjsmith => "Jimmy John Smith", rj => "Rick James!!!")
++              );
+ 
+ recurse(@data4);
+
+Modified: sleep/tests/output/dsliteral.sl
+===================================================================
+--- sleep/tests/output/dsliteral.sl	2006-08-19 17:33:07 UTC (rev 105)
++++ sleep/tests/output/dsliteral.sl	2006-08-19 17:45:38 UTC (rev 106)
+@@ -16,3 +16,4 @@
+ c => cambodia
+ b => bannana
+ e => elephant
++This is a test: f
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-08-19 17:33:07 UTC (rev 105)
++++ sleep/whatsnew.txt	2006-08-19 17:45:38 UTC (rev 106)
+@@ -1,5 +1,8 @@
+ 2.1-beta 4
+ ===========
++- added a literal form for arrays and hashes:
++  @("a", "b", "c", "d", "e", @("f", "g", "h", "i"), "j", "k")
++  %(a => "apple", b => "batman", c => "cow")
+ 
+ 2.1-beta 3
+ ===========
+
+
+

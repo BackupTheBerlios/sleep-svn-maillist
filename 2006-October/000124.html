@@ -1,0 +1,131 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r142 - in sleep: . src/sleep/bridges
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2006-October/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r142%20-%20in%20sleep%3A%20.%20src/sleep/bridges&In-Reply-To=%3C200610291740.k9THeNeC030116%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000123.html">
+   <LINK REL="Next"  HREF="000125.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r142 - in sleep: . src/sleep/bridges</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r142%20-%20in%20sleep%3A%20.%20src/sleep/bridges&In-Reply-To=%3C200610291740.k9THeNeC030116%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r142 - in sleep: . src/sleep/bridges">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Sun Oct 29 18:40:23 CET 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000123.html">[Sleep-svn] r141 - in sleep: . src/sleep/bridges src/sleep/parser	tests tests/output
+</A></li>
+        <LI>Next message: <A HREF="000125.html">[Sleep-svn] r143 - in sleep: . src/sleep/engine/atoms	src/sleep/parser tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#124">[ date ]</a>
+              <a href="thread.html#124">[ thread ]</a>
+              <a href="subject.html#124">[ subject ]</a>
+              <a href="author.html#124">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2006-10-29 18:40:21 +0100 (Sun, 29 Oct 2006)
+New Revision: 142
+
+Modified:
+   sleep/src/sleep/bridges/BridgeUtilities.java
+   sleep/whatsnew.txt
+Log:
+added BridgeUtilities.extractNamedParameters(Stack args)
+
+
+
+Modified: sleep/src/sleep/bridges/BridgeUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BridgeUtilities.java	2006-10-29 17:23:10 UTC (rev 141)
++++ sleep/src/sleep/bridges/BridgeUtilities.java	2006-10-29 17:40:21 UTC (rev 142)
+@@ -22,10 +22,9 @@
+ package sleep.bridges;
+ 
+ import sleep.runtime.*;
+-import java.util.Stack;
+ import java.io.File;
+ import sleep.interfaces.Function;
+-import java.util.Iterator;
++import java.util.*;
+ 
+ /**
+  * A bridge is a class that bridges your applications API and sleep.  Bridges are created using interfaces from the sleep.interfaces package.  Arguments are passed to bridges generally in a java.util.Stack form.  The Stack of arguments contains sleep Scalar objects.  The BridgeUtilities makes it safer and easier for you to extract Java types from arguments.
+@@ -98,6 +97,26 @@
+       return ((Scalar)arguments.pop()).doubleValue();
+    }
+ 
++   /** extracts all named parameters from the argument stack.  this method returns a Map whose keys are strings
++       and values are Scalars. */
++   public static Map extractNamedParameters(Stack args)
++   {
++      Map rv = new HashMap();
++      Iterator i = args.iterator();
++      while (i.hasNext())
++      {
++         Scalar temp = (Scalar)i.next();
++         if (temp.objectValue() != null &amp;&amp; temp.objectValue().getClass() == KeyValuePair.class)
++         {
++            i.remove();
++            KeyValuePair value = (KeyValuePair)temp.objectValue();
++            rv.put(value.getKey().toString(), value.getValue());
++         }
++      }
++
++      return rv;
++   }
++
+    /** grabs a scalar iterator, this can come from either an array or a closure called continuously until $null is returned. */
+    public static Iterator getIterator(Stack arguments, ScriptInstance script)
+    {
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-10-29 17:23:10 UTC (rev 141)
++++ sleep/whatsnew.txt	2006-10-29 17:40:21 UTC (rev 142)
+@@ -5,6 +5,8 @@
+   &quot;bigger&quot; than a normal java integer).  
+ - fixed a parser ambiguity with hash literals i.e. %(...) and arithmetic
+   consisting of ... % (...).  both now work as they should.
++- added a method to BridgeUtilities to extract all named parameters from an
++  argument stack.
+ 
+ 2.1-beta 7  (15 Oct 06)
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000123.html">[Sleep-svn] r141 - in sleep: . src/sleep/bridges src/sleep/parser	tests tests/output
+</A></li>
+	<LI>Next message: <A HREF="000125.html">[Sleep-svn] r143 - in sleep: . src/sleep/engine/atoms	src/sleep/parser tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#124">[ date ]</a>
+              <a href="thread.html#124">[ thread ]</a>
+              <a href="subject.html#124">[ subject ]</a>
+              <a href="author.html#124">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,111 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r343 - in sleep: . src/sleep/bridges
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2008-April/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r343%20-%20in%20sleep%3A%20.%20src/sleep/bridges&In-Reply-To=%3C200804210014.m3L0EPr9013572%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000320.html">
+   <LINK REL="Next"  HREF="000322.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r343 - in sleep: . src/sleep/bridges</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r343%20-%20in%20sleep%3A%20.%20src/sleep/bridges&In-Reply-To=%3C200804210014.m3L0EPr9013572%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r343 - in sleep: . src/sleep/bridges">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Mon Apr 21 02:14:25 CEST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000320.html">[Sleep-svn] r342 - in sleep: . src/sleep/parser
+</A></li>
+        <LI>Next message: <A HREF="000322.html">[Sleep-svn] r344 - in sleep: . src/sleep/engine/types	src/sleep/runtime tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#321">[ date ]</a>
+              <a href="thread.html#321">[ thread ]</a>
+              <a href="subject.html#321">[ subject ]</a>
+              <a href="author.html#321">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2008-04-21 02:14:24 +0200 (Mon, 21 Apr 2008)
+New Revision: 343
+
+Modified:
+   sleep/src/sleep/bridges/BasicNumbers.java
+   sleep/whatsnew.txt
+Log:
+..
+
+
+Modified: sleep/src/sleep/bridges/BasicNumbers.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicNumbers.java	2008-04-19 00:32:49 UTC (rev 342)
++++ sleep/src/sleep/bridges/BasicNumbers.java	2008-04-21 00:14:24 UTC (rev 343)
+@@ -185,15 +185,15 @@
+        else if (name.equals(&quot;&amp;srand&quot;))
+        {
+           long seed = BridgeUtilities.getLong(args);
+-          si.getScriptEnvironment().getEnvironment().put(&quot;%RANDOM%&quot;, new Random(seed));
++          si.getMetadata().put(&quot;__RANDOM__&quot;, new Random(seed));
+        }
+        else if (name.equals(&quot;&amp;rand&quot;))
+        {
+-          if (si.getScriptEnvironment().getEnvironment().get(&quot;%RANDOM%&quot;) == null) 
++          if (si.getMetadata().get(&quot;__RANDOM__&quot;) == null) 
+           { 
+-             si.getScriptEnvironment().getEnvironment().put(&quot;%RANDOM%&quot;, new Random()); 
++             si.getMetadata().put(&quot;__RANDOM__&quot;, new Random()); 
+           }
+-          Random r = (Random)si.getScriptEnvironment().getEnvironment().get(&quot;%RANDOM%&quot;);
++          Random r = (Random)si.getMetadata().get(&quot;__RANDOM__&quot;);
+ 
+           if (! args.isEmpty())
+           {
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2008-04-19 00:32:49 UTC (rev 342)
++++ sleep/whatsnew.txt	2008-04-21 00:14:24 UTC (rev 343)
+@@ -15,6 +15,8 @@
+   manner allowing different orders/combinations of switches.
+ - sleep.classpath value accepts either a ; or : as the path
+   separator.
++- moved the %RANDOM% object to the ScriptInstance metadata 
++  with key __RANDOM__ (used to store random number seed)
+ 
+ 2.1-beta 22  (17 Apr 08)
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000320.html">[Sleep-svn] r342 - in sleep: . src/sleep/parser
+</A></li>
+	<LI>Next message: <A HREF="000322.html">[Sleep-svn] r344 - in sleep: . src/sleep/engine/types	src/sleep/runtime tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#321">[ date ]</a>
+              <a href="thread.html#321">[ thread ]</a>
+              <a href="subject.html#321">[ subject ]</a>
+              <a href="author.html#321">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

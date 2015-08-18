@@ -1,0 +1,316 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r120 - in sleep: . src/sleep/bridges	src/sleep/bridges/io
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2006-September/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r120%20-%20in%20sleep%3A%20.%20src/sleep/bridges%0A%09src/sleep/bridges/io&In-Reply-To=%3C200609161512.k8GFCSac032088%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000101.html">
+   <LINK REL="Next"  HREF="000103.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r120 - in sleep: . src/sleep/bridges	src/sleep/bridges/io</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r120%20-%20in%20sleep%3A%20.%20src/sleep/bridges%0A%09src/sleep/bridges/io&In-Reply-To=%3C200609161512.k8GFCSac032088%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r120 - in sleep: . src/sleep/bridges	src/sleep/bridges/io">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Sat Sep 16 17:12:28 CEST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000101.html">[Sleep-svn] r119 - in sleep: . src/sleep/bridges/io tests	tests/output
+</A></li>
+        <LI>Next message: <A HREF="000103.html">[Sleep-svn] r121 - in sleep: . docs src/sleep/runtime
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#102">[ date ]</a>
+              <a href="thread.html#102">[ thread ]</a>
+              <a href="subject.html#102">[ subject ]</a>
+              <a href="author.html#102">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2006-09-16 17:12:28 +0200 (Sat, 16 Sep 2006)
+New Revision: 120
+
+Modified:
+   sleep/src/sleep/bridges/BasicIO.java
+   sleep/src/sleep/bridges/BasicUtilities.java
+   sleep/src/sleep/bridges/io/IOObject.java
+   sleep/whatsnew.txt
+Log:
+Fun...
+
+
+
+Modified: sleep/src/sleep/bridges/BasicIO.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicIO.java	2006-09-16 14:39:21 UTC (rev 119)
++++ sleep/src/sleep/bridges/BasicIO.java	2006-09-16 15:12:28 UTC (rev 120)
+@@ -401,7 +401,7 @@
+     {
+        public Scalar evaluate(String n, ScriptInstance i, Stack l)
+        {
+-          IOObject a = chooseSource(l, 1);
++          IOObject a = chooseSource(l, 1, i);
+     
+           String temp = a.readLine();
+ 
+@@ -418,7 +418,7 @@
+     {
+        public Scalar evaluate(String n, ScriptInstance i, Stack l)
+        {
+-          IOObject a = chooseSource(l, 1);
++          IOObject a = chooseSource(l, 1, i);
+ 
+           Scalar ar = SleepUtils.getArrayScalar();
+           
+@@ -436,7 +436,7 @@
+     {
+        public Scalar evaluate(String n, ScriptInstance i, Stack l)
+        {
+-          IOObject a = chooseSource(l, 2);
++          IOObject a = chooseSource(l, 2, i);
+ 
+           String temp = BridgeUtilities.getString(l, &quot;&quot;);
+           a.printLine(temp);
+@@ -449,7 +449,7 @@
+     {
+        public Scalar evaluate(String n, ScriptInstance inst, Stack l)
+        {
+-          IOObject a       = chooseSource(l, 2);
++          IOObject a       = chooseSource(l, 2, inst);
+ 
+           Iterator i = BridgeUtilities.getIterator(l, inst);
+           while (i.hasNext())
+@@ -465,7 +465,7 @@
+     {
+        public Scalar evaluate(String n, ScriptInstance i, Stack l)
+        {
+-          IOObject a = chooseSource(l, 2);
++          IOObject a = chooseSource(l, 2, i);
+ 
+           String temp = BridgeUtilities.getString(l, &quot;&quot;);
+           a.print(temp);
+@@ -479,14 +479,14 @@
+     {
+        public Scalar evaluate(String n, ScriptInstance i, Stack l)
+        {
+-          IOObject a = chooseSource(l, 1);
++          IOObject a = chooseSource(l, 1, i);
+           a.sendEOF();
+ 
+           return SleepUtils.getEmptyScalar();
+        }
+     }
+ 
+-    private static IOObject chooseSource(Stack l, int args)
++    private static IOObject chooseSource(Stack l, int args, ScriptInstance i)
+     {
+        IOObject a;
+ 
+@@ -496,7 +496,7 @@
+        }
+        else
+        {
+-          a = IOObject.getConsole();
++          a = IOObject.getConsole(i.getScriptEnvironment());
+        }  
+ 
+        return a;
+@@ -928,7 +928,7 @@
+     {
+        public Scalar evaluate(String n, ScriptInstance i, Stack l)
+        {
+-          IOObject        a = chooseSource(l, 2);
++          IOObject        a = chooseSource(l, 2, i);
+           String    pattern = BridgeUtilities.getString(l, &quot;&quot;);
+ 
+           return ReadFormatted(pattern, a.getReader(), i.getScriptEnvironment(), a);
+@@ -939,7 +939,7 @@
+     {
+        public Scalar evaluate(String n, ScriptInstance i, Stack l)
+        {
+-          IOObject        a = chooseSource(l, 3);
++          IOObject        a = chooseSource(l, 3, i);
+           String    pattern = BridgeUtilities.getString(l, &quot;&quot;);
+ 
+           WriteFormatted(pattern, a.getWriter(), l, a);
+@@ -951,7 +951,7 @@
+     {
+        public Scalar evaluate(String n, ScriptInstance i, Stack l)
+        {
+-          IOObject        a = chooseSource(l, 2);
++          IOObject        a = chooseSource(l, 2, i);
+           a.getInputBuffer().mark(BridgeUtilities.getInt(l, 1024 * 10 * 10));
+ 
+           return SleepUtils.getEmptyScalar();
+@@ -964,7 +964,7 @@
+        {
+           try
+           {
+-             IOObject        a = chooseSource(l, 1);
++             IOObject        a = chooseSource(l, 1, i);
+ 
+              if (l.isEmpty())
+              {
+@@ -1001,7 +1001,7 @@
+        public Scalar evaluate(String n, ScriptInstance i, Stack l)
+        {
+           try {
+-          IOObject        a = chooseSource(l, 2);
++          IOObject        a = chooseSource(l, 2, i);
+           a.getInputBuffer().skip(BridgeUtilities.getLong(l, 0));
+           } catch (Exception ex) { }
+ 
+@@ -1014,7 +1014,7 @@
+        public Scalar evaluate(String n, ScriptInstance i, Stack l)
+        {
+           try {
+-          IOObject        a = chooseSource(l, 1);
++          IOObject        a = chooseSource(l, 1, i);
+           a.getInputBuffer().reset();
+           } catch (Exception ex) { }
+ 
+@@ -1070,7 +1070,7 @@
+     {
+        public Scalar evaluate(String n, ScriptInstance i, Stack l)
+        {
+-          IOObject     a = chooseSource(l, 2);
++          IOObject     a = chooseSource(l, 2, i);
+           String    data = BridgeUtilities.getString(l, &quot;&quot;);
+ 
+           try
+@@ -1095,7 +1095,7 @@
+     {
+        public Scalar evaluate(String n, ScriptInstance i, Stack l)
+        {
+-          IOObject         a = chooseSource(l, 2);
++          IOObject         a = chooseSource(l, 2, i);
+           int             to = BridgeUtilities.getInt(l, 1);
+ 
+           StringBuffer temp = new StringBuffer(to);
+@@ -1121,7 +1121,7 @@
+     {
+        public Scalar evaluate(String n, ScriptInstance i, Stack l)
+        {
+-          IOObject     a = chooseSource(l, 2);
++          IOObject     a = chooseSource(l, 2, i);
+           SleepClosure b = BridgeUtilities.getFunction(l, i);
+ 
+           Thread fred = new Thread(new CallbackReader(a, i, b, BridgeUtilities.getInt(l, 0)));
+
+Modified: sleep/src/sleep/bridges/BasicUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicUtilities.java	2006-09-16 14:39:21 UTC (rev 119)
++++ sleep/src/sleep/bridges/BasicUtilities.java	2006-09-16 15:12:28 UTC (rev 120)
+@@ -275,7 +275,7 @@
+           {
+              if (type.charAt(0) == 'c')
+              {
+-                return SleepUtils.getScalar(value.toString().toCharArray());
++                return SleepUtils.getScalar((Object)value.toString().toCharArray());
+              }             
+              else if (type.charAt(0) == 'b')
+              {
+@@ -289,7 +289,7 @@
+                    tempb[x] = (byte)tempc[x];
+                 }
+ 
+-                return SleepUtils.getScalar(tempb);
++                return SleepUtils.getScalar((Object)tempb);
+              }             
+ 
+              return SleepUtils.getEmptyScalar();
+
+Modified: sleep/src/sleep/bridges/io/IOObject.java
+===================================================================
+--- sleep/src/sleep/bridges/io/IOObject.java	2006-09-16 14:39:21 UTC (rev 119)
++++ sleep/src/sleep/bridges/io/IOObject.java	2006-09-16 15:12:28 UTC (rev 120)
+@@ -22,8 +22,6 @@
+ 
+ public class IOObject
+ {
+-   private static IOObject console = null;
+-
+    /* input pipeline */ 
+ 
+    protected DataInputStream     readerb = null; /* used to support the binary read/write stuffz */
+@@ -94,25 +92,20 @@
+       token = t;
+    }
+ 
+-   /** this method is no longer the preferred way for obtaining the console IOObject */
+-   public static IOObject getConsole()
+-   {
+-      IOObject temp = new IOObject();
+-      temp.openRead(System.in);
+-      temp.openWrite(System.out);
+-
+-      return temp;
+-   }
+-
+-   /** returns an IOObject that represents stdin/stdout */
++   /** returns an IOObject that represents stdin/stdout to Sleep's I/O API.  To set a script's console
++       object install an IOObject into a script environment under the variable name %console% */
+    public static IOObject getConsole(ScriptEnvironment environment)
+    {
++      IOObject console = (IOObject)environment.getEnvironment().get(&quot;%console%&quot;);
++
+       if (console == null)
+       {
+          console = new IOObject();
+          console.openRead(System.in);
+          console.openWrite(System.out);
++         environment.getEnvironment().put(&quot;%console%&quot;, console);
+       }
++
+       return console;
+    }
+ 
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-09-16 14:39:21 UTC (rev 119)
++++ sleep/whatsnew.txt	2006-09-16 15:12:28 UTC (rev 120)
+@@ -40,6 +40,9 @@
+   be created from this value.
+ - fixed a deadlock issue with fork/wait with close being called on fork while
+   in the middle of a read.
++- sleep I/O now uses the IOObject stored in the environment under %consol% as
++  the source for stdin/stdout (this is set to System.in and System.out by 
++  default).
+ 
+ 2.1-beta 4  (11 Sept 06)
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000101.html">[Sleep-svn] r119 - in sleep: . src/sleep/bridges/io tests	tests/output
+</A></li>
+	<LI>Next message: <A HREF="000103.html">[Sleep-svn] r121 - in sleep: . docs src/sleep/runtime
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#102">[ date ]</a>
+              <a href="thread.html#102">[ thread ]</a>
+              <a href="subject.html#102">[ subject ]</a>
+              <a href="author.html#102">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

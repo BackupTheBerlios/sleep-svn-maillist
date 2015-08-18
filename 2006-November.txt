@@ -1,0 +1,4743 @@
+From rsmudge at mail.berlios.de  Thu Nov  2 02:14:41 2006
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Thu, 2 Nov 2006 02:14:41 +0100
+Subject: [Sleep-svn] r153 - in sleep: . src/sleep/bridges
+	src/sleep/interfaces src/sleep/runtime tests/output
+Message-ID: <200611020114.kA21Efx5015754@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-11-02 02:14:40 +0100 (Thu, 02 Nov 2006)
+New Revision: 153
+
+Modified:
+   sleep/src/sleep/bridges/BasicIO.java
+   sleep/src/sleep/bridges/SleepClosure.java
+   sleep/src/sleep/interfaces/Function.java
+   sleep/src/sleep/interfaces/Variable.java
+   sleep/src/sleep/runtime/ScalarArray.java
+   sleep/src/sleep/runtime/ScalarHash.java
+   sleep/src/sleep/runtime/ScalarType.java
+   sleep/src/sleep/runtime/ScriptEnvironment.java
+   sleep/tests/output/trace.sl
+   sleep/tests/output/wrong.sl
+   sleep/whatsnew.txt
+Log:
+added readObject/writeObject for serializing scalars
+made various interfaces implement serializable so sleep data can be passed
+via readObject/writeObject.  cool stuff.
+
+
+
+Modified: sleep/src/sleep/bridges/BasicIO.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicIO.java	2006-10-30 03:12:50 UTC (rev 152)
++++ sleep/src/sleep/bridges/BasicIO.java	2006-11-02 01:14:40 UTC (rev 153)
+@@ -78,6 +78,10 @@
+         temp.put("&bread",      new bread());
+         temp.put("&bwrite",     new bwrite());
+ 
++        // object io functions
++        temp.put("&readObject",      this);
++        temp.put("&writeObject",     this);
++
+         temp.put("&pack",       new pack());
+         temp.put("&unpack",     new unpack());
+ 
+@@ -133,6 +137,34 @@
+ 
+           return a.wait(i.getScriptEnvironment(), to);
+        }
++       else if (n.equals("&writeObject"))
++       {
++          IOObject a = chooseSource(l, 2, i);
++          Scalar   b = (Scalar)l.pop();
++          try
++          {
++             ObjectOutputStream ois = new ObjectOutputStream(a.getWriter());
++             ois.writeObject(b);
++          }
++          catch (Exception ex)
++          {
++             i.getScriptEnvironment().flagError("&writeObject: " + ex.toString());
++          }
++       }
++       else if (n.equals("&readObject"))
++       {
++          IOObject a = chooseSource(l, 1, i);
++          try
++          {
++             ObjectInputStream ois = new ObjectInputStream(a.getReader());
++             Scalar value = (Scalar)ois.readObject();
++             return value;
++          }
++          catch (Exception ex)
++          {
++             i.getScriptEnvironment().flagError("&readObject: " + ex.toString());
++          }
++       }
+        else if (n.equals("&digest"))
+        {
+           Scalar   s = BridgeUtilities.getScalar(l);
+@@ -241,8 +273,6 @@
+           }
+        }
+ 
+-       System.out.println("apparently we were wrong about '" + n + "'");
+-
+        return SleepUtils.getEmptyScalar();
+     }
+ 
+
+Modified: sleep/src/sleep/bridges/SleepClosure.java
+===================================================================
+--- sleep/src/sleep/bridges/SleepClosure.java	2006-10-30 03:12:50 UTC (rev 152)
++++ sleep/src/sleep/bridges/SleepClosure.java	2006-11-02 01:14:40 UTC (rev 153)
+@@ -61,17 +61,6 @@
+        return new ClosureIterator();
+     }
+ 
+-    public static Class CLOSURE_CLASS;
+-
+-    static
+-    {
+-       try
+-       {
+-          CLOSURE_CLASS = Class.forName("sleep.bridges.SleepClosure");
+-       }
+-       catch (Exception ex) { }
+-    }
+-
+     /** the block of code associated with this sleep closure */
+     Block                code;
+ 
+@@ -113,6 +102,12 @@
+        return "&closure" + id + ":" + code.getApproximateLineRange();
+     }
+ 
++    /** This is here for the sake of serialization */
++    private SleepClosure()
++    {
++
++    }
++
+     /** Creates a new Sleep Closure, with a brand new set of internal variables.  Don't be afraid, you can call this constructor from your code. */
+     public SleepClosure(ScriptInstance si, Block _code)
+     {
+@@ -183,6 +178,8 @@
+     /** Evaluates the closure, use callClosure instead. */
+     public Scalar evaluate(String message, ScriptInstance si, Stack locals)
+     {
++       if (owner == null) { owner = si; }
++
+        ScriptVariables   vars = si.getScriptVariables();
+        ScriptEnvironment env  = si.getScriptEnvironment();
+ 
+@@ -261,5 +258,25 @@
+ 
+        return temp;
+     }
++
++    private void writeObject(ObjectOutputStream out) throws IOException
++    {
++       out.writeInt(id);
++       out.writeObject(code);
++       out.writeObject(context);
++       out.writeObject(metadata);
++       out.writeObject(variables);
++    }
++
++    private void readObject(ObjectInputStream in) throws IOException, ClassNotFoundException
++    {
++       id        = in.readInt();
++       code      = (Block)in.readObject();
++       context   = (Stack)in.readObject();
++       metadata  = (HashMap)in.readObject();
++       variables = (Variable)in.readObject();
++       owner     = null;
++    }
+ }
+ 
++
+
+Modified: sleep/src/sleep/interfaces/Function.java
+===================================================================
+--- sleep/src/sleep/interfaces/Function.java	2006-10-30 03:12:50 UTC (rev 152)
++++ sleep/src/sleep/interfaces/Function.java	2006-11-02 01:14:40 UTC (rev 153)
+@@ -82,7 +82,7 @@
+  * @see sleep.runtime.ScriptInstance
+  * @see sleep.runtime.SleepUtils
+  */
+-public interface Function
++public interface Function extends java.io.Serializable
+ {
+    /**
+     * Evaluate a function and return the resulting scalar.  Only the sleep interpreter should ever call this function.  If you have
+
+Modified: sleep/src/sleep/interfaces/Variable.java
+===================================================================
+--- sleep/src/sleep/interfaces/Variable.java	2006-10-30 03:12:50 UTC (rev 152)
++++ sleep/src/sleep/interfaces/Variable.java	2006-11-02 01:14:40 UTC (rev 153)
+@@ -41,7 +41,7 @@
+  * of the method as the value of the accessed scalar.</p>
+  * 
+  */
+-public interface Variable
++public interface Variable extends java.io.Serializable
+ {
+     /** true if a scalar named key exists in this variable environment */
+     public boolean    scalarExists(String key); 
+
+Modified: sleep/src/sleep/runtime/ScalarArray.java
+===================================================================
+--- sleep/src/sleep/runtime/ScalarArray.java	2006-10-30 03:12:50 UTC (rev 152)
++++ sleep/src/sleep/runtime/ScalarArray.java	2006-11-02 01:14:40 UTC (rev 153)
+@@ -13,7 +13,7 @@
+  * <p>When implementing the following interface, keep in mind you are implementing an
+  * interface to an array data structure.</p>
+  */
+-public interface ScalarArray
++public interface ScalarArray extends java.io.Serializable
+ {
+    public Scalar   pop();
+    public Scalar   push(Scalar value);
+
+Modified: sleep/src/sleep/runtime/ScalarHash.java
+===================================================================
+--- sleep/src/sleep/runtime/ScalarHash.java	2006-10-30 03:12:50 UTC (rev 152)
++++ sleep/src/sleep/runtime/ScalarHash.java	2006-11-02 01:14:40 UTC (rev 153)
+@@ -17,7 +17,7 @@
+  * <p>Keep in mind when implementing the interface below that you are defining the interface to a dictionary style
+  * data structure.</p>
+  */
+-public interface ScalarHash
++public interface ScalarHash extends java.io.Serializable
+ {
+    /** Retrieves a scalar from the hashtable.  If a scalar key does not exist then the key should be created with a 
+        value of $null.  This $null or empty scalar value should be returned by the function.  This is how values are
+
+Modified: sleep/src/sleep/runtime/ScalarType.java
+===================================================================
+--- sleep/src/sleep/runtime/ScalarType.java	2006-10-30 03:12:50 UTC (rev 152)
++++ sleep/src/sleep/runtime/ScalarType.java	2006-11-02 01:14:40 UTC (rev 153)
+@@ -16,7 +16,7 @@
+  * <p>In the above example MyScalarType is an instance that implements the ScalarType interface.</p>
+  * 
+  */
+-public interface ScalarType extends Serializable
++public interface ScalarType extends java.io.Serializable
+ {
+    /** create a clone of this scalar's value.  It is important to note that you should return a copy here unless you really want 
+        scalars of your scalar type to be passed by reference. */
+
+Modified: sleep/src/sleep/runtime/ScriptEnvironment.java
+===================================================================
+--- sleep/src/sleep/runtime/ScriptEnvironment.java	2006-10-30 03:12:50 UTC (rev 152)
++++ sleep/src/sleep/runtime/ScriptEnvironment.java	2006-11-02 01:14:40 UTC (rev 153)
+@@ -214,7 +214,7 @@
+     // ******** Context Management **********
+     //
+     
+-    protected static class Context
++    protected static class Context implements Serializable
+     {
+        public Block block;
+        public Step  last;       
+
+Modified: sleep/tests/output/trace.sl
+===================================================================
+--- sleep/tests/output/trace.sl	2006-10-30 03:12:50 UTC (rev 152)
++++ sleep/tests/output/trace.sl	2006-11-02 01:14:40 UTC (rev 153)
+@@ -1,13 +1,13 @@
+ this is a test
+-Trace: [java.io.PrintStream at c7980c println: 'this is a test'] at line 6
++Trace: [java.io.PrintStream at a4488 println: 'this is a test'] at line 6
+ Trace: [java.lang.Math pow: 3, 4] = 81.0 at line 7
+ 81.0
+-Trace: [java.io.PrintStream at c7980c println: 81.0] at line 7
++Trace: [java.io.PrintStream at a4488 println: 81.0] at line 7
+ Trace: [java.lang.Math pow: 3, 5] = 243.0 at line 8
+ 243.0
+ Trace: &println(243.0) at line 8
+ testing again...
+-Trace: [java.io.PrintStream at c7980c println: 'testing again...'] at line 10
++Trace: [java.io.PrintStream at a4488 println: 'testing again...'] at line 10
+ Trace: [sleep.runtime.SleepUtils getListFromArray: @('a', 'b', 'c')] = [a, b, c] at line 12
+ Trace: [new java.util.LinkedList: [a, b, c]] = [a, b, c] at line 12
+ Warning: variable '$list' not declared at line 12
+
+Modified: sleep/tests/output/wrong.sl
+===================================================================
+--- sleep/tests/output/wrong.sl	2006-10-30 03:12:50 UTC (rev 152)
++++ sleep/tests/output/wrong.sl	2006-11-02 01:14:40 UTC (rev 153)
+@@ -1,32 +1,32 @@
+ Trace: [java.lang.Math pow: 3, 4] = 81.0 at line 6
+ 81.0
+-Trace: [java.io.PrintStream at 199939 println: 81.0] at line 6
++Trace: [java.io.PrintStream at 23f1bb println: 81.0] at line 6
+ Trace: &casti(1, 'z') = true at line 9
+ true
+-Trace: [java.io.PrintStream at 199939 println: true] at line 9
++Trace: [java.io.PrintStream at 23f1bb println: true] at line 9
+ Trace: &casti(0, 'z') = false at line 10
+ false
+-Trace: [java.io.PrintStream at 199939 println: false] at line 10
++Trace: [java.io.PrintStream at 23f1bb println: false] at line 10
+ Trace: &casti(1, 'd') = 1.0 at line 13
+ 1.0
+-Trace: [java.io.PrintStream at 199939 println: 1.0] at line 13
++Trace: [java.io.PrintStream at 23f1bb println: 1.0] at line 13
+ Trace: &casti(1, 'b') = 1 at line 16
+ 1
+-Trace: [java.io.PrintStream at 199939 println: 1] at line 16
++Trace: [java.io.PrintStream at 23f1bb println: 1] at line 16
+ Trace: &casti(100, 'f') = 100.0 at line 19
+ 100.0
+-Trace: [java.io.PrintStream at 199939 println: 100.0] at line 19
++Trace: [java.io.PrintStream at 23f1bb println: 100.0] at line 19
+ Trace: &casti('b', 'c') = b at line 22
+ b
+-Trace: [java.io.PrintStream at 199939 println: b] at line 22
++Trace: [java.io.PrintStream at 23f1bb println: b] at line 22
+ Trace: &casti(63, 'i') = 63 at line 25
+ 63
+-Trace: [java.io.PrintStream at 199939 println: 63] at line 25
++Trace: [java.io.PrintStream at 23f1bb println: 63] at line 25
+ this is a string y0
+-Trace: [java.io.PrintStream at 199939 println: 'this is a string y0'] at line 28
++Trace: [java.io.PrintStream at 23f1bb println: 'this is a string y0'] at line 28
+ Trace: [new java.lang.StringBuilder: 'test'] = test at line 31
+ test
+-Trace: [java.io.PrintStream at 199939 println: test] at line 31
+-Trace: &cast(@('a', 'b', 'c', 'd'), 'c') = [C at d33a6b at line 34
++Trace: [java.io.PrintStream at 23f1bb println: test] at line 31
++Trace: &cast(@('a', 'b', 'c', 'd'), 'c') = [C at b01afa at line 34
+ abcd
+-Trace: [java.io.PrintStream at 199939 println: [C at d33a6b] at line 34
++Trace: [java.io.PrintStream at 23f1bb println: [C at b01afa] at line 34
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-10-30 03:12:50 UTC (rev 152)
++++ sleep/whatsnew.txt	2006-11-02 01:14:40 UTC (rev 153)
+@@ -1,3 +1,11 @@
++2.1-beta 9
++===========
++- made sleep data structures and sleepclosure all serializable.
++- added &readObject([$handle]) and &writeObject([$handle], $object) to
++  read/write scalars to a handle.   if you think about what is possible
++  with closures/coroutines and friends then you are thinking right.  this
++  should scare you.
++
+ 2.1-beta 8  (29 Oct 06)
+ ===========
+ - when packing an unsigned integer the argument is now interpreted as a long
+
+
+
+From rsmudge at mail.berlios.de  Sun Nov  5 05:50:44 2006
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Sun, 5 Nov 2006 05:50:44 +0100
+Subject: [Sleep-svn] r154 - in sleep: . src/sleep/runtime
+Message-ID: <200611050450.kA54oi8A019693@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-11-05 05:50:44 +0100 (Sun, 05 Nov 2006)
+New Revision: 154
+
+Modified:
+   sleep/build.xml
+   sleep/src/sleep/runtime/Scalar.java
+   sleep/src/sleep/runtime/SleepUtils.java
+Log:
+fixed an incredibly nasty performance issue with multidimensional data structures...  essentially there was a bug
+converting the parent datastructure to a string with each hit (thanks to an obscure interaction between hash/array scalars
+and SleepUtils.isEmptyScalar)
+
+
+
+Modified: sleep/build.xml
+===================================================================
+--- sleep/build.xml	2006-11-02 01:14:40 UTC (rev 153)
++++ sleep/build.xml	2006-11-05 04:50:44 UTC (rev 154)
+@@ -16,7 +16,7 @@
+            destdir="${project.build}"
+            nowarn="yes"
+            depend="yes"
+-           debug="false"
++           debug="true"
+            source="1.4"
+            target="1.4"
+            optimize="yes"
+
+Modified: sleep/src/sleep/runtime/Scalar.java
+===================================================================
+--- sleep/src/sleep/runtime/Scalar.java	2006-11-02 01:14:40 UTC (rev 153)
++++ sleep/src/sleep/runtime/Scalar.java	2006-11-05 04:50:44 UTC (rev 154)
+@@ -78,6 +78,13 @@
+    protected ScalarArray array = null;
+    protected ScalarHash  hash  = null;
+ 
++   /** Returns the actual non-array/non-hash value this scalar contains.  This is mainly for use by internal sleep
++       classes that do not want to accidentally convert a hash/array to a string. */
++   public ScalarType getActualValue()
++   {
++      return value;
++   }
++
+    /** Returns the container for the scalars value.  If this is an array or hash scalar then they will be converted to a string 
+        scalar and returned.  If this scalar is completely null then null will be returned which will mess up the interpreter 
+        somewhere */
+
+Modified: sleep/src/sleep/runtime/SleepUtils.java
+===================================================================
+--- sleep/src/sleep/runtime/SleepUtils.java	2006-11-02 01:14:40 UTC (rev 153)
++++ sleep/src/sleep/runtime/SleepUtils.java	2006-11-05 04:50:44 UTC (rev 154)
+@@ -304,7 +304,7 @@
+    /** returns true if the passed in scalar value is equivalent to the empty scalar or null */
+    public static boolean isEmptyScalar(Scalar value)
+    {
+-      return (value == null || value.getValue() == nullScalar);
++      return (value == null || value.getActualValue() == nullScalar);
+    }
+ 
+    /** Determines if the passed in scalar represents a "function" value.  True iff the scalar contains a closure reference. */
+
+
+
+From rsmudge at mail.berlios.de  Sun Nov  5 06:08:40 2006
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Sun, 5 Nov 2006 06:08:40 +0100
+Subject: [Sleep-svn] r155 - sleep
+Message-ID: <200611050508.kA558eXK020493@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-11-05 06:08:40 +0100 (Sun, 05 Nov 2006)
+New Revision: 155
+
+Modified:
+   sleep/whatsnew.txt
+Log:
+whee...
+
+
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-11-05 04:50:44 UTC (rev 154)
++++ sleep/whatsnew.txt	2006-11-05 05:08:40 UTC (rev 155)
+@@ -5,6 +5,10 @@
+   read/write scalars to a handle.   if you think about what is possible
+   with closures/coroutines and friends then you are thinking right.  this
+   should scare you.
++- fixed a nasty nasty (x 1000) performance issue with hashes and arrays of
++  any significant size.  A null check in the Index operator was inadvertently
++  converting the entire data structure to a string each time an index 
++  occured.  thanks to Marty for making me aware of this one.
+ 
+ 2.1-beta 8  (29 Oct 06)
+ ===========
+
+
+
+From rsmudge at mail.berlios.de  Sun Nov  5 07:03:47 2006
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Sun, 5 Nov 2006 07:03:47 +0100
+Subject: [Sleep-svn] r156 - in sleep: . src/sleep/bridges src/sleep/runtime
+Message-ID: <200611050603.kA563lQj010506@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-11-05 07:03:46 +0100 (Sun, 05 Nov 2006)
+New Revision: 156
+
+Modified:
+   sleep/src/sleep/bridges/BasicIO.java
+   sleep/src/sleep/runtime/SleepUtils.java
+   sleep/whatsnew.txt
+Log:
+enhanced performance of &readb.
+
+
+
+Modified: sleep/src/sleep/bridges/BasicIO.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicIO.java	2006-11-05 05:08:40 UTC (rev 155)
++++ sleep/src/sleep/bridges/BasicIO.java	2006-11-05 06:03:46 UTC (rev 156)
+@@ -140,16 +140,19 @@
+        else if (n.equals("&writeObject"))
+        {
+           IOObject a = chooseSource(l, 2, i);
+-          Scalar   b = (Scalar)l.pop();
+-          try
++          while (!l.isEmpty())
+           {
+-             ObjectOutputStream ois = new ObjectOutputStream(a.getWriter());
+-             ois.writeObject(b);
++             Scalar   b = (Scalar)l.pop();
++             try
++             {
++                ObjectOutputStream ois = new ObjectOutputStream(a.getWriter());
++                ois.writeObject(b);
++             }
++             catch (Exception ex)
++             {
++                i.getScriptEnvironment().flagError("&writeObject(" + SleepUtils.describe(SleepUtils.getScalar(a)) + ", " + SleepUtils.describe(b) + "): " + ex.toString());
++             }
+           }
+-          catch (Exception ex)
+-          {
+-             i.getScriptEnvironment().flagError("&writeObject: " + ex.toString());
+-          }
+        }
+        else if (n.equals("&readObject"))
+        {
+@@ -1176,14 +1179,20 @@
+           IOObject         a = chooseSource(l, 2, i);
+           int             to = BridgeUtilities.getInt(l, 1);
+ 
+-          StringBuffer temp = new StringBuffer(to);
++          byte[] temp = new byte[to];
+ 
+           try
+           {
+-             for (int x = 0; x < to && a.getReader() != null; x++)
++             int read = 0;
++             while (read < to)
+              {
+-                temp.append((char)a.getReader().readUnsignedByte());
++                read += a.getReader().read(temp, read, to - read);
+              }
++
++             if (read > 0)
++             {
++                return SleepUtils.getScalar(temp);
++             }
+           }
+           catch (Exception ex)
+           {
+@@ -1191,9 +1200,7 @@
+              i.getScriptEnvironment().flagError(ex.toString());
+           }
+ 
+-          if (temp.length() == 0) { return SleepUtils.getEmptyScalar(); }
+-
+-          return SleepUtils.getScalar(temp.toString());
++          return SleepUtils.getEmptyScalar();
+        }
+     }
+ 
+
+Modified: sleep/src/sleep/runtime/SleepUtils.java
+===================================================================
+--- sleep/src/sleep/runtime/SleepUtils.java	2006-11-05 05:08:40 UTC (rev 155)
++++ sleep/src/sleep/runtime/SleepUtils.java	2006-11-05 06:03:46 UTC (rev 156)
+@@ -507,7 +507,7 @@
+       StringBuffer buff = new StringBuffer(x.length);
+       for (int y = 0; y < x.length; y++)
+       {
+-         char append = (char)(x[y] & 0x00FF);
++         char append = (char)(x[y] & 0xFF);
+          buff.append(append);
+       }
+ 
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-11-05 05:08:40 UTC (rev 155)
++++ sleep/whatsnew.txt	2006-11-05 06:03:46 UTC (rev 156)
+@@ -7,8 +7,9 @@
+   should scare you.
+ - fixed a nasty nasty (x 1000) performance issue with hashes and arrays of
+   any significant size.  A null check in the Index operator was inadvertently
+-  converting the entire data structure to a string each time an index 
++  converting the entire data structure to a string each time an index op
+   occured.  thanks to Marty for making me aware of this one.
++- greatly enhanced the performance of &readb.
+ 
+ 2.1-beta 8  (29 Oct 06)
+ ===========
+
+
+
+From rsmudge at mail.berlios.de  Mon Nov  6 00:32:06 2006
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Mon, 6 Nov 2006 00:32:06 +0100
+Subject: [Sleep-svn] r157 - in sleep: . src/sleep/bridges
+	src/sleep/bridges/io
+Message-ID: <200611052332.kA5NW6C4004391@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-11-06 00:32:05 +0100 (Mon, 06 Nov 2006)
+New Revision: 157
+
+Modified:
+   sleep/src/sleep/bridges/BasicIO.java
+   sleep/src/sleep/bridges/io/IOObject.java
+   sleep/whatsnew.txt
+Log:
+altered readb implementation and added &consume
+
+
+
+Modified: sleep/src/sleep/bridges/BasicIO.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicIO.java	2006-11-05 06:03:46 UTC (rev 156)
++++ sleep/src/sleep/bridges/BasicIO.java	2006-11-05 23:32:05 UTC (rev 157)
+@@ -73,6 +73,7 @@
+ 
+         // binary i/o functions :)
+         temp.put("&readb",      new readb());
++        temp.put("&consume",    temp.get("&readb"));
+         temp.put("&writeb",     new writeb());
+ 
+         temp.put("&bread",      new bread());
+@@ -1179,20 +1180,16 @@
+           IOObject         a = chooseSource(l, 2, i);
+           int             to = BridgeUtilities.getInt(l, 1);
+ 
+-          byte[] temp = new byte[to];
++          byte[] temp = a.getBuffer(to);
+ 
++          int read = 0;
++
+           try
+           {
+-             int read = 0;
+              while (read < to)
+              {
+                 read += a.getReader().read(temp, read, to - read);
+              }
+-
+-             if (read > 0)
+-             {
+-                return SleepUtils.getScalar(temp);
+-             }
+           }
+           catch (Exception ex)
+           {
+@@ -1200,6 +1197,10 @@
+              i.getScriptEnvironment().flagError(ex.toString());
+           }
+ 
++          if (read > 0)
++          {
++             return n.equals("&consume") ? SleepUtils.getScalar(read) : SleepUtils.getScalar(temp);
++          }
+           return SleepUtils.getEmptyScalar();
+        }
+     }
+
+Modified: sleep/src/sleep/bridges/io/IOObject.java
+===================================================================
+--- sleep/src/sleep/bridges/io/IOObject.java	2006-11-05 06:03:46 UTC (rev 156)
++++ sleep/src/sleep/bridges/io/IOObject.java	2006-11-05 23:32:05 UTC (rev 157)
+@@ -36,6 +36,18 @@
+    protected Thread           thread  = null;
+    protected Scalar           token   = null;
+ 
++   protected byte[]           buffer  = null;
++
++   public byte[] getBuffer(int size)
++   {
++      if (buffer == null || size > buffer.length)
++      {
++         buffer = new byte[size];
++      }
++
++      return buffer;
++   }
++
+    /** return the actual source of this IO for scripters to query using HOES */
+    public Object getSource()
+    {
+@@ -170,6 +182,8 @@
+ 
+          if (out != null)
+            out.close();
++
++         buffer = null;
+       }
+       catch (Exception ex)
+       {
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-11-05 06:03:46 UTC (rev 156)
++++ sleep/whatsnew.txt	2006-11-05 23:32:05 UTC (rev 157)
+@@ -9,7 +9,9 @@
+   any significant size.  A null check in the Index operator was inadvertently
+   converting the entire data structure to a string each time an index op
+   occured.  thanks to Marty for making me aware of this one.
+-- greatly enhanced the performance of &readb.
++- added &consume($handle, n bytes) to read and discard up to n bytes from the 
++  specified handle.  (differs from skip which just seeks ahead and discards
++  n bytes).
+ 
+ 2.1-beta 8  (29 Oct 06)
+ ===========
+
+
+
+From rsmudge at mail.berlios.de  Mon Nov  6 00:39:17 2006
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Mon, 6 Nov 2006 00:39:17 +0100
+Subject: [Sleep-svn] r158 - in sleep/tests: . output
+Message-ID: <200611052339.kA5NdHmq023640@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-11-06 00:39:16 +0100 (Mon, 06 Nov 2006)
+New Revision: 158
+
+Added:
+   sleep/tests/output/writeobj.sl
+   sleep/tests/writeobj.sl
+Log:
+added a unit test for readobject/writeobject.
+
+
+
+Added: sleep/tests/output/writeobj.sl
+===================================================================
+--- sleep/tests/output/writeobj.sl	2006-11-05 23:32:05 UTC (rev 157)
++++ sleep/tests/output/writeobj.sl	2006-11-05 23:39:16 UTC (rev 158)
+@@ -0,0 +1,4 @@
++Step 1 - Main Script
++Step 2 - In fork!
++Step 3 - Main Script
++Value is: 5040
+
+Added: sleep/tests/writeobj.sl
+===================================================================
+--- sleep/tests/writeobj.sl	2006-11-05 23:32:05 UTC (rev 157)
++++ sleep/tests/writeobj.sl	2006-11-05 23:39:16 UTC (rev 158)
+@@ -0,0 +1,30 @@
++#
++# test object serialization/deserialization
++#
++
++$ENV = "Main Script";
++
++$func = {
++   println("Step 1 - $ENV");
++   this('$rv $fact');
++   $fact = { return iff($1 == 0, 1, $1 * [$this: $1 - 1]); };
++   yield;
++
++   $rv = [$fact : $number];
++   println("Step 2 - $ENV");
++   yield;
++
++   println("Step 3 - $ENV");
++   return $rv;    
++};
++
++$fork = fork({
++   $blah = readObject($source);
++   $number = readObject($source);
++   [$blah];
++   writeObject($source, $blah);
++}, $ENV => "In fork!");
++
++[$func];
++writeObject($fork, $func, 7);
++println("Value is: " . [readObject($fork)]);
+
+
+
+From rsmudge at mail.berlios.de  Mon Nov  6 00:58:02 2006
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Mon, 6 Nov 2006 00:58:02 +0100
+Subject: [Sleep-svn] r159 - in sleep: . src/sleep/bridges
+	src/sleep/bridges/io
+Message-ID: <200611052358.kA5Nw2hd015267@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-11-06 00:58:00 +0100 (Mon, 06 Nov 2006)
+New Revision: 159
+
+Modified:
+   sleep/build.xml
+   sleep/src/sleep/bridges/BasicIO.java
+   sleep/src/sleep/bridges/FileSystemBridge.java
+   sleep/src/sleep/bridges/io/IOObject.java
+   sleep/whatsnew.txt
+Log:
+blah..
+
+
+
+Modified: sleep/build.xml
+===================================================================
+--- sleep/build.xml	2006-11-05 23:39:16 UTC (rev 158)
++++ sleep/build.xml	2006-11-05 23:58:00 UTC (rev 159)
+@@ -16,7 +16,7 @@
+            destdir="${project.build}"
+            nowarn="yes"
+            depend="yes"
+-           debug="true"
++           debug="false"
+            source="1.4"
+            target="1.4"
+            optimize="yes"
+
+Modified: sleep/src/sleep/bridges/BasicIO.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicIO.java	2006-11-05 23:39:16 UTC (rev 158)
++++ sleep/src/sleep/bridges/BasicIO.java	2006-11-05 23:58:00 UTC (rev 159)
+@@ -152,6 +152,7 @@
+              catch (Exception ex)
+              {
+                 i.getScriptEnvironment().flagError("&writeObject(" + SleepUtils.describe(SleepUtils.getScalar(a)) + ", " + SleepUtils.describe(b) + "): " + ex.toString());
++                a.close();
+              }
+           }
+        }
+@@ -167,6 +168,7 @@
+           catch (Exception ex)
+           {
+              i.getScriptEnvironment().flagError("&readObject: " + ex.toString());
++             a.close();
+           }
+        }
+        else if (n.equals("&digest"))
+
+Modified: sleep/src/sleep/bridges/FileSystemBridge.java
+===================================================================
+--- sleep/src/sleep/bridges/FileSystemBridge.java	2006-11-05 23:39:16 UTC (rev 158)
++++ sleep/src/sleep/bridges/FileSystemBridge.java	2006-11-05 23:58:00 UTC (rev 159)
+@@ -38,11 +38,10 @@
+         temp.put("&getFileName",     new getFileName());
+         temp.put("&getFileProper",   new getFileProper());
+         temp.put("&getFileParent",   new getFileParent());
+-        temp.put("&getFilePath",     new getFilePath());
+         temp.put("&lastModified",    new lastModified());
+         temp.put("&lof",             new lof());
+         temp.put("&ls",              new listFiles());
+-        temp.put("&listRoots",       new listRoots());
++        temp.put("&listRoots",       temp.get("&ls"));
+         temp.put("&mkdir",           new mkdir());
+         temp.put("&rename",          new rename());
+         temp.put("&setLastModified", new setLastModified());
+@@ -180,15 +179,6 @@
+        }
+     }
+ 
+-    private static class getFilePath implements Function
+-    {
+-       public Scalar evaluate(String n, ScriptInstance i, Stack l)
+-       {
+-           File a = BridgeUtilities.getFile(l);
+-           return SleepUtils.getScalar(a.getPath());
+-       }
+-    }
+-
+     private static class lastModified implements Function
+     {
+        public Scalar evaluate(String n, ScriptInstance i, Stack l)
+@@ -211,9 +201,17 @@
+     {
+        public Scalar evaluate(String n, ScriptInstance i, Stack l)
+        {
+-           File a = BridgeUtilities.getFile(l);
+-
+-           File[] files = a.listFiles();
++           File[] files;
++ 
++           if (l.isEmpty())
++           {
++              files = File.listRoots();
++           }
++           else
++           {
++              File a = BridgeUtilities.getFile(l);
++              files = a.listFiles();
++           }
+            LinkedList temp = new LinkedList();
+ 
+            if (files != null)
+@@ -228,22 +226,6 @@
+        }
+     }
+ 
+-    private static class listRoots implements Function
+-    {
+-       public Scalar evaluate(String n, ScriptInstance i, Stack l)
+-       {
+-           File[] files = File.listRoots();
+-
+-           LinkedList temp = new LinkedList();
+-           for (int x = 0; x < files.length; x++)
+-           {
+-              temp.add(files[x].getAbsolutePath());
+-           }
+-
+-           return SleepUtils.getArrayWrapper(temp);
+-       }
+-    }
+-
+     private static class _canread implements Predicate
+     {
+        public boolean decide(String n, ScriptInstance i, Stack l)
+
+Modified: sleep/src/sleep/bridges/io/IOObject.java
+===================================================================
+--- sleep/src/sleep/bridges/io/IOObject.java	2006-11-05 23:39:16 UTC (rev 158)
++++ sleep/src/sleep/bridges/io/IOObject.java	2006-11-05 23:58:00 UTC (rev 159)
+@@ -218,8 +218,7 @@
+       }
+       catch (Exception ex) 
+       { 
+-         readerb = null;
+-         reader  = null;
++         close();
+       }
+ 
+       return null;
+@@ -287,7 +286,7 @@
+          }
+          catch (Exception ex)
+          {
+-            writerb = null;
++            close();
+          }
+       }
+    }
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-11-05 23:39:16 UTC (rev 158)
++++ sleep/whatsnew.txt	2006-11-05 23:58:00 UTC (rev 159)
+@@ -12,6 +12,13 @@
+ - added &consume($handle, n bytes) to read and discard up to n bytes from the 
+   specified handle.  (differs from skip which just seeks ahead and discards
+   n bytes).
++- IO errors in read/write functions now uniformly close the read/write 
++  portions of the IO handle.
++- remove &getFilePath as the function essentially did nothing but return
++  the value passed to it (I was a little over-ambitious when bridging
++  java.io.File awhile back).
++- ls() with no parameters now returns the file system roots (same as 
++  listRoots()).
+ 
+ 2.1-beta 8  (29 Oct 06)
+ ===========
+
+
+
+From rsmudge at mail.berlios.de  Mon Nov  6 01:17:23 2006
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Mon, 6 Nov 2006 01:17:23 +0100
+Subject: [Sleep-svn] r160 - in sleep: . src/sleep/bridges tests/output
+Message-ID: <200611060017.kA60HNd8009109@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-11-06 01:17:22 +0100 (Mon, 06 Nov 2006)
+New Revision: 160
+
+Modified:
+   sleep/src/sleep/bridges/FileSystemBridge.java
+   sleep/tests/output/trace.sl
+   sleep/tests/output/wrong.sl
+   sleep/whatsnew.txt
+Log:
+modifications to the file system bridge... mostly optimizing for a smaller sleep.jar
+
+
+Modified: sleep/src/sleep/bridges/FileSystemBridge.java
+===================================================================
+--- sleep/src/sleep/bridges/FileSystemBridge.java	2006-11-05 23:58:00 UTC (rev 159)
++++ sleep/src/sleep/bridges/FileSystemBridge.java	2006-11-06 00:17:22 UTC (rev 160)
+@@ -12,7 +12,7 @@
+ import java.io.*;
+ 
+ /** provides a bridge for accessing the local file system */
+-public class FileSystemBridge implements Loadable
++public class FileSystemBridge implements Loadable, Function
+ {
+     public boolean scriptUnloaded(ScriptInstance aScript)
+     {
+@@ -32,8 +32,8 @@
+         temp.put("-isHidden",   new _isHidden());
+ 
+         // functions
+-        temp.put("&createNewFile",   new createNewFile());
+-        temp.put("&deleteFile",      new deleteFile());
++        temp.put("&createNewFile",   this);
++        temp.put("&deleteFile",      this);
+         temp.put("&getCurrentDirectory",     new getActiveDir());
+         temp.put("&getFileName",     new getFileName());
+         temp.put("&getFileProper",   new getFileProper());
+@@ -42,18 +42,18 @@
+         temp.put("&lof",             new lof());
+         temp.put("&ls",              new listFiles());
+         temp.put("&listRoots",       temp.get("&ls"));
+-        temp.put("&mkdir",           new mkdir());
+-        temp.put("&rename",          new rename());
+-        temp.put("&setLastModified", new setLastModified());
+-        temp.put("&setReadOnly",     new setReadOnly());
++        temp.put("&mkdir",           this);
++        temp.put("&rename",          this);
++        temp.put("&setLastModified", this);
++        temp.put("&setReadOnly",     this);
+ 
+         return true;
+     }
+ 
+-    private static class createNewFile implements Function
++    public Scalar evaluate(String n, ScriptInstance i, Stack l)
+     {
+-       public Scalar evaluate(String n, ScriptInstance i, Stack l)
+-       {
++        if (n.equals("&createNewFile"))
++        {
+            try
+            {
+               File a = BridgeUtilities.getFile(l);
+@@ -63,42 +63,34 @@
+               }
+            }
+            catch (Exception ex) { i.getScriptEnvironment().flagError(ex.getMessage()); }
+-
+-           return SleepUtils.getEmptyScalar();
+-       }
+-    }
+-
+-    private static class mkdir implements Function
+-    {
+-       public Scalar evaluate(String n, ScriptInstance i, Stack l)
+-       {
++        }
++        else if (n.equals("&deleteFile"))
++        {
+            File a = BridgeUtilities.getFile(l);
++           if (a.delete())
++           {
++              return SleepUtils.getScalar(1);
++           }
++        }
++        else if (n.equals("&mkdir"))
++        {
++           File a = BridgeUtilities.getFile(l);
+            if (a.mkdirs())
+            {
+               return SleepUtils.getScalar(1);
+            }
+-           return SleepUtils.getEmptyScalar();
+-       }
+-    }
+-
+-    private static class rename implements Function
+-    {
+-       public Scalar evaluate(String n, ScriptInstance i, Stack l)
+-       {
++        }
++        else if (n.equals("&rename"))
++        {
+            File a = BridgeUtilities.getFile(l);
+            File b = BridgeUtilities.getFile(l);
+            if (a.renameTo(b))
+            {
+               return SleepUtils.getScalar(1);
+            }
+-           return SleepUtils.getEmptyScalar();
+-       }
+-    }
+-
+-    private static class setLastModified implements Function
+-    {
+-       public Scalar evaluate(String n, ScriptInstance i, Stack l)
+-       {
++        }
++        else if (n.equals("&setLastModified"))
++        {
+            File a = BridgeUtilities.getFile(l);
+            long b = BridgeUtilities.getLong(l);
+ 
+@@ -106,14 +98,9 @@
+            {
+               return SleepUtils.getScalar(1);
+            }
+-           return SleepUtils.getEmptyScalar();
+-       }
+-    }
+-
+-    private static class setReadOnly implements Function
+-    {
+-       public Scalar evaluate(String n, ScriptInstance i, Stack l)
+-       {
++        }
++        else if (n.equals("&setReadOnly"))
++        {
+            File a = BridgeUtilities.getFile(l);
+ 
+            if (a.setReadOnly())
+@@ -121,20 +108,9 @@
+               return SleepUtils.getScalar(1);
+            }
+            return SleepUtils.getEmptyScalar();
+-       }
+-    }
++        }
+ 
+-    private static class deleteFile implements Function
+-    {
+-       public Scalar evaluate(String n, ScriptInstance i, Stack l)
+-       {
+-           File a = BridgeUtilities.getFile(l);
+-           if (a.delete())
+-           {
+-              return SleepUtils.getScalar(1);
+-           }
+-           return SleepUtils.getEmptyScalar();
+-       }
++        return SleepUtils.getEmptyScalar();
+     }
+ 
+     private static class getActiveDir implements Function
+@@ -203,10 +179,15 @@
+        {
+            File[] files;
+  
+-           if (l.isEmpty())
++           if (l.isEmpty() && n.equals("&listRoots"))
+            {
+               files = File.listRoots();
+            }
++           else if (l.isEmpty() && n.equals("&ls"))
++           {
++              File a = new File("").getAbsoluteFile();
++              files = a.listFiles();
++           }
+            else
+            {
+               File a = BridgeUtilities.getFile(l);
+
+Modified: sleep/tests/output/trace.sl
+===================================================================
+--- sleep/tests/output/trace.sl	2006-11-05 23:58:00 UTC (rev 159)
++++ sleep/tests/output/trace.sl	2006-11-06 00:17:22 UTC (rev 160)
+@@ -1,13 +1,13 @@
+ this is a test
+-Trace: [java.io.PrintStream at a4488 println: 'this is a test'] at line 6
++Trace: [java.io.PrintStream at 383118 println: 'this is a test'] at line 6
+ Trace: [java.lang.Math pow: 3, 4] = 81.0 at line 7
+ 81.0
+-Trace: [java.io.PrintStream at a4488 println: 81.0] at line 7
++Trace: [java.io.PrintStream at 383118 println: 81.0] at line 7
+ Trace: [java.lang.Math pow: 3, 5] = 243.0 at line 8
+ 243.0
+ Trace: &println(243.0) at line 8
+ testing again...
+-Trace: [java.io.PrintStream at a4488 println: 'testing again...'] at line 10
++Trace: [java.io.PrintStream at 383118 println: 'testing again...'] at line 10
+ Trace: [sleep.runtime.SleepUtils getListFromArray: @('a', 'b', 'c')] = [a, b, c] at line 12
+ Trace: [new java.util.LinkedList: [a, b, c]] = [a, b, c] at line 12
+ Warning: variable '$list' not declared at line 12
+
+Modified: sleep/tests/output/wrong.sl
+===================================================================
+--- sleep/tests/output/wrong.sl	2006-11-05 23:58:00 UTC (rev 159)
++++ sleep/tests/output/wrong.sl	2006-11-06 00:17:22 UTC (rev 160)
+@@ -1,32 +1,32 @@
+ Trace: [java.lang.Math pow: 3, 4] = 81.0 at line 6
+ 81.0
+-Trace: [java.io.PrintStream at 23f1bb println: 81.0] at line 6
++Trace: [java.io.PrintStream at a61172 println: 81.0] at line 6
+ Trace: &casti(1, 'z') = true at line 9
+ true
+-Trace: [java.io.PrintStream at 23f1bb println: true] at line 9
++Trace: [java.io.PrintStream at a61172 println: true] at line 9
+ Trace: &casti(0, 'z') = false at line 10
+ false
+-Trace: [java.io.PrintStream at 23f1bb println: false] at line 10
++Trace: [java.io.PrintStream at a61172 println: false] at line 10
+ Trace: &casti(1, 'd') = 1.0 at line 13
+ 1.0
+-Trace: [java.io.PrintStream at 23f1bb println: 1.0] at line 13
++Trace: [java.io.PrintStream at a61172 println: 1.0] at line 13
+ Trace: &casti(1, 'b') = 1 at line 16
+ 1
+-Trace: [java.io.PrintStream at 23f1bb println: 1] at line 16
++Trace: [java.io.PrintStream at a61172 println: 1] at line 16
+ Trace: &casti(100, 'f') = 100.0 at line 19
+ 100.0
+-Trace: [java.io.PrintStream at 23f1bb println: 100.0] at line 19
++Trace: [java.io.PrintStream at a61172 println: 100.0] at line 19
+ Trace: &casti('b', 'c') = b at line 22
+ b
+-Trace: [java.io.PrintStream at 23f1bb println: b] at line 22
++Trace: [java.io.PrintStream at a61172 println: b] at line 22
+ Trace: &casti(63, 'i') = 63 at line 25
+ 63
+-Trace: [java.io.PrintStream at 23f1bb println: 63] at line 25
++Trace: [java.io.PrintStream at a61172 println: 63] at line 25
+ this is a string y0
+-Trace: [java.io.PrintStream at 23f1bb println: 'this is a string y0'] at line 28
++Trace: [java.io.PrintStream at a61172 println: 'this is a string y0'] at line 28
+ Trace: [new java.lang.StringBuilder: 'test'] = test at line 31
+ test
+-Trace: [java.io.PrintStream at 23f1bb println: test] at line 31
+-Trace: &cast(@('a', 'b', 'c', 'd'), 'c') = [C at b01afa at line 34
++Trace: [java.io.PrintStream at a61172 println: test] at line 31
++Trace: &cast(@('a', 'b', 'c', 'd'), 'c') = [C at f54c5f at line 34
+ abcd
+-Trace: [java.io.PrintStream at 23f1bb println: [C at b01afa] at line 34
++Trace: [java.io.PrintStream at a61172 println: [C at f54c5f] at line 34
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-11-05 23:58:00 UTC (rev 159)
++++ sleep/whatsnew.txt	2006-11-06 00:17:22 UTC (rev 160)
+@@ -17,8 +17,8 @@
+ - remove &getFilePath as the function essentially did nothing but return
+   the value passed to it (I was a little over-ambitious when bridging
+   java.io.File awhile back).
+-- ls() with no parameters now returns the file system roots (same as 
+-  listRoots()).
++- ls() with no parameters now returns the listing of files/dirs in the
++  current directory.
+ 
+ 2.1-beta 8  (29 Oct 06)
+ ===========
+
+
+
+From rsmudge at mail.berlios.de  Mon Nov  6 01:21:33 2006
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Mon, 6 Nov 2006 01:21:33 +0100
+Subject: [Sleep-svn] r161 - in sleep: . src/sleep/console
+Message-ID: <200611060021.kA60LXKY009745@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-11-06 01:21:33 +0100 (Mon, 06 Nov 2006)
+New Revision: 161
+
+Modified:
+   sleep/build.xml
+   sleep/src/sleep/console/ConsoleImplementation.java
+   sleep/whatsnew.txt
+Log:
+fixed a bug in the console
+
+
+Modified: sleep/build.xml
+===================================================================
+--- sleep/build.xml	2006-11-06 00:17:22 UTC (rev 160)
++++ sleep/build.xml	2006-11-06 00:21:33 UTC (rev 161)
+@@ -16,7 +16,7 @@
+            destdir="${project.build}"
+            nowarn="yes"
+            depend="yes"
+-           debug="false"
++           debug="true"
+            source="1.4"
+            target="1.4"
+            optimize="yes"
+
+Modified: sleep/src/sleep/console/ConsoleImplementation.java
+===================================================================
+--- sleep/src/sleep/console/ConsoleImplementation.java	2006-11-06 00:17:22 UTC (rev 160)
++++ sleep/src/sleep/console/ConsoleImplementation.java	2006-11-06 00:21:33 UTC (rev 161)
+@@ -226,7 +226,8 @@
+              }
+              else if (command.equals("x") && args != null)
+              {
+-                getProxy().consolePrintln(eval("return " + args + ";"));
++                Scalar value = eval("return " + args + ";");
++                if (value != null) { getProxy().consolePrintln(value + ""); }
+              }
+              else if (command.equals("quit") || command.equals("exit") || command.equals("done"))
+              {
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-11-06 00:17:22 UTC (rev 160)
++++ sleep/whatsnew.txt	2006-11-06 00:21:33 UTC (rev 161)
+@@ -19,6 +19,8 @@
+   java.io.File awhile back).
+ - ls() with no parameters now returns the listing of files/dirs in the
+   current directory.
++- fixed a bug with 'x' crashing the sleep console when the expression 
++  had a syntax error.
+ 
+ 2.1-beta 8  (29 Oct 06)
+ ===========
+
+
+
+From rsmudge at mail.berlios.de  Mon Nov  6 01:28:06 2006
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Mon, 6 Nov 2006 01:28:06 +0100
+Subject: [Sleep-svn] r162 - in sleep: . src/sleep/console
+Message-ID: <200611060028.kA60S6kD010356@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-11-06 01:28:06 +0100 (Mon, 06 Nov 2006)
+New Revision: 162
+
+Modified:
+   sleep/src/sleep/console/TextConsole.java
+   sleep/whatsnew.txt
+Log:
+added a --check/-c command line option.
+
+
+Modified: sleep/src/sleep/console/TextConsole.java
+===================================================================
+--- sleep/src/sleep/console/TextConsole.java	2006-11-06 00:21:33 UTC (rev 161)
++++ sleep/src/sleep/console/TextConsole.java	2006-11-06 00:28:06 UTC (rev 162)
+@@ -20,6 +20,9 @@
+ 
+       if (args.length > 0)
+       {
++         boolean check = false;
++         int     start = 0;
++
+          if (args[0].equals("-version") || args[0].equals("--version") || args[0].equals("-v"))
+          {
+              System.out.println(SleepUtils.SLEEP_VERSION + " (" + SleepUtils.SLEEP_RELEASE + ")");
+@@ -33,18 +36,25 @@
+              System.out.println("         -Dsleep.debug=<debug level>");
+              System.out.println("         -Dsleep.classpath=<path to locate 3rd party jars from>");
+              System.out.println("       options:");
++             System.out.println("         -c --check     check the syntax of the specified file");
+              System.out.println("         -v --version   display version information");
+              System.out.println("         -h --help      display this help message");
+              System.out.println("       file:");
+              System.out.println("         specify a '-' to read script from STDIN");
+              return;
+          }
++         else if (args[0].equals("--check") || args[0].equals("-c"))
++         {
++             start = 1;
++             check = true;
++         }
+          
+          //
+          // put all of our command line arguments into an array scalar
+          //
++
+          Scalar array = SleepUtils.getArrayScalar();
+-         for (int x = 1; x < args.length; x++)
++         for (int x = start + 1; x < args.length; x++)
+          {
+ 
+             array.getArray().push(SleepUtils.getScalar(args[x]));
+@@ -53,13 +63,13 @@
+          try
+          {
+             ScriptInstance script;
+-            if (args[0].equals("-"))
++            if (args[start].equals("-"))
+             {
+                 script = loader.loadScript("STDIN", System.in);
+             }
+             else
+             {
+-                script = loader.loadScript(args[0]);     // load the script, parse it, etc.
++                script = loader.loadScript(args[start]);     // load the script, parse it, etc.
+             }
+             script.getScriptVariables().putScalar("@ARGV", array);  // set @ARGV to be our array of command line arguments
+ 
+@@ -68,7 +78,14 @@
+                script.setDebugFlags(Integer.parseInt(System.getProperty("sleep.debug")));
+             }
+ 
+-            script.runScript();                                     // run the script...
++            if (check)
++            {
++               System.out.println(args[start] + " syntax OK");    
++            }
++            else
++            {
++               script.runScript();                                     // run the script...
++            }
+          } 
+          catch (YourCodeSucksException yex)
+          {
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-11-06 00:21:33 UTC (rev 161)
++++ sleep/whatsnew.txt	2006-11-06 00:28:06 UTC (rev 162)
+@@ -21,6 +21,8 @@
+   current directory.
+ - fixed a bug with 'x' crashing the sleep console when the expression 
+   had a syntax error.
++- added a -c/--check option to the sleep interpreter to specify the script
++  should be parsed and checked for syntax errors but not run.
+ 
+ 2.1-beta 8  (29 Oct 06)
+ ===========
+
+
+
+From rsmudge at mail.berlios.de  Mon Nov  6 01:34:18 2006
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Mon, 6 Nov 2006 01:34:18 +0100
+Subject: [Sleep-svn] r163 - in sleep: . src/sleep/bridges tests
+Message-ID: <200611060034.kA60YIcc010994@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-11-06 01:34:18 +0100 (Mon, 06 Nov 2006)
+New Revision: 163
+
+Modified:
+   sleep/src/sleep/bridges/BasicUtilities.java
+   sleep/tests/fpfuncs.sl
+   sleep/whatsnew.txt
+Log:
+fixed &add to behave as documented, this is going to break some backwards compatability.
+
+
+
+Modified: sleep/src/sleep/bridges/BasicUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicUtilities.java	2006-11-06 00:28:06 UTC (rev 162)
++++ sleep/src/sleep/bridges/BasicUtilities.java	2006-11-06 00:34:18 UTC (rev 163)
+@@ -822,7 +822,7 @@
+        else if (n.equals("&add") && value.getArray() != null)
+        {
+           Scalar item = BridgeUtilities.getScalar(l);
+-          int index = BridgeUtilities.getInt(l, value.getArray().size());  
++          int index = BridgeUtilities.getInt(l, 0);  
+           return value.getArray().add(SleepUtils.getScalar(item), index);
+        }
+        else if (n.equals("&pop"))
+
+Modified: sleep/tests/fpfuncs.sl
+===================================================================
+--- sleep/tests/fpfuncs.sl	2006-11-06 00:28:06 UTC (rev 162)
++++ sleep/tests/fpfuncs.sl	2006-11-06 00:34:18 UTC (rev 163)
+@@ -33,7 +33,7 @@
+ println("Check: $val");
+ 
+ println("Test 5");
+-add(@array, "test");
++push(@array, "test");
+ add(@array, "test 2", 3);
+ printAll(@array);
+ 
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-11-06 00:28:06 UTC (rev 162)
++++ sleep/whatsnew.txt	2006-11-06 00:34:18 UTC (rev 163)
+@@ -23,6 +23,8 @@
+   had a syntax error.
+ - added a -c/--check option to the sleep interpreter to specify the script
+   should be parsed and checked for syntax errors but not run.
++- &add now behaves as documented, if no index is specified then the value
++  is added to the beginning of the array (and not the end as in push).
+ 
+ 2.1-beta 8  (29 Oct 06)
+ ===========
+
+
+
+From rsmudge at mail.berlios.de  Mon Nov  6 01:54:54 2006
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Mon, 6 Nov 2006 01:54:54 +0100
+Subject: [Sleep-svn] r164 - in sleep: . src/sleep/engine tests tests/output
+Message-ID: <200611060054.kA60ssJg012570@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-11-06 01:54:54 +0100 (Mon, 06 Nov 2006)
+New Revision: 164
+
+Added:
+   sleep/tests/charcheck.sl
+   sleep/tests/output/charcheck.sl
+Modified:
+   sleep/src/sleep/engine/ObjectUtilities.java
+   sleep/whatsnew.txt
+Log:
+(:
+
+
+
+Modified: sleep/src/sleep/engine/ObjectUtilities.java
+===================================================================
+--- sleep/src/sleep/engine/ObjectUtilities.java	2006-11-06 00:34:18 UTC (rev 163)
++++ sleep/src/sleep/engine/ObjectUtilities.java	2006-11-06 00:54:54 UTC (rev 164)
+@@ -192,6 +192,10 @@
+          {
+             return ARG_MATCH_YES;
+          }
++         else if (check == Character.TYPE && stemp == STRING_SCALAR && scalar.getValue().toString().length() == 1)
++         {
++            return ARG_MATCH_YES;
++         }
+          else if (stemp == OBJECT_SCALAR)
+          {
+             check = normalizePrimitive(check);
+
+Added: sleep/tests/charcheck.sl
+===================================================================
+--- sleep/tests/charcheck.sl	2006-11-06 00:34:18 UTC (rev 163)
++++ sleep/tests/charcheck.sl	2006-11-06 00:54:54 UTC (rev 164)
+@@ -0,0 +1,44 @@
++#
++# ensure that characters are matched properly and double check the semantics of boolean
++#
++
++println(iff([Character isLetter: "a"], "true", "false"));
++println(iff([Character isLetter: "abc"], "true", "false"));
++println(iff([Character isLetter: "7"], "true", "false"));
++println(iff([Character isLetter: 7], "true", "false"));
++println(iff([Character isDigit: 7], "true", "false"));
++println(iff([Character isDigit: "7"], "true", "false"));
++
++println("- " x 20);
++
++println([Boolean toString: 1]);
++println([Boolean toString: 0]);
++
++println("-" x 10);
++
++println([Boolean toString: "true"]);
++println([Boolean toString: "false"]);
++
++println("-" x 10);
++
++println([Boolean toString: $null]);
++
++println("-" x 10);
++
++println([Boolean toString: "dsfdsfsf"]);
++
++println("-" x 10);
++
++println([Boolean toString: 1.0]);
++println([Boolean toString: 0.0]);
++
++println("-" x 10);
++
++println([Boolean toString: "test"]);
++println([Boolean toString: "not truth"]);
++
++println("-" x 10);
++
++println([Boolean TRUE]);
++println([Boolean FALSE]);
++
+
+Added: sleep/tests/output/charcheck.sl
+===================================================================
+--- sleep/tests/output/charcheck.sl	2006-11-06 00:34:18 UTC (rev 163)
++++ sleep/tests/output/charcheck.sl	2006-11-06 00:54:54 UTC (rev 164)
+@@ -0,0 +1,31 @@
++true
++Warning: there is no method that matches isLetter('abc') in java.lang.Character at line 6
++false
++false
++false
++false
++true
++- - - - - - - - - - - - - - - - - - - - 
++true
++false
++----------
++Warning: there is no method that matches toString('true') in java.lang.Boolean at line 19
++
++Warning: there is no method that matches toString('false') in java.lang.Boolean at line 20
++
++----------
++false
++----------
++Warning: there is no method that matches toString('dsfdsfsf') in java.lang.Boolean at line 28
++
++----------
++true
++false
++----------
++Warning: there is no method that matches toString('test') in java.lang.Boolean at line 37
++
++Warning: there is no method that matches toString('not truth') in java.lang.Boolean at line 38
++
++----------
++1
++0
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-11-06 00:34:18 UTC (rev 163)
++++ sleep/whatsnew.txt	2006-11-06 00:54:54 UTC (rev 164)
+@@ -25,6 +25,8 @@
+   should be parsed and checked for syntax errors but not run.
+ - &add now behaves as documented, if no index is specified then the value
+   is added to the beginning of the array (and not the end as in push).
++- HOES method resolution now matches 1 character sleep strings as Java 
++  characters.
+ 
+ 2.1-beta 8  (29 Oct 06)
+ ===========
+
+
+
+From rsmudge at mail.berlios.de  Mon Nov  6 02:54:07 2006
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Mon, 6 Nov 2006 02:54:07 +0100
+Subject: [Sleep-svn] r165 - in sleep: . src/sleep/console src/sleep/engine
+	src/sleep/engine/atoms src/sleep/parser tests tests/output
+Message-ID: <200611060154.kA61s73i018942@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-11-06 02:54:06 +0100 (Mon, 06 Nov 2006)
+New Revision: 165
+
+Added:
+   sleep/tests/arraysneg.sl
+   sleep/tests/nmesgs.sl
+   sleep/tests/output/arraysneg.sl
+   sleep/tests/output/nmesgs.sl
+Modified:
+   sleep/src/sleep/console/ConsoleImplementation.java
+   sleep/src/sleep/engine/Block.java
+   sleep/src/sleep/engine/atoms/Index.java
+   sleep/src/sleep/parser/Checkers.java
+   sleep/tests/output/trace.sl
+   sleep/tests/output/wrong.sl
+   sleep/whatsnew.txt
+Log:
+more fixes
+
+
+
+Modified: sleep/src/sleep/console/ConsoleImplementation.java
+===================================================================
+--- sleep/src/sleep/console/ConsoleImplementation.java	2006-11-06 00:54:54 UTC (rev 164)
++++ sleep/src/sleep/console/ConsoleImplementation.java	2006-11-06 01:54:06 UTC (rev 165)
+@@ -140,7 +140,7 @@
+              }
+              else if (input.equals("."))
+              { 
+-                eval(code.toString());
++                eval(code.toString(), code.toString());
+                 code = new StringBuffer();                                
+              }
+              else
+@@ -226,7 +226,7 @@
+              }
+              else if (command.equals("x") && args != null)
+              {
+-                Scalar value = eval("return " + args + ";");
++                Scalar value = eval("return " + args + ";", args);
+                 if (value != null) { getProxy().consolePrintln(value + ""); }
+              }
+              else if (command.equals("quit") || command.equals("exit") || command.equals("done"))
+@@ -493,7 +493,7 @@
+        getProxy().consolePrintln("Type Ctrl+D or 'done' on a line by itself to leave interactive mode.");
+    }
+ 
+-   private Scalar eval (String expression)
++   private Scalar eval (String expression, String original)
+    {
+        try
+        {
+@@ -513,8 +513,8 @@
+        }
+        catch (Exception ex)
+        {
+-          getProxy().consolePrintln("Oops, an error occured with " + expression + ": " + ex.toString());
+-       }
++          getProxy().consolePrintln("error with " + original + ": " + ex.toString());
++       } 
+ 
+        return null;
+    }
+
+Modified: sleep/src/sleep/engine/Block.java
+===================================================================
+--- sleep/src/sleep/engine/Block.java	2006-11-06 00:54:54 UTC (rev 164)
++++ sleep/src/sleep/engine/Block.java	2006-11-06 01:54:06 UTC (rev 165)
+@@ -149,6 +149,16 @@
+               environment.getScriptInstance().fireWarning(aex.getMessage(), temp.getLineNumber());
+               return SleepUtils.getEmptyScalar();
+            }
++           catch (ArrayIndexOutOfBoundsException aix)
++           {
++              environment.getScriptInstance().fireWarning("attempted an invalid index", temp.getLineNumber());
++              return SleepUtils.getEmptyScalar();
++           }
++           catch (NullPointerException nex)
++           {
++              environment.getScriptInstance().fireWarning("null value error", temp.getLineNumber());
++              return SleepUtils.getEmptyScalar();
++           }
+            catch (RuntimeException rex)
+            {
+               environment.getScriptInstance().fireWarning(rex.getMessage(), temp.getLineNumber());
+
+Modified: sleep/src/sleep/engine/atoms/Index.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/Index.java	2006-11-06 00:54:54 UTC (rev 164)
++++ sleep/src/sleep/engine/atoms/Index.java	2006-11-06 01:54:06 UTC (rev 165)
+@@ -89,7 +89,21 @@
+          pos = (Scalar)(e.getCurrentFrame().pop());
+       e.KillFrame();
+ 
+-      if (structure.getArray() != null) { rv = structure.getArray().getAt(pos.getValue().intValue()); }
++      if (structure.getArray() != null) 
++      { 
++          int posv = pos.getValue().intValue();
++
++          if (posv < 0)
++          {
++             int size = structure.getArray().size();
++             while (posv < 0)
++             {
++                posv += size;
++             }
++          }
++          
++          rv = structure.getArray().getAt(posv); 
++      }
+       else if (structure.getHash() != null) { rv = structure.getHash().getAt(pos); }
+       else if (structure.objectValue() != null && structure.objectValue() instanceof SleepClosure)
+       {
+
+Modified: sleep/src/sleep/parser/Checkers.java
+===================================================================
+--- sleep/src/sleep/parser/Checkers.java	2006-11-06 00:54:54 UTC (rev 164)
++++ sleep/src/sleep/parser/Checkers.java	2006-11-06 01:54:06 UTC (rev 165)
+@@ -260,14 +260,17 @@
+ 
+    public static final boolean isNumber (String temp)
+    {
+-      if (temp.endsWith("L"))
+-      {
+-         temp = temp.substring(0, temp.length() - 1);
+-      }
+-
+       try
+       {
+-         Long.decode(temp);
++         if (temp.endsWith("L"))
++         {
++            temp = temp.substring(0, temp.length() - 1);
++            Long.decode(temp);
++         }
++         else
++         {
++            Integer.decode(temp);
++         }
+       }
+       catch (Exception hex) 
+       {
+
+Added: sleep/tests/arraysneg.sl
+===================================================================
+--- sleep/tests/arraysneg.sl	2006-11-06 00:54:54 UTC (rev 164)
++++ sleep/tests/arraysneg.sl	2006-11-06 01:54:06 UTC (rev 165)
+@@ -0,0 +1,23 @@
++#
++# Test some stuff with arrays
++#
++
++ at test[0] = "Hello";
++ at test[1] = "Ice cream";
++ at test[2] = "You";
++ at test[3] = "Rock";
++ at test[4] = "my";
++ at test[5] = "world";
++
++for ($x = 1; $x <= 10; $x++)
++{
++   $y = $x * -1;
++   printf("@test[ $+ $y $+ ]: " . @test[$y]);
++}
++
++println("- " x 20);
++
++for ($x = -1; $x >= (0 - size(@test)); $x--)
++{
++   println("@test[ $+ $x $+ ]: " . @test[$x]);
++}
+
+Added: sleep/tests/nmesgs.sl
+===================================================================
+--- sleep/tests/nmesgs.sl	2006-11-06 00:54:54 UTC (rev 164)
++++ sleep/tests/nmesgs.sl	2006-11-06 01:54:06 UTC (rev 165)
+@@ -0,0 +1,17 @@
++#
++# test of new messages...
++#
++
++eval('
++println($null, "this is a test");
++');
++#
++#
++
++
++ at array = @("a", "b", "c", "d");
++add(@array, "this is another test", -10);
++println(@array);
++
++#
++#
+
+Added: sleep/tests/output/arraysneg.sl
+===================================================================
+--- sleep/tests/output/arraysneg.sl	2006-11-06 00:54:54 UTC (rev 164)
++++ sleep/tests/output/arraysneg.sl	2006-11-06 01:54:06 UTC (rev 165)
+@@ -0,0 +1,17 @@
++ at test[-1]: world
++ at test[-2]: my
++ at test[-3]: Rock
++ at test[-4]: You
++ at test[-5]: Ice cream
++ at test[-6]: Hello
++ at test[-7]: world
++ at test[-8]: my
++ at test[-9]: Rock
++ at test[-10]: You
++- - - - - - - - - - - - - - - - - - - - 
++ at test[-1]: world
++ at test[-2]: my
++ at test[-3]: Rock
++ at test[-4]: You
++ at test[-5]: Ice cream
++ at test[-6]: Hello
+
+Added: sleep/tests/output/nmesgs.sl
+===================================================================
+--- sleep/tests/output/nmesgs.sl	2006-11-06 00:54:54 UTC (rev 164)
++++ sleep/tests/output/nmesgs.sl	2006-11-06 01:54:06 UTC (rev 165)
+@@ -0,0 +1,2 @@
++Warning: null value error at line 1
++Warning: attempted an invalid index at line 13
+
+Modified: sleep/tests/output/trace.sl
+===================================================================
+--- sleep/tests/output/trace.sl	2006-11-06 00:54:54 UTC (rev 164)
++++ sleep/tests/output/trace.sl	2006-11-06 01:54:06 UTC (rev 165)
+@@ -1,13 +1,13 @@
+ this is a test
+-Trace: [java.io.PrintStream at 383118 println: 'this is a test'] at line 6
++Trace: [java.io.PrintStream at 97d026 println: 'this is a test'] at line 6
+ Trace: [java.lang.Math pow: 3, 4] = 81.0 at line 7
+ 81.0
+-Trace: [java.io.PrintStream at 383118 println: 81.0] at line 7
++Trace: [java.io.PrintStream at 97d026 println: 81.0] at line 7
+ Trace: [java.lang.Math pow: 3, 5] = 243.0 at line 8
+ 243.0
+ Trace: &println(243.0) at line 8
+ testing again...
+-Trace: [java.io.PrintStream at 383118 println: 'testing again...'] at line 10
++Trace: [java.io.PrintStream at 97d026 println: 'testing again...'] at line 10
+ Trace: [sleep.runtime.SleepUtils getListFromArray: @('a', 'b', 'c')] = [a, b, c] at line 12
+ Trace: [new java.util.LinkedList: [a, b, c]] = [a, b, c] at line 12
+ Warning: variable '$list' not declared at line 12
+
+Modified: sleep/tests/output/wrong.sl
+===================================================================
+--- sleep/tests/output/wrong.sl	2006-11-06 00:54:54 UTC (rev 164)
++++ sleep/tests/output/wrong.sl	2006-11-06 01:54:06 UTC (rev 165)
+@@ -1,32 +1,32 @@
+ Trace: [java.lang.Math pow: 3, 4] = 81.0 at line 6
+ 81.0
+-Trace: [java.io.PrintStream at a61172 println: 81.0] at line 6
++Trace: [java.io.PrintStream at bf053f println: 81.0] at line 6
+ Trace: &casti(1, 'z') = true at line 9
+ true
+-Trace: [java.io.PrintStream at a61172 println: true] at line 9
++Trace: [java.io.PrintStream at bf053f println: true] at line 9
+ Trace: &casti(0, 'z') = false at line 10
+ false
+-Trace: [java.io.PrintStream at a61172 println: false] at line 10
++Trace: [java.io.PrintStream at bf053f println: false] at line 10
+ Trace: &casti(1, 'd') = 1.0 at line 13
+ 1.0
+-Trace: [java.io.PrintStream at a61172 println: 1.0] at line 13
++Trace: [java.io.PrintStream at bf053f println: 1.0] at line 13
+ Trace: &casti(1, 'b') = 1 at line 16
+ 1
+-Trace: [java.io.PrintStream at a61172 println: 1] at line 16
++Trace: [java.io.PrintStream at bf053f println: 1] at line 16
+ Trace: &casti(100, 'f') = 100.0 at line 19
+ 100.0
+-Trace: [java.io.PrintStream at a61172 println: 100.0] at line 19
++Trace: [java.io.PrintStream at bf053f println: 100.0] at line 19
+ Trace: &casti('b', 'c') = b at line 22
+ b
+-Trace: [java.io.PrintStream at a61172 println: b] at line 22
++Trace: [java.io.PrintStream at bf053f println: b] at line 22
+ Trace: &casti(63, 'i') = 63 at line 25
+ 63
+-Trace: [java.io.PrintStream at a61172 println: 63] at line 25
++Trace: [java.io.PrintStream at bf053f println: 63] at line 25
+ this is a string y0
+-Trace: [java.io.PrintStream at a61172 println: 'this is a string y0'] at line 28
++Trace: [java.io.PrintStream at bf053f println: 'this is a string y0'] at line 28
+ Trace: [new java.lang.StringBuilder: 'test'] = test at line 31
+ test
+-Trace: [java.io.PrintStream at a61172 println: test] at line 31
+-Trace: &cast(@('a', 'b', 'c', 'd'), 'c') = [C at f54c5f at line 34
++Trace: [java.io.PrintStream at bf053f println: test] at line 31
++Trace: &cast(@('a', 'b', 'c', 'd'), 'c') = [C at 9cd75a at line 34
+ abcd
+-Trace: [java.io.PrintStream at a61172 println: [C at f54c5f] at line 34
++Trace: [java.io.PrintStream at bf053f println: [C at 9cd75a] at line 34
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-11-06 00:54:54 UTC (rev 164)
++++ sleep/whatsnew.txt	2006-11-06 01:54:06 UTC (rev 165)
+@@ -27,6 +27,10 @@
+   is added to the beginning of the array (and not the end as in push).
+ - HOES method resolution now matches 1 character sleep strings as Java 
+   characters.
++- the index operator now normalizes negative array indices i.e. @array[-1]
++  will return the last element of @array.
++- added more descriptive error messages for out of bounds exceptions and
++  null pointer exceptions.
+ 
+ 2.1-beta 8  (29 Oct 06)
+ ===========
+
+
+
+From rsmudge at mail.berlios.de  Mon Nov  6 03:15:58 2006
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Mon, 6 Nov 2006 03:15:58 +0100
+Subject: [Sleep-svn] r166 - in sleep: . src/sleep/runtime tests tests/output
+Message-ID: <200611060215.kA62FwV6020742@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-11-06 03:15:57 +0100 (Mon, 06 Nov 2006)
+New Revision: 166
+
+Added:
+   sleep/tests/forker.sl
+   sleep/tests/output/forker.sl
+Modified:
+   sleep/src/sleep/runtime/ScriptInstance.java
+   sleep/whatsnew.txt
+Log:
+more fixes... this time with fork()
+
+
+
+Modified: sleep/src/sleep/runtime/ScriptInstance.java
+===================================================================
+--- sleep/src/sleep/runtime/ScriptInstance.java	2006-11-06 01:54:06 UTC (rev 165)
++++ sleep/src/sleep/runtime/ScriptInstance.java	2006-11-06 02:15:57 UTC (rev 166)
+@@ -188,7 +188,9 @@
+     {
+         ScriptInstance si = new ScriptInstance(variables.getGlobalVariables().createInternalVariableContainer(), environment.getEnvironment());
+         si.setName("fork of " + getName());
+-
++        si.setDebugFlags(getDebugFlags());
++        si.watchers = watchers;
++ 
+         return si;
+     }
+ 
+
+Added: sleep/tests/forker.sl
+===================================================================
+--- sleep/tests/forker.sl	2006-11-06 01:54:06 UTC (rev 165)
++++ sleep/tests/forker.sl	2006-11-06 02:15:57 UTC (rev 166)
+@@ -0,0 +1,12 @@
++sub check
++{
++   return;
++}
++
++debug(15);
++
++fork({
++   check("within fork");
++});
++
++check("outside of fork");
+
+Added: sleep/tests/output/forker.sl
+===================================================================
+--- sleep/tests/output/forker.sl	2006-11-06 01:54:06 UTC (rev 165)
++++ sleep/tests/output/forker.sl	2006-11-06 02:15:57 UTC (rev 166)
+@@ -0,0 +1,3 @@
++Trace: &check('within fork') at line 9
++Trace: &fork(&closure2:9) = sleep.bridges.io.IOObject at 922804 at line 8
++Trace: &check('outside of fork') at line 12
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-11-06 01:54:06 UTC (rev 165)
++++ sleep/whatsnew.txt	2006-11-06 02:15:57 UTC (rev 166)
+@@ -31,7 +31,10 @@
+   will return the last element of @array.
+ - added more descriptive error messages for out of bounds exceptions and
+   null pointer exceptions.
++- fork() now inherits parent scripts debug settings and error watchers,
++  before if an error happened in a fork it would be silently ignored. doh!
+ 
++
+ 2.1-beta 8  (29 Oct 06)
+ ===========
+ - when packing an unsigned integer the argument is now interpreted as a long
+
+
+
+From rsmudge at mail.berlios.de  Mon Nov  6 03:29:40 2006
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Mon, 6 Nov 2006 03:29:40 +0100
+Subject: [Sleep-svn] r167 - in sleep: . src/sleep/bridges tests tests/output
+Message-ID: <200611060229.kA62TeBQ021342@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-11-06 03:29:40 +0100 (Mon, 06 Nov 2006)
+New Revision: 167
+
+Added:
+   sleep/tests/output/useerr.sl
+   sleep/tests/useerr.sl
+Modified:
+   sleep/src/sleep/bridges/BasicUtilities.java
+   sleep/whatsnew.txt
+Log:
+&use is now more aggressive with its error reporting.
+
+
+
+Modified: sleep/src/sleep/bridges/BasicUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicUtilities.java	2006-11-06 02:15:57 UTC (rev 166)
++++ sleep/src/sleep/bridges/BasicUtilities.java	2006-11-06 02:29:40 UTC (rev 167)
+@@ -232,10 +232,16 @@
+           else
+           {
+              File a    = sleep.parser.ParserConfig.findJarFile(l.pop().toString());
++
+              parent    = a.getParentFile();
+              className = a.getName();
+           }
+ 
++          if (parent != null && !parent.exists())
++          {
++             throw new IllegalArgumentException("&use: could not locate jar file '" + parent + "'");
++          }
++
+           Class bridge;
+ 
+           try
+@@ -266,7 +272,7 @@
+           }
+           catch (Exception ex)
+           {
+-             si.getScriptEnvironment().flagError(ex.toString());
++             throw new RuntimeException(ex.toString());
+           }
+ 
+           return SleepUtils.getEmptyScalar();
+
+Added: sleep/tests/output/useerr.sl
+===================================================================
+--- sleep/tests/output/useerr.sl	2006-11-06 02:15:57 UTC (rev 166)
++++ sleep/tests/output/useerr.sl	2006-11-06 02:29:40 UTC (rev 167)
+@@ -0,0 +1,2 @@
++Warning: &use: could not locate jar file '/Users/raffi/jdbc.jar' at line 0
++Warning: java.lang.ClassNotFoundException: ABCDE at line 0
+
+Added: sleep/tests/useerr.sl
+===================================================================
+--- sleep/tests/useerr.sl	2006-11-06 02:15:57 UTC (rev 166)
++++ sleep/tests/useerr.sl	2006-11-06 02:29:40 UTC (rev 167)
+@@ -0,0 +1,2 @@
++eval('use("/Users/raffi/jdbc.jar", "JDBC");');
++eval('use("ABCDE");');
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-11-06 02:15:57 UTC (rev 166)
++++ sleep/whatsnew.txt	2006-11-06 02:29:40 UTC (rev 167)
+@@ -33,8 +33,10 @@
+   null pointer exceptions.
+ - fork() now inherits parent scripts debug settings and error watchers,
+   before if an error happened in a fork it would be silently ignored. doh!
++- &use is now much more aggressive with its error reporting.  if the class
++  is not found or if the specified jar file is not found a runtime warning
++  is fired.
+ 
+-
+ 2.1-beta 8  (29 Oct 06)
+ ===========
+ - when packing an unsigned integer the argument is now interpreted as a long
+
+
+
+From rsmudge at mail.berlios.de  Mon Nov  6 04:29:41 2006
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Mon, 6 Nov 2006 04:29:41 +0100
+Subject: [Sleep-svn] r168 - in sleep: . docs src/sleep/runtime
+Message-ID: <200611060329.kA63TfFQ025382@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-11-06 04:29:40 +0100 (Mon, 06 Nov 2006)
+New Revision: 168
+
+Modified:
+   sleep/docs/sleeplang.html
+   sleep/readme.txt
+   sleep/src/sleep/runtime/SleepUtils.java
+Log:
+preparing for the release of beta 9
+
+
+Modified: sleep/docs/sleeplang.html
+===================================================================
+--- sleep/docs/sleeplang.html	2006-11-06 02:29:40 UTC (rev 167)
++++ sleep/docs/sleeplang.html	2006-11-06 03:29:40 UTC (rev 168)
+@@ -685,6 +685,9 @@
+ <var>@foo[3]</var> is set to "Michelangelo".  <var>@foo[3]</var> is now equivalent to a normal string scalar that has the value 
+ "Michelangelo".</p>
+ 
++<p>When referencing an array with the index operator, it is acceptable to use negative indices.  For example to reference the
++last element of <var>@foo</var> one could use <code>@foo[-1]</code>.</p>
++
+ <p>Arrays can be assigned to each other as well.   As stated in the Scalars section assigning an array to another array just 
+ copies the reference.   Both <var>@array</var>'s will point to the same data.  A change in one array will affect the other 
+ array.</p>
+@@ -1680,7 +1683,6 @@
+   <th width="240">Function</th>
+   <th>Description</th>
+  </tr>  
+-
+  <tr>
+   <td>$</td>
+   <td>add(@array, $scalar, [index])</td>
+@@ -1924,11 +1926,6 @@
+  </tr>
+  <tr>
+   <td>$</td>
+-  <td>getFilePath("/path/file")</td>
+-  <td>returns the file path extracted from the full path</td>
+- </tr>
+- <tr>
+-  <td>$</td>
+   <td>getFileProper("path", "file", ...)</td>
+   <td>combines /path and files into an appropriate filename and path for the current platform.</td>
+  </tr>
+@@ -1949,8 +1946,8 @@
+  </tr>
+  <tr>
+   <td>@</td>
+-  <td>ls("directory")</td>
+-  <td>gets a list of all the files in the specified directory</td>
++  <td>ls(["directory"])</td>
++  <td>gets a list of all the files in the specified directory.  if no directory is specified, the current directory is listed.</td>
+  </tr>
+  <tr>
+   <td></td>
+@@ -2067,6 +2064,12 @@
+  </tr>
+  <tr>
+   <td>$</td>
++  <td>consume($handle, n, [buffer size])</td>
++  <td>reads and discards up to n bytes from the specified handle.  this is useful for causing data to be read and processed without the expensive conversion process
++      to sleep strings (i.e. when one wants to digest or checksum a file)</td>
++ </tr>
++ <tr>
++  <td>$</td>
+   <td>exec("command", [%env], ["directory"])</td>
+   <td>executes the specified command and returns a $handle.  Check for issues executing a process with checkError().  If $null is specified for either the environment (%env) or the starting "directory" then the process will inherit the current processes settings.</td>
+  </tr>
+@@ -2149,6 +2152,11 @@
+   <td>reads a single line of text from the specified handle</td>
+  </tr>
+  <tr>
++  <td>$</td>
++  <td>readObject([$handle])</td>
++  <td>reads a serialized scalar back from the specified handle</td>
++ </tr>
++ <tr>
+   <td></td>
+   <td>reset([$handle])</td>
+   <td>resets this IO stream back to the last mark</td>
+@@ -2175,6 +2183,11 @@
+   <td>writeb([$handle], "string")</td>
+   <td>writes the byte data of "string" to $handle</td>
+  </tr>
++ <tr>
++  <td>$</td>
++  <td>writeObject([$handle], $scalar, ...)</td>
++  <td>serializes and writes all of the scalar arguments out to the specified handle</td>
++ </tr>
+ </table>
+ 
+ <p>Note: STDIN/STDOUT will be used by default for any of the IO read/write functions if a $handle is not specified.</p>
+
+Modified: sleep/readme.txt
+===================================================================
+--- sleep/readme.txt	2006-11-06 02:29:40 UTC (rev 167)
++++ sleep/readme.txt	2006-11-06 03:29:40 UTC (rev 168)
+@@ -1,5 +1,5 @@
+  ------- -------------------- ---------   ---------------  ------- ---------
+-Sleep - 2.1 beta 8 - README   
++Sleep - 2.1 beta 9 - README   
+ -  ------------- -------- -   ---------------- --       -    -     -     - - -
+ 
+ "You got the language, all you need now is the O'Reilly book".  That is
+
+Modified: sleep/src/sleep/runtime/SleepUtils.java
+===================================================================
+--- sleep/src/sleep/runtime/SleepUtils.java	2006-11-06 02:29:40 UTC (rev 167)
++++ sleep/src/sleep/runtime/SleepUtils.java	2006-11-06 03:29:40 UTC (rev 168)
+@@ -49,7 +49,7 @@
+ public class SleepUtils
+ {
+    /** A date stamp of this Sleep release in YYYYMMDD format */
+-   public static final int    SLEEP_RELEASE = 20061029;
++   public static final int    SLEEP_RELEASE = 20061106;
+ 
+    /** A string description of this Sleep release */
+    public static final String SLEEP_VERSION = "Sleep 2.1";
+
+
+
+From rsmudge at mail.berlios.de  Mon Nov  6 04:33:22 2006
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Mon, 6 Nov 2006 04:33:22 +0100
+Subject: [Sleep-svn] r169 - in sleep: . docs/css
+Message-ID: <200611060333.kA63XMLv025752@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-11-06 04:33:22 +0100 (Mon, 06 Nov 2006)
+New Revision: 169
+
+Modified:
+   sleep/build.xml
+   sleep/docs/css/print.css
+   sleep/docs/css/screen.css
+Log:
+another change...
+
+
+Modified: sleep/build.xml
+===================================================================
+--- sleep/build.xml	2006-11-06 03:29:40 UTC (rev 168)
++++ sleep/build.xml	2006-11-06 03:33:22 UTC (rev 169)
+@@ -16,7 +16,7 @@
+            destdir="${project.build}"
+            nowarn="yes"
+            depend="yes"
+-           debug="true"
++           debug="false"
+            source="1.4"
+            target="1.4"
+            optimize="yes"
+
+Modified: sleep/docs/css/print.css
+===================================================================
+--- sleep/docs/css/print.css	2006-11-06 03:29:40 UTC (rev 168)
++++ sleep/docs/css/print.css	2006-11-06 03:33:22 UTC (rev 169)
+@@ -62,7 +62,7 @@
+    font-family:     Verdana, Arial, Helvetica, sans-serif;
+    font-weight:     bold;
+    text-align:      left;
+-   margin:          1.5em 0 0 0;
++   margin:          0em 0 0 0;
+    padding:         0;
+    page-break-after:  avoid;
+    page-break-inside: avoid;
+
+Modified: sleep/docs/css/screen.css
+===================================================================
+--- sleep/docs/css/screen.css	2006-11-06 03:29:40 UTC (rev 168)
++++ sleep/docs/css/screen.css	2006-11-06 03:33:22 UTC (rev 169)
+@@ -55,7 +55,7 @@
+ h3 {
+    font-weight:     bold;
+    text-align:      left;
+-   margin:          1.5em 0 0 0;
++   margin:          0em 0 0 0;
+    padding:         0;
+ }
+ 
+
+
+
+From rsmudge at mail.berlios.de  Mon Nov  6 04:35:48 2006
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Mon, 6 Nov 2006 04:35:48 +0100
+Subject: [Sleep-svn] r170 - sleep
+Message-ID: <200611060335.kA63Zm7R025934@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-11-06 04:35:48 +0100 (Mon, 06 Nov 2006)
+New Revision: 170
+
+Modified:
+   sleep/whatsnew.txt
+Log:
+..
+
+
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-11-06 03:33:22 UTC (rev 169)
++++ sleep/whatsnew.txt	2006-11-06 03:35:48 UTC (rev 170)
+@@ -1,4 +1,4 @@
+-2.1-beta 9
++2.1-beta 9  (6 Nov 06)
+ ===========
+ - made sleep data structures and sleepclosure all serializable.
+ - added &readObject([$handle]) and &writeObject([$handle], $object) to
+
+
+
+From rsmudge at mail.berlios.de  Tue Nov  7 04:53:34 2006
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Tue, 7 Nov 2006 04:53:34 +0100
+Subject: [Sleep-svn] r171 - in sleep: . src/sleep/bridges
+	src/sleep/bridges/io
+Message-ID: <200611070353.kA73rYJJ012568@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-11-07 04:53:33 +0100 (Tue, 07 Nov 2006)
+New Revision: 171
+
+Modified:
+   sleep/src/sleep/bridges/BasicIO.java
+   sleep/src/sleep/bridges/io/DataPattern.java
+   sleep/whatsnew.txt
+Log:
+added sizeof(...)
+
+
+
+Modified: sleep/src/sleep/bridges/BasicIO.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicIO.java	2006-11-06 03:35:48 UTC (rev 170)
++++ sleep/src/sleep/bridges/BasicIO.java	2006-11-07 03:53:33 UTC (rev 171)
+@@ -82,6 +82,7 @@
+         // object io functions
+         temp.put("&readObject",      this);
+         temp.put("&writeObject",     this);
++        temp.put("&sizeof", this);
+ 
+         temp.put("&pack",       new pack());
+         temp.put("&unpack",     new unpack());
+@@ -232,6 +233,10 @@
+ 
+           return SleepUtils.getEmptyScalar();
+        }
++       else if (n.equals("&sizeof"))
++       {
++          return SleepUtils.getScalar(DataPattern.EstimateSize(BridgeUtilities.getString(l, "")));
++       }
+        else if (n.equals("&checksum"))
+        {
+           Scalar   s = BridgeUtilities.getScalar(l);
+@@ -1134,7 +1139,7 @@
+        {
+           String    pattern = BridgeUtilities.getString(l, "");
+ 
+-          ByteArrayOutputStream temp = new ByteArrayOutputStream(DataPattern.EstimateSize(pattern));
++          ByteArrayOutputStream temp = new ByteArrayOutputStream(DataPattern.EstimateSize(pattern) + 128);
+          
+           WriteFormatted(pattern, new DataOutputStream(temp), l, null);
+ 
+
+Modified: sleep/src/sleep/bridges/io/DataPattern.java
+===================================================================
+--- sleep/src/sleep/bridges/io/DataPattern.java	2006-11-06 03:35:48 UTC (rev 170)
++++ sleep/src/sleep/bridges/io/DataPattern.java	2006-11-07 03:53:33 UTC (rev 171)
+@@ -9,6 +9,7 @@
+    public DataPattern next  = null;
+    public int         count = 1;
+    public char        value = ' ';
++   public int         size  = 0;
+    public ByteOrder   order = ByteOrder.BIG_ENDIAN;
+ 
+    private static HashMap patternCache = new HashMap();
+@@ -22,7 +23,7 @@
+       while (pattern != null)
+       {
+          if (pattern.count > 0)
+-           count += pattern.count;
++           count += pattern.count * pattern.size;
+ 
+          pattern = pattern.next;
+       }
+@@ -60,9 +61,40 @@
+             count = new StringBuffer(3);
+             temp.value = format.charAt(x);
+ 
+-            if (format.charAt(x) == 'z' || format.charAt(x) == 'Z' || format.charAt(x) == 'u' || format.charAt(x) == 'U')
++            switch (temp.value)
+             {
+-               temp.count = -1;
++               case 'b':
++               case 'B':
++               case 'C':
++               case 'h':
++               case 'H':
++               case 'x':
++                 temp.size = 1;
++                 break;
++               case 'u':
++               case 'U':
++                 temp.count = -1;
++                 temp.size = 2;
++                 break;
++               case 'z':
++               case 'Z':
++                 temp.count = -1;
++                 temp.size = 1;
++                 break;
++               case 'c':
++               case 's':
++               case 'S':
++                 temp.size = 2;
++                 break;
++               case 'i':
++               case 'I':
++               case 'f':
++                 temp.size = 4;
++                 break;
++               case 'd':
++               case 'l':
++                 temp.size = 8;
++                 break;  
+             }
+          }
+          else if (format.charAt(x) == '*')
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-11-06 03:35:48 UTC (rev 170)
++++ sleep/whatsnew.txt	2006-11-07 03:53:33 UTC (rev 171)
+@@ -1,3 +1,8 @@
++2.1-beta 10
++===========
++- added sizeof("data format") to return the size (in bytes) of the
++  data structure represented by the specified format string. 
++
+ 2.1-beta 9  (6 Nov 06)
+ ===========
+ - made sleep data structures and sleepclosure all serializable.
+
+
+
+From rsmudge at mail.berlios.de  Tue Nov  7 23:42:28 2006
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Tue, 7 Nov 2006 23:42:28 +0100
+Subject: [Sleep-svn] r172 - in sleep: . src/sleep/engine/atoms tests
+	tests/output
+Message-ID: <200611072242.kA7MgSPg000490@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-11-07 23:42:27 +0100 (Tue, 07 Nov 2006)
+New Revision: 172
+
+Added:
+   sleep/tests/indexerr.sl
+   sleep/tests/output/indexerr.sl
+Modified:
+   sleep/src/sleep/engine/atoms/Index.java
+   sleep/whatsnew.txt
+Log:
+new error message for invalid use of index operator.
+
+
+
+Modified: sleep/src/sleep/engine/atoms/Index.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/Index.java	2006-11-07 03:53:33 UTC (rev 171)
++++ sleep/src/sleep/engine/atoms/Index.java	2006-11-07 22:42:27 UTC (rev 172)
+@@ -115,7 +115,10 @@
+          }
+          rv = closure.getVariables().getScalar(pos.toString());
+       }
+-      else { rv = SleepUtils.getEmptyScalar(); } // always return an empty scalar if we are not referencing a hash or an array
++      else 
++      { 
++         throw new IllegalArgumentException("invalid use of index operator: " + SleepUtils.describe(structure) + "[" + SleepUtils.describe(pos) + "]");
++      } 
+ 
+       e.FrameResult(rv);
+       return null;
+
+Added: sleep/tests/indexerr.sl
+===================================================================
+--- sleep/tests/indexerr.sl	2006-11-07 03:53:33 UTC (rev 171)
++++ sleep/tests/indexerr.sl	2006-11-07 22:42:27 UTC (rev 172)
+@@ -0,0 +1,11 @@
++#
++# showing error messages for attempts to index non-indexable stuff...
++#
++
++%hash["x"]["y"]["z"] = "hello world!";
++println(%hash);
++
++%hash["x"]["y"] = %hash["x"]["y"] . "oops!";
++println(%hash);
++
++println("Value is: " . %hash["x"]["y"]["z"]);
+
+Added: sleep/tests/output/indexerr.sl
+===================================================================
+--- sleep/tests/output/indexerr.sl	2006-11-07 03:53:33 UTC (rev 171)
++++ sleep/tests/output/indexerr.sl	2006-11-07 22:42:27 UTC (rev 172)
+@@ -0,0 +1,3 @@
++%(x => %(y => %(z => 'hello world!')))
++%(x => %(y => '%(z => 'hello world!')oops!'))
++Warning: invalid use of index operator: '%(z => 'hello world!')oops!'['z'] at line 11
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-11-07 03:53:33 UTC (rev 171)
++++ sleep/whatsnew.txt	2006-11-07 22:42:27 UTC (rev 172)
+@@ -2,6 +2,8 @@
+ ===========
+ - added sizeof("data format") to return the size (in bytes) of the
+   data structure represented by the specified format string. 
++- attempting an invalid useage of the index op now fires a runtime
++  warning notifying the scripter of what happened.
+ 
+ 2.1-beta 9  (6 Nov 06)
+ ===========
+
+
+
+From rsmudge at mail.berlios.de  Wed Nov  8 02:03:31 2006
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Wed, 8 Nov 2006 02:03:31 +0100
+Subject: [Sleep-svn] r173 - in sleep: . src/sleep/parser tests tests/output
+Message-ID: <200611080103.kA813V48017343@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-11-08 02:03:17 +0100 (Wed, 08 Nov 2006)
+New Revision: 173
+
+Added:
+   sleep/tests/output/unicodeseq.sl
+   sleep/tests/unicodeseq.sl
+Modified:
+   sleep/src/sleep/parser/CodeGenerator.java
+   sleep/tests/output/forker.sl
+   sleep/tests/output/trace.sl
+   sleep/tests/output/wrong.sl
+   sleep/whatsnew.txt
+Log:
+added \u and \x escape sequences for parsed literal strings.
+
+
+
+Modified: sleep/src/sleep/parser/CodeGenerator.java
+===================================================================
+--- sleep/src/sleep/parser/CodeGenerator.java	2006-11-07 22:42:27 UTC (rev 172)
++++ sleep/src/sleep/parser/CodeGenerator.java	2006-11-08 01:03:17 UTC (rev 173)
+@@ -503,6 +503,44 @@
+                      c = c.substring(0, x) + replacedValue + c.substring(x + 2, c.length());
+                      x += replacedValue.length() - 1;
+                   }
++                  else if (c.charAt(x+1) == 'u')
++                  {
++                     if ((x + 5) >= c.length())
++                     {
++                        parser.reportError("not enough remaning characters for \\uXXXX",  tokens[0]);
++                     }
++                     else
++                     {
++                        try
++                        {
++                           int codepoint = Integer.parseInt(c.substring(x + 2, x + 6), 16);
++                           c = c.substring(0, x) + ((char)codepoint)  + c.substring(x + 6, c.length());
++                        }
++                        catch (NumberFormatException nex)
++                        {
++                           parser.reportError("invalid unicode escape \\u"+c.substring(x + 2, x + 6)+" - must be hex digits", tokens[0]);
++                        }
++                     }
++                  }
++                  else if (c.charAt(x+1) == 'x')
++                  {
++                     if ((x + 3) >= c.length())
++                     {
++                        parser.reportError("not enough remaning characters for \\xXX",  tokens[0]);
++                     }
++                     else
++                     {
++                        try
++                        {
++                           int codepoint = Integer.parseInt(c.substring(x + 2, x + 4), 16);
++                           c = c.substring(0, x) + ((char)codepoint)  + c.substring(x + 4, c.length());
++                        }
++                        catch (NumberFormatException nex)
++                        {
++                           parser.reportError("invalid unicode escape \\x"+c.substring(x + 2, x + 4)+" - must be hex digits", tokens[0]);
++                        }
++                     }
++                  }
+                   else  // default behavior is to skip over the character...
+                   {
+                      c = c.substring(0, x)+c.substring(x+1, c.length());
+
+Modified: sleep/tests/output/forker.sl
+===================================================================
+--- sleep/tests/output/forker.sl	2006-11-07 22:42:27 UTC (rev 172)
++++ sleep/tests/output/forker.sl	2006-11-08 01:03:17 UTC (rev 173)
+@@ -1,3 +1,3 @@
+ Trace: &check('within fork') at line 9
+-Trace: &fork(&closure2:9) = sleep.bridges.io.IOObject at 922804 at line 8
++Trace: &fork(&closure2:9) = sleep.bridges.io.IOObject at ba0f36 at line 8
+ Trace: &check('outside of fork') at line 12
+
+Modified: sleep/tests/output/trace.sl
+===================================================================
+--- sleep/tests/output/trace.sl	2006-11-07 22:42:27 UTC (rev 172)
++++ sleep/tests/output/trace.sl	2006-11-08 01:03:17 UTC (rev 173)
+@@ -1,13 +1,13 @@
+ this is a test
+-Trace: [java.io.PrintStream at 97d026 println: 'this is a test'] at line 6
++Trace: [java.io.PrintStream at 7eb6e2 println: 'this is a test'] at line 6
+ Trace: [java.lang.Math pow: 3, 4] = 81.0 at line 7
+ 81.0
+-Trace: [java.io.PrintStream at 97d026 println: 81.0] at line 7
++Trace: [java.io.PrintStream at 7eb6e2 println: 81.0] at line 7
+ Trace: [java.lang.Math pow: 3, 5] = 243.0 at line 8
+ 243.0
+ Trace: &println(243.0) at line 8
+ testing again...
+-Trace: [java.io.PrintStream at 97d026 println: 'testing again...'] at line 10
++Trace: [java.io.PrintStream at 7eb6e2 println: 'testing again...'] at line 10
+ Trace: [sleep.runtime.SleepUtils getListFromArray: @('a', 'b', 'c')] = [a, b, c] at line 12
+ Trace: [new java.util.LinkedList: [a, b, c]] = [a, b, c] at line 12
+ Warning: variable '$list' not declared at line 12
+
+Added: sleep/tests/output/unicodeseq.sl
+===================================================================
+--- sleep/tests/output/unicodeseq.sl	2006-11-07 22:42:27 UTC (rev 172)
++++ sleep/tests/output/unicodeseq.sl	2006-11-08 01:03:17 UTC (rev 173)
+@@ -0,0 +1,10 @@
++this is A test :)
++this is A test :)AAAAAXA
++Warning: checkError(): 1 error(s): invalid unicode escape \u004  - must be hex digits at 1 at line 13
++Warning: checkError(): 2 error(s): invalid unicode escape \u004  - must be hex digits at 1; not enough remaning characters for \uXXXX at 1 at line 17
++Warning: checkError(): 2 error(s): invalid unicode escape \uAZBC - must be hex digits at 1; not enough remaning characters for \uXXXX at 1 at line 21
++this is A test :)
++this is A test :)AAAAAXA
++Warning: checkError(): 1 error(s): invalid unicode escape \x4  - must be hex digits at 1 at line 35
++Warning: checkError(): 2 error(s): invalid unicode escape \x4  - must be hex digits at 1; not enough remaning characters for \xXX at 1 at line 39
++Warning: checkError(): 2 error(s): invalid unicode escape \xAZ - must be hex digits at 1; not enough remaning characters for \xXX at 1 at line 43
+
+Modified: sleep/tests/output/wrong.sl
+===================================================================
+--- sleep/tests/output/wrong.sl	2006-11-07 22:42:27 UTC (rev 172)
++++ sleep/tests/output/wrong.sl	2006-11-08 01:03:17 UTC (rev 173)
+@@ -1,32 +1,32 @@
+ Trace: [java.lang.Math pow: 3, 4] = 81.0 at line 6
+ 81.0
+-Trace: [java.io.PrintStream at bf053f println: 81.0] at line 6
++Trace: [java.io.PrintStream at 6917ee println: 81.0] at line 6
+ Trace: &casti(1, 'z') = true at line 9
+ true
+-Trace: [java.io.PrintStream at bf053f println: true] at line 9
++Trace: [java.io.PrintStream at 6917ee println: true] at line 9
+ Trace: &casti(0, 'z') = false at line 10
+ false
+-Trace: [java.io.PrintStream at bf053f println: false] at line 10
++Trace: [java.io.PrintStream at 6917ee println: false] at line 10
+ Trace: &casti(1, 'd') = 1.0 at line 13
+ 1.0
+-Trace: [java.io.PrintStream at bf053f println: 1.0] at line 13
++Trace: [java.io.PrintStream at 6917ee println: 1.0] at line 13
+ Trace: &casti(1, 'b') = 1 at line 16
+ 1
+-Trace: [java.io.PrintStream at bf053f println: 1] at line 16
++Trace: [java.io.PrintStream at 6917ee println: 1] at line 16
+ Trace: &casti(100, 'f') = 100.0 at line 19
+ 100.0
+-Trace: [java.io.PrintStream at bf053f println: 100.0] at line 19
++Trace: [java.io.PrintStream at 6917ee println: 100.0] at line 19
+ Trace: &casti('b', 'c') = b at line 22
+ b
+-Trace: [java.io.PrintStream at bf053f println: b] at line 22
++Trace: [java.io.PrintStream at 6917ee println: b] at line 22
+ Trace: &casti(63, 'i') = 63 at line 25
+ 63
+-Trace: [java.io.PrintStream at bf053f println: 63] at line 25
++Trace: [java.io.PrintStream at 6917ee println: 63] at line 25
+ this is a string y0
+-Trace: [java.io.PrintStream at bf053f println: 'this is a string y0'] at line 28
++Trace: [java.io.PrintStream at 6917ee println: 'this is a string y0'] at line 28
+ Trace: [new java.lang.StringBuilder: 'test'] = test at line 31
+ test
+-Trace: [java.io.PrintStream at bf053f println: test] at line 31
+-Trace: &cast(@('a', 'b', 'c', 'd'), 'c') = [C at 9cd75a at line 34
++Trace: [java.io.PrintStream at 6917ee println: test] at line 31
++Trace: &cast(@('a', 'b', 'c', 'd'), 'c') = [C at d0d45b at line 34
+ abcd
+-Trace: [java.io.PrintStream at bf053f println: [C at 9cd75a] at line 34
++Trace: [java.io.PrintStream at 6917ee println: [C at d0d45b] at line 34
+
+Added: sleep/tests/unicodeseq.sl
+===================================================================
+--- sleep/tests/unicodeseq.sl	2006-11-07 22:42:27 UTC (rev 172)
++++ sleep/tests/unicodeseq.sl	2006-11-08 01:03:17 UTC (rev 173)
+@@ -0,0 +1,46 @@
++#
++# test specifying unicode literal strings...
++#
++
++debug(3);
++
++$x = "this is \u0041 test :)";
++println($x);
++
++$x = "this is \u0041 test :)\u0041\u0041\u0041\u0041\u0041X\u0041";
++println($x);
++
++eval('
++   $x = "this is a \u004 test";
++');
++
++eval('
++   $x = "this is a \u004 test \u004";
++');
++
++eval('
++   $x = "this is a \uAZBCDEM test \u004";
++');
++
++#
++#
++#
++
++$x = "this is \x41 test :)";
++println($x);
++
++$x = "this is \x41 test :)\x41\u0041\x41\x41\x41X\x41";
++println($x);
++
++eval('
++   $x = "this is a \x4 test";
++');
++
++eval('
++   $x = "this is a \x4 test \x4";
++');
++
++eval('
++   $x = "this is a \xAZBCDEM test \x4";
++');
++
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-11-07 22:42:27 UTC (rev 172)
++++ sleep/whatsnew.txt	2006-11-08 01:03:17 UTC (rev 173)
+@@ -2,8 +2,11 @@
+ ===========
+ - added sizeof("data format") to return the size (in bytes) of the
+   data structure represented by the specified format string. 
+-- attempting an invalid useage of the index op now fires a runtime
++- attempting an invalid usage of the index op now fires a runtime
+   warning notifying the scripter of what happened.
++- added \x and \u escapes for parsed literal strings... \xXX allows a
++  char to be specified and \uXXXX allows a unicode char to be specified.
++  X is expected to be a hex byte.
+ 
+ 2.1-beta 9  (6 Nov 06)
+ ===========
+
+
+
+From rsmudge at mail.berlios.de  Wed Nov  8 02:34:32 2006
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Wed, 8 Nov 2006 02:34:32 +0100
+Subject: [Sleep-svn] r174 - sleep/src/sleep/parser
+Message-ID: <200611080134.kA81YWMa022436@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-11-08 02:34:31 +0100 (Wed, 08 Nov 2006)
+New Revision: 174
+
+Modified:
+   sleep/src/sleep/parser/CodeGenerator.java
+Log:
+blah...
+
+
+Modified: sleep/src/sleep/parser/CodeGenerator.java
+===================================================================
+--- sleep/src/sleep/parser/CodeGenerator.java	2006-11-08 01:03:17 UTC (rev 173)
++++ sleep/src/sleep/parser/CodeGenerator.java	2006-11-08 01:34:31 UTC (rev 174)
+@@ -514,7 +514,7 @@
+                         try
+                         {
+                            int codepoint = Integer.parseInt(c.substring(x + 2, x + 6), 16);
+-                           c = c.substring(0, x) + ((char)codepoint)  + c.substring(x + 6, c.length());
++                           c = c.substring(0, x) + ((char)codepoint) + c.substring(x + 6, c.length());
+                         }
+                         catch (NumberFormatException nex)
+                         {
+
+
+
+From rsmudge at mail.berlios.de  Sat Nov 18 17:15:21 2006
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Sat, 18 Nov 2006 17:15:21 +0100
+Subject: [Sleep-svn] r175 - sleep
+Message-ID: <200611181615.kAIGFLAj027134@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-11-18 17:15:16 +0100 (Sat, 18 Nov 2006)
+New Revision: 175
+
+Modified:
+   sleep/whatsnew.txt
+Log:
+quick change to whatsnew file
+
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-11-08 01:34:31 UTC (rev 174)
++++ sleep/whatsnew.txt	2006-11-18 16:15:16 UTC (rev 175)
+@@ -6,7 +6,7 @@
+   warning notifying the scripter of what happened.
+ - added \x and \u escapes for parsed literal strings... \xXX allows a
+   char to be specified and \uXXXX allows a unicode char to be specified.
+-  X is expected to be a hex byte.
++  X is expected to be a valid hex character.
+ 
+ 2.1-beta 9  (6 Nov 06)
+ ===========
+
+
+
+From rsmudge at mail.berlios.de  Sat Nov 18 22:03:36 2006
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Sat, 18 Nov 2006 22:03:36 +0100
+Subject: [Sleep-svn] r176 - in sleep: src/sleep/bridges/io tests/output
+Message-ID: <200611182103.kAIL3aMX023799@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-11-18 22:03:36 +0100 (Sat, 18 Nov 2006)
+New Revision: 176
+
+Modified:
+   sleep/src/sleep/bridges/io/IOObject.java
+   sleep/tests/output/forker.sl
+Log:
+fixed println, readln, and friends to use default platform unicode encoding... more on these
+changes soon...
+
+
+
+Modified: sleep/src/sleep/bridges/io/IOObject.java
+===================================================================
+--- sleep/src/sleep/bridges/io/IOObject.java	2006-11-18 16:15:16 UTC (rev 175)
++++ sleep/src/sleep/bridges/io/IOObject.java	2006-11-18 21:03:36 UTC (rev 176)
+@@ -13,26 +13,30 @@
+  *
+  *  <p>The pipeline for reading data looks like this:</p>
+  *
+- *  <pre>DataInputStream <- BufferedInputStream <- Original Input Stream</pre>
++ *  <pre>... <- DataInputStream <- BufferedInputStream <- Original Input Stream</pre>
+  *
+  *  <p>The pipeline for writing data is:</p>
+  *
+- *  <pre>DataOutputStream -> Original Output Stream</pre>
++ *  <pre>... -> DataOutputStream -> Original Output Stream</pre>
+  */
+ 
+ public class IOObject
+ {
+    /* input pipeline */ 
+ 
++   protected InputStreamReader   readeru = null; /* a buffered reader, pHEAR */
+    protected DataInputStream     readerb = null; /* used to support the binary read/write stuffz */
+    protected BufferedInputStream reader  = null; /* used to support mark and reset functionality y0 */
+    protected InputStream         in      = null; /* the original stream, love it, hold it... yeah right */
+ 
+    /* output pipeline */
+ 
+-   protected DataOutputStream writerb = null; /* high level method for writing stuff out, fun fun fun */
+-   protected OutputStream     out     = null; /* original output stream */
++   protected OutputStreamWriter  writeru = null;
++   protected DataOutputStream    writerb = null; /* high level method for writing stuff out, fun fun fun */
++   protected OutputStream        out     = null; /* original output stream */
+ 
++   /* other fun stuff <3 */  
++
+    protected Thread           thread  = null;
+    protected Scalar           token   = null;
+ 
+@@ -54,6 +58,31 @@
+       return null;
+    }
+ 
++   /** set the charset to be used for all unicode aware reads/writes from/to this stream */
++   public void setEncoding(String name) throws UnsupportedEncodingException
++   {
++      if (name == null)
++      {
++         if (writerb != null)
++         {
++            writeru = new OutputStreamWriter(writerb, name);
++         }
++      }
++      else
++      {
++         if (writerb != null)
++         {
++            writeru = new OutputStreamWriter(writerb, name);
++         }
++
++         if (readerb != null)
++         {
++            readeru = new InputStreamReader(readerb, name);
++         }
++      }
++   }
++
++
+    /** set the thread used for this IOObject (currently used to allow a script to wait() on the threads completion) */
+    public void setThread(Thread t)
+    {
+@@ -142,6 +171,7 @@
+       {
+          reader  = new BufferedInputStream(in);
+          readerb = new DataInputStream(reader);
++         readeru = new InputStreamReader(readerb);
+       }
+    }
+ 
+@@ -153,6 +183,7 @@
+       if (out != null)
+       {
+          writerb = new DataOutputStream(out);
++         writeru = new OutputStreamWriter(writerb);
+       }
+    }
+ 
+@@ -168,6 +199,12 @@
+                                   the lock from this thread... in that case we move on with our lives */
+       try
+       {
++         if (readeru != null)
++           readeru.close();
++
++         if (writeru != null)
++           writeru.close();
++
+          if (reader != null)
+            reader.close();
+ 
+@@ -190,21 +227,69 @@
+       }
+       finally
+       {
+-         in     = null;
+-         out    = null;
+-         reader = null;
++         in      = null;
++         out     = null;
++         reader  = null;
+          readerb = null;
+          writerb = null;
++         readeru = null;
++         writeru = null;
+       }
+    }
+ 
++   private boolean stripTheLineSeparator = false;
++
+    /** Reads in a line of text */
+    public String readLine()
+    {
+       try
+       {
+-         if (readerb != null)
++         if (readeru != null)
+          {
++            StringBuffer rv = new StringBuffer(8192);
++            
++            int temp = readeru.read();
++         
++            /* remember a line can terminate with any of the following: \r, \n, or \r\n */
++            if (stripTheLineSeparator && temp == '\n') 
++            {
++               temp = readeru.read();
++            }
++   
++            stripTheLineSeparator = false;
++
++            while (temp != -1)
++            {
++               if (temp == '\n')
++               {
++                  return rv.toString();
++               }
++               else if (temp == '\r')
++               {
++                  stripTheLineSeparator = true;
++                  return rv.toString();
++               }
++               else
++               { 
++                  rv.append((char)temp);
++               }
++ 
++               temp = readeru.read();
++            }
++
++            close();
++
++            if (rv.length() > 0)
++            {
++               return rv.toString();
++            }
++            else
++            {
++               return null;
++            }
++         }
++         else if (readerb != null)
++         {
+             String temp = readerb.readLine(); /* deprecated, I know, but it has the behavior I want */
+ 
+             if (temp == null)
+@@ -273,22 +358,27 @@
+    /** Prints out a line of text with no newline character appended */
+    public void print(String text)
+    {
+-      if (writerb != null)
++      try
+       {
+-         try
++         if (writeru != null)
+          {
++            writeru.write(text, 0, text.length());
++            writeru.flush();
++         }
++         else if (writerb != null)
++         {
+             for (int x = 0; x < text.length(); x++)
+             {
+                writerb.writeByte((byte)text.charAt(x));
+             }
+ 
+-            writerb.flush(); /* we don't know if the underlying stream does this or not, so we'll force it */
++            writerb.flush(); 
+          }
+-         catch (Exception ex)
+-         {
+-            close();
+-         }
+       }
++      catch (Exception ex)
++      {
++         close();
++      }
+    }
+ }
+ 
+
+Modified: sleep/tests/output/forker.sl
+===================================================================
+--- sleep/tests/output/forker.sl	2006-11-18 16:15:16 UTC (rev 175)
++++ sleep/tests/output/forker.sl	2006-11-18 21:03:36 UTC (rev 176)
+@@ -1,3 +1,3 @@
+ Trace: &check('within fork') at line 9
+-Trace: &fork(&closure2:9) = sleep.bridges.io.IOObject at ba0f36 at line 8
++Trace: &fork(&closure2:9) = sleep.bridges.io.IOObject at a19458 at line 8
+ Trace: &check('outside of fork') at line 12
+
+
+
+From rsmudge at mail.berlios.de  Sun Nov 19 00:20:28 2006
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Sun, 19 Nov 2006 00:20:28 +0100
+Subject: [Sleep-svn] r177 - in sleep: . src/sleep/bridges
+	src/sleep/bridges/io
+Message-ID: <200611182320.kAINKSiw000428@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-11-19 00:20:27 +0100 (Sun, 19 Nov 2006)
+New Revision: 177
+
+Modified:
+   sleep/src/sleep/bridges/BasicIO.java
+   sleep/src/sleep/bridges/io/IOObject.java
+   sleep/whatsnew.txt
+Log:
+unicode compatability stuff...
+
+
+
+Modified: sleep/src/sleep/bridges/BasicIO.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicIO.java	2006-11-18 21:03:36 UTC (rev 176)
++++ sleep/src/sleep/bridges/BasicIO.java	2006-11-18 23:20:27 UTC (rev 177)
+@@ -70,6 +70,7 @@
+         temp.put("&read",       new read());
+         temp.put("&readln",     new readln());
+         temp.put("&readAll",    new readAll());
++        temp.put("&readc",      this);
+ 
+         // binary i/o functions :)
+         temp.put("&readb",      new readb());
+@@ -96,6 +97,8 @@
+         // typical ASCII'sh output functions
+         temp.put("&print",      new print());
+ 
++        temp.put("&setEncoding", this);
++
+         println f_println = new println();
+         temp.put("&println",    f_println);
+         temp.put("&printf",    f_println); // I need to fix my unit tests to get rid of the printf function... grr
+@@ -237,6 +240,25 @@
+        {
+           return SleepUtils.getScalar(DataPattern.EstimateSize(BridgeUtilities.getString(l, "")));
+        }
++       else if (n.equals("&setEncoding"))
++       {
++          IOObject a    = chooseSource(l, 1, i);
++          String   name = BridgeUtilities.getString(l, "");
++ 
++          try
++          {
++             a.setEncoding(name);
++          }
++          catch (Exception ex)
++          {
++             throw new IllegalArgumentException("&setEncoding: specified a non-existent encoding '" + name + "'");
++          }
++       }
++       else if (n.equals("&readc"))
++       {
++          IOObject a    = chooseSource(l, 1, i);
++          return SleepUtils.getScalar(a.readCharacter());
++       }
+        else if (n.equals("&checksum"))
+        {
+           Scalar   s = BridgeUtilities.getScalar(l);
+
+Modified: sleep/src/sleep/bridges/io/IOObject.java
+===================================================================
+--- sleep/src/sleep/bridges/io/IOObject.java	2006-11-18 21:03:36 UTC (rev 176)
++++ sleep/src/sleep/bridges/io/IOObject.java	2006-11-18 23:20:27 UTC (rev 177)
+@@ -61,24 +61,14 @@
+    /** set the charset to be used for all unicode aware reads/writes from/to this stream */
+    public void setEncoding(String name) throws UnsupportedEncodingException
+    {
+-      if (name == null)
++      if (writerb != null)
+       {
+-         if (writerb != null)
+-         {
+-            writeru = new OutputStreamWriter(writerb, name);
+-         }
++         writeru = new OutputStreamWriter(writerb, name);
+       }
+-      else
+-      {
+-         if (writerb != null)
+-         {
+-            writeru = new OutputStreamWriter(writerb, name);
+-         }
+ 
+-         if (readerb != null)
+-         {
+-            readeru = new InputStreamReader(readerb, name);
+-         }
++      if (readerb != null)
++      {
++         readeru = new InputStreamReader(readerb, name);
+       }
+    }
+ 
+@@ -288,17 +278,32 @@
+                return null;
+             }
+          }
+-         else if (readerb != null)
+-         {
+-            String temp = readerb.readLine(); /* deprecated, I know, but it has the behavior I want */
++      }
++      catch (Exception ex) 
++      { 
++         close();
++      }
+ 
+-            if (temp == null)
++      return null;
++   }
++
++   /** Reads in a character of text and returns as a string. */
++   public String readCharacter()
++   {
++      try
++      {
++         if (readeru != null)
++         {
++            int temp = readeru.read();
++         
++            if (temp == -1)
+             {
+-               readerb = null;
+-               reader  = null;
++               close();
+             }
+-
+-            return temp;
++            else
++            {
++               return (char)temp + "";
++            }
+          }
+       }
+       catch (Exception ex) 
+@@ -365,15 +370,6 @@
+             writeru.write(text, 0, text.length());
+             writeru.flush();
+          }
+-         else if (writerb != null)
+-         {
+-            for (int x = 0; x < text.length(); x++)
+-            {
+-               writerb.writeByte((byte)text.charAt(x));
+-            }
+-
+-            writerb.flush(); 
+-         }
+       }
+       catch (Exception ex)
+       {
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-11-18 21:03:36 UTC (rev 176)
++++ sleep/whatsnew.txt	2006-11-18 23:20:27 UTC (rev 177)
+@@ -7,6 +7,11 @@
+ - added \x and \u escapes for parsed literal strings... \xXX allows a
+   char to be specified and \uXXXX allows a unicode char to be specified.
+   X is expected to be a valid hex character.
++- updated println, readln, read, readAll, and printAll to be unicode
++  aware, the platform encoding is used by default.
++- added &setEncoding($handle, "charset name") to set the encoding to use
++  with the specified handle.
++- added &readc($handle) for reading a single character from an I/O handle.
+ 
+ 2.1-beta 9  (6 Nov 06)
+ ===========
+
+
+
+From rsmudge at mail.berlios.de  Mon Nov 20 21:16:20 2006
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Mon, 20 Nov 2006 21:16:20 +0100
+Subject: [Sleep-svn] r178 - in sleep: . src/sleep/parser
+Message-ID: <200611202016.kAKKGKhF024529@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-11-20 21:16:20 +0100 (Mon, 20 Nov 2006)
+New Revision: 178
+
+Modified:
+   sleep/src/sleep/parser/TokenParser.java
+   sleep/whatsnew.txt
+Log:
+fixed a parser error... making it smarter to certain things :)
+
+
+Modified: sleep/src/sleep/parser/TokenParser.java
+===================================================================
+--- sleep/src/sleep/parser/TokenParser.java	2006-11-18 23:20:27 UTC (rev 177)
++++ sleep/src/sleep/parser/TokenParser.java	2006-11-20 20:16:20 UTC (rev 178)
+@@ -405,7 +405,7 @@
+             myToken.setType(IDEA_EXPR);
+             myToken.add(tokens[x]);
+          }
+-         else if (Checkers.isFunction(strings[x]))
++         else if (Checkers.isFunction(strings[x]) && Checkers.isFunctionReferenceToken(strings[x]))
+          {
+             myToken.setType(IDEA_FUNC);
+             myToken.add(tokens[x]);
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-11-18 23:20:27 UTC (rev 177)
++++ sleep/whatsnew.txt	2006-11-20 20:16:20 UTC (rev 178)
+@@ -12,6 +12,8 @@
+ - added &setEncoding($handle, "charset name") to set the encoding to use
+   with the specified handle.
+ - added &readc($handle) for reading a single character from an I/O handle.
++- oops, parser no longer assumes a bareword in a expression is a function
++  reference.  should stop some frustrating errors :)
+ 
+ 2.1-beta 9  (6 Nov 06)
+ ===========
+
+
+
+From rsmudge at mail.berlios.de  Tue Nov 21 03:12:30 2006
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Tue, 21 Nov 2006 03:12:30 +0100
+Subject: [Sleep-svn] r179 - in sleep: . src/sleep/engine
+	src/sleep/engine/atoms src/sleep/parser tests tests/output
+Message-ID: <200611210212.kAL2CUqE000773@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-11-21 03:12:26 +0100 (Tue, 21 Nov 2006)
+New Revision: 179
+
+Added:
+   sleep/tests/output/preced.sl
+   sleep/tests/preced.sl
+Modified:
+   sleep/build.xml
+   sleep/src/sleep/engine/GeneratedSteps.java
+   sleep/src/sleep/engine/atoms/Assign.java
+   sleep/src/sleep/engine/atoms/AssignT.java
+   sleep/src/sleep/parser/CodeGenerator.java
+   sleep/src/sleep/parser/LexicalAnalyzer.java
+   sleep/src/sleep/parser/ParserConstants.java
+   sleep/src/sleep/parser/StringIterator.java
+   sleep/src/sleep/parser/TokenParser.java
+   sleep/whatsnew.txt
+Log:
+added assignment ops, I too find it hard to believe but they are in there... ooh
+
+
+
+Modified: sleep/build.xml
+===================================================================
+--- sleep/build.xml	2006-11-20 20:16:20 UTC (rev 178)
++++ sleep/build.xml	2006-11-21 02:12:26 UTC (rev 179)
+@@ -16,7 +16,7 @@
+            destdir="${project.build}"
+            nowarn="yes"
+            depend="yes"
+-           debug="false"
++           debug="true"
+            source="1.4"
+            target="1.4"
+            optimize="yes"
+
+Modified: sleep/src/sleep/engine/GeneratedSteps.java
+===================================================================
+--- sleep/src/sleep/engine/GeneratedSteps.java	2006-11-20 20:16:20 UTC (rev 178)
++++ sleep/src/sleep/engine/GeneratedSteps.java	2006-11-21 02:12:26 UTC (rev 179)
+@@ -100,12 +100,24 @@
+        return temp;
+     }
+ 
++    public static Step AssignAndOperate(Block variable, String operator)
++    {
++       Step temp = new Assign(variable, new Operate(operator));
++       return temp;
++    }
++
+     public static Step AssignT()
+     {
+        Step temp = new AssignT();
+        return temp;
+     }
+ 
++    public static Step AssignTupleAndOperate(String operator)
++    {
++       Step temp = new AssignT(new Operate(operator));
++       return temp;
++    }
++
+     public static Step CreateFrame()
+     {
+        Step temp = new CreateFrame();
+
+Modified: sleep/src/sleep/engine/atoms/Assign.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/Assign.java	2006-11-20 20:16:20 UTC (rev 178)
++++ sleep/src/sleep/engine/atoms/Assign.java	2006-11-21 02:12:26 UTC (rev 179)
+@@ -29,13 +29,20 @@
+ 
+ public class Assign extends Step
+ {
+-   Block variable;
++   Block   variable = null;
++   Operate operator = null;
+     
+-   public Assign(Block var)
++   public Assign(Block var, Operate op)
+    {
++      operator = op;
+       variable = var;
+    }
+ 
++   public Assign(Block var)
++   {
++      this(var, null);
++   }
++
+    public String toString(String prefix)
+    {
+       StringBuffer temp = new StringBuffer();
+@@ -70,10 +77,19 @@
+          variable.evaluate(e);
+          putv  = (Scalar)(e.getCurrentFrame().pop());
+       e.KillFrame();
+- 
++
+       value = (Scalar)(e.getCurrentFrame().pop());
++
++      if (operator != null)
++      {
++         e.CreateFrame();
++         e.getCurrentFrame().push(value); // rhs
++         e.getCurrentFrame().push(putv);  // lhs - operate expects vars in a weird order.
++         operator.evaluate(e);
++         value = (Scalar)e.getCurrentFrame().pop();
++      }
++
+       putv.setValue(value);    
+-
+       e.FrameResult(value);
+       return null;
+    }
+
+Modified: sleep/src/sleep/engine/atoms/AssignT.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/AssignT.java	2006-11-20 20:16:20 UTC (rev 178)
++++ sleep/src/sleep/engine/atoms/AssignT.java	2006-11-21 02:12:26 UTC (rev 179)
+@@ -29,6 +29,18 @@
+ 
+ public class AssignT extends Step
+ {
++   protected Operate operator;
++
++   public AssignT(Operate op)
++   {
++      operator = op;
++   }
++
++   public AssignT()
++   {
++      this(null);
++   }
++
+    public String toString(String prefix)
+    {
+       StringBuffer temp = new StringBuffer();
+@@ -51,23 +63,50 @@
+    {
+       Scalar   putv;
+       Scalar   value;
+-      Stack    variables = e.getCurrentFrame();
++      Iterator variter = null;
+ 
+-      Scalar   scalar = (Scalar)variables.pop();
++      Scalar scalar    = (Scalar)e.getCurrentFrame().pop(); /* source of our values */
++      Scalar check     = (Scalar)e.getCurrentFrame().peek();
+ 
++      if (e.getCurrentFrame().size() == 1 && check.getArray() != null && operator != null)
++      {
++         variter = check.getArray().scalarIterator();
++      }
++      else
++      {
++         variter = e.getCurrentFrame().iterator();
++      }
++
+       if (scalar.getArray() == null)
+       {
+-         Iterator i = variables.iterator();
++         Iterator i = variter;
+          while (i.hasNext())
+          {
+-            ((Scalar)i.next()).setValue(scalar.getValue()); // copying of value or ref handled by Scalar class
++            putv = (Scalar)i.next();
++
++            if (operator != null)
++            {
++               e.CreateFrame();
++               e.CreateFrame();
++               e.getCurrentFrame().push(scalar); // rhs
++               e.getCurrentFrame().push(putv);  // lhs - operate expects vars in a weird order.
++               operator.evaluate(e);
++               putv.setValue((Scalar)e.getCurrentFrame().pop());
++               e.KillFrame(); // need two frames, one for the operator atomic step and another
++                              // to avoid a concurrent modification exception.
++            }
++            else
++            {
++               putv.setValue(scalar); // copying of value or ref handled by Scalar class
++            }
+          }          
+          e.KillFrame();
+          return null;
+       }
+ 
++      try {
+       Iterator values = scalar.getArray().scalarIterator();
+-      Iterator putvs  = variables.iterator();
++      Iterator putvs  = variter;
+ 
+       while (putvs.hasNext())
+       {
+@@ -81,11 +120,22 @@
+          {
+             value = SleepUtils.getEmptyScalar();
+          }
++
++         if (operator != null)
++         {
++            e.CreateFrame();
++            e.CreateFrame();
++            e.getCurrentFrame().push(value); // rhs
++            e.getCurrentFrame().push(putv);  // lhs - operate expects vars in a weird order.
++            operator.evaluate(e);
++            value = (Scalar)e.getCurrentFrame().pop();
++            e.KillFrame(); // see explanation above...
++         }
+  
+          putv.setValue(value);
+       }
+ 
+-      e.FrameResult(scalar);
++      e.FrameResult(scalar); } catch (Exception ex) { ex.printStackTrace(); }
+       return null;
+    }
+ }
+
+Modified: sleep/src/sleep/parser/CodeGenerator.java
+===================================================================
+--- sleep/src/sleep/parser/CodeGenerator.java	2006-11-20 20:16:20 UTC (rev 178)
++++ sleep/src/sleep/parser/CodeGenerator.java	2006-11-21 02:12:26 UTC (rev 179)
+@@ -879,6 +879,7 @@
+ 
+            break;
+          case EXPR_ASSIGNMENT_T:                                  // implemented
++         case EXPR_ASSIGNMENT_T_OP:
+            atom = GeneratedSteps.CreateFrame();
+            add(atom, tokens[0]);
+ 
+@@ -892,10 +893,18 @@
+ 
+            parseIdea(tokens[2]);
+ 
+-           atom = GeneratedSteps.AssignT();
++           if (datum.getType() == EXPR_ASSIGNMENT_T_OP)
++           {
++              atom = GeneratedSteps.AssignTupleAndOperate(strings[1].substring(0, strings[1].length() - 1));
++           }
++           else
++           {
++              atom = GeneratedSteps.AssignT();
++           }
+            add(atom, tokens[0]);
+            break;
+          case EXPR_ASSIGNMENT:                                  // implemented
++         case EXPR_ASSIGNMENT_OP:                                  // implemented
+            atom = GeneratedSteps.CreateFrame();
+            add(atom, tokens[2]);
+ 
+@@ -904,7 +913,14 @@
+            backup();
+            parseIdea(tokens[0]);
+ 
+-           atom = GeneratedSteps.Assign(restore());
++           if (datum.getType() == EXPR_ASSIGNMENT_OP)
++           {
++              atom = GeneratedSteps.AssignAndOperate(restore(), strings[1].substring(0, strings[1].length() - 1));
++           }
++           else
++           {
++              atom = GeneratedSteps.Assign(restore());
++           }
+            add(atom, tokens[2]);
+            break;
+          case EXPR_IF_ELSE:                                // done
+
+Modified: sleep/src/sleep/parser/LexicalAnalyzer.java
+===================================================================
+--- sleep/src/sleep/parser/LexicalAnalyzer.java	2006-11-20 20:16:20 UTC (rev 178)
++++ sleep/src/sleep/parser/LexicalAnalyzer.java	2006-11-21 02:12:26 UTC (rev 179)
+@@ -62,7 +62,7 @@
+    // using this effectively removes the white space requirement for said built in operator.  
+    private static boolean isBuiltInOperator(char f, StringBuffer aTerm, StringIterator iter)
+    {
+-      if (f == '.' && (aTerm.length() <= 0 || !(Character.isDigit(aTerm.charAt(aTerm.length() - 1)) && aTerm.charAt(0) != '$')))
++      if (f == '.' && (aTerm.length() <= 0 || !(Character.isDigit(aTerm.charAt(aTerm.length() - 1)) && aTerm.charAt(0) != '$')) && !iter.isNextChar('='))
+       {
+          return true;
+       }
+
+Modified: sleep/src/sleep/parser/ParserConstants.java
+===================================================================
+--- sleep/src/sleep/parser/ParserConstants.java	2006-11-20 20:16:20 UTC (rev 178)
++++ sleep/src/sleep/parser/ParserConstants.java	2006-11-21 02:12:26 UTC (rev 179)
+@@ -7,6 +7,8 @@
+    public static final int EXPR_WHILE_SPECIAL   = 101;       
+    public static final int EXPR_ASSIGNMENT      = 200;
+    public static final int EXPR_ASSIGNMENT_T    = 202;
++   public static final int EXPR_ASSIGNMENT_OP   = 203;
++   public static final int EXPR_ASSIGNMENT_T_OP = 204;
+    public static final int EXPR_IF              = 300;
+    public static final int EXPR_IF_ELSE         = 301;
+    public static final int EXPR_FOREACH         = 400;
+
+Modified: sleep/src/sleep/parser/StringIterator.java
+===================================================================
+--- sleep/src/sleep/parser/StringIterator.java	2006-11-20 20:16:20 UTC (rev 178)
++++ sleep/src/sleep/parser/StringIterator.java	2006-11-21 02:12:26 UTC (rev 179)
+@@ -53,6 +53,11 @@
+       return position - begin;
+    }
+ 
++   public boolean isNextChar(char n)
++   {
++      return hasNext() && text[position] == n;
++   }
++
+    public char next()
+    {
+       char current = text[position];
+
+Modified: sleep/src/sleep/parser/TokenParser.java
+===================================================================
+--- sleep/src/sleep/parser/TokenParser.java	2006-11-20 20:16:20 UTC (rev 178)
++++ sleep/src/sleep/parser/TokenParser.java	2006-11-21 02:12:26 UTC (rev 179)
+@@ -686,7 +686,20 @@
+             myToken.add(tokens[x+3]);
+             x += 3;
+          }
+-         // assignment statement check...
++         else if ((check = findPrecedentOperators(myToken, data, x, "+= -= *= .= /= %= |= &= ^=", 2)) != x ||
++                  (check = findPrecedentOperators(myToken, data, x, "<<= >>=", 3)) != x) // checking for a assignment :)
++         {
++            if (Checkers.isExpression(strings[x]))
++            {
++               myToken.setType(EXPR_ASSIGNMENT_T_OP);
++            }
++            else
++            {
++               myToken.setType(EXPR_ASSIGNMENT_OP);
++            }
++
++            x = check;
++         }
+          else if ((check = findPrecedentOperators(myToken, data, x, "=", 1)) != x) // checking for a assignment :)
+          {
+             if (Checkers.isExpression(strings[x]))
+
+Added: sleep/tests/output/preced.sl
+===================================================================
+--- sleep/tests/output/preced.sl	2006-11-20 20:16:20 UTC (rev 178)
++++ sleep/tests/output/preced.sl	2006-11-21 02:12:26 UTC (rev 179)
+@@ -0,0 +1,12 @@
++%(key => 'value', 3 => 'blah') and %(key => 'value', 3 => 'blah') and %(key => 'value', 3 => 'blah')
++9
++$x = 5; $y = 5; $z = 5
++$x = 10; $y = 10; $z = 10
++$x = 7; $y = 8; $z = 9
++$x = 28; $y = 32; $z = 36
++@(50, 48, 42)
++@('this is a test')
++@('this is a test3')
++ at a: @('a', 'b', 'c')
++ at b: @('d', 'e', 'f')
++ at c: @('g', 'h', 'i')
+
+Added: sleep/tests/preced.sl
+===================================================================
+--- sleep/tests/preced.sl	2006-11-20 20:16:20 UTC (rev 178)
++++ sleep/tests/preced.sl	2006-11-21 02:12:26 UTC (rev 179)
+@@ -0,0 +1,54 @@
++#
++#
++#
++
++# demonstrating a test of a bug fix.
++($x, $y, $z) = %(key => "value");
++
++$x["3"] = "blah";
++println("$x and $y and $z");
++
++# show off assignment op on simple scalars
++$x = 3;
++$x += 10;
++$x -= 4;
++println($x);
++
++# assignment op with tuples... ooh...
++
++($x, $y, $z) = 5;
++println("\$x = $x $+ ; \$y = $y $+ ; \$z = $z");
++
++($x, $y, $z) *= 2;
++println("\$x = $x $+ ; \$y = $y $+ ; \$z = $z");
++
++($x, $y, $z) -= @(3, 2, 1);
++println("\$x = $x $+ ; \$y = $y $+ ; \$z = $z");
++
++($x, $y, $z) <<= 2;
++println("\$x = $x $+ ; \$y = $y $+ ; \$z = $z");
++
++ at a = @(10, 12, 14);
++
++# special case... one element..
++(@a) *= @(5, 4, 3);
++println(@a);
++
++# normal assignment works different than op assignment... basically this will
++# assign the first element of the anonymous array to @a (the element happens to be
++# an array itself).  
++(@a) = @(@("this is a test"));
++println(@a);
++
++#
++# append 3, 4, and 5 to the first, second, and third elements of @a.
++#
++(@a) .= @(3, 4, 5);
++println(@a);
++
++# normal behavior
++(@a, @b, @c) = @(@("a", "b", "c"), @("d", "e", "f"), @("g", "h", "i"));
++println("@a: " . @a);
++println("@b: " . @b);
++println("@c: " . @c);
++
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-11-20 20:16:20 UTC (rev 178)
++++ sleep/whatsnew.txt	2006-11-21 02:12:26 UTC (rev 179)
+@@ -14,7 +14,21 @@
+ - added &readc($handle) for reading a single character from an I/O handle.
+ - oops, parser no longer assumes a bareword in a expression is a function
+   reference.  should stop some frustrating errors :)
++- fixed a silly bug with tuple assignment where hash right hand side was
++  being converted to a string before being assinged to the individual
++  elements.
++- added assignment ops i.e. +=, -=, *=, /=, &=, |=, ^=, <<=, >>=, and .=
++  using these ops will assign the result of the op applied to the assignment 
++  value and the right hand side.  this works as expected with normal
++  and tuple assignment.
++- using a tuple assignment op has a special case called expand array: 
++  a single array value specified within a tuple will be expanded as if each 
++  of its elements were specified within the expression i.e.:
++  (@a) += @(3, 4); will be equivalent to: (@a[0], @a[1]) += @(3, 4)
+ 
++  this does not apply to normal tuple assignment. the same effect can be
++  achieved with the &copy function.
++
+ 2.1-beta 9  (6 Nov 06)
+ ===========
+ - made sleep data structures and sleepclosure all serializable.
+
+
+
+From rsmudge at mail.berlios.de  Tue Nov 21 03:14:30 2006
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Tue, 21 Nov 2006 03:14:30 +0100
+Subject: [Sleep-svn] r180 - in sleep/tests: . output
+Message-ID: <200611210214.kAL2EU5F000998@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-11-21 03:14:29 +0100 (Tue, 21 Nov 2006)
+New Revision: 180
+
+Added:
+   sleep/tests/bareword.sl
+   sleep/tests/output/bareword.sl
+Log:
+one unit test I forgot... oops
+
+
+
+Added: sleep/tests/bareword.sl
+===================================================================
+--- sleep/tests/bareword.sl	2006-11-21 02:12:26 UTC (rev 179)
++++ sleep/tests/bareword.sl	2006-11-21 02:14:29 UTC (rev 180)
+@@ -0,0 +1,5 @@
++#
++# show that barewords are caught now!
++#
++
++println("this is a test: " . iff($x == blah, 11, 22));
+
+Added: sleep/tests/output/bareword.sl
+===================================================================
+--- sleep/tests/output/bareword.sl	2006-11-21 02:12:26 UTC (rev 179)
++++ sleep/tests/output/bareword.sl	2006-11-21 02:14:29 UTC (rev 180)
+@@ -0,0 +1,2 @@
++Error: Unknown expression at line 5
++       blah 
+
+
+
+From rsmudge at mail.berlios.de  Tue Nov 21 03:17:03 2006
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Tue, 21 Nov 2006 03:17:03 +0100
+Subject: [Sleep-svn] r181 - in sleep/tests: . output
+Message-ID: <200611210217.kAL2H32Z001247@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-11-21 03:17:02 +0100 (Tue, 21 Nov 2006)
+New Revision: 181
+
+Modified:
+   sleep/tests/output/preced.sl
+   sleep/tests/preced.sl
+Log:
+one more test case :)
+
+
+
+Modified: sleep/tests/output/preced.sl
+===================================================================
+--- sleep/tests/output/preced.sl	2006-11-21 02:14:29 UTC (rev 180)
++++ sleep/tests/output/preced.sl	2006-11-21 02:17:02 UTC (rev 181)
+@@ -4,6 +4,7 @@
+ $x = 10; $y = 10; $z = 10
+ $x = 7; $y = 8; $z = 9
+ $x = 28; $y = 32; $z = 36
++&= result: $x = 5; $y = 0; $z = 1
+ @(50, 48, 42)
+ @('this is a test')
+ @('this is a test3')
+
+Modified: sleep/tests/preced.sl
+===================================================================
+--- sleep/tests/preced.sl	2006-11-21 02:14:29 UTC (rev 180)
++++ sleep/tests/preced.sl	2006-11-21 02:17:02 UTC (rev 181)
+@@ -28,6 +28,10 @@
+ ($x, $y, $z) <<= 2;
+ println("\$x = $x $+ ; \$y = $y $+ ; \$z = $z");
+ 
++($x, $y, $z) = @(7, 8, 9);
++($x, $y, $z) &= 5;
++println("&= result: \$x = $x $+ ; \$y = $y $+ ; \$z = $z");
++
+ @a = @(10, 12, 14);
+ 
+ # special case... one element..
+
+
+
+From rsmudge at mail.berlios.de  Tue Nov 21 03:30:53 2006
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Tue, 21 Nov 2006 03:30:53 +0100
+Subject: [Sleep-svn] r182 - in sleep: . src/sleep/bridges tests/output
+Message-ID: <200611210230.kAL2UrZc002172@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-11-21 03:30:52 +0100 (Tue, 21 Nov 2006)
+New Revision: 182
+
+Modified:
+   sleep/src/sleep/bridges/BasicIO.java
+   sleep/tests/output/forker.sl
+   sleep/tests/output/trace.sl
+   sleep/tests/output/wrong.sl
+   sleep/whatsnew.txt
+Log:
+fixed consume.
+
+
+
+Modified: sleep/src/sleep/bridges/BasicIO.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicIO.java	2006-11-21 02:17:02 UTC (rev 181)
++++ sleep/src/sleep/bridges/BasicIO.java	2006-11-21 02:30:52 UTC (rev 182)
+@@ -74,7 +74,7 @@
+ 
+         // binary i/o functions :)
+         temp.put("&readb",      new readb());
+-        temp.put("&consume",    temp.get("&readb"));
++        temp.put("&consume",    new consume());
+         temp.put("&writeb",     new writeb());
+ 
+         temp.put("&bread",      new bread());
+@@ -1228,12 +1228,52 @@
+ 
+           if (read > 0)
+           {
+-             return n.equals("&consume") ? SleepUtils.getScalar(read) : SleepUtils.getScalar(temp);
++             return SleepUtils.getScalar(temp);
+           }
+           return SleepUtils.getEmptyScalar();
+        }
+     }
+ 
++    private static class consume implements Function
++    {
++       public Scalar evaluate(String n, ScriptInstance i, Stack l)
++       {
++          IOObject         a = chooseSource(l, 2, i);
++          int             to = BridgeUtilities.getInt(l, 1);
++          int           size = BridgeUtilities.getInt(l, 1024 * 32); /* 32K buffer anyone */
++
++          byte[] temp = a.getBuffer(size);
++
++          int read = 0;
++
++          try
++          {
++             while (read < to)
++             {
++                if ((to - read) < size)
++                {
++                   read += a.getReader().read(temp, read, to - read);
++                }
++                else
++                {
++                   read += a.getReader().read(temp, read, size);
++                }
++             }
++          }
++          catch (Exception ex)
++          {
++             a.close();
++             i.getScriptEnvironment().flagError(ex.toString());
++          }
++
++          if (read > 0)
++          {
++             return SleepUtils.getScalar(read);
++          }
++          return SleepUtils.getEmptyScalar();
++       }
++    }
++
+     private static class read implements Function
+     {
+        public Scalar evaluate(String n, ScriptInstance i, Stack l)
+
+Modified: sleep/tests/output/forker.sl
+===================================================================
+--- sleep/tests/output/forker.sl	2006-11-21 02:17:02 UTC (rev 181)
++++ sleep/tests/output/forker.sl	2006-11-21 02:30:52 UTC (rev 182)
+@@ -1,3 +1,3 @@
+ Trace: &check('within fork') at line 9
+-Trace: &fork(&closure2:9) = sleep.bridges.io.IOObject at a19458 at line 8
++Trace: &fork(&closure2:9) = sleep.bridges.io.IOObject at 97d026 at line 8
+ Trace: &check('outside of fork') at line 12
+
+Modified: sleep/tests/output/trace.sl
+===================================================================
+--- sleep/tests/output/trace.sl	2006-11-21 02:17:02 UTC (rev 181)
++++ sleep/tests/output/trace.sl	2006-11-21 02:30:52 UTC (rev 182)
+@@ -1,13 +1,13 @@
+ this is a test
+-Trace: [java.io.PrintStream at 7eb6e2 println: 'this is a test'] at line 6
++Trace: [java.io.PrintStream at e78c96 println: 'this is a test'] at line 6
+ Trace: [java.lang.Math pow: 3, 4] = 81.0 at line 7
+ 81.0
+-Trace: [java.io.PrintStream at 7eb6e2 println: 81.0] at line 7
++Trace: [java.io.PrintStream at e78c96 println: 81.0] at line 7
+ Trace: [java.lang.Math pow: 3, 5] = 243.0 at line 8
+ 243.0
+ Trace: &println(243.0) at line 8
+ testing again...
+-Trace: [java.io.PrintStream at 7eb6e2 println: 'testing again...'] at line 10
++Trace: [java.io.PrintStream at e78c96 println: 'testing again...'] at line 10
+ Trace: [sleep.runtime.SleepUtils getListFromArray: @('a', 'b', 'c')] = [a, b, c] at line 12
+ Trace: [new java.util.LinkedList: [a, b, c]] = [a, b, c] at line 12
+ Warning: variable '$list' not declared at line 12
+
+Modified: sleep/tests/output/wrong.sl
+===================================================================
+--- sleep/tests/output/wrong.sl	2006-11-21 02:17:02 UTC (rev 181)
++++ sleep/tests/output/wrong.sl	2006-11-21 02:30:52 UTC (rev 182)
+@@ -1,32 +1,32 @@
+ Trace: [java.lang.Math pow: 3, 4] = 81.0 at line 6
+ 81.0
+-Trace: [java.io.PrintStream at 6917ee println: 81.0] at line 6
++Trace: [java.io.PrintStream at 49105b println: 81.0] at line 6
+ Trace: &casti(1, 'z') = true at line 9
+ true
+-Trace: [java.io.PrintStream at 6917ee println: true] at line 9
++Trace: [java.io.PrintStream at 49105b println: true] at line 9
+ Trace: &casti(0, 'z') = false at line 10
+ false
+-Trace: [java.io.PrintStream at 6917ee println: false] at line 10
++Trace: [java.io.PrintStream at 49105b println: false] at line 10
+ Trace: &casti(1, 'd') = 1.0 at line 13
+ 1.0
+-Trace: [java.io.PrintStream at 6917ee println: 1.0] at line 13
++Trace: [java.io.PrintStream at 49105b println: 1.0] at line 13
+ Trace: &casti(1, 'b') = 1 at line 16
+ 1
+-Trace: [java.io.PrintStream at 6917ee println: 1] at line 16
++Trace: [java.io.PrintStream at 49105b println: 1] at line 16
+ Trace: &casti(100, 'f') = 100.0 at line 19
+ 100.0
+-Trace: [java.io.PrintStream at 6917ee println: 100.0] at line 19
++Trace: [java.io.PrintStream at 49105b println: 100.0] at line 19
+ Trace: &casti('b', 'c') = b at line 22
+ b
+-Trace: [java.io.PrintStream at 6917ee println: b] at line 22
++Trace: [java.io.PrintStream at 49105b println: b] at line 22
+ Trace: &casti(63, 'i') = 63 at line 25
+ 63
+-Trace: [java.io.PrintStream at 6917ee println: 63] at line 25
++Trace: [java.io.PrintStream at 49105b println: 63] at line 25
+ this is a string y0
+-Trace: [java.io.PrintStream at 6917ee println: 'this is a string y0'] at line 28
++Trace: [java.io.PrintStream at 49105b println: 'this is a string y0'] at line 28
+ Trace: [new java.lang.StringBuilder: 'test'] = test at line 31
+ test
+-Trace: [java.io.PrintStream at 6917ee println: test] at line 31
+-Trace: &cast(@('a', 'b', 'c', 'd'), 'c') = [C at d0d45b at line 34
++Trace: [java.io.PrintStream at 49105b println: test] at line 31
++Trace: &cast(@('a', 'b', 'c', 'd'), 'c') = [C at 608760 at line 34
+ abcd
+-Trace: [java.io.PrintStream at 6917ee println: [C at d0d45b] at line 34
++Trace: [java.io.PrintStream at 49105b println: [C at 608760] at line 34
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-11-21 02:17:02 UTC (rev 181)
++++ sleep/whatsnew.txt	2006-11-21 02:30:52 UTC (rev 182)
+@@ -1,4 +1,4 @@
+-2.1-beta 10
++2.1-beta 10 (20 Nov 06)
+ ===========
+ - added sizeof("data format") to return the size (in bytes) of the
+   data structure represented by the specified format string. 
+@@ -12,23 +12,24 @@
+ - added &setEncoding($handle, "charset name") to set the encoding to use
+   with the specified handle.
+ - added &readc($handle) for reading a single character from an I/O handle.
+-- oops, parser no longer assumes a bareword in a expression is a function
++- parser no longer assumes a bareword in a expression is a function handle
+   reference.  should stop some frustrating errors :)
+ - fixed a silly bug with tuple assignment where hash right hand side was
+-  being converted to a string before being assinged to the individual
++  being converted to a string before being assigned to the individual
+   elements.
+ - added assignment ops i.e. +=, -=, *=, /=, &=, |=, ^=, <<=, >>=, and .=
+   using these ops will assign the result of the op applied to the assignment 
+   value and the right hand side.  this works as expected with normal
+   and tuple assignment.
+-- using a tuple assignment op has a special case called expand array: 
++- using a tuple assignment op has a special case: expand array
+   a single array value specified within a tuple will be expanded as if each 
+   of its elements were specified within the expression i.e.:
+-  (@a) += @(3, 4); will be equivalent to: (@a[0], @a[1]) += @(3, 4)
++  (@a) += @(3, 4, 5); is equivalent to: (@a[0], @a[1], @[2]) += @(3, 4, 5)
++- fixed &consume($handle, n, [size]) to now consume up to n bytes with a 
++  buffer of the specified size.  this will consume a handle without 
++  keeping the whole thing in memory (useful for calculating md5 digests
++  of files and other fun things).
+ 
+-  this does not apply to normal tuple assignment. the same effect can be
+-  achieved with the &copy function.
+-
+ 2.1-beta 9  (6 Nov 06)
+ ===========
+ - made sleep data structures and sleepclosure all serializable.
+
+
+
+From rsmudge at mail.berlios.de  Tue Nov 21 03:54:39 2006
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Tue, 21 Nov 2006 03:54:39 +0100
+Subject: [Sleep-svn] r183 - in sleep: . docs src/sleep/runtime
+Message-ID: <200611210254.kAL2sdrm004007@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-11-21 03:54:38 +0100 (Tue, 21 Nov 2006)
+New Revision: 183
+
+Modified:
+   sleep/build.xml
+   sleep/docs/sleeplang.html
+   sleep/readme.txt
+   sleep/src/sleep/runtime/SleepUtils.java
+   sleep/whatsnew.txt
+Log:
+readying the sleep 2.1b10 release.
+
+
+
+Modified: sleep/build.xml
+===================================================================
+--- sleep/build.xml	2006-11-21 02:30:52 UTC (rev 182)
++++ sleep/build.xml	2006-11-21 02:54:38 UTC (rev 183)
+@@ -16,7 +16,7 @@
+            destdir="${project.build}"
+            nowarn="yes"
+            depend="yes"
+-           debug="true"
++           debug="false"
+            source="1.4"
+            target="1.4"
+            optimize="yes"
+
+Modified: sleep/docs/sleeplang.html
+===================================================================
+--- sleep/docs/sleeplang.html	2006-11-21 02:30:52 UTC (rev 182)
++++ sleep/docs/sleeplang.html	2006-11-21 02:54:38 UTC (rev 183)
+@@ -572,6 +572,16 @@
+    
+ <p><code>$x--</code> is equivalent to <code>$x = $x - 1</code>;</p>
+ 
++<h3>Assignment Operations</h3>
++
++<p>Sleep has a special form of the assignment called an assignment operator.  This is essentially
++the combination of an operator and an assignment in one step. i.e.:</p>
++
++<code>$x += 3;</code>
++
++<p>The example above is equivalent to <code>$x = $x + 3;</code>.  The following are valid assignment
++operations: <code>+=</code>, <code>-=</code>, <code>*=</code>, <code>/=</code>, <code>&amp;=</code>, <code>|=</code>, <code>^=</code>, <code>&lt;&lt;=</code>, <code>&gt;&gt;=</code>, and <code>.=</code>.</p>
++
+ <h2><a name="5">Subroutines</a></h2>
+ 
+ <p>Subroutines in sleep are basically mini programs.  You can pass arguments to them and they can return values.</p>
+@@ -760,6 +770,29 @@
+ <P>If the value on the right hand side of the = assignment is not an array, then the above will act exactly as if <var>$x</var>, 
+ <var>$y</var>, and <var>$z</var> had been assigned to the specified value individually.</P>
+ 
++<p>Assignment operations work with tuple assignment as well.  i.e.:</p>
++
++<code>($x, $y, $z) += 3; # add 3 to $x, $y, and $z</code>
++
++<p>You can also special a right hand side array with an assignment op.  In this case each value
++of the right hand side array will be applied to the corresponding value within the tuple:</p>
++
++<code>($x, $y, $z) *= @(2, 3, 4); # $x = $x * 2; $y = $y * 3; etc..</code>
++
++<h4>Expand Array</h4>
++
++<p>Assignment operators used in conjunction with tuples have one special case.  This is the
++array expansion case.  When a single array is specified within the tuple then the array values
++are expanded within the tuple as if you had type <code>(@array[0], @array[1], ...)</code>.  The
++rest of the rules for tuple assignment apply from this point out.  This has some neat implications.
++For example to add two arrays:</p>
++
++<pre>@a = @(1, 2, 3);
++ at b = @(4, 5, 6);
++(@a) += @b;</pre>
++
++<p>The value of <var>@a</var> is now: @(5, 7, 9).</p>
++
+ <h3>Sorting</h3>
+ 
+ <p>Sleep includes functions for sorting arrays.  You can sort arrays numerically (double or int variety), or alphabetically.  To 
+@@ -996,11 +1029,21 @@
+   <td>tab character</td>
+  </tr>
+  <tr>
++  <td>\u####</td>
++  <td>16 bit unicode character i.e. "\u0063" is "c"</td>
++ </tr>
++ <tr>
++  <td>\x##</td>
++  <td>8 bit character i.e. "\x6A" is "j"</td>
++ </tr>
++ <tr>
+   <td>\\</td>
+   <td>back slash \ character</td>
+  </tr>
+ </table>
+ 
++<p>Speaking of escapes, parsed literals allow two forms of character literals.  A <code>\x</code> followed by two hex nibbles specifies one character.  16-bit unicode characters can be specified with <code>\u</code> followed by four hex nibbles.</p>
++
+ <h3>Regular Expressions</h3>
+ 
+ <p>Sleep includes built-in regular expressions.  Regular expressions are a powerful way to parse strings without having to write 
+@@ -1104,6 +1147,13 @@
+ <p>Remember that sleep is a cross platform scripting language.  As a convention use the / forward slash character as a path 
+ separator so that your scripts will work in a platform neutral way.</p>
+ 
++<h4>Unicode Support</h4>
++
++<p>Sleep is unicode friendly.  &amp;println, &amp;print, &amp;readc, &amp;readln, and &amp;read will
++convert read in data using the platforms default charset.  If this is a problem use &amp;readb and
++&amp;writeb to read and write raw bytes from the handle.  To change the charset encoder/decoder for a 
++handle use the &amp;setEncoding function.</p>
++
+ <h3>Callback Reading</h3>
+ 
+ <p>Another way of reading data from a scalar object with a handle is to use callback reading.  Callback reading is done with the 
+@@ -2148,6 +2198,11 @@
+  </tr>
+  <tr>
+   <td>$</td>
++  <td>readc([$handle])</td>
++  <td>reads a single character from the specified handle</td>
++ </tr>
++ <tr>
++  <td>$</td>
+   <td>readln([$handle])</td>
+   <td>reads a single line of text from the specified handle</td>
+  </tr>
+@@ -2163,6 +2218,11 @@
+  </tr>
+  <tr>
+   <td>$</td>
++  <td>setEncoding($handle, "charset name")</td>
++  <td>sets the character set to encode/decode written/read characters with the specified handle.</td>
++ </tr>
++ <tr>
++  <td>$</td>
+   <td>skip([$handle], n)</td>
+   <td>tells the handle to skip the next n bytes</td>
+  </tr>
+
+Modified: sleep/readme.txt
+===================================================================
+--- sleep/readme.txt	2006-11-21 02:30:52 UTC (rev 182)
++++ sleep/readme.txt	2006-11-21 02:54:38 UTC (rev 183)
+@@ -1,5 +1,5 @@
+  ------- -------------------- ---------   ---------------  ------- ---------
+-Sleep - 2.1 beta 9 - README   
++Sleep - 2.1 beta 10 - README   
+ -  ------------- -------- -   ---------------- --       -    -     -     - - -
+ 
+ "You got the language, all you need now is the O'Reilly book".  That is
+@@ -100,6 +100,13 @@
+ When sleep scripts are run directly on the command line, arguments are
+ placed into the @ARGV variable.
+ 
++To launch a sleep script from the command line (without -jar):
++
++[raffi at beardsley ~/sleep/bin]$ java -classpath sleep.jar sleep.console.TextConsole filename.sl
++
++When sleep scripts are run directly on the command line, arguments are
++placed into the @ARGV variable.
++
+  ------- -------------------- ---------   ---------------  ------- ---------
+ Feedback
+ -  ------------- -------- -   ---------------- --       -    -     -     - - -
+
+Modified: sleep/src/sleep/runtime/SleepUtils.java
+===================================================================
+--- sleep/src/sleep/runtime/SleepUtils.java	2006-11-21 02:30:52 UTC (rev 182)
++++ sleep/src/sleep/runtime/SleepUtils.java	2006-11-21 02:54:38 UTC (rev 183)
+@@ -49,7 +49,7 @@
+ public class SleepUtils
+ {
+    /** A date stamp of this Sleep release in YYYYMMDD format */
+-   public static final int    SLEEP_RELEASE = 20061106;
++   public static final int    SLEEP_RELEASE = 20061120;
+ 
+    /** A string description of this Sleep release */
+    public static final String SLEEP_VERSION = "Sleep 2.1";
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-11-21 02:30:52 UTC (rev 182)
++++ sleep/whatsnew.txt	2006-11-21 02:54:38 UTC (rev 183)
+@@ -4,9 +4,9 @@
+   data structure represented by the specified format string. 
+ - attempting an invalid usage of the index op now fires a runtime
+   warning notifying the scripter of what happened.
+-- added \x and \u escapes for parsed literal strings... \xXX allows a
+-  char to be specified and \uXXXX allows a unicode char to be specified.
+-  X is expected to be a valid hex character.
++- added \x and \u escapes for parsed literal strings... \x## allows a
++  char to be specified and \u#### allows a unicode char to be specified.
++  # is expected to be a valid hex character.
+ - updated println, readln, read, readAll, and printAll to be unicode
+   aware, the platform encoding is used by default.
+ - added &setEncoding($handle, "charset name") to set the encoding to use
+
+
+
+From rsmudge at mail.berlios.de  Tue Nov 21 04:40:37 2006
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Tue, 21 Nov 2006 04:40:37 +0100
+Subject: [Sleep-svn] r184 - sleep/src/sleep/bridges
+Message-ID: <200611210340.kAL3ebGa007740@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-11-21 04:40:36 +0100 (Tue, 21 Nov 2006)
+New Revision: 184
+
+Modified:
+   sleep/src/sleep/bridges/BasicIO.java
+Log:
+oops one bug... will fix now.
+
+
+
+Modified: sleep/src/sleep/bridges/BasicIO.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicIO.java	2006-11-21 02:54:38 UTC (rev 183)
++++ sleep/src/sleep/bridges/BasicIO.java	2006-11-21 03:40:36 UTC (rev 184)
+@@ -1252,11 +1252,11 @@
+              {
+                 if ((to - read) < size)
+                 {
+-                   read += a.getReader().read(temp, read, to - read);
++                   read += a.getReader().read(temp, 0, to - read);
+                 }
+                 else
+                 {
+-                   read += a.getReader().read(temp, read, size);
++                   read += a.getReader().read(temp, 0, size);
+                 }
+              }
+           }
+
+
+
+From rsmudge at mail.berlios.de  Fri Nov 24 03:40:07 2006
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Fri, 24 Nov 2006 03:40:07 +0100
+Subject: [Sleep-svn] r185 - sleep/docs
+Message-ID: <200611240240.kAO2e78Z017906@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-11-24 03:40:06 +0100 (Fri, 24 Nov 2006)
+New Revision: 185
+
+Modified:
+   sleep/docs/sleeplang.html
+Log:
+sdsadf
+
+
+Modified: sleep/docs/sleeplang.html
+===================================================================
+--- sleep/docs/sleeplang.html	2006-11-21 03:40:36 UTC (rev 184)
++++ sleep/docs/sleeplang.html	2006-11-24 02:40:06 UTC (rev 185)
+@@ -134,7 +134,7 @@
+ 
+ <p>Octal literals can be used as well.  Any number beginning with a 0 is interpreted to be an octal literal. i.e.</p>
+ 
+-<pre>$oct = 077; # same as $var = 63</pre>
++<pre>$oct = 077; # same as $oct = 63</pre>
+ 
+ <p>Another numerical type that sleep supports is called a long.  A long is basically a higher capacity integer.  An integer can 
+ be a number between -2,147,483,648 to +2,147,483,648.  A long can be much bigger than that.</p>
+
+
+
+From rsmudge at mail.berlios.de  Thu Nov 30 04:09:21 2006
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Thu, 30 Nov 2006 04:09:21 +0100
+Subject: [Sleep-svn] r186 - in sleep: . src/sleep/parser
+Message-ID: <200611300309.kAU39LV2018301@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-11-30 04:09:20 +0100 (Thu, 30 Nov 2006)
+New Revision: 186
+
+Modified:
+   sleep/src/sleep/parser/CodeGenerator.java
+   sleep/src/sleep/parser/Token.java
+   sleep/whatsnew.txt
+Log:
+fixed some parser tracking issues with multiline strings...
+
+
+
+Modified: sleep/src/sleep/parser/CodeGenerator.java
+===================================================================
+--- sleep/src/sleep/parser/CodeGenerator.java	2006-11-24 02:40:06 UTC (rev 185)
++++ sleep/src/sleep/parser/CodeGenerator.java	2006-11-30 03:09:20 UTC (rev 186)
+@@ -480,6 +480,9 @@
+          case EXPR_EVAL_STRING:
+          case IDEA_STRING: // implemented -- parsed literals, one of my favorite features in sleep
+            int startz = 0; 
++
++           int lineno = tokens[0].getHint();
++
+            String c = ParserUtilities.extract(strings[0]);
+             
+            Stack vals, blocks, aligns;
+@@ -490,6 +493,8 @@
+            int catpos = -1; // last position of a concatenation..
+            for (int x = 0; x < c.length(); x++)
+            {
++               char check = c.charAt(x);
++ 
+                //
+                // check for an escape constant or just to skip over a character
+                //
+@@ -507,7 +512,7 @@
+                   {
+                      if ((x + 5) >= c.length())
+                      {
+-                        parser.reportError("not enough remaning characters for \\uXXXX",  tokens[0]);
++                        parser.reportError("not enough remaning characters for \\uXXXX",  tokens[0].copy(lineno));
+                      }
+                      else
+                      {
+@@ -518,7 +523,7 @@
+                         }
+                         catch (NumberFormatException nex)
+                         {
+-                           parser.reportError("invalid unicode escape \\u"+c.substring(x + 2, x + 6)+" - must be hex digits", tokens[0]);
++                           parser.reportError("invalid unicode escape \\u"+c.substring(x + 2, x + 6)+" - must be hex digits", tokens[0].copy(lineno));
+                         }
+                      }
+                   }
+@@ -526,7 +531,7 @@
+                   {
+                      if ((x + 3) >= c.length())
+                      {
+-                        parser.reportError("not enough remaning characters for \\xXX",  tokens[0]);
++                        parser.reportError("not enough remaning characters for \\xXX",  tokens[0].copy(lineno));
+                      }
+                      else
+                      {
+@@ -537,7 +542,7 @@
+                         }
+                         catch (NumberFormatException nex)
+                         {
+-                           parser.reportError("invalid unicode escape \\x"+c.substring(x + 2, x + 4)+" - must be hex digits", tokens[0]);
++                           parser.reportError("invalid unicode escape \\x"+c.substring(x + 2, x + 4)+" - must be hex digits", tokens[0].copy(lineno));
+                         }
+                      }
+                   }
+@@ -551,11 +556,11 @@
+                //
+                // check for the end of our variable...
+                //
+-               if (x < c.length() && isVar && (c.charAt(x) == ' ' || c.charAt(x) == '$'))
++               if (x < c.length() && isVar && (c.charAt(x) == ' ' || c.charAt(x) == '\n' || c.charAt(x) == '\t' || c.charAt(x) == '$'))
+                {
+                   String varname = c.substring(startz, x);
+                    
+-                  String[] ops = LexicalAnalyzer.CreateTerms(parser, new StringIterator(varname, tokens[0].getHint())).getStrings();
++                  String[] ops = LexicalAnalyzer.CreateTerms(parser, new StringIterator(varname, lineno)).getStrings();
+                   String align;
+                   if (ops.length == 3)
+                   {
+@@ -568,13 +573,13 @@
+                      if (align.length() > 0)
+                      {
+                         backup();
+-                        parseIdea(new Token(align, tokens[0].getHint()));
++                        parseIdea(new Token(align, lineno));
+                         aligns.push(restore());
+                      }
+                      else
+                      {
+                         aligns.push(null);
+-                        parser.reportError("Empty alignment specification for " + varname,  tokens[0]);
++                        parser.reportError("Empty alignment specification for " + varname,  tokens[0].copy(lineno));
+                      }
+                   }
+                   else
+@@ -583,7 +588,7 @@
+                   }
+ 
+                   backup();
+-                  parseIdea(new Token(varname, tokens[0].getHint()));
++                  parseIdea(new Token(varname, lineno));
+                   blocks.push(restore());
+ 
+                   startz = x;
+@@ -612,7 +617,7 @@
+                      }
+                      else
+                      {
+-                        parser.reportError("$+ operator found at beginning of string", tokens[0]);
++                        parser.reportError("$+ operator found at beginning of string", tokens[0].copy(lineno));
+                      }
+                   }
+                   else
+@@ -631,6 +636,10 @@
+                      }
+                   }
+                }
++
++               if (check == '\n') { 
++                  lineno++; 
++               }
+            } 
+ 
+            if (!isVar)
+@@ -641,7 +650,7 @@
+            else
+            {
+               String   varname = c.substring(startz, c.length());
+-              String[] ops     = LexicalAnalyzer.CreateTerms(parser, new StringIterator(varname, tokens[0].getHint())).getStrings();
++              String[] ops     = LexicalAnalyzer.CreateTerms(parser, new StringIterator(varname, lineno)).getStrings();
+               String   align;
+ 
+               if (ops.length == 3)
+@@ -655,13 +664,13 @@
+                  if (align.length() > 0)
+                  {
+                     backup();
+-                    parseIdea(new Token(align, tokens[0].getHint()));
++                    parseIdea(new Token(align, lineno));
+                     aligns.push(restore());
+                  }
+                  else
+                  {
+                     aligns.push(null);
+-                    parser.reportError("Empty alignment specification for " + varname,  tokens[0]);
++                    parser.reportError("Empty alignment specification for " + varname,  tokens[0].copy(lineno));
+                  }
+               }
+               else
+@@ -670,7 +679,7 @@
+               }
+ 
+               backup();
+-              parseIdea(new Token(varname, tokens[0].getHint()));
++              parseIdea(new Token(varname, lineno));
+               blocks.push(restore());
+            }
+ 
+
+Modified: sleep/src/sleep/parser/Token.java
+===================================================================
+--- sleep/src/sleep/parser/Token.java	2006-11-24 02:40:06 UTC (rev 185)
++++ sleep/src/sleep/parser/Token.java	2006-11-30 03:09:20 UTC (rev 186)
+@@ -50,6 +50,11 @@
+       return marker;
+    }
+ 
++   public Token copy(int _hint)
++   {
++      return new Token(term, _hint);
++   }
++ 
+    public Token copy(String text)
+    {
+       return new Token(text, getHint());
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-11-24 02:40:06 UTC (rev 185)
++++ sleep/whatsnew.txt	2006-11-30 03:09:20 UTC (rev 186)
+@@ -1,3 +1,10 @@
++2.1-beta 11
++===========
++- multline parsed literals now make a more sincere effort to track which 
++  line number a variable was encountered at.
++- fixed a bug with multi-line parsed literals where a variable followed 
++  immediately by a newline was not being "terminated"
++
+ 2.1-beta 10 (20 Nov 06)
+ ===========
+ - added sizeof("data format") to return the size (in bytes) of the
+
+
+
+From rsmudge at mail.berlios.de  Thu Nov 30 04:51:28 2006
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Thu, 30 Nov 2006 04:51:28 +0100
+Subject: [Sleep-svn] r187 - in sleep: . src/sleep/parser tests tests/output
+Message-ID: <200611300351.kAU3pSTv021789@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-11-30 04:51:27 +0100 (Thu, 30 Nov 2006)
+New Revision: 187
+
+Added:
+   sleep/tests/indexand.sl
+   sleep/tests/lineno.sl
+   sleep/tests/output/indexand.sl
+   sleep/tests/output/lineno.sl
+Modified:
+   sleep/src/sleep/parser/Checkers.java
+   sleep/whatsnew.txt
+Log:
+more bug fixes, this time a parser problem with HOES expressions and &/&&
+
+
+
+Modified: sleep/src/sleep/parser/Checkers.java
+===================================================================
+--- sleep/src/sleep/parser/Checkers.java	2006-11-30 03:09:20 UTC (rev 186)
++++ sleep/src/sleep/parser/Checkers.java	2006-11-30 03:51:27 UTC (rev 187)
+@@ -131,7 +131,7 @@
+ 
+    public static boolean isFunctionReferenceToken(String a)
+    {
+-      return (a.charAt(0) == '&');
++      return (a.charAt(0) == '&' && a.length() > 1 && !a.equals("&&"));
+    }
+ 
+    public static final boolean isVariable (String temp)
+
+Added: sleep/tests/indexand.sl
+===================================================================
+--- sleep/tests/indexand.sl	2006-11-30 03:09:20 UTC (rev 186)
++++ sleep/tests/indexand.sl	2006-11-30 03:51:27 UTC (rev 187)
+@@ -0,0 +1,23 @@
++#
++# check for a parser problem...
++#
++
++# this is the real bug here... &* ["test" trim] is mistaken for an indexable
++# function reference or some such thing...
++if ($var eq "" && ["test" trim] eq "whatever")
++{
++   println("hello 1");
++}
++
++if ($var eq "" || ["test" trim] eq "whatever")
++{
++   println("hello 1");
++}
++
++$x = 3 + ["test" length];
++println($x);
++
++$x = "blah" . ["   test" trim];
++println($x);
++
++$x = 0xFFFF & ["test" length];
+
+Added: sleep/tests/lineno.sl
+===================================================================
+--- sleep/tests/lineno.sl	2006-11-30 03:09:20 UTC (rev 186)
++++ sleep/tests/lineno.sl	2006-11-30 03:51:27 UTC (rev 187)
+@@ -0,0 +1,16 @@
++# line numbers becoming skewed with multi-line strings and embedded vars...
++
++debug(7);
++
++$x = 'this 
++
++is 
++
++a
++ tst '."1
++22222
++33333 $xxx
++444444
++5555";
++
++$zzz = "blehz";
+
+Added: sleep/tests/output/indexand.sl
+===================================================================
+--- sleep/tests/output/indexand.sl	2006-11-30 03:09:20 UTC (rev 186)
++++ sleep/tests/output/indexand.sl	2006-11-30 03:51:27 UTC (rev 187)
+@@ -0,0 +1,3 @@
++hello 1
++7
++blahtest
+
+Added: sleep/tests/output/lineno.sl
+===================================================================
+--- sleep/tests/output/lineno.sl	2006-11-30 03:09:20 UTC (rev 186)
++++ sleep/tests/output/lineno.sl	2006-11-30 03:51:27 UTC (rev 187)
+@@ -0,0 +1,3 @@
++Warning: variable '$xxx' not declared at line 12
++Warning: variable '$x' not declared at line 5
++Warning: variable '$zzz' not declared at line 16
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-11-30 03:09:20 UTC (rev 186)
++++ sleep/whatsnew.txt	2006-11-30 03:51:27 UTC (rev 187)
+@@ -4,6 +4,8 @@
+   line number a variable was encountered at.
+ - fixed a bug with multi-line parsed literals where a variable followed 
+   immediately by a newline was not being "terminated"
++- fixed a bug with && and & followed by a HOES expression being mistaken 
++  for a function reference token.
+ 
+ 2.1-beta 10 (20 Nov 06)
+ ===========
+
+
+
+From rsmudge at mail.berlios.de  Thu Nov 30 05:00:07 2006
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Thu, 30 Nov 2006 05:00:07 +0100
+Subject: [Sleep-svn] r188 - in sleep: . src/sleep/bridges tests tests/output
+Message-ID: <200611300400.kAU407PQ022699@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-11-30 05:00:05 +0100 (Thu, 30 Nov 2006)
+New Revision: 188
+
+Added:
+   sleep/tests/output/unlambdacs.sl
+   sleep/tests/unlambdacs.sl
+Modified:
+   sleep/src/sleep/bridges/BasicUtilities.java
+   sleep/whatsnew.txt
+Log:
+added unlambda function the not-lambda function :)
+
+
+
+Modified: sleep/src/sleep/bridges/BasicUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicUtilities.java	2006-11-30 03:51:27 UTC (rev 187)
++++ sleep/src/sleep/bridges/BasicUtilities.java	2006-11-30 04:00:05 UTC (rev 188)
+@@ -114,6 +114,7 @@
+ 
+         // closure / function handle type stuff
+         temp.put("&lambda",    new lambda());
++        temp.put("&unlambda",    temp.get("&lambda"));
+ 
+         function funcs = new function();
+         temp.put("&function",  funcs);
+@@ -474,7 +475,15 @@
+           SleepClosure value;
+  
+           SleepClosure temp = BridgeUtilities.getFunction(l, si);           
+-          value = new SleepClosure(si, temp.getRunnableCode());
++
++          if (n.equals("&lambda"))
++          {
++             value = new SleepClosure(si, temp.getRunnableCode());
++          }
++          else
++          {
++             value = temp;
++          }
+            
+           Variable vars = value.getVariables();
+ 
+
+Added: sleep/tests/output/unlambdacs.sl
+===================================================================
+--- sleep/tests/output/unlambdacs.sl	2006-11-30 03:51:27 UTC (rev 187)
++++ sleep/tests/output/unlambdacs.sl	2006-11-30 04:00:05 UTC (rev 188)
+@@ -0,0 +1,3 @@
++Value: example 1
++Value: example 2
++Value: example 2
+
+Added: sleep/tests/unlambdacs.sl
+===================================================================
+--- sleep/tests/unlambdacs.sl	2006-11-30 03:51:27 UTC (rev 187)
++++ sleep/tests/unlambdacs.sl	2006-11-30 04:00:05 UTC (rev 188)
+@@ -0,0 +1,14 @@
++#
++# show lambda creating shared environments...
++#
++
++sub foo
++{
++   println("Value: $bar");
++}
++
++unlambda(&foo, $bar => "example 1");
++foo();
++
++[unlambda(&foo, $bar => "example 2")];
++foo();
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-11-30 03:51:27 UTC (rev 187)
++++ sleep/whatsnew.txt	2006-11-30 04:00:05 UTC (rev 188)
+@@ -6,6 +6,9 @@
+   immediately by a newline was not being "terminated"
+ - fixed a bug with && and & followed by a HOES expression being mistaken 
+   for a function reference token.
++- added &unlambda function that works exactly like &lambda except it does
++  not create a new closure (rather it manipulates the this scope of the
++  passed in closure and returns the passed in closure).
+ 
+ 2.1-beta 10 (20 Nov 06)
+ ===========
+
+
+

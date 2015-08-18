@@ -1,0 +1,119 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r277 - in sleep: . tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2007-June/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r277%20-%20in%20sleep%3A%20.%20tests%20tests/output&In-Reply-To=%3C200706151518.l5FFIYk2000872%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000255.html">
+   <LINK REL="Next"  HREF="000257.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r277 - in sleep: . tests tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r277%20-%20in%20sleep%3A%20.%20tests%20tests/output&In-Reply-To=%3C200706151518.l5FFIYk2000872%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r277 - in sleep: . tests tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Fri Jun 15 17:18:34 CEST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000255.html">[Sleep-svn] r276 - in sleep: . src/sleep/bridges src/sleep/engine
+</A></li>
+        <LI>Next message: <A HREF="000257.html">[Sleep-svn] r278 - in sleep: . src/sleep/bridges tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#256">[ date ]</a>
+              <a href="thread.html#256">[ thread ]</a>
+              <a href="subject.html#256">[ subject ]</a>
+              <a href="author.html#256">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2007-06-15 17:18:34 +0200 (Fri, 15 Jun 2007)
+New Revision: 277
+
+Added:
+   sleep/tests/cast.sl
+   sleep/tests/output/cast.sl
+Modified:
+   sleep/whatsnew.txt
+Log:
+another unit test.
+
+
+Added: sleep/tests/cast.sl
+===================================================================
+--- sleep/tests/cast.sl	2007-06-15 15:06:34 UTC (rev 276)
++++ sleep/tests/cast.sl	2007-06-15 15:18:34 UTC (rev 277)
+@@ -0,0 +1,17 @@
++#
++# some tests of cast with its new found ability to love class literals
++#
++
++sub printIt
++{
++   println(&quot;$1 &quot; . [$1 getClass]);
++}
++
++global('@a');
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">+ at a</A> = cast(@(&quot;this is a string&quot;, &quot;this is a test&quot;, &quot;blah&quot;), ^CharSequence);
++printIt(@a);
++
++import java.util.*;
++
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">+ at a</A> = cast(@([new LinkedList], [new ArrayList]), ^List);
++printIt(@a);
+
+Added: sleep/tests/output/cast.sl
+===================================================================
+--- sleep/tests/output/cast.sl	2007-06-15 15:06:34 UTC (rev 276)
++++ sleep/tests/output/cast.sl	2007-06-15 15:18:34 UTC (rev 277)
+@@ -0,0 +1,2 @@
++[Ljava.lang.CharSequence;@1eb0 class [Ljava.lang.CharSequence;
++[Ljava.util.List;@16ef71 class [Ljava.util.List;
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2007-06-15 15:06:34 UTC (rev 276)
++++ sleep/whatsnew.txt	2007-06-15 15:18:34 UTC (rev 277)
+@@ -22,7 +22,7 @@
+   than specifying bridge as a string as class literals are resolved 
+   at compile time)
+ - updated &amp;cast and &amp;casti to allow a class literal to be specified
+-  as the type to cast to.
++  as the type to cast to.  
+ 
+ 2.1-beta 16  (11 Jun 07)
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000255.html">[Sleep-svn] r276 - in sleep: . src/sleep/bridges src/sleep/engine
+</A></li>
+	<LI>Next message: <A HREF="000257.html">[Sleep-svn] r278 - in sleep: . src/sleep/bridges tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#256">[ date ]</a>
+              <a href="thread.html#256">[ thread ]</a>
+              <a href="subject.html#256">[ subject ]</a>
+              <a href="author.html#256">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

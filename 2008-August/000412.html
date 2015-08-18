@@ -1,0 +1,145 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r436 - in sleep: . src/sleep/engine/atoms tests	tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2008-August/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r436%20-%20in%20sleep%3A%20.%20src/sleep/engine/atoms%20tests%0A%09tests/output&In-Reply-To=%3C200808072113.m77LDaUl017611%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000411.html">
+   <LINK REL="Next"  HREF="000413.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r436 - in sleep: . src/sleep/engine/atoms tests	tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r436%20-%20in%20sleep%3A%20.%20src/sleep/engine/atoms%20tests%0A%09tests/output&In-Reply-To=%3C200808072113.m77LDaUl017611%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r436 - in sleep: . src/sleep/engine/atoms tests	tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Thu Aug  7 23:13:36 CEST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000411.html">[Sleep-svn] r435 - in sleep: . src/sleep/bridges tests tests/data3	tests/data3/src tests/data3/src/com tests/data3/src/com/eric	tests/output
+</A></li>
+        <LI>Next message: <A HREF="000413.html">[Sleep-svn] Einschreiben von TanjaGuenter
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#412">[ date ]</a>
+              <a href="thread.html#412">[ thread ]</a>
+              <a href="subject.html#412">[ subject ]</a>
+              <a href="author.html#412">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2008-08-07 23:13:36 +0200 (Thu, 07 Aug 2008)
+New Revision: 436
+
+Added:
+   sleep/tests/output/testfield.sl
+   sleep/tests/testfield.sl
+Modified:
+   sleep/src/sleep/engine/atoms/ObjectAccess.java
+   sleep/whatsnew.txt
+Log:
+another change... why not.
+
+
+Modified: sleep/src/sleep/engine/atoms/ObjectAccess.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/ObjectAccess.java	2008-08-07 21:10:05 UTC (rev 435)
++++ sleep/src/sleep/engine/atoms/ObjectAccess.java	2008-08-07 21:13:36 UTC (rev 436)
+@@ -211,8 +211,17 @@
+       {
+          try
+          {
+-            Field aField = theClass.getField(name);
++            Field aField;
+ 
++            try
++            {
++               aField = theClass.getDeclaredField(name);
++            }
++            catch (NoSuchFieldException nsfe)
++            {
++               aField = theClass.getField(name);
++            }
++
+             if (aField != null)
+             {
+                try
+
+Added: sleep/tests/output/testfield.sl
+===================================================================
+--- sleep/tests/output/testfield.sl	2008-08-07 21:10:05 UTC (rev 435)
++++ sleep/tests/output/testfield.sl	2008-08-07 21:13:36 UTC (rev 436)
+@@ -0,0 +1,4 @@
++34
++35
++???: 35
++Done?
+
+Added: sleep/tests/testfield.sl
+===================================================================
+--- sleep/tests/testfield.sl	2008-08-07 21:10:05 UTC (rev 435)
++++ sleep/tests/testfield.sl	2008-08-07 21:13:36 UTC (rev 436)
+@@ -0,0 +1,15 @@
++#
++# test setting of fields...
++#
++
++import org.hick.blah.SqueezeBox from: data/test.jar;
++
++$sb1 = [new SqueezeBox];
++
++println([$sb1 squeeze]);
++#setField($sb1, sq =&gt; 55);
++println([$sb1 squeeze]);
++
++println(&quot;???: &quot; . [$sb1 sq]);
++
++println(&quot;Done?&quot;);
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2008-08-07 21:10:05 UTC (rev 435)
++++ sleep/whatsnew.txt	2008-08-07 21:13:36 UTC (rev 436)
+@@ -2,6 +2,9 @@
+ ===========
+ - fixed a problem with setField not accessing fields declared in a parent
+   class for an object.
++- [$obj field] can now get protected members declared within the parent of
++  $obj.  This does not extend to protected members declared up the class 
++  hierarchy.
+ 
+ 2.1-release  (7 Aug 08) [update 2.5]
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000411.html">[Sleep-svn] r435 - in sleep: . src/sleep/bridges tests tests/data3	tests/data3/src tests/data3/src/com tests/data3/src/com/eric	tests/output
+</A></li>
+	<LI>Next message: <A HREF="000413.html">[Sleep-svn] Einschreiben von TanjaGuenter
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#412">[ date ]</a>
+              <a href="thread.html#412">[ thread ]</a>
+              <a href="subject.html#412">[ subject ]</a>
+              <a href="author.html#412">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,145 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r222 - in sleep: . src/sleep/parser tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2007-March/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r222%20-%20in%20sleep%3A%20.%20src/sleep/parser%20tests%20tests/output&In-Reply-To=%3C200703171242.l2HCgdif024370%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000200.html">
+   <LINK REL="Next"  HREF="000202.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r222 - in sleep: . src/sleep/parser tests tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r222%20-%20in%20sleep%3A%20.%20src/sleep/parser%20tests%20tests/output&In-Reply-To=%3C200703171242.l2HCgdif024370%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r222 - in sleep: . src/sleep/parser tests tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Sat Mar 17 13:42:39 CET 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000200.html">[Sleep-svn] r221 - in sleep: . src/sleep/bridges	src/sleep/bridges/io src/sleep/engine/atoms tests tests/output
+</A></li>
+        <LI>Next message: <A HREF="000202.html">[Sleep-svn] r223 - in sleep/tests: . output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#201">[ date ]</a>
+              <a href="thread.html#201">[ thread ]</a>
+              <a href="subject.html#201">[ subject ]</a>
+              <a href="author.html#201">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2007-03-17 13:42:38 +0100 (Sat, 17 Mar 2007)
+New Revision: 222
+
+Added:
+   sleep/tests/inchack.sl
+   sleep/tests/output/inchack.sl
+Modified:
+   sleep/src/sleep/parser/TokenParser.java
+   sleep/whatsnew.txt
+Log:
+fixed a bug with inc hack in expression context
+
+
+
+Modified: sleep/src/sleep/parser/TokenParser.java
+===================================================================
+--- sleep/src/sleep/parser/TokenParser.java	2007-03-17 05:16:27 UTC (rev 221)
++++ sleep/src/sleep/parser/TokenParser.java	2007-03-17 12:42:38 UTC (rev 222)
+@@ -396,6 +396,19 @@
+             myToken.setType(IDEA_FUNC);
+             myToken.add(tokens[x]);
+          }
++         // increment hack
++         else if (Checkers.isIncrementHack(strings[x]))
++         {
++            myToken.setType(HACK_INC);
++            myToken.add(tokens[x]);
++         }
++         // decrement hack
++         else if (Checkers.isDecrementHack(strings[x]))
++         {
++            myToken.setType(HACK_DEC);
++            myToken.add(tokens[x]);
++         }
++         // a normal block
+          else if (Checkers.isVariable(strings[x]))
+          {
+             myToken.setType(VALUE_SCALAR);
+
+Added: sleep/tests/inchack.sl
+===================================================================
+--- sleep/tests/inchack.sl	2007-03-17 05:16:27 UTC (rev 221)
++++ sleep/tests/inchack.sl	2007-03-17 12:42:38 UTC (rev 222)
+@@ -0,0 +1,9 @@
++#
++#
++#
++
++$x = 0;
++while ($x &lt; 10)
++{
++   println($x++);
++}
+
+Added: sleep/tests/output/inchack.sl
+===================================================================
+--- sleep/tests/output/inchack.sl	2007-03-17 05:16:27 UTC (rev 221)
++++ sleep/tests/output/inchack.sl	2007-03-17 12:42:38 UTC (rev 222)
+@@ -0,0 +1,10 @@
++1
++2
++3
++4
++5
++6
++7
++8
++9
++10
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2007-03-17 05:16:27 UTC (rev 221)
++++ sleep/whatsnew.txt	2007-03-17 12:42:38 UTC (rev 222)
+@@ -34,6 +34,7 @@
+   by checkError() in lieu of strings.  This means the error messages are
+   somewhat less descriptive but on the other hand you can fully inspect them
+   for whatever additional details you want.
++- fixed a bug preventing use of increment/decrement ops in expression context
+ 
+ 2.1-beta 12  (11 Mar 07)
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000200.html">[Sleep-svn] r221 - in sleep: . src/sleep/bridges	src/sleep/bridges/io src/sleep/engine/atoms tests tests/output
+</A></li>
+	<LI>Next message: <A HREF="000202.html">[Sleep-svn] r223 - in sleep/tests: . output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#201">[ date ]</a>
+              <a href="thread.html#201">[ thread ]</a>
+              <a href="subject.html#201">[ subject ]</a>
+              <a href="author.html#201">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,137 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r206 - in sleep: . src/sleep/engine/atoms tests	tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2007-March/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r206%20-%20in%20sleep%3A%20.%20src/sleep/engine/atoms%20tests%0A%09tests/output&In-Reply-To=%3C200703080645.l286jIF4024915%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000186.html">
+   <LINK REL="Next"  HREF="000188.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r206 - in sleep: . src/sleep/engine/atoms tests	tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r206%20-%20in%20sleep%3A%20.%20src/sleep/engine/atoms%20tests%0A%09tests/output&In-Reply-To=%3C200703080645.l286jIF4024915%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r206 - in sleep: . src/sleep/engine/atoms tests	tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Thu Mar  8 07:45:18 CET 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000186.html">[Sleep-svn] r205 - in sleep: . src/sleep/bridges tests tests/data	tests/output
+</A></li>
+        <LI>Next message: <A HREF="000188.html">[Sleep-svn] r207 - in sleep: . src/sleep/console
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#187">[ date ]</a>
+              <a href="thread.html#187">[ thread ]</a>
+              <a href="subject.html#187">[ subject ]</a>
+              <a href="author.html#187">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2007-03-08 07:45:17 +0100 (Thu, 08 Mar 2007)
+New Revision: 206
+
+Added:
+   sleep/tests/corrupt.sl
+   sleep/tests/output/corrupt.sl
+Modified:
+   sleep/src/sleep/engine/atoms/SValue.java
+   sleep/whatsnew.txt
+Log:
+fixed a bug that allows constants to be &quot;corrupted&quot;
+
+
+
+Modified: sleep/src/sleep/engine/atoms/SValue.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/SValue.java	2007-03-08 06:27:33 UTC (rev 205)
++++ sleep/src/sleep/engine/atoms/SValue.java	2007-03-08 06:45:17 UTC (rev 206)
+@@ -43,7 +43,7 @@
+ 
+    public Scalar evaluate(ScriptEnvironment e)
+    {
+-      e.getCurrentFrame().push(value);
++      e.getCurrentFrame().push(SleepUtils.getScalar(value));
+       return value;
+    }
+ }
+
+Added: sleep/tests/corrupt.sl
+===================================================================
+--- sleep/tests/corrupt.sl	2007-03-08 06:27:33 UTC (rev 205)
++++ sleep/tests/corrupt.sl	2007-03-08 06:45:17 UTC (rev 206)
+@@ -0,0 +1,15 @@
++#
++# reproduce a bug that allowed corrupting of constants
++#
++
++sub foo
++{
++   println($1);
++   $1 = 3;
++}
++
++for ($x = 0; $x &lt; 5; $x++)
++{
++   foo(1);
++}
++
+
+Added: sleep/tests/output/corrupt.sl
+===================================================================
+--- sleep/tests/output/corrupt.sl	2007-03-08 06:27:33 UTC (rev 205)
++++ sleep/tests/output/corrupt.sl	2007-03-08 06:45:17 UTC (rev 206)
+@@ -0,0 +1,5 @@
++1
++1
++1
++1
++1
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2007-03-08 06:27:33 UTC (rev 205)
++++ sleep/whatsnew.txt	2007-03-08 06:45:17 UTC (rev 206)
+@@ -12,6 +12,9 @@
+   included code is included as if it is part of the current source file.
+ 
+   include([&quot;/path-to/jar-file.jar&quot;], &quot;directory/filename.sl&quot;);
++- SValue atomic step now returns a copy of the scalar literal and not a
++  reference to the scalar.  This prevents constants from being &quot;changed&quot;
++  on accident.
+ 
+ 2.1-beta 11  (3 Dec 06)
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000186.html">[Sleep-svn] r205 - in sleep: . src/sleep/bridges tests tests/data	tests/output
+</A></li>
+	<LI>Next message: <A HREF="000188.html">[Sleep-svn] r207 - in sleep: . src/sleep/console
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#187">[ date ]</a>
+              <a href="thread.html#187">[ thread ]</a>
+              <a href="subject.html#187">[ subject ]</a>
+              <a href="author.html#187">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

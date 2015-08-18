@@ -1,0 +1,1072 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r301 - in sleep: . src/sleep/bridges src/sleep/engine	src/sleep/engine/atoms src/sleep/runtime tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2007-October/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r301%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20src/sleep/engine%0A%09src/sleep/engine/atoms%20src/sleep/runtime%20tests%20tests/output&In-Reply-To=%3C200710140015.l9E0FdqJ010608%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000279.html">
+   <LINK REL="Next"  HREF="000281.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r301 - in sleep: . src/sleep/bridges src/sleep/engine	src/sleep/engine/atoms src/sleep/runtime tests tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r301%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20src/sleep/engine%0A%09src/sleep/engine/atoms%20src/sleep/runtime%20tests%20tests/output&In-Reply-To=%3C200710140015.l9E0FdqJ010608%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r301 - in sleep: . src/sleep/bridges src/sleep/engine	src/sleep/engine/atoms src/sleep/runtime tests tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Sun Oct 14 02:15:39 CEST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000279.html">[Sleep-svn] r300 - in sleep: . src/sleep/bridges	src/sleep/bridges/io
+</A></li>
+        <LI>Next message: <A HREF="000281.html">[Sleep-svn] r302 - in sleep: . src/sleep/engine	src/sleep/engine/atoms tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#280">[ date ]</a>
+              <a href="thread.html#280">[ thread ]</a>
+              <a href="subject.html#280">[ subject ]</a>
+              <a href="author.html#280">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2007-10-14 02:15:34 +0200 (Sun, 14 Oct 2007)
+New Revision: 301
+
+Added:
+   sleep/src/sleep/engine/CallRequest.java
+   sleep/tests/inline.sl
+   sleep/tests/output/inline.sl
+Modified:
+   sleep/src/sleep/bridges/BridgeUtilities.java
+   sleep/src/sleep/bridges/DefaultEnvironment.java
+   sleep/src/sleep/bridges/SleepClosure.java
+   sleep/src/sleep/engine/atoms/Call.java
+   sleep/src/sleep/engine/atoms/ObjectAccess.java
+   sleep/src/sleep/runtime/ScriptEnvironment.java
+   sleep/tests/output/cast.sl
+   sleep/tests/output/convertds3.sl
+   sleep/tests/output/forker.sl
+   sleep/tests/output/trace.sl
+   sleep/tests/output/wrong.sl
+   sleep/whatsnew.txt
+Log:
+added inline functions (halfway, minus some error checking yet :)) and refactored the function call debug logic flow (little more to do yet)
+
+
+Modified: sleep/src/sleep/bridges/BridgeUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BridgeUtilities.java	2007-10-11 02:13:33 UTC (rev 300)
++++ sleep/src/sleep/bridges/BridgeUtilities.java	2007-10-14 00:15:34 UTC (rev 301)
+@@ -23,8 +23,9 @@
+ 
+ import sleep.runtime.*;
+ import java.io.File;
+-import sleep.interfaces.Function;
++import sleep.interfaces.*;
+ import java.util.*;
++import sleep.engine.types.*;
+ 
+ /**
+  * A bridge is a class that bridges your applications API and sleep.  Bridges are created using interfaces from the sleep.interfaces package.  Arguments are passed to bridges generally in a java.util.Stack form.  The Stack of arguments contains sleep Scalar objects.  The BridgeUtilities makes it safer and easier for you to extract Java types from arguments.
+@@ -311,6 +312,38 @@
+       return toValue;
+    }
+ 
++   /** initializes local scope based on argument stack */
++   public static int initLocalScope(ScriptVariables vars, Variable localLevel, Stack locals)
++   {
++      int name = 1;
++
++      while (!locals.isEmpty())
++      {
++         Scalar lvar = (Scalar)locals.pop();
++
++         if (lvar.getActualValue() != null &amp;&amp; lvar.getActualValue().getClass() == ObjectValue.class &amp;&amp; lvar.getActualValue().objectValue() != null &amp;&amp; lvar.getActualValue().objectValue().getClass() == KeyValuePair.class)
++         {
++            KeyValuePair kvp = (KeyValuePair)lvar.getActualValue().objectValue();
++
++            if (!sleep.parser.Checkers.isVariable(kvp.getKey().toString()))
++            {
++               throw new IllegalArgumentException(&quot;unreachable named parameter: &quot; + kvp.getKey());
++            }
++            else
++            {
++               vars.setScalarLevel(kvp.getKey().toString(), kvp.getValue(), localLevel);
++            }
++         }
++         else
++         {
++            vars.setScalarLevel(&quot;$&quot;+name, lvar, localLevel);
++            name++;
++         }
++      }
++
++      return name;
++   }
++
+    /** normalizes the index value based on the specified length */
+    public static final int normalize(int value, int length)
+    {
+
+Modified: sleep/src/sleep/bridges/DefaultEnvironment.java
+===================================================================
+--- sleep/src/sleep/bridges/DefaultEnvironment.java	2007-10-11 02:13:33 UTC (rev 300)
++++ sleep/src/sleep/bridges/DefaultEnvironment.java	2007-10-14 00:15:34 UTC (rev 301)
+@@ -92,7 +92,8 @@
+         //
+         // tell the environment that we want subroutine's to be bound here
+         //
+-        env.put(&quot;sub&quot;,   this);
++        env.put(&quot;sub&quot;,    this);
++        env.put(&quot;inline&quot;, this);
+ 
+         return true;
+     }
+@@ -101,20 +102,27 @@
+     {
+         Hashtable env = si.getScriptEnvironment().getEnvironment(); // assuming the environment is shared. hah right
+ 
+-        Stack unloadStack;
+-
+-        if (env.get(&quot;&amp;&quot;+name) != null &amp;&amp; env.get(&quot;&amp;&quot;+name) instanceof BasicSubroutine)
++        if (type.equals(&quot;sub&quot;))
+         {
+-            BasicSubroutine temp = (BasicSubroutine)env.get(&quot;&amp;&quot;+name);
+-            unloadStack = temp.getUnloadStack();
++           Stack unloadStack;
+ 
+-            unloadStack.push(temp); // make this instance of BasicSubroutine available in case the main one gets unloaded
++           if (env.get(&quot;&amp;&quot;+name) != null &amp;&amp; env.get(&quot;&amp;&quot;+name) instanceof BasicSubroutine)
++           {
++               BasicSubroutine temp = (BasicSubroutine)env.get(&quot;&amp;&quot;+name);
++               unloadStack = temp.getUnloadStack();
++
++               unloadStack.push(temp); // make this instance of BasicSubroutine available in case the main one gets unloaded
++           }
++           else
++           {
++               unloadStack = new Stack();
++           }
++
++           env.put(&quot;&amp;&quot;+name, new BasicSubroutine(si, code, unloadStack));
+         }
+-        else
++        else if (type.equals(&quot;inline&quot;))
+         {
+-            unloadStack = new Stack();
++           env.put(&quot;^&amp;&quot;+name, code); /* add an inline function, very harmless */
+         }
+-
+-        env.put(&quot;&amp;&quot;+name, new BasicSubroutine(si, code, unloadStack));
+     }
+ }
+
+Modified: sleep/src/sleep/bridges/SleepClosure.java
+===================================================================
+--- sleep/src/sleep/bridges/SleepClosure.java	2007-10-11 02:13:33 UTC (rev 300)
++++ sleep/src/sleep/bridges/SleepClosure.java	2007-10-14 00:15:34 UTC (rev 301)
+@@ -192,37 +192,11 @@
+              vars.pushLocalLevel(localLevel);
+           }
+ 
+-          vars.setScalarLevel(&quot;$0&quot;, SleepUtils.getScalar(message), localLevel);
+-
+           //
+-          // setup the parameters from the stack based since this is
+-          // the default function environment.
++          // initialize local variables...
+           //
+-          int name = 1;
+-          while (!locals.isEmpty())
+-          {
+-             Scalar lvar = (Scalar)locals.pop();
+-
+-             if (lvar.getActualValue() != null &amp;&amp; lvar.getActualValue().getClass() == ObjectValue.class &amp;&amp; lvar.getActualValue().objectValue() != null &amp;&amp; lvar.getActualValue().objectValue().getClass() == KeyValuePair.class)
+-             {
+-                KeyValuePair kvp = (KeyValuePair)lvar.getActualValue().objectValue();
+-
+-                if (!sleep.parser.Checkers.isVariable(kvp.getKey().toString()))
+-                {
+-                   throw new IllegalArgumentException(&quot;unreachable named parameter: &quot; + kvp.getKey());
+-                }
+-                else
+-                {
+-                   vars.setScalarLevel(kvp.getKey().toString(), kvp.getValue(), localLevel);
+-                }
+-             } 
+-             else
+-             {
+-                vars.setScalarLevel(&quot;$&quot;+name, lvar, localLevel);
+-                name++;
+-             }
+-          }
+-
++          vars.setScalarLevel(&quot;$0&quot;, SleepUtils.getScalar(message), localLevel);
++          int name = BridgeUtilities.initLocalScope(vars, localLevel, locals);
+           vars.setScalarLevel(&quot;@_&quot;, SleepUtils.getArrayScalar(new ArgumentArray(name, localLevel)), localLevel);
+ 
+           //
+
+Added: sleep/src/sleep/engine/CallRequest.java
+===================================================================
+--- sleep/src/sleep/engine/CallRequest.java	2007-10-11 02:13:33 UTC (rev 300)
++++ sleep/src/sleep/engine/CallRequest.java	2007-10-14 00:15:34 UTC (rev 301)
+@@ -0,0 +1,122 @@
++package sleep.engine;
++
++import sleep.engine.*;
++import sleep.runtime.*;
++
++/** this class encapsulates a function call request. sleep has so many reasons, places, and ways to call functions.
++    this class helps to avoid duplicate code and manage the complexity of Sleep's myriad of profiling, tracing, and error reporting
++    options. */
++public abstract class CallRequest
++{
++   protected ScriptEnvironment environment;
++   protected int               lineNumber;
++
++   /** initialize a new call request */
++   public CallRequest(ScriptEnvironment e, int lineNo)
++   {
++      environment = e;
++      lineNumber  = lineNo;
++   }
++
++   /** returns the script environment... pHEAR */
++   protected ScriptEnvironment getScriptEnvironment()
++   {
++      return environment;      
++   }
++
++   /** returns the line number this function call is occuring from */
++   public int getLineNumber()
++   {
++      return lineNumber;
++   }
++
++   /** return the name of the function (for use in profiler statistics) */
++   public abstract String getFunctionName();
++
++   /** return the description of this current stack frame in the event of an exception */
++   public abstract String getFrameDescription();
++
++   /** execute the function call contained here */
++   protected abstract Scalar execute();
++
++   /** return a string view of this function call; arguments are captured as comma separated descriptions of all args */
++   protected abstract String formatCall(String args);
++
++   /** return true if debug trace is enabled.  override this to add/change criteria for trace activiation */
++   public boolean isDebug()
++   {
++      return (getScriptEnvironment().getScriptInstance().getDebugFlags() &amp; ScriptInstance.DEBUG_TRACE_CALLS) == ScriptInstance.DEBUG_TRACE_CALLS;
++   }
++
++   /** actually execute the function call */
++   public void CallFunction()
++   {
++      Scalar temp;
++      ScriptEnvironment e = getScriptEnvironment();
++      int mark = getScriptEnvironment().markFrame();
++
++      if (isDebug())
++      {
++         if (e.getScriptInstance().isProfileOnly())
++         {
++             long stat = System.currentTimeMillis();
++             temp = execute();
++             stat = System.currentTimeMillis() - stat;
++             e.getScriptInstance().collect(getFunctionName(), getLineNumber(), stat);
++         }
++         else
++         {
++             String args = SleepUtils.describe(e.getCurrentFrame());
++
++             try
++             {
++                long stat = System.currentTimeMillis();
++                temp = execute();
++                stat = System.currentTimeMillis() - stat;
++                e.getScriptInstance().collect(getFunctionName(), getLineNumber(), stat);
++
++                if (e.isThrownValue())
++                {
++                   e.getScriptInstance().fireWarning(formatCall(args) + &quot; - FAILED!&quot;, getLineNumber(), true);
++                }
++                else if (SleepUtils.isEmptyScalar(temp))
++                {
++                   e.getScriptInstance().fireWarning(formatCall(args), getLineNumber(), true);
++                }
++                else
++                {
++                   e.getScriptInstance().fireWarning(formatCall(args) + &quot; = &quot; + SleepUtils.describe(temp), getLineNumber(), true);
++                }
++             }
++             catch (RuntimeException rex)
++             {
++                e.cleanFrame(mark);
++                e.KillFrame();
++                e.getScriptInstance().fireWarning(formatCall(args) + &quot; - FAILED!&quot;, getLineNumber(), true);
++                throw(rex);
++             }
++         }
++      }
++      else
++      {
++         try
++         {
++             temp = execute();
++         }
++         catch (RuntimeException rex)
++         {
++             e.cleanFrame(mark);
++             e.KillFrame();
++             throw(rex);
++         }
++      }
++
++      if (e.isThrownValue())
++      {
++         e.getScriptInstance().recordStackFrame(getFrameDescription(), getLineNumber());
++      }
++
++      e.cleanFrame(mark);
++      e.FrameResult(temp);
++   }
++}
+
+Modified: sleep/src/sleep/engine/atoms/Call.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/Call.java	2007-10-11 02:13:33 UTC (rev 300)
++++ sleep/src/sleep/engine/atoms/Call.java	2007-10-14 00:15:34 UTC (rev 301)
+@@ -41,97 +41,114 @@
+    {
+       return prefix + &quot;[Function Call]: &quot;+function+&quot;\n&quot;;
+    }
+-  
++
++   private static class FunctionCallRequest extends CallRequest
++   {
++      protected String function;
++      protected Function callme;
++
++      public FunctionCallRequest(ScriptEnvironment e, int lineNo, String functionName, Function f)
++      {
++         super(e, lineNo);
++         function = functionName;
++         callme   = f;
++      }
++
++      public String getFunctionName()
++      {
++         return function;
++      }
++
++      public String getFrameDescription()    
++      {
++         return function + &quot;()&quot;;
++      }
++
++      public String formatCall(String args) 
++      {
++         return function + &quot;(&quot; + args + &quot;)&quot;;
++      }
++
++      public boolean isDebug()
++      {
++         return super.isDebug() &amp;&amp; !function.equals(&quot;&amp;@&quot;) &amp;&amp; !function.equals(&quot;&amp;%&quot;);
++      }
++
++      protected Scalar execute()
++      {
++         Scalar temp = callme.evaluate(function, getScriptEnvironment().getScriptInstance(), getScriptEnvironment().getCurrentFrame());
++         getScriptEnvironment().clearReturn();
++         return temp;
++      }
++   }
++
++   private static class InlineCallRequest extends CallRequest
++   {
++      protected String function;
++      protected Block  inline;
++
++      public InlineCallRequest(ScriptEnvironment e, int lineNo, String functionName, Block i)
++      {
++         super(e, lineNo);
++         function = functionName;
++         inline   = i;
++      }
++
++      public String getFunctionName()
++      {
++         return &quot;&lt;inline&gt; &quot; + function;
++      }
++
++      public String getFrameDescription()    
++      {
++         return &quot;&lt;inline&gt; &quot; + function + &quot;()&quot;;
++      }
++
++      protected String formatCall(String args) 
++      {
++         return &quot;&lt;inline&gt; &quot; + function + &quot;(&quot; + args + &quot;)&quot;;
++      }
++
++      protected Scalar execute()
++      {
++         ScriptVariables vars = getScriptEnvironment().getScriptVariables();
++         synchronized (vars)
++         {
++            Variable localLevel = vars.getLocalVariables();
++            sleep.bridges.BridgeUtilities.initLocalScope(vars, localLevel, getScriptEnvironment().getCurrentFrame());
++            return inline.evaluate(getScriptEnvironment());
++         }
++      }
++   }
++
++	  
+    // Pre Condition:
+    //  arguments on the current stack (to allow stack to be passed0
+    //
+    // Post Condition:
+    //  current frame will be dissolved and return value will be placed on parent frame
+ 
+-
+    public Scalar evaluate(ScriptEnvironment e)
+    {
+-      Scalar temp = null;
+       Function callme = e.getFunction(function);
++      Block    inline = null;
+ 
+-      int mark = e.markFrame();
+-
+       if (callme != null)
+       {
+-         if ((e.getScriptInstance().getDebugFlags() &amp; ScriptInstance.DEBUG_TRACE_CALLS) == ScriptInstance.DEBUG_TRACE_CALLS &amp;&amp; !function.equals(&quot;&amp;@&quot;) &amp;&amp; !function.equals(&quot;&amp;%&quot;))
+-         {
+-             if (e.getScriptInstance().isProfileOnly())
+-             {
+-                long stat = System.currentTimeMillis();
+-                temp = callme.evaluate(function, e.getScriptInstance(), e.getCurrentFrame());
+-                e.clearReturn();
+-                stat = System.currentTimeMillis() - stat;
+-                e.getScriptInstance().collect(function, getLineNumber(), stat); 
+-             }
+-             else
+-             {
+-                String args = SleepUtils.describe(e.getCurrentFrame());
+-
+-                String message = function + &quot;(&quot; + args + &quot;)&quot;;
+-                try
+-                {
+-                   long stat = System.currentTimeMillis();
+-                   temp = callme.evaluate(function, e.getScriptInstance(), e.getCurrentFrame());
+-                   e.clearReturn();
+-                   stat = System.currentTimeMillis() - stat;
+-                   e.getScriptInstance().collect(function, getLineNumber(), stat); /* add to the profiler, plz */
+-                
+-                   if (e.isThrownValue())
+-                   {
+-                      e.getScriptInstance().fireWarning(message + &quot; - FAILED!&quot;, getLineNumber(), true);
+-                   }
+-                   else if (SleepUtils.isEmptyScalar(temp))
+-                   {
+-                      e.getScriptInstance().fireWarning(message, getLineNumber(), true);
+-                   }
+-                   else
+-                   {
+-                      e.getScriptInstance().fireWarning(message + &quot; = &quot; + SleepUtils.describe(temp), getLineNumber(), true);
+-                   }
+-                }
+-                catch (RuntimeException rex)
+-                {
+-                   e.cleanFrame(mark);
+-                   e.KillFrame();
+-                   e.getScriptInstance().fireWarning(message + &quot; - FAILED!&quot;, getLineNumber(), true);
+-                   throw(rex);
+-                }
+-             }
+-         }
+-         else
+-         {
+-             try
+-             {
+-                temp = callme.evaluate(function, e.getScriptInstance(), e.getCurrentFrame());
+-                e.clearReturn();
+-             }
+-             catch (RuntimeException rex)
+-             {
+-                e.cleanFrame(mark);
+-                e.KillFrame();
+-                throw(rex);
+-             }
+-         }
+-
+-         if (e.isThrownValue())
+-         {
+-             e.getScriptInstance().recordStackFrame(function + &quot;()&quot;, getLineNumber());
+-         }
++         FunctionCallRequest request = new FunctionCallRequest(e, getLineNumber(), function, callme);         
++         request.CallFunction();
+       }
++      else if ((inline = e.getBlock(function)) != null)
++      {
++         InlineCallRequest request = new InlineCallRequest(e, getLineNumber(), function, inline);
++         request.CallFunction();
++      }
+       else
+       {
+          e.getScriptInstance().fireWarning(&quot;Attempted to call non-existent function &quot; + function, getLineNumber());
+-         temp = SleepUtils.getEmptyScalar();
++         e.FrameResult(SleepUtils.getEmptyScalar());
+       }
+ 
+-      e.cleanFrame(mark);
+-      e.FrameResult(temp);
+-
+       return null;
+    }
+ }
+
+Modified: sleep/src/sleep/engine/atoms/ObjectAccess.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/ObjectAccess.java	2007-10-11 02:13:33 UTC (rev 300)
++++ sleep/src/sleep/engine/atoms/ObjectAccess.java	2007-10-14 00:15:34 UTC (rev 301)
+@@ -46,6 +46,58 @@
+       return &quot;[Object Access]: &quot;+classRef+&quot;#&quot;+name+&quot;\n&quot;;
+    }
+ 
++   private static class ClosureCallRequest extends CallRequest
++   {
++      protected String name;
++      protected Scalar scalar;
++
++      public ClosureCallRequest(ScriptEnvironment e, int lineNo, Scalar _scalar, String _name)
++      {
++         super(e, lineNo);
++         scalar = _scalar;
++         name   = _name;
++      }
++
++      public String getFunctionName()
++      {
++         return ((SleepClosure)scalar.objectValue()).toStringGeneric();
++      }
++
++      public String getFrameDescription()
++      {
++         return scalar.toString();   
++      }
++
++      public String formatCall(String args)
++      {
++         StringBuffer buffer = new StringBuffer(&quot;[&quot; + SleepUtils.describe(scalar));
++         
++         if (name != null &amp;&amp; name.length() &gt; 0)
++         {
++            buffer.append(&quot; &quot; + name);
++         }
++
++         if (args.length() &gt; 0)
++         {
++            buffer.append(&quot;: &quot; + args);
++         }
++
++         buffer.append(&quot;]&quot;);
++
++         return buffer.toString();
++      }
++
++      protected Scalar execute()
++      {
++         Function func = SleepUtils.getFunctionFromScalar(scalar, getScriptEnvironment().getScriptInstance());
++
++         Scalar result;
++         result = func.evaluate(name, getScriptEnvironment().getScriptInstance(), getScriptEnvironment().getCurrentFrame());
++         getScriptEnvironment().clearReturn();
++         return result;
++      }
++   }
++
+    //
+    // Pre Condition:
+    //   object we're accessing is top item on current frame
+@@ -57,8 +109,7 @@
+ 
+    public Scalar evaluate(ScriptEnvironment e)
+    {
+-      boolean isTrace   = (e.getScriptInstance().getDebugFlags() &amp; ScriptInstance.DEBUG_TRACE_CALLS) == ScriptInstance.DEBUG_TRACE_CALLS;
+-
++      int mark = e.markFrame();
+       Scalar result = SleepUtils.getEmptyScalar();
+ 
+       Object accessMe = null;
+@@ -66,8 +117,6 @@
+ 
+       Scalar scalar   = null;
+ 
+-      int mark = e.markFrame();
+-
+       if (classRef == null)
+       {
+          scalar    = (Scalar)e.getCurrentFrame().pop();
+@@ -94,94 +143,18 @@
+       //
+       // check if this is a closure, if it is, try to invoke stuff on it instead
+       //
++
+       if (scalar != null &amp;&amp; SleepUtils.isFunctionScalar(scalar))
+       {
+-         Function func = SleepUtils.getFunctionFromScalar(scalar, e.getScriptInstance());
+-
+-         if (isTrace)
+-         {
+-            if (e.getScriptInstance().isProfileOnly())
+-            {
+-               long stat = System.currentTimeMillis();
+-               result = func.evaluate(name, e.getScriptInstance(), e.getCurrentFrame());
+-               e.clearReturn();
+-               stat = System.currentTimeMillis() - stat;
+-               e.getScriptInstance().collect(((SleepClosure)scalar.objectValue()).toStringGeneric(), getLineNumber(), stat);
+-            }
+-            else
+-            {
+-               String args = SleepUtils.describe(e.getCurrentFrame());
+-
+-               /* construct the actual trace message */
+-   
+-               StringBuffer trace = new StringBuffer(&quot;[&quot; + SleepUtils.describe(scalar));
+-            
+-               if (name != null &amp;&amp; name.length() &gt; 0)
+-               {
+-                  trace.append(&quot; &quot; + name);
+-               }
+-
+-               if (args.length() &gt; 0)
+-               {
+-                  trace.append(&quot;: &quot; + args + &quot;]&quot;);
+-               }
+-               else
+-               {
+-                  trace.append(&quot;]&quot;);
+-               }
+-
+-               try
+-               {
+-                  long stat = System.currentTimeMillis();
+-
+-                  result = func.evaluate(name, e.getScriptInstance(), e.getCurrentFrame());
+-                  e.clearReturn();
+-
+-                  stat = System.currentTimeMillis() - stat;
+-                  e.getScriptInstance().collect(((SleepClosure)scalar.objectValue()).toStringGeneric(), getLineNumber(), stat);
+-
+-                  if (!SleepUtils.isEmptyScalar(result))
+-                  {
+-                     trace.append(&quot; = &quot; + SleepUtils.describe(result));
+-                  }
+-
+-                  e.getScriptInstance().fireWarning(trace.toString(), getLineNumber(), true); 
+-               }
+-               catch (RuntimeException rex)
+-               {
+-                  e.cleanFrame(mark);
+-                  e.KillFrame();
+-                  trace.append(&quot; - FAILED!&quot;);
+-                  e.getScriptInstance().fireWarning(trace.toString(), getLineNumber(), true); 
+-                  throw(rex);
+-               }
+-            }
+-         }
+-         else
+-         {
+-            try
+-            {
+-               result = func.evaluate(name, e.getScriptInstance(), e.getCurrentFrame());
+-               e.clearReturn();
+-            }
+-            catch (RuntimeException rex)
+-            {
+-               e.cleanFrame(mark);
+-               e.KillFrame();
+-               throw(rex);
+-            }
+-         }         
+-
+-         if (e.isThrownValue())
+-         {
+-            e.getScriptInstance().recordStackFrame(scalar.toString(), getLineNumber());
+-         }
+-         
+-         e.cleanFrame(mark);
+-         e.FrameResult(result);
++         ClosureCallRequest request = new ClosureCallRequest(e, getLineNumber(), scalar, name);
++         request.CallFunction();
+          return null;
+       }
+ 
++      //
++      // now we know we're not dealing with a closure; so before we go on the name field has to be non-null.
++      //
++
+       if (name == null)
+       {
+          e.getScriptInstance().fireWarning(&quot;Attempted to query an object with no method/field&quot;, getLineNumber());
+@@ -192,9 +165,12 @@
+          return null;
+       }
+ 
++      boolean isTrace   = (e.getScriptInstance().getDebugFlags() &amp; ScriptInstance.DEBUG_TRACE_CALLS) == ScriptInstance.DEBUG_TRACE_CALLS;
++
+       //
+       // try to invoke stuff on the object...
+       //
++
+       Method theMethod    = null;
+       Object[] parameters = null;
+ 
+
+Modified: sleep/src/sleep/runtime/ScriptEnvironment.java
+===================================================================
+--- sleep/src/sleep/runtime/ScriptEnvironment.java	2007-10-11 02:13:33 UTC (rev 300)
++++ sleep/src/sleep/runtime/ScriptEnvironment.java	2007-10-14 00:15:34 UTC (rev 301)
+@@ -147,6 +147,11 @@
+     {
+        getScriptVariables().putScalar(key, value);
+     }
++
++    public Block getBlock(String name)
++    {
++       return (Block)(getEnvironment().get(&quot;^&quot; + name));
++    }   
+  
+     public Function getFunction(String func)
+     {
+
+Added: sleep/tests/inline.sl
+===================================================================
+--- sleep/tests/inline.sl	2007-10-11 02:13:33 UTC (rev 300)
++++ sleep/tests/inline.sl	2007-10-14 00:15:34 UTC (rev 301)
+@@ -0,0 +1,120 @@
++#
++# test out inline functions... pHEAR continuation like behavior.
++#
++
++# simplest test
++
++inline foo
++{
++   println(&quot;foo&quot;);
++   return &quot;foo rules!&quot;;
++}
++
++sub bar
++{
++   println(&quot;bar&quot;);
++   foo();
++   return &quot;bar rules&quot;;
++}
++
++println(bar());
++
++# coroutines test
++
++inline blah
++{
++   println(&quot;blah 1&quot;);
++   yield &quot;pHEAR&quot;;
++   println(&quot;blah 3&quot;);
++}
++
++sub bleh
++{
++   println(&quot;bleh 0&quot;);
++   blah();
++   println(&quot;bleh 2&quot;);
++}
++
++while $value (bleh())
++{
++   println(&quot;Returned $value&quot;);
++}
++
++# inline locals access and arguments test.
++
++inline ltest
++{
++   println(&quot;@_ = &quot; . @_);
++   println(&quot;Arg: $1&quot;);
++   println(&quot;\$foo: $foo&quot;);
++   println(&quot;\$this: $this&quot;);
++   println(&quot;\$key: $key&quot;);
++   $foo = &quot;pHEAR&quot;;
++}
++
++sub lfunc
++{
++   local('$foo');
++   $foo = 'uNF';
++   ltest(&quot;aa&quot;, &quot;bbb&quot;, $key =&gt; &quot;some value&quot;, &quot;cccc&quot;);
++   println($foo);
++}
++
++lfunc();
++
++#
++# traces..
++#
++
++debug(debug() | 15);
++bar();
++debug(debug() &amp; not(15));
++
++#
++# exceptions..
++#
++
++inline except
++{
++   throw 33;
++}
++
++sub extest
++{
++   local('$ex');
++
++   try
++   {
++      except();
++   }
++   catch $ex
++   {
++      println($ex);
++      printAll(getStackTrace());
++   }
++}
++
++extest();
++
++#
++# test out serialization of a coroutine using inline function calls
++#
++
++sub testit
++{
++   local('$object $buffer');
++
++   $buffer = allocate();
++   $object = lambda(&amp;bleh);
++   println(&quot;Result: &quot; . [$object]);   
++
++   writeObject($buffer, $object);
++   closef($buffer); # close write-mode, enable read-mode
++
++   $object = readObject($buffer);
++   println(&quot;Result: &quot; . [$object]);
++
++   closef($buffer); # close buffer for all time
++}
++
++testit();
+
+Modified: sleep/tests/output/cast.sl
+===================================================================
+--- sleep/tests/output/cast.sl	2007-10-11 02:13:33 UTC (rev 300)
++++ sleep/tests/output/cast.sl	2007-10-14 00:15:34 UTC (rev 301)
+@@ -1,2 +1,2 @@
+-[Ljava.lang.CharSequence;@697b67 class [Ljava.lang.CharSequence;
+-[Ljava.util.List;@d439fe class [Ljava.util.List;
++[Ljava.lang.CharSequence;@6b496d class [Ljava.lang.CharSequence;
++[Ljava.util.List;@648016 class [Ljava.util.List;
+
+Modified: sleep/tests/output/convertds3.sl
+===================================================================
+--- sleep/tests/output/convertds3.sl	2007-10-11 02:13:33 UTC (rev 300)
++++ sleep/tests/output/convertds3.sl	2007-10-14 00:15:34 UTC (rev 301)
+@@ -32,9 +32,9 @@
+ int[] a
+ Collection a
+ Collection a
+-Warning: there is no method that matches mar([<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">Z at 1a1399</A>) in sleep.ArrayTest1 at convertds3.sl:36
+-Warning: there is no method that matches mar([<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">F at fcc0a2</A>) in sleep.ArrayTest1 at convertds3.sl:37
+-Warning: there is no method that matches mar([Ljava.lang.Object;@caf6c1) in sleep.ArrayTest1 at convertds3.sl:38
++Warning: there is no method that matches mar([<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">Z at 19762f</A>) in sleep.ArrayTest1 at convertds3.sl:36
++Warning: there is no method that matches mar([<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">F at 9e215b</A>) in sleep.ArrayTest1 at convertds3.sl:37
++Warning: there is no method that matches mar([Ljava.lang.Object;@9ff0a8) in sleep.ArrayTest1 at convertds3.sl:38
+ int[] a
+ Collection a
+ Collection a
+
+Modified: sleep/tests/output/forker.sl
+===================================================================
+--- sleep/tests/output/forker.sl	2007-10-11 02:13:33 UTC (rev 300)
++++ sleep/tests/output/forker.sl	2007-10-14 00:15:34 UTC (rev 301)
+@@ -1,4 +1,4 @@
+ Trace: &amp;check('within fork') at forker.sl:9
+-Trace: &amp;fork(&amp;closure[forker.sl:9]#2) = <A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">sleep.bridges.io.IOObject at d381d2</A> at forker.sl:8
++Trace: &amp;fork(&amp;closure[forker.sl:9]#2) = <A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">sleep.bridges.io.IOObject at 9c2715</A> at forker.sl:8
+ Trace: &amp;sleep(1000) at forker.sl:12
+ Trace: &amp;check('outside of fork') at forker.sl:14
+
+Added: sleep/tests/output/inline.sl
+===================================================================
+--- sleep/tests/output/inline.sl	2007-10-11 02:13:33 UTC (rev 300)
++++ sleep/tests/output/inline.sl	2007-10-14 00:15:34 UTC (rev 301)
+@@ -0,0 +1,31 @@
++bar
++foo
++foo rules!
++bleh 0
++blah 1
++Returned pHEAR
++blah 3
++bleh 2
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">+ at _</A> = @()
++Arg: aa
++$foo: uNF
++$this: &amp;closure[inline.sl:57-60]#3
++$key: some value
++pHEAR
++bar
++Trace: &amp;println('bar') at inline.sl:15
++foo
++Trace: &amp;println('foo') at inline.sl:9
++Trace: &lt;inline&gt; &amp;foo() = 'foo rules!' at inline.sl:16
++Trace: &amp;bar() = 'foo rules!' at inline.sl:70
++Trace: &amp;not(15) = -16 at inline.sl:71
++Trace: &amp;debug() = 15 at inline.sl:71
++33
++   inline.sl:88 &lt;inline&gt; &amp;except()
++   inline.sl:79 &lt;origin of exception&gt;
++bleh 0
++blah 1
++Result: pHEAR
++blah 3
++bleh 2
++Result: 
+
+Modified: sleep/tests/output/trace.sl
+===================================================================
+--- sleep/tests/output/trace.sl	2007-10-11 02:13:33 UTC (rev 300)
++++ sleep/tests/output/trace.sl	2007-10-14 00:15:34 UTC (rev 301)
+@@ -1,13 +1,13 @@
+ this is a test
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at b301f2</A> println: 'this is a test'] at trace.sl:6
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at a83a13</A> println: 'this is a test'] at trace.sl:6
+ Trace: [java.lang.Math pow: 3, 4] = 81.0 at trace.sl:7
+ 81.0
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at b301f2</A> println: 81.0] at trace.sl:7
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at a83a13</A> println: 81.0] at trace.sl:7
+ Trace: [java.lang.Math pow: 3, 5] = 243.0 at trace.sl:8
+ 243.0
+ Trace: &amp;println(243.0) at trace.sl:8
+ testing again...
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at b301f2</A> println: 'testing again...'] at trace.sl:10
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at a83a13</A> println: 'testing again...'] at trace.sl:10
+ Trace: [sleep.runtime.SleepUtils getListFromArray: @('a', 'b', 'c')] = [a, b, c] at trace.sl:12
+ Trace: [new java.util.LinkedList: [a, b, c]] = [a, b, c] at trace.sl:12
+ Warning: variable '$list' not declared at trace.sl:12
+
+Modified: sleep/tests/output/wrong.sl
+===================================================================
+--- sleep/tests/output/wrong.sl	2007-10-11 02:13:33 UTC (rev 300)
++++ sleep/tests/output/wrong.sl	2007-10-14 00:15:34 UTC (rev 301)
+@@ -1,32 +1,32 @@
+ Trace: [java.lang.Math pow: 3, 4] = 81.0 at wrong.sl:6
+ 81.0
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 855562</A> println: 81.0] at wrong.sl:6
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 7eb6e2</A> println: 81.0] at wrong.sl:6
+ Trace: &amp;casti(1, 'z') = true at wrong.sl:9
+ true
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 855562</A> println: true] at wrong.sl:9
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 7eb6e2</A> println: true] at wrong.sl:9
+ Trace: &amp;casti(0, 'z') = false at wrong.sl:10
+ false
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 855562</A> println: false] at wrong.sl:10
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 7eb6e2</A> println: false] at wrong.sl:10
+ Trace: &amp;casti(1, 'd') = 1.0 at wrong.sl:13
+ 1.0
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 855562</A> println: 1.0] at wrong.sl:13
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 7eb6e2</A> println: 1.0] at wrong.sl:13
+ Trace: &amp;casti(1, 'b') = 1 at wrong.sl:16
+ 1
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 855562</A> println: 1] at wrong.sl:16
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 7eb6e2</A> println: 1] at wrong.sl:16
+ Trace: &amp;casti(100, 'f') = 100.0 at wrong.sl:19
+ 100.0
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 855562</A> println: 100.0] at wrong.sl:19
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 7eb6e2</A> println: 100.0] at wrong.sl:19
+ Trace: &amp;casti('b', 'c') = b at wrong.sl:22
+ b
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 855562</A> println: b] at wrong.sl:22
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 7eb6e2</A> println: b] at wrong.sl:22
+ Trace: &amp;casti(63, 'i') = 63 at wrong.sl:25
+ 63
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 855562</A> println: 63] at wrong.sl:25
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 7eb6e2</A> println: 63] at wrong.sl:25
+ this is a string y0
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 855562</A> println: 'this is a string y0'] at wrong.sl:28
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 7eb6e2</A> println: 'this is a string y0'] at wrong.sl:28
+ Trace: [new java.lang.StringBuilder: 'test'] = test at wrong.sl:31
+ test
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 855562</A> println: test] at wrong.sl:31
+-Trace: &amp;cast(@('a', 'b', 'c', 'd'), 'c') = [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">C at 3caa4b</A> at wrong.sl:34
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 7eb6e2</A> println: test] at wrong.sl:31
++Trace: &amp;cast(@('a', 'b', 'c', 'd'), 'c') = [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">C at bf053f</A> at wrong.sl:34
+ abcd
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 855562</A> println: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">C at 3caa4b</A>] at wrong.sl:34
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 7eb6e2</A> println: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">C at bf053f</A>] at wrong.sl:34
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2007-10-11 02:13:33 UTC (rev 300)
++++ sleep/whatsnew.txt	2007-10-14 00:15:34 UTC (rev 301)
+@@ -28,8 +28,16 @@
+    port is intialized.  the extra params will have no effect on 
+    subsequent calls to listen.  to fix this call closef(port) to
+    unbind the specified port.
++- added inline functions.  these are more like poor macros than anything
++  else.  an inline function is executed inline with the current function,
++  it shares all scope information and any attempt to return/yield values
++  will affect the parent directly. 
+ 
++  inline return12 { return 12; }
+ 
++- refactored Sleep's logic flow for managing function calls, debug 
++  options, etc.. to one file.  
++
+ 2.1-beta 18  (5 Jul 07)
+ ===========
+ - added scalar references: \$x is equivalent to $x =&gt; $x.  this sugar
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000279.html">[Sleep-svn] r300 - in sleep: . src/sleep/bridges	src/sleep/bridges/io
+</A></li>
+	<LI>Next message: <A HREF="000281.html">[Sleep-svn] r302 - in sleep: . src/sleep/engine	src/sleep/engine/atoms tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#280">[ date ]</a>
+              <a href="thread.html#280">[ thread ]</a>
+              <a href="subject.html#280">[ subject ]</a>
+              <a href="author.html#280">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

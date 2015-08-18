@@ -1,0 +1,329 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r325 - in sleep: . src/sleep/bridges src/sleep/runtime	tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2008-March/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r325%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20src/sleep/runtime%0A%09tests/output&In-Reply-To=%3C200803212345.m2LNjG5g005177%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000302.html">
+   <LINK REL="Next"  HREF="000304.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r325 - in sleep: . src/sleep/bridges src/sleep/runtime	tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r325%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20src/sleep/runtime%0A%09tests/output&In-Reply-To=%3C200803212345.m2LNjG5g005177%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r325 - in sleep: . src/sleep/bridges src/sleep/runtime	tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Sat Mar 22 00:45:16 CET 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000302.html">[Sleep-svn] r324 - in sleep: . src/sleep/engine tests tests/output
+</A></li>
+        <LI>Next message: <A HREF="000304.html">[Sleep-svn] r326 - in sleep: docs src/sleep/bridges	src/sleep/runtime
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#303">[ date ]</a>
+              <a href="thread.html#303">[ thread ]</a>
+              <a href="subject.html#303">[ subject ]</a>
+              <a href="author.html#303">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2008-03-22 00:45:14 +0100 (Sat, 22 Mar 2008)
+New Revision: 325
+
+Modified:
+   sleep/src/sleep/bridges/BasicIO.java
+   sleep/src/sleep/bridges/SleepClosure.java
+   sleep/src/sleep/runtime/ScriptInstance.java
+   sleep/src/sleep/runtime/ScriptLoader.java
+   sleep/src/sleep/runtime/ScriptVariables.java
+   sleep/tests/output/cast.sl
+   sleep/tests/output/convertds3.sl
+   sleep/tests/output/forker.sl
+   sleep/tests/output/scalar.sl
+   sleep/tests/output/trace.sl
+   sleep/tests/output/wrong.sl
+   sleep/whatsnew.txt
+Log:
+..
+
+
+Modified: sleep/src/sleep/bridges/BasicIO.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicIO.java	2008-03-21 22:50:00 UTC (rev 324)
++++ sleep/src/sleep/bridges/BasicIO.java	2008-03-21 23:45:14 UTC (rev 325)
+@@ -482,7 +482,7 @@
+           
+              child.getScriptVariables().putScalar(&quot;$source&quot;, SleepUtils.getScalar(child_io));
+ 
+-             Thread temp = new Thread(child, &quot;fork of &quot; + child.getRunnableBlock().getSourceLocation());
++             Thread temp = new Thread(child, &quot;fork of &quot; + child.getRunnableBlock().getRunnableCode().getSourceLocation());
+ 
+              parent_io.setThread(temp);
+              child_io.setThread(temp);
+
+Modified: sleep/src/sleep/bridges/SleepClosure.java
+===================================================================
+--- sleep/src/sleep/bridges/SleepClosure.java	2008-03-21 22:50:00 UTC (rev 324)
++++ sleep/src/sleep/bridges/SleepClosure.java	2008-03-21 23:45:14 UTC (rev 325)
+@@ -11,7 +11,7 @@
+ /** The Sleep Closure class.  This class represents a Function object that is also a self contained closure */
+ public class SleepClosure implements Function
+ {
+-    private static int ccount = 0;
++    private static int ccount = -1;
+     private int id;
+ 
+     private class ClosureIterator implements Iterator
+
+Modified: sleep/src/sleep/runtime/ScriptInstance.java
+===================================================================
+--- sleep/src/sleep/runtime/ScriptInstance.java	2008-03-21 22:50:00 UTC (rev 324)
++++ sleep/src/sleep/runtime/ScriptInstance.java	2008-03-21 23:45:14 UTC (rev 325)
+@@ -33,6 +33,7 @@
+ import sleep.bridges.DefaultEnvironment;
+ import sleep.bridges.DefaultVariable;
+ import sleep.bridges.RegexBridge;
++import sleep.bridges.SleepClosure;
+ 
+ import sleep.interfaces.*;
+ import sleep.error.*;
+@@ -65,7 +66,7 @@
+     protected ScriptVariables   variables;
+ 
+     /** The compiled sleep code for this script, the ScriptLoader will set this value upon loading a script. */
+-    protected Block             script;
++    protected SleepClosure      script;
+ 
+     /** debug should be absolutely quiet, never fire any runtime warnings */
+     public static final int DEBUG_NONE          = 0;
+@@ -147,7 +148,7 @@
+     /** Install a block as the compiled script code */ 
+     public void installBlock(Block _script)
+     {
+-        script = _script;
++        script = new SleepClosure(this, _script);
+     }
+ 
+     /** Constructs a new script instance */
+@@ -189,7 +190,7 @@
+     /** Executes this script, should be done first thing once a script is loaded */
+     public Scalar runScript()
+     {
+-        return SleepUtils.runCode(script, getScriptEnvironment());
++        return SleepUtils.runCode(script, getName(), this, new Stack());
+     }
+  
+     /** A container for Sleep strack trace elements. */
+@@ -373,7 +374,7 @@
+     }
+ 
+     /** Returns the compiled form of this script */
+-    public Block getRunnableBlock()
++    public SleepClosure getRunnableBlock()
+     {
+         return script;
+     }
+
+Modified: sleep/src/sleep/runtime/ScriptLoader.java
+===================================================================
+--- sleep/src/sleep/runtime/ScriptLoader.java	2008-03-21 22:50:00 UTC (rev 324)
++++ sleep/src/sleep/runtime/ScriptLoader.java	2008-03-21 23:45:14 UTC (rev 325)
+@@ -300,7 +300,7 @@
+     public ScriptInstance loadScript(String name, Block code, Hashtable env)
+     {
+         ScriptInstance si = new ScriptInstance(env);
+-        si.script = code;
++        si.installBlock(code);
+         inProcessScript(name, si);
+         return si;
+     }
+
+Modified: sleep/src/sleep/runtime/ScriptVariables.java
+===================================================================
+--- sleep/src/sleep/runtime/ScriptVariables.java	2008-03-21 22:50:00 UTC (rev 324)
++++ sleep/src/sleep/runtime/ScriptVariables.java	2008-03-21 23:45:14 UTC (rev 325)
+@@ -106,7 +106,7 @@
+        locals   = new LinkedList();
+        marks    = new Stack();
+ 
+-       pushLocalLevel();
++//       pushLocalLevel();
+     }
+ 
+     /** puts a scalar into the global scope */ 
+
+Modified: sleep/tests/output/cast.sl
+===================================================================
+--- sleep/tests/output/cast.sl	2008-03-21 22:50:00 UTC (rev 324)
++++ sleep/tests/output/cast.sl	2008-03-21 23:45:14 UTC (rev 325)
+@@ -1,2 +1,2 @@
+-[Ljava.lang.CharSequence;@7e845a class [Ljava.lang.CharSequence;
+-[Ljava.util.List;@e78c96 class [Ljava.util.List;
++[Ljava.lang.CharSequence;@815338 class [Ljava.lang.CharSequence;
++[Ljava.util.List;@6ed322 class [Ljava.util.List;
+
+Modified: sleep/tests/output/convertds3.sl
+===================================================================
+--- sleep/tests/output/convertds3.sl	2008-03-21 22:50:00 UTC (rev 324)
++++ sleep/tests/output/convertds3.sl	2008-03-21 23:45:14 UTC (rev 325)
+@@ -32,9 +32,9 @@
+ int[] a
+ Collection a
+ Collection a
+-Warning: there is no method that matches mar([<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">Z at 9a9b65</A>) in sleep.ArrayTest1 at convertds3.sl:36
+-Warning: there is no method that matches mar([<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">F at 502819</A>) in sleep.ArrayTest1 at convertds3.sl:37
+-Warning: there is no method that matches mar([Ljava.lang.Object;@78aa80) in sleep.ArrayTest1 at convertds3.sl:38
++Warning: there is no method that matches mar([<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">Z at d33a6b</A>) in sleep.ArrayTest1 at convertds3.sl:36
++Warning: there is no method that matches mar([<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">F at a0864f</A>) in sleep.ArrayTest1 at convertds3.sl:37
++Warning: there is no method that matches mar([Ljava.lang.Object;@d1e233) in sleep.ArrayTest1 at convertds3.sl:38
+ int[] a
+ Collection a
+ Collection a
+
+Modified: sleep/tests/output/forker.sl
+===================================================================
+--- sleep/tests/output/forker.sl	2008-03-21 22:50:00 UTC (rev 324)
++++ sleep/tests/output/forker.sl	2008-03-21 23:45:14 UTC (rev 325)
+@@ -1,4 +1,4 @@
+ Trace: &amp;check('within fork') at forker.sl:9
+-Trace: &amp;fork(&amp;closure[forker.sl:9]#2) = <A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">sleep.bridges.io.IOObject at c5e9c</A> at forker.sl:8
++Trace: &amp;fork(&amp;closure[forker.sl:9]#2) = <A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">sleep.bridges.io.IOObject at 4ac216</A> at forker.sl:8
+ Trace: &amp;sleep(1000) at forker.sl:12
+ Trace: &amp;check('outside of fork') at forker.sl:14
+
+Modified: sleep/tests/output/scalar.sl
+===================================================================
+--- sleep/tests/output/scalar.sl	2008-03-21 22:50:00 UTC (rev 324)
++++ sleep/tests/output/scalar.sl	2008-03-21 23:45:14 UTC (rev 325)
+@@ -1,4 +1,4 @@
+ 3
+ 6.4567
+-[<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">B at 554d32</A> and class [B
++[<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">B at a83a13</A> and class [B
+ this is a test and class java.lang.String
+
+Modified: sleep/tests/output/trace.sl
+===================================================================
+--- sleep/tests/output/trace.sl	2008-03-21 22:50:00 UTC (rev 324)
++++ sleep/tests/output/trace.sl	2008-03-21 23:45:14 UTC (rev 325)
+@@ -1,13 +1,13 @@
+ this is a test
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 7e845a</A> println: 'this is a test'] at trace.sl:6
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 383118</A> println: 'this is a test'] at trace.sl:6
+ Trace: [java.lang.Math pow: 3, 4] = 81.0 at trace.sl:7
+ 81.0
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 7e845a</A> println: 81.0] at trace.sl:7
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 383118</A> println: 81.0] at trace.sl:7
+ Trace: [java.lang.Math pow: 3, 5] = 243.0 at trace.sl:8
+ 243.0
+ Trace: &amp;println(243.0) at trace.sl:8
+ testing again...
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 7e845a</A> println: 'testing again...'] at trace.sl:10
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 383118</A> println: 'testing again...'] at trace.sl:10
+ Trace: [sleep.runtime.SleepUtils getListFromArray: @('a', 'b', 'c')] = [a, b, c] at trace.sl:12
+ Trace: [new java.util.LinkedList: [a, b, c]] = [a, b, c] at trace.sl:12
+ Warning: variable '$list' not declared at trace.sl:12
+
+Modified: sleep/tests/output/wrong.sl
+===================================================================
+--- sleep/tests/output/wrong.sl	2008-03-21 22:50:00 UTC (rev 324)
++++ sleep/tests/output/wrong.sl	2008-03-21 23:45:14 UTC (rev 325)
+@@ -1,32 +1,32 @@
+ Trace: [java.lang.Math pow: 3, 4] = 81.0 at wrong.sl:6
+ 81.0
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 81a197</A> println: 81.0] at wrong.sl:6
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at a61172</A> println: 81.0] at wrong.sl:6
+ Trace: &amp;casti(1, 'z') = true at wrong.sl:9
+ true
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 81a197</A> println: true] at wrong.sl:9
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at a61172</A> println: true] at wrong.sl:9
+ Trace: &amp;casti(0, 'z') = false at wrong.sl:10
+ false
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 81a197</A> println: false] at wrong.sl:10
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at a61172</A> println: false] at wrong.sl:10
+ Trace: &amp;casti(1, 'd') = 1.0 at wrong.sl:13
+ 1.0
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 81a197</A> println: 1.0] at wrong.sl:13
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at a61172</A> println: 1.0] at wrong.sl:13
+ Trace: &amp;casti(1, 'b') = 1 at wrong.sl:16
+ 1
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 81a197</A> println: 1] at wrong.sl:16
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at a61172</A> println: 1] at wrong.sl:16
+ Trace: &amp;casti(100, 'f') = 100.0 at wrong.sl:19
+ 100.0
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 81a197</A> println: 100.0] at wrong.sl:19
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at a61172</A> println: 100.0] at wrong.sl:19
+ Trace: &amp;casti('b', 'c') = b at wrong.sl:22
+ b
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 81a197</A> println: b] at wrong.sl:22
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at a61172</A> println: b] at wrong.sl:22
+ Trace: &amp;casti(63, 'i') = 63 at wrong.sl:25
+ 63
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 81a197</A> println: 63] at wrong.sl:25
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at a61172</A> println: 63] at wrong.sl:25
+ this is a string y0
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 81a197</A> println: 'this is a string y0'] at wrong.sl:28
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at a61172</A> println: 'this is a string y0'] at wrong.sl:28
+ Trace: [new java.lang.StringBuilder: 'test'] = test at wrong.sl:31
+ test
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 81a197</A> println: test] at wrong.sl:31
+-Trace: &amp;cast(@('a', 'b', 'c', 'd'), 'c') = [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">C at cf829d</A> at wrong.sl:34
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at a61172</A> println: test] at wrong.sl:31
++Trace: &amp;cast(@('a', 'b', 'c', 'd'), 'c') = [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">C at 96f4b5</A> at wrong.sl:34
+ abcd
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 81a197</A> println: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">C at cf829d</A>] at wrong.sl:34
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at a61172</A> println: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">C at 96f4b5</A>] at wrong.sl:34
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2008-03-21 22:50:00 UTC (rev 324)
++++ sleep/whatsnew.txt	2008-03-21 23:45:14 UTC (rev 325)
+@@ -1,4 +1,4 @@
+-2.1-beta 21 
++2.1-beta 21  (21 Mar 08)
+ ===========
+ - assignment loops now record proper line number information for
+   error reporting purposes.
+@@ -31,6 +31,8 @@
+   necessary (this makes pushl/popl safe for yield/callcc)
+ - inline functions will only mangle @_ if unnamed values are
+   passed.  Use $var =&gt; ... to pass a named value.
++- toplevel sleep scripts are now executed as a closure... this
++  allows callcc to work from the top level.
+ 
+ 2.1-beta 20  (12 Nov 07)
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000302.html">[Sleep-svn] r324 - in sleep: . src/sleep/engine tests tests/output
+</A></li>
+	<LI>Next message: <A HREF="000304.html">[Sleep-svn] r326 - in sleep: docs src/sleep/bridges	src/sleep/runtime
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#303">[ date ]</a>
+              <a href="thread.html#303">[ thread ]</a>
+              <a href="subject.html#303">[ subject ]</a>
+              <a href="author.html#303">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

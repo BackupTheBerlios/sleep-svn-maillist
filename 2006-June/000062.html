@@ -1,0 +1,241 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r80 - in sleep: . src/sleep/engine/atoms tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2006-June/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r80%20-%20in%20sleep%3A%20.%20src/sleep/engine/atoms%20tests%20tests/output&In-Reply-To=%3C200606172114.k5HLERUB002531%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000061.html">
+   <LINK REL="Next"  HREF="000063.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r80 - in sleep: . src/sleep/engine/atoms tests tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r80%20-%20in%20sleep%3A%20.%20src/sleep/engine/atoms%20tests%20tests/output&In-Reply-To=%3C200606172114.k5HLERUB002531%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r80 - in sleep: . src/sleep/engine/atoms tests tests/output">rsmudge at berlios.de
+       </A><BR>
+    <I>Sat Jun 17 23:14:27 CEST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000061.html">[Sleep-svn] r79 - in sleep: . src/sleep/console src/sleep/engine src/sleep/runtime tests tests/output
+</A></li>
+        <LI>Next message: <A HREF="000063.html">[Sleep-svn] r81 - in sleep: src/sleep/bridges tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#62">[ date ]</a>
+              <a href="thread.html#62">[ thread ]</a>
+              <a href="subject.html#62">[ subject ]</a>
+              <a href="author.html#62">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2006-06-17 23:14:27 +0200 (Sat, 17 Jun 2006)
+New Revision: 80
+
+Added:
+   sleep/tests/fe_generator.sl
+   sleep/tests/output/fe_generator.sl
+Modified:
+   sleep/src/sleep/engine/atoms/Iterate.java
+   sleep/whatsnew.txt
+Log:
+Added the ability to iterate over closures with a foreach loop
+
+
+
+Modified: sleep/src/sleep/engine/atoms/Iterate.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/Iterate.java	2006-06-17 20:46:37 UTC (rev 79)
++++ sleep/src/sleep/engine/atoms/Iterate.java	2006-06-17 21:14:27 UTC (rev 80)
+@@ -26,6 +26,8 @@
+ import sleep.engine.*;
+ import sleep.runtime.*;
+ 
++import sleep.bridges.SleepClosure;
++
+ public class Iterate extends Step
+ {
+    public static class IteratorData
+@@ -41,6 +43,35 @@
+       public int      count    = 0;
+    }
+ 
++   private static class FunctionIterator implements Iterator
++   {
++      protected SleepClosure      closure;
++      protected ScriptInstance    si;
++      protected Scalar            current;
++      protected Stack             locals = new Stack();
++
++      public FunctionIterator(SleepClosure c, ScriptInstance i)
++      {
++         closure = c;
++         si      = i;
++      }
++
++      public boolean hasNext()
++      {
++         current = closure.callClosure(&quot;eval&quot;, si, locals);
++         return !SleepUtils.isEmptyScalar(current);
++      }
++
++      public Object next()
++      {
++         return current;
++      }
++
++      public void remove()
++      {
++      }
++   }
++
+    public static final int ITERATOR_CREATE   = 1;
+    public static final int ITERATOR_DESTROY  = 2;
+    public static final int ITERATOR_NEXT     = 3;
+@@ -119,6 +150,10 @@
+       {
+          data.iterator = data.source.getArray().scalarIterator();
+       }
++      else if (SleepUtils.isFunctionScalar(data.source))
++      {
++         data.iterator = new FunctionIterator(SleepUtils.getFunctionFromScalar(data.source, e.getScriptInstance()), e.getScriptInstance()); 
++      }
+       else
+       {
+          e.getScriptInstance().fireWarning(&quot;Attempted to use foreach on non-array: '&quot; + data.source + &quot;'&quot;, getLineNumber());
+
+Added: sleep/tests/fe_generator.sl
+===================================================================
+--- sleep/tests/fe_generator.sl	2006-06-17 20:46:37 UTC (rev 79)
++++ sleep/tests/fe_generator.sl	2006-06-17 21:14:27 UTC (rev 80)
+@@ -0,0 +1,44 @@
++#
++# test out foreach with closures...
++#
++
++foreach $index =&gt; $value ({ this('$x'); for ($x = 0; $x &lt; 10; $x++) { yield &quot;val: $x&quot;; } return $null; })
++{
++   println(&quot;$index =&gt; $value&quot;);
++}
++
++sub _range
++{
++   while ($start &lt; $stop)
++   {
++      yield $start;
++      $start++;
++   }
++
++   return $null;
++}
++
++foreach $index =&gt; $value (lambda(&amp;_range, $start =&gt; 50, $stop =&gt; 60))
++{
++   println(&quot;Testing out range stuff: $index =&gt; $value&quot;);
++}
++
++sub _range2
++{
++   this('$start $stop');
++   ($start, $stop) = @_;
++   yield $this;
++
++   while ($start &lt; $stop)
++   {
++      yield $start;
++      $start++;
++   }
++
++   return $null;
++}
++
++foreach $index =&gt; $value (_range2(70, 80))
++{
++   println(&quot;My third test: $index =&gt; $value&quot;);
++}
+
+Added: sleep/tests/output/fe_generator.sl
+===================================================================
+--- sleep/tests/output/fe_generator.sl	2006-06-17 20:46:37 UTC (rev 79)
++++ sleep/tests/output/fe_generator.sl	2006-06-17 21:14:27 UTC (rev 80)
+@@ -0,0 +1,30 @@
++0 =&gt; val: 0
++1 =&gt; val: 1
++2 =&gt; val: 2
++3 =&gt; val: 3
++4 =&gt; val: 4
++5 =&gt; val: 5
++6 =&gt; val: 6
++7 =&gt; val: 7
++8 =&gt; val: 8
++9 =&gt; val: 9
++Testing out range stuff: 0 =&gt; 50
++Testing out range stuff: 1 =&gt; 51
++Testing out range stuff: 2 =&gt; 52
++Testing out range stuff: 3 =&gt; 53
++Testing out range stuff: 4 =&gt; 54
++Testing out range stuff: 5 =&gt; 55
++Testing out range stuff: 6 =&gt; 56
++Testing out range stuff: 7 =&gt; 57
++Testing out range stuff: 8 =&gt; 58
++Testing out range stuff: 9 =&gt; 59
++My third test: 0 =&gt; 70
++My third test: 1 =&gt; 71
++My third test: 2 =&gt; 72
++My third test: 3 =&gt; 73
++My third test: 4 =&gt; 74
++My third test: 5 =&gt; 75
++My third test: 6 =&gt; 76
++My third test: 7 =&gt; 77
++My third test: 8 =&gt; 78
++My third test: 9 =&gt; 79
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-06-17 20:46:37 UTC (rev 79)
++++ sleep/whatsnew.txt	2006-06-17 21:14:27 UTC (rev 80)
+@@ -28,9 +28,10 @@
+   Sleep scripts on the command line can run with different debug 
+   levels using:
+   java -Dsleep.debug=3 -jar sleep.jar filename.sl
++- foreach can now iterate over closures..  if a closure is passed to
++  foreach then the closure will be called continuously until a $null
++  is returned.
+ 
+-
+-
+ 2.1-beta 1
+ ===========
+ - fixed the clean target in the sleep build.xml file
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000061.html">[Sleep-svn] r79 - in sleep: . src/sleep/console src/sleep/engine src/sleep/runtime tests tests/output
+</A></li>
+	<LI>Next message: <A HREF="000063.html">[Sleep-svn] r81 - in sleep: src/sleep/bridges tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#62">[ date ]</a>
+              <a href="thread.html#62">[ thread ]</a>
+              <a href="subject.html#62">[ subject ]</a>
+              <a href="author.html#62">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,344 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r128 - in sleep: . src/sleep/bridges src/sleep/runtime	tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2006-October/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r128%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20src/sleep/runtime%0A%09tests%20tests/output&In-Reply-To=%3C200610020107.k9217c5u006058%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   
+   <LINK REL="Next"  HREF="000111.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r128 - in sleep: . src/sleep/bridges src/sleep/runtime	tests tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r128%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20src/sleep/runtime%0A%09tests%20tests/output&In-Reply-To=%3C200610020107.k9217c5u006058%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r128 - in sleep: . src/sleep/bridges src/sleep/runtime	tests tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Mon Oct  2 03:07:38 CEST 2006</I>
+    <P><UL>
+        
+        <LI>Next message: <A HREF="000111.html">[Sleep-svn] r129 - in sleep: . src/sleep/bridges tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#110">[ date ]</a>
+              <a href="thread.html#110">[ thread ]</a>
+              <a href="subject.html#110">[ subject ]</a>
+              <a href="author.html#110">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2006-10-02 03:07:36 +0200 (Mon, 02 Oct 2006)
+New Revision: 128
+
+Added:
+   sleep/tests/fork2.sl
+   sleep/tests/output/fork2.sl
+Modified:
+   sleep/src/sleep/bridges/SleepClosure.java
+   sleep/src/sleep/runtime/ScriptVariables.java
+   sleep/tests/output/fe_generatordb.sl
+   sleep/tests/output/fork.sl
+   sleep/tests/output/nparams.sl
+   sleep/tests/output/setf.sl
+   sleep/whatsnew.txt
+Log:
+closures passed to forked variables now retain their this scope
+
+
+
+Modified: sleep/src/sleep/bridges/SleepClosure.java
+===================================================================
+--- sleep/src/sleep/bridges/SleepClosure.java	2006-09-30 08:10:11 UTC (rev 127)
++++ sleep/src/sleep/bridges/SleepClosure.java	2006-10-02 01:07:36 UTC (rev 128)
+@@ -81,6 +81,9 @@
+     /** the meta data for this closure context */
+     HashMap          metadata; 
+ 
++    /** the closure variables referenced by this closure */
++    Variable         variables;
++
+     /** saves the top level context */
+     private void saveToplevelContext(Stack _context, Variable localLevel)
+     {
+@@ -116,10 +119,10 @@
+     /** Creates a new Sleep Closure that uses the specified variable container for its internal variables */
+     public SleepClosure(ScriptInstance si, Block _code, Variable _var)
+     {
+-       code     = _code;
+-       owner    = si;
+-       context  = new Stack();
+-       metadata = new HashMap();
++       code      = _code;
++       owner     = si;
++       context   = new Stack();
++       metadata  = new HashMap();
+ 
+        _var.putScalar(&quot;$this&quot;, SleepUtils.getScalar(this));
+        setVariables(_var);
+@@ -140,13 +143,13 @@
+     /** Returns the variable container for this closures */
+     public Variable getVariables()
+     {
+-       return getOwner().getScriptVariables().getClosureVariables(this);
++       return variables;
+     }
+ 
+     /** Sets the variable environment for this closure */
+     public void setVariables(Variable _variables)
+     {
+-       getOwner().getScriptVariables().setClosureVariables(this, _variables);
++       variables = _variables; 
+     }
+ 
+     /** &quot;Safely&quot; calls this closure.  Use this if you are evaluating this closure from your own code. 
+@@ -185,7 +188,7 @@
+           Stack toplevel = getToplevelContext();
+           env.loadContext(toplevel, metadata);
+ 
+-          vars.pushClosureLevel(this);
++          vars.pushClosureLevel(getVariables()); 
+ 
+           if (toplevel.isEmpty()) /* a normal closure call */
+           {
+
+Modified: sleep/src/sleep/runtime/ScriptVariables.java
+===================================================================
+--- sleep/src/sleep/runtime/ScriptVariables.java	2006-09-30 08:10:11 UTC (rev 127)
++++ sleep/src/sleep/runtime/ScriptVariables.java	2006-10-02 01:07:36 UTC (rev 128)
+@@ -68,7 +68,6 @@
+     Variable    global;   /* global variables */
+     LinkedList  closure;  /* closure specific variables :) */
+     LinkedList  locals;   /* local variables */
+-    WeakHashMap cscopes;  /* closure scope storage */
+ 
+     /** Initializes this ScriptVariables container using a DefaultVariable object for default variable storage */
+     public ScriptVariables()
+@@ -82,7 +81,6 @@
+        global   = aVariableClass;
+        closure  = new LinkedList();
+        locals   = new LinkedList();
+-       cscopes  = new WeakHashMap();
+ 
+        pushLocalLevel();
+     }
+@@ -179,26 +177,19 @@
+     /** returns the closure level variables for this specific script environment */
+     public Variable getClosureVariables(SleepClosure closure)
+     {
+-       Object temp = cscopes.get(closure);
+-       if (temp == null)
+-       {
+-          temp = global.createInternalVariableContainer();
+-          cscopes.put(closure, temp);
+-       }
+-
+-       return (Variable)temp;       
++       return closure.getVariables();
+     }
+ 
+     /** returns the closure level variables for this specific script environment */
+     public void setClosureVariables(SleepClosure closure, Variable variables)
+     {
+-       cscopes.put(closure, variables);
++       closure.setVariables(variables);
+     }
+ 
+-    /** makes the specified closure variable scope active, once the closure has executed this should be popped */
+-    public void pushClosureLevel(SleepClosure level)
++    /** pushes the specified variables into this closures level, once the closure has executed this should be popped */
++    public void pushClosureLevel(Variable variables)
+     {
+-       closure.addFirst(getClosureVariables(level));
++       closure.addFirst(variables);
+     }
+ 
+     /** discards the current closure variable scope */
+
+Added: sleep/tests/fork2.sl
+===================================================================
+--- sleep/tests/fork2.sl	2006-09-30 08:10:11 UTC (rev 127)
++++ sleep/tests/fork2.sl	2006-10-02 01:07:36 UTC (rev 128)
+@@ -0,0 +1,62 @@
++#
++# more scope testing of fork... oi vey.
++#
++
++#
++# easy test
++# 
++sub function
++{
++   println(&quot;\$x is $x from &amp;function&quot;);
++   $x++;
++} 
++
++$a = lambda(&amp;function, $x =&gt; 1);
++
++$handle = fork({
++   [$func];
++}, $func =&gt; $a);
++
++wait($handle);
++
++[$a];
++[$a];
++
++$handle = fork({
++   [$func];
++}, $func =&gt; $a);
++
++wait($handle);
++
++#
++# yield out of a coroutine and resume in a fork... ooh..
++#
++
++sub coroutine
++{
++   local('$z');
++   println(&quot;Coroutine start&quot;);
++   $z = 33;
++
++   yield &quot;checkpoint A&quot;;
++
++   println(&quot;After checkpoint a and \$z is $z&quot;);
++   $z++;
++
++   yield &quot;checkpoint B&quot;;
++
++   println(&quot;After checkpoint b and \$z is $z&quot;);
++   
++   return &quot;done: $z&quot;; # reset the whole damned thing..
++}
++
++println(&quot;Return value in main is: &quot; . coroutine());
++
++$handle = fork({
++   println(&quot;Return value within fork is: &quot; . [$_coroutine]);
++}, $_coroutine =&gt; &amp;coroutine);
++
++wait($handle);
++
++println(&quot;Return value in main is: &quot; . coroutine());
++
+
+Modified: sleep/tests/output/fe_generatordb.sl
+===================================================================
+--- sleep/tests/output/fe_generatordb.sl	2006-09-30 08:10:11 UTC (rev 127)
++++ sleep/tests/output/fe_generatordb.sl	2006-10-02 01:07:36 UTC (rev 128)
+@@ -19,7 +19,7 @@
+ Trace: &amp;println('8 =&gt; val: 8') at line 8
+ 9 =&gt; val: 9
+ Trace: &amp;println('9 =&gt; val: 9') at line 8
+-Trace: &amp;lambda(&amp;closure10132325, $start =&gt; 50, $stop =&gt; 60) = &amp;closure5253145 at line 22
++Trace: &amp;lambda(&amp;closure1677625, $start =&gt; 50, $stop =&gt; 60) = &amp;closure10132325 at line 22
+ Testing out range stuff: 0 =&gt; 50
+ Trace: &amp;println('Testing out range stuff: 0 =&gt; 50') at line 24
+ Testing out range stuff: 1 =&gt; 51
+
+Modified: sleep/tests/output/fork.sl
+===================================================================
+--- sleep/tests/output/fork.sl	2006-09-30 08:10:11 UTC (rev 127)
++++ sleep/tests/output/fork.sl	2006-10-02 01:07:36 UTC (rev 128)
+@@ -2,5 +2,5 @@
+ From fork_me: this is a global variable in the closure script
+ Main script: this is a global variable in the main script
+ Main script: 4
+-Forked: 1
+-Main script: 5
++Forked: 5
++Main script: 6
+
+Added: sleep/tests/output/fork2.sl
+===================================================================
+--- sleep/tests/output/fork2.sl	2006-09-30 08:10:11 UTC (rev 127)
++++ sleep/tests/output/fork2.sl	2006-10-02 01:07:36 UTC (rev 128)
+@@ -0,0 +1,10 @@
++$x is 1 from &amp;function
++$x is 2 from &amp;function
++$x is 3 from &amp;function
++$x is 4 from &amp;function
++Coroutine start
++Return value in main is: checkpoint A
++After checkpoint a and $z is 33
++Return value within fork is: checkpoint B
++After checkpoint b and $z is 34
++Return value in main is: done: 34
+
+Modified: sleep/tests/output/nparams.sl
+===================================================================
+--- sleep/tests/output/nparams.sl	2006-09-30 08:10:11 UTC (rev 127)
++++ sleep/tests/output/nparams.sl	2006-10-02 01:07:36 UTC (rev 128)
+@@ -41,7 +41,7 @@
+ Trace: &amp;println('Test 5 has been called, executing action:') at line 51
+ The passed in closure has been called
+ Trace: &amp;println('The passed in closure has been called') at line 55
+-Trace: [&amp;closure10363227] at line 52
+-Trace: &amp;test5($action =&gt; &amp;closure10363227) at line 55
+-Trace: &amp;test5(action =&gt; &amp;closure10481832) - FAILED! at line 56
++Trace: [&amp;closure6961504] at line 52
++Trace: &amp;test5($action =&gt; &amp;closure6961504) at line 55
++Trace: &amp;test5(action =&gt; &amp;closure14470877) - FAILED! at line 56
+ Warning: unreachable named parameter: action at line 56
+
+Modified: sleep/tests/output/setf.sl
+===================================================================
+--- sleep/tests/output/setf.sl	2006-09-30 08:10:11 UTC (rev 127)
++++ sleep/tests/output/setf.sl	2006-10-02 01:07:36 UTC (rev 128)
+@@ -2,7 +2,7 @@
+ Warning: Attempted to call non-existent function &amp;foo at line 9
+ bar
+ Warning: &amp;setf: can not set function &amp;foo to a class java.lang.String at line 19
+-Warning: &amp;setf: invalid function name foo at line 20
++Warning: &amp;setf: invalid function name 'foo' at line 20
+ bar
+ bar
+ bar
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-09-30 08:10:11 UTC (rev 127)
++++ sleep/whatsnew.txt	2006-10-02 01:07:36 UTC (rev 128)
+@@ -17,6 +17,10 @@
+   value of a field in a Java class or object.
+ - added &amp;setf('&amp;function', { closure }) for setting a named closure (i.e. a 
+   subroutine).
++- closure this scope is now associated directly with the closure itself and not
++  just its script environment.  the implication of this is passing a closure
++  to a fork will carry the closure this scope with it as well (and also the
++  local scope in the case of a partially executed coroutine).
+ 
+ 2.1-beta 5  (17 Sept 06)
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	
+	<LI>Next message: <A HREF="000111.html">[Sleep-svn] r129 - in sleep: . src/sleep/bridges tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#110">[ date ]</a>
+              <a href="thread.html#110">[ thread ]</a>
+              <a href="subject.html#110">[ subject ]</a>
+              <a href="author.html#110">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

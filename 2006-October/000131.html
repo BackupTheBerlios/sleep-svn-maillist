@@ -1,0 +1,187 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r149 - in sleep: . src/sleep/bridges tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2006-October/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r149%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20tests%20tests/output&In-Reply-To=%3C200610292358.k9TNwlSt004770%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000130.html">
+   <LINK REL="Next"  HREF="000132.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r149 - in sleep: . src/sleep/bridges tests tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r149%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20tests%20tests/output&In-Reply-To=%3C200610292358.k9TNwlSt004770%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r149 - in sleep: . src/sleep/bridges tests tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Mon Oct 30 00:58:47 CET 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000130.html">[Sleep-svn] r148 - in sleep: . src/sleep/bridges tests tests/output
+</A></li>
+        <LI>Next message: <A HREF="000132.html">[Sleep-svn] r150 - in sleep: . docs src/sleep/runtime
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#131">[ date ]</a>
+              <a href="thread.html#131">[ thread ]</a>
+              <a href="subject.html#131">[ subject ]</a>
+              <a href="author.html#131">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2006-10-30 00:58:47 +0100 (Mon, 30 Oct 2006)
+New Revision: 149
+
+Added:
+   sleep/tests/output/putAll.sl
+   sleep/tests/putAll.sl
+Modified:
+   sleep/src/sleep/bridges/BasicUtilities.java
+   sleep/whatsnew.txt
+Log:
+Added a &amp;putAll function for populating hashes.
+
+
+
+Modified: sleep/src/sleep/bridges/BasicUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicUtilities.java	2006-10-29 23:38:48 UTC (rev 148)
++++ sleep/src/sleep/bridges/BasicUtilities.java	2006-10-29 23:58:47 UTC (rev 149)
+@@ -80,6 +80,8 @@
+         temp.put(&quot;&amp;cast&quot;,    f_cast);
+         temp.put(&quot;&amp;casti&quot;,   f_cast);
+ 
++        temp.put(&quot;&amp;putAll&quot;, this);
++
+         temp.put(&quot;&amp;addAll&quot;, this);
+         temp.put(&quot;&amp;removeAll&quot;, this);
+         temp.put(&quot;&amp;retainAll&quot;, this);
+@@ -955,6 +957,29 @@
+              return temp;
+           }
+        }
++       else if (n.equals(&quot;&amp;putAll&quot;))
++       {
++          if (value.getHash() != null)
++          {
++             Iterator keys   = BridgeUtilities.getIterator(l, i);
++             Iterator values = l.isEmpty() ? keys : BridgeUtilities.getIterator(l, i);
++
++             while (keys.hasNext())
++             {
++                Scalar blah = value.getHash().getAt((Scalar)keys.next());
++                if (values.hasNext())
++                {
++                   blah.setValue((Scalar)values.next());
++                }
++                else
++                {
++                   blah.setValue(SleepUtils.getEmptyScalar());
++                }
++             }
++          }
++
++          return value;
++       }
+        else if (n.equals(&quot;&amp;values&quot;)) // &amp;values(%hash)
+        {
+           if (value.getHash() != null)
+
+Added: sleep/tests/output/putAll.sl
+===================================================================
+--- sleep/tests/output/putAll.sl	2006-10-29 23:38:48 UTC (rev 148)
++++ sleep/tests/output/putAll.sl	2006-10-29 23:58:47 UTC (rev 149)
+@@ -0,0 +1,6 @@
++%hash is now: %(d =&gt; 'dog', aa =&gt; 'appreciative ardvark', a =&gt; 'apple', c =&gt; 'cat', b =&gt; 'boy', x =&gt; 'xenophobe')
++%hash2 is now: %(d =&gt; 'dog', a =&gt; 'apple', aa =&gt; 'appreciative ardvark', c =&gt; 'cat', b =&gt; 'boy', x =&gt; 'xenophobe')
++%hash2 is now: %()
++%hash2 is now: %(d =&gt; 1, a =&gt; 1, aa =&gt; 1, c =&gt; 1, b =&gt; 1, x =&gt; 1)
++%hash2 is now: %(d =&gt; 1, a =&gt; 1, aa =&gt; 1, c =&gt; 1, 2 =&gt; 3, 0 =&gt; 1, 4 =&gt; 5, 8 =&gt; 9, b =&gt; 1, 6 =&gt; 7, x =&gt; 1)
++%hash2 is now: %()
+
+Added: sleep/tests/putAll.sl
+===================================================================
+--- sleep/tests/putAll.sl	2006-10-29 23:38:48 UTC (rev 148)
++++ sleep/tests/putAll.sl	2006-10-29 23:58:47 UTC (rev 149)
+@@ -0,0 +1,35 @@
++#
++# a test of the putAll function...
++#
++
++# initialize a hash?
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">+ at a</A> = @(&quot;a&quot;, &quot;apple&quot;, &quot;b&quot;, &quot;boy&quot;, &quot;c&quot;, &quot;cat&quot;, &quot;d&quot;, &quot;dog&quot;, &quot;x&quot;, &quot;xenophobe&quot;, &quot;aa&quot;, &quot;appreciative ardvark&quot;);
++putAll(%hash, @a);
++
++println(&quot;%hash is now: &quot; . %hash);
++
++# some easy way to copy a hash?
++putAll(%hash2, keys(%hash), values(%hash));
++println(&quot;%hash2 is now: &quot; . %hash2);
++
++# some easy way to clear a hash... 
++putAll(%hash2, keys(%hash2), { return $null; });
++println(&quot;%hash2 is now: &quot; . %hash2);
++
++# some easy way to set all values to something else...
++putAll(%hash2, keys(%hash), { return 1; });
++println(&quot;%hash2 is now: &quot; . %hash2);
++
++# one more test...
++putAll(%hash2, {
++   this('$x');
++   for ($x = 0; $x &lt; 10; $x++)
++   {
++      yield $x;
++   }
++});
++
++println(&quot;%hash2 is now: &quot; . %hash2);
++
++clear(%hash2);
++println(&quot;%hash2 is now: &quot; . %hash2);
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-10-29 23:38:48 UTC (rev 148)
++++ sleep/whatsnew.txt	2006-10-29 23:58:47 UTC (rev 149)
+@@ -24,6 +24,8 @@
+   to set the debug level of a script.
+ - one can now specify a $this =&gt; &amp;closure with &amp;lambda to force the new closure
+   to use the closure scope/environment of the specified &amp;closure
++- added a &amp;putAll(%hash, &amp;/@, [&amp;/@]) to populate the passed in hash from the
++  passed in iterator(s).
+ 
+ 2.1-beta 7  (15 Oct 06)
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000130.html">[Sleep-svn] r148 - in sleep: . src/sleep/bridges tests tests/output
+</A></li>
+	<LI>Next message: <A HREF="000132.html">[Sleep-svn] r150 - in sleep: . docs src/sleep/runtime
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#131">[ date ]</a>
+              <a href="thread.html#131">[ thread ]</a>
+              <a href="subject.html#131">[ subject ]</a>
+              <a href="author.html#131">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

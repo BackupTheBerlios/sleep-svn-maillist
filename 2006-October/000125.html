@@ -1,0 +1,205 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r143 - in sleep: . src/sleep/engine/atoms	src/sleep/parser tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2006-October/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r143%20-%20in%20sleep%3A%20.%20src/sleep/engine/atoms%0A%09src/sleep/parser%20tests%20tests/output&In-Reply-To=%3C200610291836.k9TIaD8a016664%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000124.html">
+   <LINK REL="Next"  HREF="000126.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r143 - in sleep: . src/sleep/engine/atoms	src/sleep/parser tests tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r143%20-%20in%20sleep%3A%20.%20src/sleep/engine/atoms%0A%09src/sleep/parser%20tests%20tests/output&In-Reply-To=%3C200610291836.k9TIaD8a016664%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r143 - in sleep: . src/sleep/engine/atoms	src/sleep/parser tests tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Sun Oct 29 19:36:13 CET 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000124.html">[Sleep-svn] r142 - in sleep: . src/sleep/bridges
+</A></li>
+        <LI>Next message: <A HREF="000126.html">[Sleep-svn] r144 - sleep
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#125">[ date ]</a>
+              <a href="thread.html#125">[ thread ]</a>
+              <a href="subject.html#125">[ subject ]</a>
+              <a href="author.html#125">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2006-10-29 19:36:13 +0100 (Sun, 29 Oct 2006)
+New Revision: 143
+
+Added:
+   sleep/tests/clmistake.sl
+   sleep/tests/output/clmistake.sl
+Modified:
+   sleep/src/sleep/engine/atoms/Assign.java
+   sleep/src/sleep/parser/CodeGenerator.java
+   sleep/tests/pep255.sl
+   sleep/whatsnew.txt
+Log:
+Added a stack corruption check for assignments.
+
+
+
+Modified: sleep/src/sleep/engine/atoms/Assign.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/Assign.java	2006-10-29 17:40:21 UTC (rev 142)
++++ sleep/src/sleep/engine/atoms/Assign.java	2006-10-29 18:36:13 UTC (rev 143)
+@@ -59,6 +59,11 @@
+    {
+       Scalar putv, value;
+ 
++      if (e.getCurrentFrame().size() &gt; 1)
++      {
++         throw new RuntimeException(&quot;assignment is corrupted, did you forget a semicolon?&quot;);
++      }
++
+       // evaluate our left hand side (assign to) value
+ 
+       e.CreateFrame();
+
+Modified: sleep/src/sleep/parser/CodeGenerator.java
+===================================================================
+--- sleep/src/sleep/parser/CodeGenerator.java	2006-10-29 17:40:21 UTC (rev 142)
++++ sleep/src/sleep/parser/CodeGenerator.java	2006-10-29 18:36:13 UTC (rev 143)
+@@ -813,13 +813,25 @@
+            // handle the assignment step please (Assign will push the RHS onto the stack)
+            backup();
+ 
+-           atom = GeneratedSteps.CreateFrame(); /* overall create the frame please */
+-           add(atom, tokens[0]);
+-        
+-           parseBlock(new Token(strings[1] + &quot; = &quot; + strings[2] + &quot;;&quot;, tokens[2].getHint()));
++           // assign:
++           // 1 = $var
++           // 2 = (expression) to assign, you know?!?
++
++           atom = GeneratedSteps.CreateFrame();
++           add(atom, tokens[2]);
++
++           parseIdea(tokens[2]);
++
++           backup();
++           parseIdea(tokens[1]);
++
++           atom = GeneratedSteps.Assign(restore());
++           add(atom, tokens[2]);
++
++           // end assign...
+            
+            // push $null onto the current frame as well...
+-           add(GeneratedSteps.SValue(SleepUtils.getEmptyScalar()), tokens[2]);
++           add(GeneratedSteps.SValue(SleepUtils.getEmptyScalar()), tokens[2]); // for comparisons sake
+ 
+            a = restore();
+ 
+
+Added: sleep/tests/clmistake.sl
+===================================================================
+--- sleep/tests/clmistake.sl	2006-10-29 17:40:21 UTC (rev 142)
++++ sleep/tests/clmistake.sl	2006-10-29 18:36:13 UTC (rev 143)
+@@ -0,0 +1,27 @@
++#
++# most common problem with closures... people forgetting to put a damned
++# semicolon after the literal form!!!
++#
++
++debug(7);
++global('$func');
++
++eval('
++   #
++   #
++   $func = { println(&quot;foo!&quot;); }
++   [$func];
++');
++
++sub bar
++{
++   println(&quot;bar!&quot;);
++}
++
++eval('
++   #
++   #
++   #
++   $func = { println(&quot;foo!&quot;); }
++   bar();
++');
+
+Added: sleep/tests/output/clmistake.sl
+===================================================================
+--- sleep/tests/output/clmistake.sl	2006-10-29 17:40:21 UTC (rev 142)
++++ sleep/tests/output/clmistake.sl	2006-10-29 18:36:13 UTC (rev 143)
+@@ -0,0 +1,4 @@
++Warning: Attempted to call a non-static method on a null reference at line 3
++Warning: assignment is corrupted, did you forget a semicolon? at line 3
++bar!
++Warning: assignment is corrupted, did you forget a semicolon? at line 4
+
+Modified: sleep/tests/pep255.sl
+===================================================================
+--- sleep/tests/pep255.sl	2006-10-29 17:40:21 UTC (rev 142)
++++ sleep/tests/pep255.sl	2006-10-29 18:36:13 UTC (rev 143)
+@@ -12,7 +12,6 @@
+       while $x (inorder([$1 left]))
+       {
+          yield $x;
+-         local('$x');
+       }
+ 
+       yield [$1 label];
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-10-29 17:40:21 UTC (rev 142)
++++ sleep/whatsnew.txt	2006-10-29 18:36:13 UTC (rev 143)
+@@ -5,8 +5,10 @@
+   &quot;bigger&quot; than a normal java integer).  
+ - fixed a parser ambiguity with hash literals i.e. %(...) and arithmetic
+   consisting of ... % (...).  both now work as they should.
+-- added a method to BridgeUtilities to extract all named parameters from an
+-  argument stack.
++- fixed assignment loops creating an extra non-needed stack frame
++- added a sanity check to the assignment step, checks for a &quot;corrupted&quot;
++  assignment stack, most commonly caused by forgetting to terminate the 
++  assigned expression with a semicolon.
+ 
+ 2.1-beta 7  (15 Oct 06)
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000124.html">[Sleep-svn] r142 - in sleep: . src/sleep/bridges
+</A></li>
+	<LI>Next message: <A HREF="000126.html">[Sleep-svn] r144 - sleep
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#125">[ date ]</a>
+              <a href="thread.html#125">[ thread ]</a>
+              <a href="subject.html#125">[ subject ]</a>
+              <a href="author.html#125">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

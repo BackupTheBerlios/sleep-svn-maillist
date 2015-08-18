@@ -1,0 +1,263 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r239 - in sleep: . src/sleep/bridges	src/sleep/engine/atoms src/sleep/parser tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2007-April/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r239%20-%20in%20sleep%3A%20.%20src/sleep/bridges%0A%09src/sleep/engine/atoms%20src/sleep/parser%20tests%20tests/output&In-Reply-To=%3C200704060345.l363jD3l025785%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000217.html">
+   <LINK REL="Next"  HREF="000219.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r239 - in sleep: . src/sleep/bridges	src/sleep/engine/atoms src/sleep/parser tests tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r239%20-%20in%20sleep%3A%20.%20src/sleep/bridges%0A%09src/sleep/engine/atoms%20src/sleep/parser%20tests%20tests/output&In-Reply-To=%3C200704060345.l363jD3l025785%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r239 - in sleep: . src/sleep/bridges	src/sleep/engine/atoms src/sleep/parser tests tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Fri Apr  6 05:45:13 CEST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000217.html">[Sleep-svn] r238 - in sleep: . src/sleep/runtime
+</A></li>
+        <LI>Next message: <A HREF="000219.html">[Sleep-svn] r240 - sleep/src/sleep/engine
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#218">[ date ]</a>
+              <a href="thread.html#218">[ thread ]</a>
+              <a href="subject.html#218">[ subject ]</a>
+              <a href="author.html#218">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2007-04-06 05:45:10 +0200 (Fri, 06 Apr 2007)
+New Revision: 239
+
+Added:
+   sleep/tests/assert.sl
+   sleep/tests/output/assert.sl
+Modified:
+   sleep/src/sleep/bridges/BasicUtilities.java
+   sleep/src/sleep/engine/atoms/Decide.java
+   sleep/src/sleep/parser/Checkers.java
+   sleep/src/sleep/parser/CodeGenerator.java
+   sleep/src/sleep/parser/ParserConstants.java
+   sleep/src/sleep/parser/TokenParser.java
+   sleep/whatsnew.txt
+Log:
+added an assert command to the language. 
+
+
+
+Modified: sleep/src/sleep/bridges/BasicUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicUtilities.java	2007-04-06 02:31:55 UTC (rev 238)
++++ sleep/src/sleep/bridges/BasicUtilities.java	2007-04-06 03:45:10 UTC (rev 239)
+@@ -1090,6 +1090,10 @@
+        else if (n.equals(&quot;&amp;exit&quot;))
+        {
+           i.getScriptEnvironment().flagReturn(null, ScriptEnvironment.FLOW_CONTROL_THROW); /* a null throw will exit the interpreter */
++          if (!SleepUtils.isEmptyScalar(value))
++          {
++             throw new RuntimeException(value.toString());
++          }
+        }
+        else if (n.equals(&quot;&amp;setField&quot;))
+        {
+
+Modified: sleep/src/sleep/engine/atoms/Decide.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/Decide.java	2007-04-06 02:31:55 UTC (rev 238)
++++ sleep/src/sleep/engine/atoms/Decide.java	2007-04-06 03:45:10 UTC (rev 239)
+@@ -81,7 +81,7 @@
+    {
+       if (start.check(e))
+       {
+-          iftrue.evaluate(e);
++          if (iftrue != null) { iftrue.evaluate(e); }
+       }
+       else if (iffalse != null)
+       {
+
+Modified: sleep/src/sleep/parser/Checkers.java
+===================================================================
+--- sleep/src/sleep/parser/Checkers.java	2007-04-06 02:31:55 UTC (rev 238)
++++ sleep/src/sleep/parser/Checkers.java	2007-04-06 03:45:10 UTC (rev 239)
+@@ -60,6 +60,7 @@
+       keywords.put(&quot;throw&quot;,    Boolean.TRUE);
+       keywords.put(&quot;try&quot;,      Boolean.TRUE);
+       keywords.put(&quot;catch&quot;,    Boolean.TRUE);
++      keywords.put(&quot;assert&quot;,   Boolean.TRUE);
+    }
+ 
+    public static boolean isIfStatement(String a, String b, String c)
+@@ -244,6 +245,11 @@
+        return (a.equals(&quot;foreach&quot;) &amp;&amp; isVariable(b) &amp;&amp; c.equals(&quot;=&gt;&quot;) &amp;&amp; isVariable(d) &amp;&amp; isExpression(e) &amp;&amp; isBlock(f));
+    }
+ 
++   public static final boolean isAssert (String temp)
++   {
++       return (temp.equals(&quot;assert&quot;));
++   }
++
+    public static final boolean isReturn (String temp)
+    {
+        // halt and done are kind of jIRC related... when you write the scripting language you
+
+Modified: sleep/src/sleep/parser/CodeGenerator.java
+===================================================================
+--- sleep/src/sleep/parser/CodeGenerator.java	2007-04-06 02:31:55 UTC (rev 238)
++++ sleep/src/sleep/parser/CodeGenerator.java	2007-04-06 03:45:10 UTC (rev 239)
+@@ -1078,6 +1078,28 @@
+               }
+            }
+            break;           
++         case EXPR_ASSERT:
++           if (tokens.length == 1)
++           {
++              parser.reportError(&quot;Assertion can't be empty!&quot;, tokens[0]);
++              return;
++           }
++
++           backup();
++              atom = GeneratedSteps.CreateFrame();
++              add(atom, tokens[0]);
++
++              ascalar = SleepUtils.getScalar(&quot;assertion failed&quot;);
++              atom    = GeneratedSteps.SValue(ascalar);
++              add(atom, tokens[0]);
++
++              atom = GeneratedSteps.Call(&quot;&amp;exit&quot;);
++              add(atom, tokens[0]);
++           b = restore();
++
++           atom = GeneratedSteps.Decide(parsePredicate(tokens[1]), null, b);
++           add(atom, tokens[1]);
++           break;
+          case EXPR_RETURN:                     // implemented
+            atom = GeneratedSteps.CreateFrame();
+            add(atom, tokens[0]);
+
+Modified: sleep/src/sleep/parser/ParserConstants.java
+===================================================================
+--- sleep/src/sleep/parser/ParserConstants.java	2007-04-06 02:31:55 UTC (rev 238)
++++ sleep/src/sleep/parser/ParserConstants.java	2007-04-06 03:45:10 UTC (rev 239)
+@@ -22,6 +22,8 @@
+    public static final int EXPR_BIND_PRED       = 504;
+    public static final int EXPR_BIND_FILTER     = 505;
+    public static final int EXPR_EVAL_STRING     = 506; // used for `backtick` strings that do something cool :)
++
++   public static final int EXPR_ASSERT          = 507; // oooh ass hurt... eer assert.
+  
+    public static final int IDEA_EXPR            = 601;
+    public static final int IDEA_OPER            = 603;
+
+Modified: sleep/src/sleep/parser/TokenParser.java
+===================================================================
+--- sleep/src/sleep/parser/TokenParser.java	2007-04-06 02:31:55 UTC (rev 238)
++++ sleep/src/sleep/parser/TokenParser.java	2007-04-06 03:45:10 UTC (rev 239)
+@@ -568,9 +568,16 @@
+             x += 2;
+          }
+          // a return statement
+-         else if (Checkers.isReturn(strings[x]))
++         else if (Checkers.isReturn(strings[x]) || Checkers.isAssert(strings[x]))
+          {
+-            myToken.setType(EXPR_RETURN);
++            if (Checkers.isAssert(strings[x]))
++            {
++               myToken.setType(EXPR_ASSERT);
++            }
++            else
++            {
++               myToken.setType(EXPR_RETURN);
++            }
+             myToken.add(tokens[x]);
+            
+             x++;
+
+Added: sleep/tests/assert.sl
+===================================================================
+--- sleep/tests/assert.sl	2007-04-06 02:31:55 UTC (rev 238)
++++ sleep/tests/assert.sl	2007-04-06 03:45:10 UTC (rev 239)
+@@ -0,0 +1,14 @@
++#
++# Sleep script that tests recursion.
++# Computes the factorial of a number.
++#
++
++debug(15);
++
++sub fact
++{
++   assert $1 &gt;= 0;
++   return $1 * fact($1 - 1);
++}
++
++printf(&quot;fact(6) is: &quot; . fact(6));
+
+Added: sleep/tests/output/assert.sl
+===================================================================
+--- sleep/tests/output/assert.sl	2007-04-06 02:31:55 UTC (rev 238)
++++ sleep/tests/output/assert.sl	2007-04-06 03:45:10 UTC (rev 239)
+@@ -0,0 +1,10 @@
++Trace: &amp;exit('assertion failed') - FAILED! at assert.sl:10
++Warning: assertion failed at assert.sl:10
++Trace: &amp;fact(-1) - FAILED! at assert.sl:11
++Trace: &amp;fact(0) - FAILED! at assert.sl:11
++Trace: &amp;fact(1) - FAILED! at assert.sl:11
++Trace: &amp;fact(2) - FAILED! at assert.sl:11
++Trace: &amp;fact(3) - FAILED! at assert.sl:11
++Trace: &amp;fact(4) - FAILED! at assert.sl:11
++Trace: &amp;fact(5) - FAILED! at assert.sl:11
++Trace: &amp;fact(6) - FAILED! at assert.sl:14
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2007-04-06 02:31:55 UTC (rev 238)
++++ sleep/whatsnew.txt	2007-04-06 03:45:10 UTC (rev 239)
+@@ -10,6 +10,13 @@
+ - the outer most frame of execution for running a Sleep script now enjoys
+   the same thread safety/synrchronization that the rest of the Sleep
+   functionality adheres to.
++- exit() function now allows an optional string parameter which will be 
++  reported to the user as a runtime warning (usually an indicator of why
++  the script chose to exit?)
++- added an assert command.  assert takes a predicate expression as a 
++  parameter.  if the predicate expression does not evaluate to true then
++  the currently running script will exit with the message &quot;assertion
++  failed&quot;.
+ 
+ 2.1-beta 14  (24 Mar 07)
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000217.html">[Sleep-svn] r238 - in sleep: . src/sleep/runtime
+</A></li>
+	<LI>Next message: <A HREF="000219.html">[Sleep-svn] r240 - sleep/src/sleep/engine
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#218">[ date ]</a>
+              <a href="thread.html#218">[ thread ]</a>
+              <a href="subject.html#218">[ subject ]</a>
+              <a href="author.html#218">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

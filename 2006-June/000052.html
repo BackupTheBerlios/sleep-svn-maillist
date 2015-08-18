@@ -1,0 +1,105 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r70 - in sleep: . src/sleep/runtime
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2006-June/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r70%20-%20in%20sleep%3A%20.%20src/sleep/runtime&In-Reply-To=%3C200606160231.k5G2VXK5019218%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000051.html">
+   <LINK REL="Next"  HREF="000053.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r70 - in sleep: . src/sleep/runtime</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r70%20-%20in%20sleep%3A%20.%20src/sleep/runtime&In-Reply-To=%3C200606160231.k5G2VXK5019218%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r70 - in sleep: . src/sleep/runtime">rsmudge at berlios.de
+       </A><BR>
+    <I>Fri Jun 16 04:31:33 CEST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000051.html">[Sleep-svn] r69 - in sleep/docs: . images
+</A></li>
+        <LI>Next message: <A HREF="000053.html">[Sleep-svn] r71 - in sleep: . src/sleep/bridges tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#52">[ date ]</a>
+              <a href="thread.html#52">[ thread ]</a>
+              <a href="subject.html#52">[ subject ]</a>
+              <a href="author.html#52">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2006-06-16 04:31:30 +0200 (Fri, 16 Jun 2006)
+New Revision: 70
+
+Modified:
+   sleep/build.xml
+   sleep/src/sleep/runtime/SleepUtils.java
+Log:
+Oops, forgot to update date/release var.
+
+
+
+Modified: sleep/build.xml
+===================================================================
+--- sleep/build.xml	2006-06-16 01:49:56 UTC (rev 69)
++++ sleep/build.xml	2006-06-16 02:31:30 UTC (rev 70)
+@@ -16,7 +16,7 @@
+            destdir=&quot;${project.build}&quot;
+            nowarn=&quot;yes&quot;
+            depend=&quot;yes&quot;
+-           debug=&quot;true&quot;
++           debug=&quot;false&quot;
+            optimize=&quot;yes&quot;
+     &gt;
+     &lt;/javac&gt;
+
+Modified: sleep/src/sleep/runtime/SleepUtils.java
+===================================================================
+--- sleep/src/sleep/runtime/SleepUtils.java	2006-06-16 01:49:56 UTC (rev 69)
++++ sleep/src/sleep/runtime/SleepUtils.java	2006-06-16 02:31:30 UTC (rev 70)
+@@ -49,10 +49,10 @@
+ public class SleepUtils
+ {
+    /** A date stamp of this Sleep release in YYYYMMDD format */
+-   public static final int    SLEEP_RELEASE = 20050720;
++   public static final int    SLEEP_RELEASE = 20060616;
+ 
+    /** A string description of this Sleep release */
+-   public static final String SLEEP_VERSION = &quot;Sleep 2.0&quot;;
++   public static final String SLEEP_VERSION = &quot;Sleep 2.1&quot;;
+ 
+    /** registers &quot;keyword&quot; as a keyword with the parser.  This is a necessity if you have extra non standard
+      bridges in sleep */
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000051.html">[Sleep-svn] r69 - in sleep/docs: . images
+</A></li>
+	<LI>Next message: <A HREF="000053.html">[Sleep-svn] r71 - in sleep: . src/sleep/bridges tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#52">[ date ]</a>
+              <a href="thread.html#52">[ thread ]</a>
+              <a href="subject.html#52">[ subject ]</a>
+              <a href="author.html#52">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

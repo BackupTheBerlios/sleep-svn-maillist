@@ -1,0 +1,258 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r129 - in sleep: . src/sleep/bridges tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2006-October/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r129%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20tests/output&In-Reply-To=%3C200610020148.k921mkEl008435%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000110.html">
+   <LINK REL="Next"  HREF="000112.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r129 - in sleep: . src/sleep/bridges tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r129%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20tests/output&In-Reply-To=%3C200610020148.k921mkEl008435%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r129 - in sleep: . src/sleep/bridges tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Mon Oct  2 03:48:46 CEST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000110.html">[Sleep-svn] r128 - in sleep: . src/sleep/bridges src/sleep/runtime	tests tests/output
+</A></li>
+        <LI>Next message: <A HREF="000112.html">[Sleep-svn] r130 - in sleep/tests: . output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#111">[ date ]</a>
+              <a href="thread.html#111">[ thread ]</a>
+              <a href="subject.html#111">[ subject ]</a>
+              <a href="author.html#111">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2006-10-02 03:48:45 +0200 (Mon, 02 Oct 2006)
+New Revision: 129
+
+Modified:
+   sleep/src/sleep/bridges/BasicUtilities.java
+   sleep/tests/output/fe_generatordb.sl
+   sleep/tests/output/nparams.sl
+   sleep/tests/output/trace.sl
+   sleep/tests/output/wrong.sl
+   sleep/whatsnew.txt
+Log:
+added semaphores to sleep
+
+
+
+Modified: sleep/src/sleep/bridges/BasicUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicUtilities.java	2006-10-02 01:07:36 UTC (rev 128)
++++ sleep/src/sleep/bridges/BasicUtilities.java	2006-10-02 01:48:45 UTC (rev 129)
+@@ -119,12 +119,41 @@
+         temp.put(&quot;&amp;eval&quot;,     new eval());
+         temp.put(&quot;&amp;expr&quot;,     new expr());
+ 
++        // synchronization primitives...
++        SyncPrimitives sync = new SyncPrimitives();
++        temp.put(&quot;&amp;semaphore&quot;, sync);
++        temp.put(&quot;&amp;acquire&quot;,   sync);
++        temp.put(&quot;&amp;release&quot;,   sync);
+ 
+         temp.put(&quot;=&gt;&quot;,       new HashKeyValueOp());
+ 
+         return true;
+     }
+ 
++    private static class SyncPrimitives implements Function 
++    {
++       public Scalar evaluate(String n, ScriptInstance si, Stack l)
++       {
++          if (n.equals(&quot;&amp;semaphore&quot;))
++          {
++             int initial = BridgeUtilities.getInt(l, 1);
++             return SleepUtils.getScalar(new Semaphore(initial));
++          }
++          else if (n.equals(&quot;&amp;acquire&quot;))
++          {
++             Semaphore sem = (Semaphore)BridgeUtilities.getObject(l);
++             sem.P();
++          }
++          else if (n.equals(&quot;&amp;release&quot;))
++          {
++             Semaphore sem = (Semaphore)BridgeUtilities.getObject(l);
++             sem.V();
++          }
++
++          return SleepUtils.getEmptyScalar();
++       }
++    }
++
+     private static class HashKeyValueOp implements Operator
+     {
+         public Scalar operate(String name, ScriptInstance script, Stack locals)
+
+Modified: sleep/tests/output/fe_generatordb.sl
+===================================================================
+--- sleep/tests/output/fe_generatordb.sl	2006-10-02 01:07:36 UTC (rev 128)
++++ sleep/tests/output/fe_generatordb.sl	2006-10-02 01:48:45 UTC (rev 129)
+@@ -19,7 +19,7 @@
+ Trace: &amp;println('8 =&gt; val: 8') at line 8
+ 9 =&gt; val: 9
+ Trace: &amp;println('9 =&gt; val: 9') at line 8
+-Trace: &amp;lambda(&amp;closure1677625, $start =&gt; 50, $stop =&gt; 60) = &amp;closure10132325 at line 22
++Trace: &amp;lambda(&amp;closure9087808, $start =&gt; 50, $stop =&gt; 60) = &amp;closure15794899 at line 22
+ Testing out range stuff: 0 =&gt; 50
+ Trace: &amp;println('Testing out range stuff: 0 =&gt; 50') at line 24
+ Testing out range stuff: 1 =&gt; 51
+@@ -41,7 +41,7 @@
+ Testing out range stuff: 9 =&gt; 59
+ Trace: &amp;println('Testing out range stuff: 9 =&gt; 59') at line 24
+ Trace: &amp;this('$start $stop') at line 29
+-Trace: &amp;_range2(70, 80) = &amp;closure7907968 at line 42
++Trace: &amp;_range2(70, 80) = &amp;closure2355643 at line 42
+ My third test: 0 =&gt; 70
+ Trace: &amp;println('My third test: 0 =&gt; 70') at line 44
+ My third test: 1 =&gt; 71
+
+Modified: sleep/tests/output/nparams.sl
+===================================================================
+--- sleep/tests/output/nparams.sl	2006-10-02 01:07:36 UTC (rev 128)
++++ sleep/tests/output/nparams.sl	2006-10-02 01:48:45 UTC (rev 129)
+@@ -41,7 +41,7 @@
+ Trace: &amp;println('Test 5 has been called, executing action:') at line 51
+ The passed in closure has been called
+ Trace: &amp;println('The passed in closure has been called') at line 55
+-Trace: [&amp;closure6961504] at line 52
+-Trace: &amp;test5($action =&gt; &amp;closure6961504) at line 55
+-Trace: &amp;test5(action =&gt; &amp;closure14470877) - FAILED! at line 56
++Trace: [&amp;closure10481832] at line 52
++Trace: &amp;test5($action =&gt; &amp;closure10481832) at line 55
++Trace: &amp;test5(action =&gt; &amp;closure7388808) - FAILED! at line 56
+ Warning: unreachable named parameter: action at line 56
+
+Modified: sleep/tests/output/trace.sl
+===================================================================
+--- sleep/tests/output/trace.sl	2006-10-02 01:07:36 UTC (rev 128)
++++ sleep/tests/output/trace.sl	2006-10-02 01:48:45 UTC (rev 129)
+@@ -1,13 +1,13 @@
+ this is a test
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 94257f</A> println: 'this is a test'] at line 6
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at c7980c</A> println: 'this is a test'] at line 6
+ Trace: [java.lang.Math pow: 3, 4] = 81.0 at line 7
+ 81.0
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 94257f</A> println: 81.0] at line 7
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at c7980c</A> println: 81.0] at line 7
+ Trace: [java.lang.Math pow: 3, 5] = 243.0 at line 8
+ 243.0
+ Trace: &amp;println(243.0) at line 8
+ testing again...
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 94257f</A> println: 'testing again...'] at line 10
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at c7980c</A> println: 'testing again...'] at line 10
+ Trace: [sleep.runtime.SleepUtils getListFromArray: @('a', 'b', 'c')] = [a, b, c] at line 12
+ Trace: [new java.util.LinkedList: [a, b, c]] = [a, b, c] at line 12
+ Warning: variable '$list' not declared at line 12
+
+Modified: sleep/tests/output/wrong.sl
+===================================================================
+--- sleep/tests/output/wrong.sl	2006-10-02 01:07:36 UTC (rev 128)
++++ sleep/tests/output/wrong.sl	2006-10-02 01:48:45 UTC (rev 129)
+@@ -1,32 +1,32 @@
+ Trace: [java.lang.Math pow: 3, 4] = 81.0 at line 6
+ 81.0
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at a4488</A> println: 81.0] at line 6
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 199939</A> println: 81.0] at line 6
+ Trace: &amp;casti(1, 'z') = true at line 9
+ true
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at a4488</A> println: true] at line 9
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 199939</A> println: true] at line 9
+ Trace: &amp;casti(0, 'z') = false at line 10
+ false
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at a4488</A> println: false] at line 10
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 199939</A> println: false] at line 10
+ Trace: &amp;casti(1, 'd') = 1.0 at line 13
+ 1.0
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at a4488</A> println: 1.0] at line 13
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 199939</A> println: 1.0] at line 13
+ Trace: &amp;casti(1, 'b') = 1 at line 16
+ 1
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at a4488</A> println: 1] at line 16
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 199939</A> println: 1] at line 16
+ Trace: &amp;casti(100, 'f') = 100.0 at line 19
+ 100.0
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at a4488</A> println: 100.0] at line 19
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 199939</A> println: 100.0] at line 19
+ Trace: &amp;casti('b', 'c') = b at line 22
+ b
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at a4488</A> println: b] at line 22
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 199939</A> println: b] at line 22
+ Trace: &amp;casti(63, 'i') = 63 at line 25
+ 63
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at a4488</A> println: 63] at line 25
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 199939</A> println: 63] at line 25
+ this is a string y0
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at a4488</A> println: 'this is a string y0'] at line 28
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 199939</A> println: 'this is a string y0'] at line 28
+ Trace: [new java.lang.StringBuilder: 'test'] = test at line 31
+ test
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at a4488</A> println: test] at line 31
+-Trace: &amp;cast(@('a', 'b', 'c', 'd'), 'c') = [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">C at 1d98a</A> at line 34
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 199939</A> println: test] at line 31
++Trace: &amp;cast(@('a', 'b', 'c', 'd'), 'c') = [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">C at d33a6b</A> at line 34
+ abcd
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at a4488</A> println: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">C at 1d98a</A>] at line 34
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 199939</A> println: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">C at d33a6b</A>] at line 34
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-10-02 01:07:36 UTC (rev 128)
++++ sleep/whatsnew.txt	2006-10-02 01:48:45 UTC (rev 129)
+@@ -21,7 +21,17 @@
+   just its script environment.  the implication of this is passing a closure
+   to a fork will carry the closure this scope with it as well (and also the
+   local scope in the case of a partially executed coroutine).
++- added semaphore synchronization primitive to the sleep language:
+ 
++  # initialize a semaphore
++  $semaphore = semaphore([initial count]);
++
++  # acquire the semaphore
++  acquire($semaphore);
++
++  # release the semaphore
++  release($semaphore);
++
+ 2.1-beta 5  (17 Sept 06)
+ ===========
+ - fixed a bug with import [path] from: [jar] not working when a package.class
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000110.html">[Sleep-svn] r128 - in sleep: . src/sleep/bridges src/sleep/runtime	tests tests/output
+</A></li>
+	<LI>Next message: <A HREF="000112.html">[Sleep-svn] r130 - in sleep/tests: . output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#111">[ date ]</a>
+              <a href="thread.html#111">[ thread ]</a>
+              <a href="subject.html#111">[ subject ]</a>
+              <a href="author.html#111">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

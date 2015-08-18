@@ -1,0 +1,242 @@
+From rsmudge at mail.berlios.de  Fri Mar 20 15:51:44 2009
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Fri, 20 Mar 2009 15:51:44 +0100
+Subject: [Sleep-svn] r442 - in sleep: . src/sleep/bridges src/sleep/runtime
+	tests tests/output
+Message-ID: <200903201451.n2KEpimU023532@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2009-03-20 15:51:43 +0100 (Fri, 20 Mar 2009)
+New Revision: 442
+
+Added:
+   sleep/tests/forksubs.sl
+   sleep/tests/output/forksubs.sl
+Modified:
+   sleep/build.xml
+   sleep/src/sleep/bridges/Semaphore.java
+   sleep/src/sleep/runtime/ScriptInstance.java
+   sleep/tests/output/fork.sl
+   sleep/whatsnew.txt
+Log:
+a few changes, fun for the whole family.
+
+
+
+Modified: sleep/build.xml
+===================================================================
+--- sleep/build.xml	2008-09-25 22:36:28 UTC (rev 441)
++++ sleep/build.xml	2009-03-20 14:51:43 UTC (rev 442)
+@@ -16,7 +16,7 @@
+            destdir="${project.build}"
+            nowarn="yes"
+            depend="yes"
+-           debug="false"
++           debug="true"
+            source="1.4"
+            target="1.4"
+            optimize="yes"
+
+Modified: sleep/src/sleep/bridges/Semaphore.java
+===================================================================
+--- sleep/src/sleep/bridges/Semaphore.java	2008-09-25 22:36:28 UTC (rev 441)
++++ sleep/src/sleep/bridges/Semaphore.java	2009-03-20 14:51:43 UTC (rev 442)
+@@ -29,7 +29,7 @@
+          catch (InterruptedException ex)
+          { 
+             ex.printStackTrace();
+-            notify();
++            notifyAll();
+          }
+       }
+    }
+@@ -46,7 +46,7 @@
+       synchronized (this)
+       {
+          count++;
+-         notify();
++         notifyAll();
+       }
+    }
+ 
+
+Modified: sleep/src/sleep/runtime/ScriptInstance.java
+===================================================================
+--- sleep/src/sleep/runtime/ScriptInstance.java	2008-09-25 22:36:28 UTC (rev 441)
++++ sleep/src/sleep/runtime/ScriptInstance.java	2009-03-20 14:51:43 UTC (rev 442)
+@@ -436,7 +436,28 @@
+         The idea is to create a fork that shares the same environment as this script instance. */
+     public ScriptInstance fork()
+     {
+-        ScriptInstance si = new ScriptInstance(variables.getGlobalVariables().createInternalVariableContainer(), environment.getEnvironment());
++        Hashtable oldEnv = environment.getEnvironment();
++        Hashtable newEnv = new Hashtable(  (oldEnv.size() * 2) - 1  );
++
++        ScriptInstance si = new ScriptInstance(variables.getGlobalVariables().createInternalVariableContainer(), newEnv);
++
++        /* reset the environment please */
++        Iterator i = oldEnv.entrySet().iterator();
++        while (i.hasNext())
++        {
++            Map.Entry temp = (Map.Entry)i.next();
++            if (temp.getKey().toString().charAt(0) == '&' && temp.getValue() instanceof SleepClosure)
++            {
++               SleepClosure closure = new SleepClosure(si, ((SleepClosure)temp.getValue()).getRunnableCode());
++               newEnv.put(temp.getKey(), closure);
++            }
++            else
++            { 
++               newEnv.put(temp.getKey(), temp.getValue());
++            }
++        }
++
++        /* set the other cool stuff pls */
+         si.setName(getName());
+         si.setDebugFlags(getDebugFlags());
+         si.watchers = watchers;
+
+Added: sleep/tests/forksubs.sl
+===================================================================
+--- sleep/tests/forksubs.sl	2008-09-25 22:36:28 UTC (rev 441)
++++ sleep/tests/forksubs.sl	2009-03-20 14:51:43 UTC (rev 442)
+@@ -0,0 +1,17 @@
++#
++# test out how fork relates to subroutines
++# 
++
++sub foo
++{
++   println("Hello World: $this");
++}
++
++sub bar
++{
++   assert &foo !is $closure : "looks like we're copying closures over, bad news!";
++   foo();
++   [$closure];
++}
++
++wait(fork(&bar, $closure => &foo));
+
+Modified: sleep/tests/output/fork.sl
+===================================================================
+--- sleep/tests/output/fork.sl	2008-09-25 22:36:28 UTC (rev 441)
++++ sleep/tests/output/fork.sl	2009-03-20 14:51:43 UTC (rev 442)
+@@ -2,5 +2,5 @@
+ From fork_me: this is a global variable in the closure script
+ Main script: this is a global variable in the main script
+ Main script: 4
+-Forked: 5
+-Main script: 6
++Forked: 1
++Main script: 5
+
+Added: sleep/tests/output/forksubs.sl
+===================================================================
+--- sleep/tests/output/forksubs.sl	2008-09-25 22:36:28 UTC (rev 441)
++++ sleep/tests/output/forksubs.sl	2009-03-20 14:51:43 UTC (rev 442)
+@@ -0,0 +1,2 @@
++Hello World: &closure[forksubs.sl:7]#3
++Hello World: &closure[forksubs.sl:7]#1
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2008-09-25 22:36:28 UTC (rev 441)
++++ sleep/whatsnew.txt	2009-03-20 14:51:43 UTC (rev 442)
+@@ -1,3 +1,12 @@
++2.1-release (5 Nov 08)   [update 4]
++===========
++- Sleep semaphores use notifyAll() instead of notify() to wake up threads.
++  Was experiencing deadlock on a multicore box due to the single woken 
++  thread waiting on something else and no other threads being awoken.
++- fork() now copies script environment from parent env and creates fresh 
++  copies of all named closures.  This prevents unsynchronized saved state and
++  closure scope variables from leaking into the forked environment.  
++
+ 2.1-release (25 Sept 08) [update 3]
+ ===========
+ - fixed a problem with setField not accessing fields declared in a parent
+
+
+
+From rsmudge at mail.berlios.de  Fri Mar 20 17:07:25 2009
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Fri, 20 Mar 2009 17:07:25 +0100
+Subject: [Sleep-svn] r443 - in sleep: . src/sleep/bridges
+Message-ID: <200903201607.n2KG7PK9030349@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2009-03-20 17:07:24 +0100 (Fri, 20 Mar 2009)
+New Revision: 443
+
+Modified:
+   sleep/src/sleep/bridges/BasicUtilities.java
+   sleep/whatsnew.txt
+Log:
+changes to the in operator
+
+
+Modified: sleep/src/sleep/bridges/BasicUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicUtilities.java	2009-03-20 14:51:43 UTC (rev 442)
++++ sleep/src/sleep/bridges/BasicUtilities.java	2009-03-20 16:07:24 UTC (rev 443)
+@@ -227,20 +227,30 @@
+        }
+        else if (predName.equals("in"))
+        {
+-          // $x in @(...)
+-          Iterator iter = BridgeUtilities.getIterator(terms, anInstance);
+-          Scalar   left = BridgeUtilities.getScalar(terms);
+-
+-          while (iter.hasNext())
++          Scalar temp = BridgeUtilities.getScalar(terms);
++ 
++          if (temp.getArray() != null)
+           {
+-             Scalar right = (Scalar)iter.next();
++             Iterator iter = temp.getArray().scalarIterator();
++             Scalar   left = BridgeUtilities.getScalar(terms);
+ 
+-             if (left.sameAs(right))
++             while (iter.hasNext())
+              {
+-                return true;
++                Scalar right = (Scalar)iter.next();
++
++                if (left.sameAs(right))
++                {          
++                   return true;
++                }             
+              }
++
++             return false;
+           }
+-
++          else if (temp.getHash() != null)
++          {
++             String key = BridgeUtilities.getString(terms, "");
++             return temp.getHash().getData().containsKey(key) && !SleepUtils.isEmptyScalar((Scalar)(temp.getHash().getData().get(key)));
++          }
+           return false;
+        }
+  
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2009-03-20 14:51:43 UTC (rev 442)
++++ sleep/whatsnew.txt	2009-03-20 16:07:24 UTC (rev 443)
+@@ -6,6 +6,11 @@
+ - fork() now copies script environment from parent env and creates fresh 
+   copies of all named closures.  This prevents unsynchronized saved state and
+   closure scope variables from leaking into the forked environment.  
++- overloaded in operator to check if a key is in a %hash in a read only way.
++  i.e. "x" in %hash.  Why does this matter?  Read-only operations on hashes
++  are thread safe.  %hash["unknownKey"] is a write operation when "unknownKey"
++  is not in the hash.  This is because Sleep adds "unknownKey" to the hash
++  with a value of $null.  In a multithreaded context this will corrupt you.
+ 
+ 2.1-release (25 Sept 08) [update 3]
+ ===========
+
+
+

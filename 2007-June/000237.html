@@ -1,0 +1,179 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r258 - in sleep: . docs src/sleep/bridges	src/sleep/console tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2007-June/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r258%20-%20in%20sleep%3A%20.%20docs%20src/sleep/bridges%0A%09src/sleep/console%20tests%20tests/output&In-Reply-To=%3C200706102202.l5AM2CwK019975%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000236.html">
+   <LINK REL="Next"  HREF="000238.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r258 - in sleep: . docs src/sleep/bridges	src/sleep/console tests tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r258%20-%20in%20sleep%3A%20.%20docs%20src/sleep/bridges%0A%09src/sleep/console%20tests%20tests/output&In-Reply-To=%3C200706102202.l5AM2CwK019975%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r258 - in sleep: . docs src/sleep/bridges	src/sleep/console tests tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Mon Jun 11 00:02:12 CEST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000236.html">[Sleep-svn] r257 - in sleep: . src/sleep/bridges tests tests/output
+</A></li>
+        <LI>Next message: <A HREF="000238.html">[Sleep-svn] r259 - in sleep: . src/sleep/bridges tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#237">[ date ]</a>
+              <a href="thread.html#237">[ thread ]</a>
+              <a href="subject.html#237">[ subject ]</a>
+              <a href="author.html#237">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2007-06-11 00:02:11 +0200 (Mon, 11 Jun 2007)
+New Revision: 258
+
+Added:
+   sleep/tests/output/sizehash.sl
+   sleep/tests/sizehash.sl
+Modified:
+   sleep/docs/console.txt
+   sleep/src/sleep/bridges/BasicUtilities.java
+   sleep/src/sleep/console/ConsoleImplementation.java
+   sleep/whatsnew.txt
+Log:
+enhanced the console and made size() work with hashes
+
+
+Modified: sleep/docs/console.txt
+===================================================================
+--- sleep/docs/console.txt	2007-06-10 21:47:37 UTC (rev 257)
++++ sleep/docs/console.txt	2007-06-10 22:02:11 UTC (rev 258)
+@@ -45,9 +45,10 @@
+ interact
+    Enters the console into interactive mode.  From here full blocks of sleep
+    code can be typed in.  Once one wants to evaluate the typed in code they
+-   simply type '.' and the code will be evaluated and executed.  Any syntax
+-   errors will be reported back.  Typing 'done' or Ctrl+D will effectively
+-   stop interactive mode.
++   simply type '.' and the code will be evaluated and executed.  Subsequent 
++   uses of '.' will repeat the previous code sequence.   Any syntax errors 
++   will be reported back.  Typing 'done' or Ctrl+D will effectively stop 
++   interactive mode.
+ 
+ list
+    Lists all of the currently loaded scripts
+
+Modified: sleep/src/sleep/bridges/BasicUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicUtilities.java	2007-06-10 21:47:37 UTC (rev 257)
++++ sleep/src/sleep/bridges/BasicUtilities.java	2007-06-10 22:02:11 UTC (rev 258)
+@@ -932,6 +932,10 @@
+        {
+           return SleepUtils.getScalar(value.getArray().size());
+        }
++       else if (n.equals(&quot;&amp;size&quot;) &amp;&amp; value.getHash() != null) // &amp;size(@array)
++       {
++          return SleepUtils.getScalar(value.getHash().keys().size());
++       }
+        else if (n.equals(&quot;&amp;clear&quot;))
+        {
+           if (value.getArray() != null)
+
+Modified: sleep/src/sleep/console/ConsoleImplementation.java
+===================================================================
+--- sleep/src/sleep/console/ConsoleImplementation.java	2007-06-10 21:47:37 UTC (rev 257)
++++ sleep/src/sleep/console/ConsoleImplementation.java	2007-06-10 22:02:11 UTC (rev 258)
+@@ -123,7 +123,8 @@
+        interact = false;
+ 
+        String input;
+-       StringBuffer code = new StringBuffer();
++       StringBuffer code   = new StringBuffer();
++       String       repeat = &quot;&quot;; 
+ 
+        while (true)
+        {
+@@ -140,8 +141,16 @@
+              }
+              else if (input.equals(&quot;.&quot;))
+              { 
+-                eval(code.toString(), code.toString());
+-                code = new StringBuffer();                                
++                if (code.length() == 0)
++                {
++                   eval(repeat, repeat);
++                }
++                else
++                {
++                   eval(code.toString(), code.toString());
++                   repeat = code.toString();
++                   code   = new StringBuffer();                                
++                }
+              }
+              else
+              {
+
+Added: sleep/tests/output/sizehash.sl
+===================================================================
+--- sleep/tests/output/sizehash.sl	2007-06-10 21:47:37 UTC (rev 257)
++++ sleep/tests/output/sizehash.sl	2007-06-10 22:02:11 UTC (rev 258)
+@@ -0,0 +1 @@
++Hash is: 3 elements
+
+Added: sleep/tests/sizehash.sl
+===================================================================
+--- sleep/tests/sizehash.sl	2007-06-10 21:47:37 UTC (rev 257)
++++ sleep/tests/sizehash.sl	2007-06-10 22:02:11 UTC (rev 258)
+@@ -0,0 +1,5 @@
++debug(7);
++
++global('%d');
++%d = %(a =&gt; &quot;apple&quot;, b =&gt; &quot;boy&quot;, c =&gt; &quot;cat&quot;);
++println(&quot;Hash is: &quot; . size(%d) . &quot; elements&quot;);
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2007-06-10 21:47:37 UTC (rev 257)
++++ sleep/whatsnew.txt	2007-06-10 22:02:11 UTC (rev 258)
+@@ -6,6 +6,9 @@
+ - added getIOHandle(InputStream, OutputStream) to SleepUtilities class
+ - registered cmp operator to prevent parser confusing it with a function
+ - hashes/arrays can now be passed as named parameters to closures
++- &amp;size now works with hashes
++- the '.' command in the console interact mode will not repeat the last
++  code sequence if no new code has been specified.
+ 
+ 2.1-beta 15  (25 Apr 07)
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000236.html">[Sleep-svn] r257 - in sleep: . src/sleep/bridges tests tests/output
+</A></li>
+	<LI>Next message: <A HREF="000238.html">[Sleep-svn] r259 - in sleep: . src/sleep/bridges tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#237">[ date ]</a>
+              <a href="thread.html#237">[ thread ]</a>
+              <a href="subject.html#237">[ subject ]</a>
+              <a href="author.html#237">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,260 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r183 - in sleep: . docs src/sleep/runtime
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2006-November/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r183%20-%20in%20sleep%3A%20.%20docs%20src/sleep/runtime&In-Reply-To=%3C200611210254.kAL2sdrm004007%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000164.html">
+   <LINK REL="Next"  HREF="000166.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r183 - in sleep: . docs src/sleep/runtime</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r183%20-%20in%20sleep%3A%20.%20docs%20src/sleep/runtime&In-Reply-To=%3C200611210254.kAL2sdrm004007%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r183 - in sleep: . docs src/sleep/runtime">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Tue Nov 21 03:54:39 CET 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000164.html">[Sleep-svn] r182 - in sleep: . src/sleep/bridges tests/output
+</A></li>
+        <LI>Next message: <A HREF="000166.html">[Sleep-svn] r184 - sleep/src/sleep/bridges
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#165">[ date ]</a>
+              <a href="thread.html#165">[ thread ]</a>
+              <a href="subject.html#165">[ subject ]</a>
+              <a href="author.html#165">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2006-11-21 03:54:38 +0100 (Tue, 21 Nov 2006)
+New Revision: 183
+
+Modified:
+   sleep/build.xml
+   sleep/docs/sleeplang.html
+   sleep/readme.txt
+   sleep/src/sleep/runtime/SleepUtils.java
+   sleep/whatsnew.txt
+Log:
+readying the sleep 2.1b10 release.
+
+
+
+Modified: sleep/build.xml
+===================================================================
+--- sleep/build.xml	2006-11-21 02:30:52 UTC (rev 182)
++++ sleep/build.xml	2006-11-21 02:54:38 UTC (rev 183)
+@@ -16,7 +16,7 @@
+            destdir=&quot;${project.build}&quot;
+            nowarn=&quot;yes&quot;
+            depend=&quot;yes&quot;
+-           debug=&quot;true&quot;
++           debug=&quot;false&quot;
+            source=&quot;1.4&quot;
+            target=&quot;1.4&quot;
+            optimize=&quot;yes&quot;
+
+Modified: sleep/docs/sleeplang.html
+===================================================================
+--- sleep/docs/sleeplang.html	2006-11-21 02:30:52 UTC (rev 182)
++++ sleep/docs/sleeplang.html	2006-11-21 02:54:38 UTC (rev 183)
+@@ -572,6 +572,16 @@
+    
+ &lt;p&gt;&lt;code&gt;$x--&lt;/code&gt; is equivalent to &lt;code&gt;$x = $x - 1&lt;/code&gt;;&lt;/p&gt;
+ 
++&lt;h3&gt;Assignment Operations&lt;/h3&gt;
++
++&lt;p&gt;Sleep has a special form of the assignment called an assignment operator.  This is essentially
++the combination of an operator and an assignment in one step. i.e.:&lt;/p&gt;
++
++&lt;code&gt;$x += 3;&lt;/code&gt;
++
++&lt;p&gt;The example above is equivalent to &lt;code&gt;$x = $x + 3;&lt;/code&gt;.  The following are valid assignment
++operations: &lt;code&gt;+=&lt;/code&gt;, &lt;code&gt;-=&lt;/code&gt;, &lt;code&gt;*=&lt;/code&gt;, &lt;code&gt;/=&lt;/code&gt;, &lt;code&gt;&amp;=&lt;/code&gt;, &lt;code&gt;|=&lt;/code&gt;, &lt;code&gt;^=&lt;/code&gt;, &lt;code&gt;&lt;&lt;=&lt;/code&gt;, &lt;code&gt;&gt;&gt;=&lt;/code&gt;, and &lt;code&gt;.=&lt;/code&gt;.&lt;/p&gt;
++
+ &lt;h2&gt;&lt;a name=&quot;5&quot;&gt;Subroutines&lt;/a&gt;&lt;/h2&gt;
+ 
+ &lt;p&gt;Subroutines in sleep are basically mini programs.  You can pass arguments to them and they can return values.&lt;/p&gt;
+@@ -760,6 +770,29 @@
+ &lt;P&gt;If the value on the right hand side of the = assignment is not an array, then the above will act exactly as if &lt;var&gt;$x&lt;/var&gt;, 
+ &lt;var&gt;$y&lt;/var&gt;, and &lt;var&gt;$z&lt;/var&gt; had been assigned to the specified value individually.&lt;/P&gt;
+ 
++&lt;p&gt;Assignment operations work with tuple assignment as well.  i.e.:&lt;/p&gt;
++
++&lt;code&gt;($x, $y, $z) += 3; # add 3 to $x, $y, and $z&lt;/code&gt;
++
++&lt;p&gt;You can also special a right hand side array with an assignment op.  In this case each value
++of the right hand side array will be applied to the corresponding value within the tuple:&lt;/p&gt;
++
++&lt;code&gt;($x, $y, $z) *= @(2, 3, 4); # $x = $x * 2; $y = $y * 3; etc..&lt;/code&gt;
++
++&lt;h4&gt;Expand Array&lt;/h4&gt;
++
++&lt;p&gt;Assignment operators used in conjunction with tuples have one special case.  This is the
++array expansion case.  When a single array is specified within the tuple then the array values
++are expanded within the tuple as if you had type &lt;code&gt;(@array[0], @array[1], ...)&lt;/code&gt;.  The
++rest of the rules for tuple assignment apply from this point out.  This has some neat implications.
++For example to add two arrays:&lt;/p&gt;
++
++&lt;pre&gt;@a = @(1, 2, 3);
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">+ at b</A> = @(4, 5, 6);
++(@a) += @b;&lt;/pre&gt;
++
++&lt;p&gt;The value of &lt;var&gt;@a&lt;/var&gt; is now: @(5, 7, 9).&lt;/p&gt;
++
+ &lt;h3&gt;Sorting&lt;/h3&gt;
+ 
+ &lt;p&gt;Sleep includes functions for sorting arrays.  You can sort arrays numerically (double or int variety), or alphabetically.  To 
+@@ -996,11 +1029,21 @@
+   &lt;td&gt;tab character&lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
++  &lt;td&gt;\u####&lt;/td&gt;
++  &lt;td&gt;16 bit unicode character i.e. &quot;\u0063&quot; is &quot;c&quot;&lt;/td&gt;
++ &lt;/tr&gt;
++ &lt;tr&gt;
++  &lt;td&gt;\x##&lt;/td&gt;
++  &lt;td&gt;8 bit character i.e. &quot;\x6A&quot; is &quot;j&quot;&lt;/td&gt;
++ &lt;/tr&gt;
++ &lt;tr&gt;
+   &lt;td&gt;\\&lt;/td&gt;
+   &lt;td&gt;back slash \ character&lt;/td&gt;
+  &lt;/tr&gt;
+ &lt;/table&gt;
+ 
++&lt;p&gt;Speaking of escapes, parsed literals allow two forms of character literals.  A &lt;code&gt;\x&lt;/code&gt; followed by two hex nibbles specifies one character.  16-bit unicode characters can be specified with &lt;code&gt;\u&lt;/code&gt; followed by four hex nibbles.&lt;/p&gt;
++
+ &lt;h3&gt;Regular Expressions&lt;/h3&gt;
+ 
+ &lt;p&gt;Sleep includes built-in regular expressions.  Regular expressions are a powerful way to parse strings without having to write 
+@@ -1104,6 +1147,13 @@
+ &lt;p&gt;Remember that sleep is a cross platform scripting language.  As a convention use the / forward slash character as a path 
+ separator so that your scripts will work in a platform neutral way.&lt;/p&gt;
+ 
++&lt;h4&gt;Unicode Support&lt;/h4&gt;
++
++&lt;p&gt;Sleep is unicode friendly.  &amp;println, &amp;print, &amp;readc, &amp;readln, and &amp;read will
++convert read in data using the platforms default charset.  If this is a problem use &amp;readb and
++&amp;writeb to read and write raw bytes from the handle.  To change the charset encoder/decoder for a 
++handle use the &amp;setEncoding function.&lt;/p&gt;
++
+ &lt;h3&gt;Callback Reading&lt;/h3&gt;
+ 
+ &lt;p&gt;Another way of reading data from a scalar object with a handle is to use callback reading.  Callback reading is done with the 
+@@ -2148,6 +2198,11 @@
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td&gt;$&lt;/td&gt;
++  &lt;td&gt;readc([$handle])&lt;/td&gt;
++  &lt;td&gt;reads a single character from the specified handle&lt;/td&gt;
++ &lt;/tr&gt;
++ &lt;tr&gt;
++  &lt;td&gt;$&lt;/td&gt;
+   &lt;td&gt;readln([$handle])&lt;/td&gt;
+   &lt;td&gt;reads a single line of text from the specified handle&lt;/td&gt;
+  &lt;/tr&gt;
+@@ -2163,6 +2218,11 @@
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td&gt;$&lt;/td&gt;
++  &lt;td&gt;setEncoding($handle, &quot;charset name&quot;)&lt;/td&gt;
++  &lt;td&gt;sets the character set to encode/decode written/read characters with the specified handle.&lt;/td&gt;
++ &lt;/tr&gt;
++ &lt;tr&gt;
++  &lt;td&gt;$&lt;/td&gt;
+   &lt;td&gt;skip([$handle], n)&lt;/td&gt;
+   &lt;td&gt;tells the handle to skip the next n bytes&lt;/td&gt;
+  &lt;/tr&gt;
+
+Modified: sleep/readme.txt
+===================================================================
+--- sleep/readme.txt	2006-11-21 02:30:52 UTC (rev 182)
++++ sleep/readme.txt	2006-11-21 02:54:38 UTC (rev 183)
+@@ -1,5 +1,5 @@
+  ------- -------------------- ---------   ---------------  ------- ---------
+-Sleep - 2.1 beta 9 - README   
++Sleep - 2.1 beta 10 - README   
+ -  ------------- -------- -   ---------------- --       -    -     -     - - -
+ 
+ &quot;You got the language, all you need now is the O'Reilly book&quot;.  That is
+@@ -100,6 +100,13 @@
+ When sleep scripts are run directly on the command line, arguments are
+ placed into the @ARGV variable.
+ 
++To launch a sleep script from the command line (without -jar):
++
++[<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">raffi at beardsley</A> ~/sleep/bin]$ java -classpath sleep.jar sleep.console.TextConsole filename.sl
++
++When sleep scripts are run directly on the command line, arguments are
++placed into the @ARGV variable.
++
+  ------- -------------------- ---------   ---------------  ------- ---------
+ Feedback
+ -  ------------- -------- -   ---------------- --       -    -     -     - - -
+
+Modified: sleep/src/sleep/runtime/SleepUtils.java
+===================================================================
+--- sleep/src/sleep/runtime/SleepUtils.java	2006-11-21 02:30:52 UTC (rev 182)
++++ sleep/src/sleep/runtime/SleepUtils.java	2006-11-21 02:54:38 UTC (rev 183)
+@@ -49,7 +49,7 @@
+ public class SleepUtils
+ {
+    /** A date stamp of this Sleep release in YYYYMMDD format */
+-   public static final int    SLEEP_RELEASE = 20061106;
++   public static final int    SLEEP_RELEASE = 20061120;
+ 
+    /** A string description of this Sleep release */
+    public static final String SLEEP_VERSION = &quot;Sleep 2.1&quot;;
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-11-21 02:30:52 UTC (rev 182)
++++ sleep/whatsnew.txt	2006-11-21 02:54:38 UTC (rev 183)
+@@ -4,9 +4,9 @@
+   data structure represented by the specified format string. 
+ - attempting an invalid usage of the index op now fires a runtime
+   warning notifying the scripter of what happened.
+-- added \x and \u escapes for parsed literal strings... \xXX allows a
+-  char to be specified and \uXXXX allows a unicode char to be specified.
+-  X is expected to be a valid hex character.
++- added \x and \u escapes for parsed literal strings... \x## allows a
++  char to be specified and \u#### allows a unicode char to be specified.
++  # is expected to be a valid hex character.
+ - updated println, readln, read, readAll, and printAll to be unicode
+   aware, the platform encoding is used by default.
+ - added &amp;setEncoding($handle, &quot;charset name&quot;) to set the encoding to use
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000164.html">[Sleep-svn] r182 - in sleep: . src/sleep/bridges tests/output
+</A></li>
+	<LI>Next message: <A HREF="000166.html">[Sleep-svn] r184 - sleep/src/sleep/bridges
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#165">[ date ]</a>
+              <a href="thread.html#165">[ thread ]</a>
+              <a href="subject.html#165">[ subject ]</a>
+              <a href="author.html#165">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

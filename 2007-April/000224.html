@@ -1,0 +1,157 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r245 - in sleep: . src/sleep/parser tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2007-April/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r245%20-%20in%20sleep%3A%20.%20src/sleep/parser%20tests%20tests/output&In-Reply-To=%3C200704070450.l374oVV8019898%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000223.html">
+   <LINK REL="Next"  HREF="000225.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r245 - in sleep: . src/sleep/parser tests tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r245%20-%20in%20sleep%3A%20.%20src/sleep/parser%20tests%20tests/output&In-Reply-To=%3C200704070450.l374oVV8019898%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r245 - in sleep: . src/sleep/parser tests tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Sat Apr  7 06:50:31 CEST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000223.html">[Sleep-svn] r244 - in sleep/tests: . output
+</A></li>
+        <LI>Next message: <A HREF="000225.html">[Sleep-svn] r246 - in sleep: . src/sleep/runtime
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#224">[ date ]</a>
+              <a href="thread.html#224">[ thread ]</a>
+              <a href="subject.html#224">[ subject ]</a>
+              <a href="author.html#224">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2007-04-07 06:50:21 +0200 (Sat, 07 Apr 2007)
+New Revision: 245
+
+Added:
+   sleep/tests/impfrom4.sl
+   sleep/tests/output/impfrom4.sl
+Modified:
+   sleep/src/sleep/parser/Parser.java
+   sleep/whatsnew.txt
+Log:
+fixed a bug with import from.
+
+
+
+Modified: sleep/src/sleep/parser/Parser.java
+===================================================================
+--- sleep/src/sleep/parser/Parser.java	2007-04-07 04:28:00 UTC (rev 244)
++++ sleep/src/sleep/parser/Parser.java	2007-04-07 04:50:21 UTC (rev 245)
+@@ -87,14 +87,17 @@
+ 
+        /* resolve and setup our class loader for the specified jar file */
+ 
+-       if (from != null &amp;&amp; !jars.containsKey(from))
++       if (from != null)
+        {
+           try
+           {
+              returnValue = ParserConfig.findJarFile(from);
+  
+-             URLClassLoader loader = new URLClassLoader(new URL[] { returnValue.toURL() }, Thread.currentThread().getContextClassLoader());
+-             jars.put(from, loader);
++             if (!jars.containsKey(from))
++             {
++                URLClassLoader loader = new URLClassLoader(new URL[] { returnValue.toURL() }, Thread.currentThread().getContextClassLoader());
++                jars.put(from, loader);
++             }
+           }
+           catch (Exception ex) { ex.printStackTrace(); }
+        }
+
+Added: sleep/tests/impfrom4.sl
+===================================================================
+--- sleep/tests/impfrom4.sl	2007-04-07 04:28:00 UTC (rev 244)
++++ sleep/tests/impfrom4.sl	2007-04-07 04:50:21 UTC (rev 245)
+@@ -0,0 +1,18 @@
++#
++# a test of import from... with multiple packages from the same jar file.
++#
++
++import org.hick.blah.* from: data/test.jar;
++import org.hick.tests.* from: data/test.jar;
++
++$sq = [new SqueezeBox];
++
++for ($x = 0; $x &lt; 10; $x++)
++{
++   println(&quot;Test: &quot; . [$sq squeeze]);
++}
++
++$ld = [new TestLoadable];
++println(&quot;Test? &quot; . [$ld scriptUnloaded: $null]);
++
++
+
+Added: sleep/tests/output/impfrom4.sl
+===================================================================
+--- sleep/tests/output/impfrom4.sl	2007-04-07 04:28:00 UTC (rev 244)
++++ sleep/tests/output/impfrom4.sl	2007-04-07 04:50:21 UTC (rev 245)
+@@ -0,0 +1,11 @@
++Test: 34
++Test: 35
++Test: 36
++Test: 37
++Test: 38
++Test: 39
++Test: 40
++Test: 41
++Test: 42
++Test: 43
++Test? 1
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2007-04-07 04:28:00 UTC (rev 244)
++++ sleep/whatsnew.txt	2007-04-07 04:50:21 UTC (rev 245)
+@@ -22,6 +22,8 @@
+ - Proxy instantiations of Java classes are now synchronized in the same
+   way as the rest of Sleep's interpreter and source information is now
+   installed to show calls on these classes as coming from &lt;Java&gt;
++- fixed a bug that disallowed importing multiple packages from a single
++  external jar file.  
+ 
+ 2.1-beta 14  (24 Mar 07)
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000223.html">[Sleep-svn] r244 - in sleep/tests: . output
+</A></li>
+	<LI>Next message: <A HREF="000225.html">[Sleep-svn] r246 - in sleep: . src/sleep/runtime
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#224">[ date ]</a>
+              <a href="thread.html#224">[ thread ]</a>
+              <a href="subject.html#224">[ subject ]</a>
+              <a href="author.html#224">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

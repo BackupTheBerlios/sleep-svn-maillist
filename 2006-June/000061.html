@@ -1,0 +1,366 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r79 - in sleep: . src/sleep/console src/sleep/engine src/sleep/runtime tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2006-June/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r79%20-%20in%20sleep%3A%20.%20src/sleep/console%20src/sleep/engine%20src/sleep/runtime%20tests%20tests/output&In-Reply-To=%3C200606172046.k5HKkdak000550%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000060.html">
+   <LINK REL="Next"  HREF="000062.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r79 - in sleep: . src/sleep/console src/sleep/engine src/sleep/runtime tests tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r79%20-%20in%20sleep%3A%20.%20src/sleep/console%20src/sleep/engine%20src/sleep/runtime%20tests%20tests/output&In-Reply-To=%3C200606172046.k5HKkdak000550%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r79 - in sleep: . src/sleep/console src/sleep/engine src/sleep/runtime tests tests/output">rsmudge at berlios.de
+       </A><BR>
+    <I>Sat Jun 17 22:46:39 CEST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000060.html">[Sleep-svn] r78 - sleep/docs
+</A></li>
+        <LI>Next message: <A HREF="000062.html">[Sleep-svn] r80 - in sleep: . src/sleep/engine/atoms tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#61">[ date ]</a>
+              <a href="thread.html#61">[ thread ]</a>
+              <a href="subject.html#61">[ subject ]</a>
+              <a href="author.html#61">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2006-06-17 22:46:37 +0200 (Sat, 17 Jun 2006)
+New Revision: 79
+
+Added:
+   sleep/tests/debugce.sl
+   sleep/tests/output/debugce.sl
+Modified:
+   sleep/build.xml
+   sleep/src/sleep/console/TextConsole.java
+   sleep/src/sleep/engine/Block.java
+   sleep/src/sleep/runtime/ScriptEnvironment.java
+   sleep/src/sleep/runtime/ScriptInstance.java
+   sleep/tests/test.pl
+   sleep/whatsnew.txt
+Log:
+Added some more debug options...
+
+
+
+Modified: sleep/build.xml
+===================================================================
+--- sleep/build.xml	2006-06-17 17:15:45 UTC (rev 78)
++++ sleep/build.xml	2006-06-17 20:46:37 UTC (rev 79)
+@@ -16,7 +16,7 @@
+            destdir=&quot;${project.build}&quot;
+            nowarn=&quot;yes&quot;
+            depend=&quot;yes&quot;
+-           debug=&quot;false&quot;
++           debug=&quot;true&quot;
+            optimize=&quot;yes&quot;
+     &gt;
+     &lt;/javac&gt;
+
+Modified: sleep/src/sleep/console/TextConsole.java
+===================================================================
+--- sleep/src/sleep/console/TextConsole.java	2006-06-17 17:15:45 UTC (rev 78)
++++ sleep/src/sleep/console/TextConsole.java	2006-06-17 20:46:37 UTC (rev 79)
+@@ -25,13 +25,14 @@
+              System.out.println(SleepUtils.SLEEP_VERSION + &quot; (&quot; + SleepUtils.SLEEP_RELEASE + &quot;)&quot;);
+              return;
+          }
+-
++         
+          //
+          // put all of our command line arguments into an array scalar
+          //
+          Scalar array = SleepUtils.getArrayScalar();
+          for (int x = 1; x &lt; args.length; x++)
+          {
++
+             array.getArray().push(SleepUtils.getScalar(args[x]));
+          }
+ 
+@@ -40,6 +41,11 @@
+             ScriptInstance script = loader.loadScript(args[0]);     // load the script, parse it, etc.
+             script.getScriptVariables().putScalar(&quot;@ARGV&quot;, array);  // set @ARGV to be our array of command line arguments
+ 
++            if (System.getProperty(&quot;sleep.debug&quot;) != null)
++            {
++               script.setDebugFlags(Integer.parseInt(System.getProperty(&quot;sleep.debug&quot;)));
++            }
++
+             script.runScript();                                     // run the script...
+          } 
+          catch (YourCodeSucksException yex)
+
+Modified: sleep/src/sleep/engine/Block.java
+===================================================================
+--- sleep/src/sleep/engine/Block.java	2006-06-17 17:15:45 UTC (rev 78)
++++ sleep/src/sleep/engine/Block.java	2006-06-17 20:46:37 UTC (rev 79)
+@@ -142,7 +142,7 @@
+         {
+            try
+            {
+-              Scalar value = temp.evaluate(environment);
++              temp.evaluate(environment);
+            }
+            catch (IllegalArgumentException aex)
+            {
+@@ -179,7 +179,15 @@
+                  }
+               }
+ 
+-              return environment.getReturnValue();
++              if (environment.isDebugInterrupt())
++              {
++                 environment.getScriptInstance().fireWarning(environment.getDebugString(), temp.getLineNumber());
++                 /** get debug string clears the debug interrupt! */
++              }
++              else
++              {
++                 return environment.getReturnValue();
++              }
+            }
+ 
+            temp = temp.next;
+
+Modified: sleep/src/sleep/runtime/ScriptEnvironment.java
+===================================================================
+--- sleep/src/sleep/runtime/ScriptEnvironment.java	2006-06-17 17:15:45 UTC (rev 78)
++++ sleep/src/sleep/runtime/ScriptEnvironment.java	2006-06-17 20:46:37 UTC (rev 79)
+@@ -108,7 +108,11 @@
+     public void flagError(String message)
+     {
+        errorMessage = message;
+-//       getScriptVariables().putScalar(&quot;$!&quot;, SleepUtils.getScalar(message));
++
++       if ((getScriptInstance().getDebugFlags() &amp; ScriptInstance.DEBUG_SHOW_WARNINGS) == ScriptInstance.DEBUG_SHOW_WARNINGS)
++       {
++          showDebugMessage(&quot;checkError(): &quot; + message);
++       }
+     }
+ 
+     /** once an error is checked using this function, it is cleared, the orignal error message is returned as well */
+@@ -317,10 +321,17 @@
+ 
+     /** adding a yield keyword */
+     public static final int FLOW_CONTROL_YIELD    = 4;
+-    
++
++    protected boolean isDebugInterrupt  = false;
++    protected String  debugString       = &quot;&quot;;
+     protected Scalar rv      = null;
+     protected int    request = 0;
+ 
++    public boolean isDebugInterrupt()
++    {
++       return isDebugInterrupt;
++    }
++
+     public Scalar getReturnValue()
+     {
+        return rv;
+@@ -328,7 +339,7 @@
+ 
+     public boolean isReturn()
+     {
+-       return request != FLOW_CONTROL_NONE;
++       return request != FLOW_CONTROL_NONE || isDebugInterrupt;
+     }
+ 
+     public int getFlowControlRequest()
+@@ -336,6 +347,19 @@
+        return request;
+     }
+ 
++    public String getDebugString()
++    {
++       isDebugInterrupt = false;
++       return debugString;
++    }
++
++    /** fires this debug message via a runtime warning complete with line number of current step */
++    public void showDebugMessage(String message)
++    {
++       isDebugInterrupt = true;
++       debugString = message;
++    }
++
+     public void flagReturn(Scalar value, int type_of_flow)
+     {
+        if (value == null) { value = SleepUtils.getEmptyScalar(); }
+
+Modified: sleep/src/sleep/runtime/ScriptInstance.java
+===================================================================
+--- sleep/src/sleep/runtime/ScriptInstance.java	2006-06-17 17:15:45 UTC (rev 78)
++++ sleep/src/sleep/runtime/ScriptInstance.java	2006-06-17 20:46:37 UTC (rev 79)
+@@ -71,6 +71,30 @@
+     /** The compiled sleep code for this script, the ScriptLoader will set this value upon loading a script. */
+     protected Block             script;
+ 
++    /** debug should be absolutely quiet, never fire any runtime warnings */
++    public static final int DEBUG_NONE          = 0;
++
++    /** fire runtime warnings for all critical flow interrupting errors */
++    public static final int DEBUG_SHOW_ERRORS   = 1;
++
++    /** fire runtime warnings for anything flagged for retrieval with checkError() */
++    public static final int DEBUG_SHOW_WARNINGS = 2;
++
++    /** track all of the flagged debug options for this script (set to DEBUG_SHOW_ERRORS by default) */
++    protected int debug = DEBUG_SHOW_ERRORS;
++
++    /** set the debug flags for this script */
++    public void setDebugFlags(int options)
++    {
++        debug = options;
++    }
++
++    /** retrieve the debug flags for this script */
++    public int getDebugFlags()  
++    {
++        return debug;
++    }
++
+     public ScriptInstance(Hashtable environmentToShare)
+     {
+         this((Variable)null, environmentToShare);
+@@ -232,12 +256,15 @@
+     /** Fire a runtime script warning */
+     public void fireWarning(String message, int line)
+     {
+-       ScriptWarning temp = new ScriptWarning(this, message, line);
++       if (debug != DEBUG_NONE)
++       {
++          ScriptWarning temp = new ScriptWarning(this, message, line);
+  
+-       Iterator i = watchers.iterator();
+-       while (i.hasNext())
+-       {
+-          ((RuntimeWarningWatcher)i.next()).processScriptWarning(temp);
++          Iterator i = watchers.iterator();
++          while (i.hasNext())
++          {
++             ((RuntimeWarningWatcher)i.next()).processScriptWarning(temp);
++          }
+        }
+     }
+ }
+
+Added: sleep/tests/debugce.sl
+===================================================================
+--- sleep/tests/debugce.sl	2006-06-17 17:15:45 UTC (rev 78)
++++ sleep/tests/debugce.sl	2006-06-17 20:46:37 UTC (rev 79)
+@@ -0,0 +1,11 @@
++# ensure this is run with -Dsleep.debug=3 passed to the java interpreter.
++# just checking to make sure that the check error debugging stuff works..
++#
++
++eval(&quot;
++    println('\\\\'');
++&quot;);
++
++$handle = openf(&quot;fjasjkfajskfjasfjksakjfsjkfjksafjk.txt&quot;);
++
++println(&quot;I should be doing more stuff here...&quot;);
+
+Added: sleep/tests/output/debugce.sl
+===================================================================
+--- sleep/tests/output/debugce.sl	2006-06-17 17:15:45 UTC (rev 78)
++++ sleep/tests/output/debugce.sl	2006-06-17 20:46:37 UTC (rev 79)
+@@ -0,0 +1,3 @@
++Warning: checkError(): 2 error(s): Mismatched Parentheses - missing close paren at 1; Runaway string at 1 at line 5
++Warning: checkError(): java.io.FileNotFoundException: fjasjkfajskfjasfjksakjfsjkfjksafjk.txt (No such file or directory) at line 9
++I should be doing more stuff here...
+
+Modified: sleep/tests/test.pl
+===================================================================
+--- sleep/tests/test.pl	2006-06-17 17:15:45 UTC (rev 78)
++++ sleep/tests/test.pl	2006-06-17 20:46:37 UTC (rev 79)
+@@ -27,16 +27,20 @@
+ 
+ foreach $var (@files)
+ {
++   $PROPS = &quot;&quot;;
++   if ($var eq &quot;debugce.sl&quot;) { $PROPS = &quot;-Dsleep.debug=3&quot;; }
++
+    if (!-e &quot;./tests/output/$var&quot;)
+    {
+-      `java -jar sleep.jar ./tests/$var &gt;./tests/output/$var`;
++      `java $PROPS -jar sleep.jar ./tests/$var &gt;./tests/output/$var`;
+       push @errors, &quot;$var output does not exist, creating it&quot;;
+    }
+    else
+    {
+       $expected_value = join(&quot;&quot;, `cat ./tests/output/$var`);
+-      $script_value   = join(&quot;&quot;, `java -jar sleep.jar ./tests/$var`);
+ 
++      $script_value   = join(&quot;&quot;, `java $PROPS -jar sleep.jar ./tests/$var`);
++
+       if ($expected_value ne $script_value)
+       {
+          push @errors, &quot;Output of $var does not match expected output.&quot;;
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-06-17 17:15:45 UTC (rev 78)
++++ sleep/whatsnew.txt	2006-06-17 20:46:37 UTC (rev 79)
+@@ -13,7 +13,24 @@
+   not bridge. (i.e. exit value of a process)
+ - added an API to SleepUtils for building an IO handle scalar 
+   from a Java InputStream/OutputStream
++- added a debug flag to each script instance.  the options consist 
++  of:
++  DEBUG_SHOW_ERRORS = 1 - this is the typical behavior that causes
++     a runtime warning to be fired whenever an uncaught exception
++     occurs within a bridge.
++  DEBUG_SHOW_WARNINGS = 2 - fires a runtime warning any time an error
++     is flagged using flagError() in the script environment.  
++     runtime warnings are typically errors a scripter is meant to
++     check for with checkError($error).  
++  DEBUG_NONE = 0 - disables all firing of runtime warnings (not 
++     recommended)
+ 
++  Sleep scripts on the command line can run with different debug 
++  levels using:
++  java -Dsleep.debug=3 -jar sleep.jar filename.sl
++
++
++
+ 2.1-beta 1
+ ===========
+ - fixed the clean target in the sleep build.xml file
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000060.html">[Sleep-svn] r78 - sleep/docs
+</A></li>
+	<LI>Next message: <A HREF="000062.html">[Sleep-svn] r80 - in sleep: . src/sleep/engine/atoms tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#61">[ date ]</a>
+              <a href="thread.html#61">[ thread ]</a>
+              <a href="subject.html#61">[ subject ]</a>
+              <a href="author.html#61">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,332 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r366 - in sleep: . src/sleep/bridges tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2008-May/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r366%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20tests%20tests/output&In-Reply-To=%3C200805142000.m4EK0N52020817%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000341.html">
+   <LINK REL="Next"  HREF="000343.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r366 - in sleep: . src/sleep/bridges tests tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r366%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20tests%20tests/output&In-Reply-To=%3C200805142000.m4EK0N52020817%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r366 - in sleep: . src/sleep/bridges tests tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Wed May 14 22:00:23 CEST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000341.html">[Sleep-svn] r365 - in sleep: . src/sleep/bridges tests tests/output
+</A></li>
+        <LI>Next message: <A HREF="000343.html">[Sleep-svn] r367 - in sleep: . src/sleep/bridges tests
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#342">[ date ]</a>
+              <a href="thread.html#342">[ thread ]</a>
+              <a href="subject.html#342">[ subject ]</a>
+              <a href="author.html#342">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2008-05-14 22:00:12 +0200 (Wed, 14 May 2008)
+New Revision: 366
+
+Added:
+   sleep/tests/listops.sl
+   sleep/tests/output/listops.sl
+Modified:
+   sleep/src/sleep/bridges/BasicUtilities.java
+   sleep/src/sleep/bridges/BridgeUtilities.java
+   sleep/tests/joiniter.sl
+   sleep/tests/output/joiniter.sl
+   sleep/whatsnew.txt
+Log:
+added some list operations.
+
+
+Modified: sleep/src/sleep/bridges/BasicUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicUtilities.java	2008-05-14 18:59:09 UTC (rev 365)
++++ sleep/src/sleep/bridges/BasicUtilities.java	2008-05-14 20:00:12 UTC (rev 366)
+@@ -72,6 +72,9 @@
+         temp.put(&quot;&amp;%&quot;, f_hash);  
+ 
+         // array &amp; hashtable related
++        temp.put(&quot;&amp;concat&quot;, this);
++        temp.put(&quot;&amp;rest&quot;, this);
++
+         temp.put(&quot;&amp;keys&quot;,  this);      // &amp;keys(%hash) = @array
+         temp.put(&quot;&amp;size&quot;,  this);      // &amp;size(@array) = &lt;int&gt;
+         temp.put(&quot;&amp;push&quot;,  this);      // &amp;push(@array, $value) = $scalar
+@@ -994,18 +997,37 @@
+ 
+           return SleepUtils.getEmptyScalar();
+        }
++       else if (n.equals(&quot;&amp;concat&quot;))
++       {
++          Scalar value = SleepUtils.getArrayScalar();
+ 
++          while (!l.isEmpty())
++          {
++             Scalar temp = (Scalar)l.pop();
++
++             if (temp.getArray() != null)
++             {
++                Iterator iter = temp.getArray().scalarIterator();
++                while (iter.hasNext())
++                {
++                   value.getArray().push(SleepUtils.getScalar((Scalar)iter.next()));
++                }
++             }
++             else
++             {
++                value.getArray().push(SleepUtils.getScalar(temp));
++             }
++          }
++
++          return value;
++       }
++
+        /** Start of many array functions */
+ 
+        Scalar value = BridgeUtilities.getScalar(l);
+ 
+-       if (n.equals(&quot;&amp;push&quot;))
++       if (n.equals(&quot;&amp;push&quot;) &amp;&amp; BridgeUtilities.expectArray(n, value))
+        {
+-          if (value.getArray() == null)
+-          {
+-             throw new IllegalArgumentException(&quot;&amp;push: expected array. received &quot; + SleepUtils.describe(value));
+-          }
+-
+           Scalar pushed = null;
+           while (!l.isEmpty())
+           {
+@@ -1015,8 +1037,12 @@
+  
+           return pushed == null ? SleepUtils.getEmptyScalar() : pushed;
+        }
+-       else if ((n.equals(&quot;&amp;retainAll&quot;) || n.equals(&quot;&amp;removeAll&quot;)) &amp;&amp; value.getArray() != null)
++       else if (n.equals(&quot;&amp;rest&quot;) &amp;&amp; BridgeUtilities.expectArray(n, value))
+        {
++          return SleepUtils.getArrayScalar(value.getArray().sublist(1, value.getArray().size()));
++       }
++       else if ((n.equals(&quot;&amp;retainAll&quot;) || n.equals(&quot;&amp;removeAll&quot;)) &amp;&amp; BridgeUtilities.expectArray(n, value))
++       {
+           ScalarArray a = value.getArray();
+           ScalarArray b = BridgeUtilities.getArray(l);
+           Scalar temp;    
+@@ -1052,7 +1078,7 @@
+ 
+           return SleepUtils.getArrayScalar(a);
+        }
+-       else if (n.equals(&quot;&amp;addAll&quot;) &amp;&amp; value.getArray() != null)
++       else if (n.equals(&quot;&amp;addAll&quot;) &amp;&amp; BridgeUtilities.expectArray(n, value))
+        {
+           ScalarArray a = value.getArray();
+           ScalarArray b = BridgeUtilities.getArray(l);
+@@ -1099,30 +1125,39 @@
+ 
+           return value;
+        }
+-       else if (n.equals(&quot;&amp;splice&quot;) &amp;&amp; value.getArray() != null)
++       else if (n.equals(&quot;&amp;splice&quot;) &amp;&amp; BridgeUtilities.expectArray(n, value))
+        {
+           // splice(@old, @stuff, start, n to remove)
++          /* normalize all of the parameters please */
++       
+           ScalarArray insert = BridgeUtilities.getArray(l);
+           int         start  = BridgeUtilities.normalize(BridgeUtilities.getInt(l, 0), value.getArray().size());
+           int         torem  = BridgeUtilities.getInt(l, insert.size()) + start;
+ 
+-          for (int z = start; z &lt; torem; z++)
++          /* remove the specified elements please */
++
++          ScalarArray toRemove = value.getArray().sublist(start, torem);
++          Iterator iter = toRemove.scalarIterator();
++          while (iter.hasNext())
+           {
+-             value.getArray().remove(start);
++             iter.next();
++             iter.remove();
+           }
+- 
+-          int count = 0;
++
++          /* insert some elements */
++
++          ScalarArray addToMe = value.getArray().sublist(0, start); 
++
+           Iterator j = insert.scalarIterator();
+           while (j.hasNext())
+           {
+              Scalar ins = (Scalar)j.next();
+-             value.getArray().add(SleepUtils.getScalar(ins), start + count);
+-             count++;
++             addToMe.push(SleepUtils.getScalar(ins));
+           }
+ 
+           return value;
+        }
+-       else if (n.equals(&quot;&amp;pop&quot;))
++       else if (n.equals(&quot;&amp;pop&quot;)  &amp;&amp; BridgeUtilities.expectArray(n, value))
+        {
+           return value.getArray().pop();
+        }
+@@ -1154,7 +1189,7 @@
+              value.setValue(SleepUtils.getEmptyScalar());
+           }
+        }
+-       else if (n.equals(&quot;&amp;search&quot;) &amp;&amp; value.getArray() != null)
++       else if (n.equals(&quot;&amp;search&quot;) &amp;&amp; BridgeUtilities.expectArray(n, value))
+        {
+           SleepClosure f = BridgeUtilities.getFunction(l, i); 
+           int start      = BridgeUtilities.normalize(BridgeUtilities.getInt(l, 0), value.getArray().size());
+@@ -1217,11 +1252,8 @@
+ 
+           return a;
+        }
+-       else if (n.equals(&quot;&amp;subarray&quot;) || n.equals(&quot;&amp;sublist&quot;))
++       else if ((n.equals(&quot;&amp;subarray&quot;) || n.equals(&quot;&amp;sublist&quot;)) &amp;&amp; BridgeUtilities.expectArray(n, value))
+        {
+-          if (value.getArray() == null)
+-             throw new IllegalArgumentException(n + &quot;: expected @array, received: &quot; + SleepUtils.describe(value));
+-
+           return sublist(value, BridgeUtilities.getInt(l, 0), BridgeUtilities.getInt(l, value.getArray().size()));
+        }
+        else if (n.equals(&quot;&amp;remove&quot;))
+
+Modified: sleep/src/sleep/bridges/BridgeUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BridgeUtilities.java	2008-05-14 18:59:09 UTC (rev 365)
++++ sleep/src/sleep/bridges/BridgeUtilities.java	2008-05-14 20:00:12 UTC (rev 366)
+@@ -367,4 +367,18 @@
+    {
+       return value &lt; 0 ? value + length : value;
+    }
++
++   /** returns true if value is an array or throws an appropriate exception if value is not an array.
++    *  @param n the name of the &amp;function
++    *  @param value the scalar to check
++    */
++   public static boolean expectArray(String n, Scalar value)
++   {
++      if (value.getArray() == null)
++      {
++         throw new IllegalArgumentException(n + &quot;: expected array. received &quot; + SleepUtils.describe(value));
++      }
++
++      return true;
++   }
+ }
+
+Modified: sleep/tests/joiniter.sl
+===================================================================
+--- sleep/tests/joiniter.sl	2008-05-14 18:59:09 UTC (rev 365)
++++ sleep/tests/joiniter.sl	2008-05-14 20:00:12 UTC (rev 366)
+@@ -14,4 +14,4 @@
+ 
+ println(flatten(&amp;foo));
+ 
+-println(search(&amp;foo, { if ($1 == 3) { return 3; } }));
++println(search(flatten(&amp;foo), { if ($1 == 3) { return 3; } }));
+
+Added: sleep/tests/listops.sl
+===================================================================
+--- sleep/tests/listops.sl	2008-05-14 18:59:09 UTC (rev 365)
++++ sleep/tests/listops.sl	2008-05-14 20:00:12 UTC (rev 366)
+@@ -0,0 +1,24 @@
++#
++# test out append
++#
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">+ at a</A> = @(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;);
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">+ at b</A> = @(1, 2, 3, 4, 5);
++
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">+ at a</A> = concat(@a, @b, @a);
++println(@a);
++
++#
++# test that appended lists share cells...
++#
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">+ at a</A>[2] = &quot;test&quot;;
++println(@a);
++
++#
++# test out head..
++#
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">+ at b</A>[0] = &quot;blah&quot;;
++
++println(@b[0] . &quot; and &quot; . rest(@b));
++
++println(@b[0] . &quot; and &quot; . @b);
++
+
+Modified: sleep/tests/output/joiniter.sl
+===================================================================
+--- sleep/tests/output/joiniter.sl	2008-05-14 18:59:09 UTC (rev 365)
++++ sleep/tests/output/joiniter.sl	2008-05-14 20:00:12 UTC (rev 366)
+@@ -1,3 +1,3 @@
+ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9
+ @(1, 2, 3, 1, 2, 3, 1, 2, 3, 1, 2, 3, 1, 2, 3, 1, 2, 3, 1, 2, 3, 1, 2, 3, 1, 2, 3, 1, 2, 3)
+-
++3
+
+Added: sleep/tests/output/listops.sl
+===================================================================
+--- sleep/tests/output/listops.sl	2008-05-14 18:59:09 UTC (rev 365)
++++ sleep/tests/output/listops.sl	2008-05-14 20:00:12 UTC (rev 366)
+@@ -0,0 +1,4 @@
++@('a', 'b', 'c', 1, 2, 3, 4, 5, 'a', 'b', 'c')
++@('a', 'b', 'test', 1, 2, 3, 4, 5, 'a', 'b', 'c')
++blah and @(2, 3, 4, 5)
++blah and @('blah', 2, 3, 4, 5)
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2008-05-14 18:59:09 UTC (rev 365)
++++ sleep/whatsnew.txt	2008-05-14 20:00:12 UTC (rev 366)
+@@ -34,6 +34,11 @@
+   to returning control to the parent function.
+ - renamed &amp;subarray to &amp;sublist(@array, n, m).  Updates to the
+   returned &amp;sublist will affect the parent list.
++- updated &amp;splice to use new ScalarArray sublist API... this
++  new implementation scales better
++- &amp;clear now clears each element from the array rather than
++  creating a new array and returning it.
++- added list operations: &amp;rest(@array) and &amp;concat(@a, @b, ...) 
+   
+ 2.1-beta 25  (8 May 08) [will this beta process ever end?]
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000341.html">[Sleep-svn] r365 - in sleep: . src/sleep/bridges tests tests/output
+</A></li>
+	<LI>Next message: <A HREF="000343.html">[Sleep-svn] r367 - in sleep: . src/sleep/bridges tests
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#342">[ date ]</a>
+              <a href="thread.html#342">[ thread ]</a>
+              <a href="subject.html#342">[ subject ]</a>
+              <a href="author.html#342">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

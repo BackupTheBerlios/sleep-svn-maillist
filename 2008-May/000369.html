@@ -1,0 +1,177 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r393 - in sleep: . src/sleep/engine	src/sleep/engine/types tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2008-May/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r393%20-%20in%20sleep%3A%20.%20src/sleep/engine%0A%09src/sleep/engine/types%20tests%20tests/output&In-Reply-To=%3C200805301619.m4UGJOR9018983%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000368.html">
+   <LINK REL="Next"  HREF="000370.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r393 - in sleep: . src/sleep/engine	src/sleep/engine/types tests tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r393%20-%20in%20sleep%3A%20.%20src/sleep/engine%0A%09src/sleep/engine/types%20tests%20tests/output&In-Reply-To=%3C200805301619.m4UGJOR9018983%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r393 - in sleep: . src/sleep/engine	src/sleep/engine/types tests tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Fri May 30 18:19:24 CEST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000368.html">[Sleep-svn] r392 - in sleep: src/sleep/engine/types tests	tests/output
+</A></li>
+        <LI>Next message: <A HREF="000370.html">[Sleep-svn] r394 - in sleep/tests: . output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#369">[ date ]</a>
+              <a href="thread.html#369">[ thread ]</a>
+              <a href="subject.html#369">[ subject ]</a>
+              <a href="author.html#369">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2008-05-30 18:19:23 +0200 (Fri, 30 May 2008)
+New Revision: 393
+
+Added:
+   sleep/tests/output/removeerr.sl
+   sleep/tests/removeerr.sl
+Modified:
+   sleep/src/sleep/engine/Block.java
+   sleep/src/sleep/engine/types/MyLinkedList.java
+   sleep/tests/output/nmesgs.sl
+   sleep/whatsnew.txt
+Log:
+more descriptive index errors and ah, ... whatever :)
+
+
+Modified: sleep/src/sleep/engine/Block.java
+===================================================================
+--- sleep/src/sleep/engine/Block.java	2008-05-30 16:09:15 UTC (rev 392)
++++ sleep/src/sleep/engine/Block.java	2008-05-30 16:19:23 UTC (rev 393)
+@@ -236,7 +236,14 @@
+               }
+               else if (ex instanceof IndexOutOfBoundsException)
+               {
+-                 environment.getScriptInstance().fireWarning(&quot;attempted an invalid index&quot;, temp.getLineNumber());
++                 if (ex.getMessage() != null)
++                 {
++                    environment.getScriptInstance().fireWarning(&quot;attempted an invalid index: &quot; + ex.getMessage(), temp.getLineNumber());
++                 }
++                 else
++                 {
++                    environment.getScriptInstance().fireWarning(&quot;attempted an invalid index&quot;, temp.getLineNumber());
++                 }
+               }
+               else if (ex instanceof ClassCastException)
+               {
+
+Modified: sleep/src/sleep/engine/types/MyLinkedList.java
+===================================================================
+--- sleep/src/sleep/engine/types/MyLinkedList.java	2008-05-30 16:09:15 UTC (rev 392)
++++ sleep/src/sleep/engine/types/MyLinkedList.java	2008-05-30 16:19:23 UTC (rev 393)
+@@ -157,6 +157,7 @@
+       return new MyLinkedList(parentList == null ? this : parentList, begin, end, (endAt - beginAt));
+    }
+ 
++   /** add an object to the list */
+    public boolean add(Object o)
+    {
+       ListEntry entry = header;
+@@ -167,12 +168,25 @@
+    /** get an object from the linked list */
+    public Object get(int index)
+    {
+-      if (size == 0)
+-         throw new IndexOutOfBoundsException(&quot;list is empty&quot;);
++      if (index &gt;= size)
++         throw new IndexOutOfBoundsException(&quot;Index: &quot; + index + &quot;, Size: &quot; + size);
+ 
+       return getAt(index).next().element();
+    }
+ 
++   /** remove an object at the specified index */
++   public Object remove(int index)
++   {
++      if (index &gt;= size)
++         throw new IndexOutOfBoundsException(&quot;Index: &quot; + index + &quot;, Size: &quot; + size);
++
++      ListEntry entry = getAt(index).next();
++      Object value = entry.element();
++      entry.remove();
++
++      return value;
++   }
++
+    /** returns the entry at the specified index */
+    private ListEntry getAt(int index)
+    {
+
+Modified: sleep/tests/output/nmesgs.sl
+===================================================================
+--- sleep/tests/output/nmesgs.sl	2008-05-30 16:09:15 UTC (rev 392)
++++ sleep/tests/output/nmesgs.sl	2008-05-30 16:19:23 UTC (rev 393)
+@@ -1,2 +1,2 @@
+ Warning: expected I/O handle argument, received: $null at eval:1
+-Warning: attempted an invalid index at nmesgs.sl:13
++Warning: attempted an invalid index: Index: -5, Size: 4 at nmesgs.sl:13
+
+Added: sleep/tests/output/removeerr.sl
+===================================================================
+--- sleep/tests/output/removeerr.sl	2008-05-30 16:09:15 UTC (rev 392)
++++ sleep/tests/output/removeerr.sl	2008-05-30 16:19:23 UTC (rev 393)
+@@ -0,0 +1 @@
++Warning: attempted an invalid index: Index: 4, Size: 3 at removeerr.sl:2
+
+Added: sleep/tests/removeerr.sl
+===================================================================
+--- sleep/tests/removeerr.sl	2008-05-30 16:09:15 UTC (rev 392)
++++ sleep/tests/removeerr.sl	2008-05-30 16:19:23 UTC (rev 393)
+@@ -0,0 +1,2 @@
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">+ at a</A> = @(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;);
++removeAt(@a, 4);
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2008-05-30 16:09:15 UTC (rev 392)
++++ sleep/whatsnew.txt	2008-05-30 16:19:23 UTC (rev 393)
+@@ -21,6 +21,8 @@
+   hasmatch will remove its state after returning false.  These
+   measures are in place to help prevent runaway uses of 
+   hasmatch from eating all of the memory.
++- bad index errors (IndexOutOfBoundsException) are now more
++  descriptive in some cases.
+ 
+ 2.1-beta 26  (15 May 08)
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000368.html">[Sleep-svn] r392 - in sleep: src/sleep/engine/types tests	tests/output
+</A></li>
+	<LI>Next message: <A HREF="000370.html">[Sleep-svn] r394 - in sleep/tests: . output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#369">[ date ]</a>
+              <a href="thread.html#369">[ thread ]</a>
+              <a href="subject.html#369">[ subject ]</a>
+              <a href="author.html#369">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

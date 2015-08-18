@@ -1,0 +1,161 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r281 - in sleep: . src/sleep/runtime tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2007-June/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r281%20-%20in%20sleep%3A%20.%20src/sleep/runtime%20tests%20tests/output&In-Reply-To=%3C200706152235.l5FMZ790020889%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000259.html">
+   <LINK REL="Next"  HREF="000261.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r281 - in sleep: . src/sleep/runtime tests tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r281%20-%20in%20sleep%3A%20.%20src/sleep/runtime%20tests%20tests/output&In-Reply-To=%3C200706152235.l5FMZ790020889%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r281 - in sleep: . src/sleep/runtime tests tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Sat Jun 16 00:35:07 CEST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000259.html">[Sleep-svn] r280 - in sleep: . src/sleep/bridges	src/sleep/engine/atoms tests tests/output
+</A></li>
+        <LI>Next message: <A HREF="000261.html">[Sleep-svn] r282 - in sleep: . src/sleep/engine tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#260">[ date ]</a>
+              <a href="thread.html#260">[ thread ]</a>
+              <a href="subject.html#260">[ subject ]</a>
+              <a href="author.html#260">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2007-06-16 00:35:06 +0200 (Sat, 16 Jun 2007)
+New Revision: 281
+
+Added:
+   sleep/tests/output/trylocal.sl
+   sleep/tests/trylocal.sl
+Modified:
+   sleep/src/sleep/runtime/ScriptEnvironment.java
+   sleep/whatsnew.txt
+Log:
+fixed a try/catch bug.
+
+
+Modified: sleep/src/sleep/runtime/ScriptEnvironment.java
+===================================================================
+--- sleep/src/sleep/runtime/ScriptEnvironment.java	2007-06-15 18:59:01 UTC (rev 280)
++++ sleep/src/sleep/runtime/ScriptEnvironment.java	2007-06-15 22:35:06 UTC (rev 281)
+@@ -142,7 +142,7 @@
+        return getScriptVariables().getScalar(key, getScriptInstance());
+     }
+ 
+-    /** puts a scalar into this scripts environment */
++    /** puts a scalar into this scripts environment (global scope) */
+     public void putScalar(String key, Scalar value)
+     {
+        getScriptVariables().putScalar(key, value);
+@@ -401,7 +401,16 @@
+     {
+        request     &amp;= ~FLOW_CONTROL_THROW;       
+        Block  doit  = currentHandler.handler;
+-       putScalar(currentHandler.varname, rv);
++
++       Scalar temp  = getScriptVariables().getScalar(currentHandler.varname, getScriptInstance());
++       if (temp != null)
++       {
++          temp.setValue(rv);
++       }
++       else
++       {
++          putScalar(currentHandler.varname, rv);
++       }
+        rv           = null;
+        return doit;
+     }
+
+Added: sleep/tests/output/trylocal.sl
+===================================================================
+--- sleep/tests/output/trylocal.sl	2007-06-15 18:59:01 UTC (rev 280)
++++ sleep/tests/output/trylocal.sl	2007-06-15 22:35:06 UTC (rev 281)
+@@ -0,0 +1,3 @@
++hehehe....
++   trylocal.sl:16 &amp;bar()
++   trylocal.sl:7 &lt;origin of exception&gt;
+
+Added: sleep/tests/trylocal.sl
+===================================================================
+--- sleep/tests/trylocal.sl	2007-06-15 18:59:01 UTC (rev 280)
++++ sleep/tests/trylocal.sl	2007-06-15 22:35:06 UTC (rev 281)
+@@ -0,0 +1,25 @@
++#
++#
++#
++
++sub bar
++{
++   throw &quot;hehehe....&quot;;
++}
++
++sub foo
++{
++   local('$ex');
++
++   try
++   {
++      bar();
++   }
++   catch $ex
++   {
++      println(&quot;$ex&quot;);
++      printAll(getStackTrace());
++   }
++}
++
++foo();
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2007-06-15 18:59:01 UTC (rev 280)
++++ sleep/whatsnew.txt	2007-06-15 22:35:06 UTC (rev 281)
+@@ -27,6 +27,8 @@
+ - sleep console now shares one pool of imported packages for evaluations
+ - added newInstance(^Class|@, &amp;closure) for creating a proxy instance
+   of a Java object backed by the specified interfaces
++- try/catch is no longer dependent on putting the caught value into
++  the global scope.
+ 
+ 2.1-beta 16  (11 Jun 07)
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000259.html">[Sleep-svn] r280 - in sleep: . src/sleep/bridges	src/sleep/engine/atoms tests tests/output
+</A></li>
+	<LI>Next message: <A HREF="000261.html">[Sleep-svn] r282 - in sleep: . src/sleep/engine tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#260">[ date ]</a>
+              <a href="thread.html#260">[ thread ]</a>
+              <a href="subject.html#260">[ subject ]</a>
+              <a href="author.html#260">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

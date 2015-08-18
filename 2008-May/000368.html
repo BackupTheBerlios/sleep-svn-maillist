@@ -1,0 +1,478 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r392 - in sleep: src/sleep/engine/types tests	tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2008-May/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r392%20-%20in%20sleep%3A%20src/sleep/engine/types%20tests%0A%09tests/output&In-Reply-To=%3C200805301609.m4UG9GAZ018089%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000367.html">
+   <LINK REL="Next"  HREF="000369.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r392 - in sleep: src/sleep/engine/types tests	tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r392%20-%20in%20sleep%3A%20src/sleep/engine/types%20tests%0A%09tests/output&In-Reply-To=%3C200805301609.m4UG9GAZ018089%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r392 - in sleep: src/sleep/engine/types tests	tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Fri May 30 18:09:16 CEST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000367.html">[Sleep-svn] r391 - sleep/src/sleep/engine/types
+</A></li>
+        <LI>Next message: <A HREF="000369.html">[Sleep-svn] r393 - in sleep: . src/sleep/engine	src/sleep/engine/types tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#368">[ date ]</a>
+              <a href="thread.html#368">[ thread ]</a>
+              <a href="subject.html#368">[ subject ]</a>
+              <a href="author.html#368">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2008-05-30 18:09:15 +0200 (Fri, 30 May 2008)
+New Revision: 392
+
+Added:
+   sleep/tests/addtest.sl
+   sleep/tests/output/addtest.sl
+   sleep/tests/output/removetest.sl
+   sleep/tests/removetest.sl
+Modified:
+   sleep/src/sleep/engine/types/MyLinkedList.java
+Log:
+more tests == more stable array implementation
+
+
+Modified: sleep/src/sleep/engine/types/MyLinkedList.java
+===================================================================
+--- sleep/src/sleep/engine/types/MyLinkedList.java	2008-05-30 15:49:19 UTC (rev 391)
++++ sleep/src/sleep/engine/types/MyLinkedList.java	2008-05-30 16:09:15 UTC (rev 392)
+@@ -157,12 +157,12 @@
+       return new MyLinkedList(parentList == null ? this : parentList, begin, end, (endAt - beginAt));
+    }
+ 
+-/*   public boolean add(Object o)
++   public boolean add(Object o)
+    {
+       ListEntry entry = header;
+       header.previous().addAfter(o);
+       return true;
+-   } */
++   }
+ 
+    /** get an object from the linked list */
+    public Object get(int index)
+
+Added: sleep/tests/addtest.sl
+===================================================================
+--- sleep/tests/addtest.sl	2008-05-30 15:49:19 UTC (rev 391)
++++ sleep/tests/addtest.sl	2008-05-30 16:09:15 UTC (rev 392)
+@@ -0,0 +1,25 @@
++#
++# test out the add and push ops in many different scenarios.
++#
++
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">+ at a</A> = @(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;, &quot;d&quot;, &quot;e&quot;);
++println(@a);
++
++for ($x = 0; $x &lt; 6; $x++)
++{
++   for ($y = $x; $y &lt; 6; $y++)
++   {
++      @a = @(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;, &quot;d&quot;, &quot;e&quot;);
++      @b = sublist(@a, $x, $y);
++      println(&quot;sublist(@a, $x $+ , $y $+ ) = &quot; . @b);
++      println(&quot;   Push END&quot;);
++      push(@b, &quot;END&quot;);
++      println(&quot;      &quot; . @b);
++      println(&quot;      &quot; . @a);
++      println(&quot;   Add BEGIN&quot;);
++      add(@b, &quot;BEGIN&quot;);
++      println(&quot;      &quot; . @b);
++      println(&quot;      &quot; . @a);
++      println();
++   }
++}
+
+Added: sleep/tests/output/addtest.sl
+===================================================================
+--- sleep/tests/output/addtest.sl	2008-05-30 15:49:19 UTC (rev 391)
++++ sleep/tests/output/addtest.sl	2008-05-30 16:09:15 UTC (rev 392)
+@@ -0,0 +1,169 @@
++@('a', 'b', 'c', 'd', 'e')
++sublist(@a, 0, 0) = @()
++   Push END
++      @('END')
++      @('END', 'a', 'b', 'c', 'd', 'e')
++   Add BEGIN
++      @('BEGIN', 'END')
++      @('BEGIN', 'END', 'a', 'b', 'c', 'd', 'e')
++
++sublist(@a, 0, 1) = @('a')
++   Push END
++      @('a', 'END')
++      @('a', 'END', 'b', 'c', 'd', 'e')
++   Add BEGIN
++      @('BEGIN', 'a', 'END')
++      @('BEGIN', 'a', 'END', 'b', 'c', 'd', 'e')
++
++sublist(@a, 0, 2) = @('a', 'b')
++   Push END
++      @('a', 'b', 'END')
++      @('a', 'b', 'END', 'c', 'd', 'e')
++   Add BEGIN
++      @('BEGIN', 'a', 'b', 'END')
++      @('BEGIN', 'a', 'b', 'END', 'c', 'd', 'e')
++
++sublist(@a, 0, 3) = @('a', 'b', 'c')
++   Push END
++      @('a', 'b', 'c', 'END')
++      @('a', 'b', 'c', 'END', 'd', 'e')
++   Add BEGIN
++      @('BEGIN', 'a', 'b', 'c', 'END')
++      @('BEGIN', 'a', 'b', 'c', 'END', 'd', 'e')
++
++sublist(@a, 0, 4) = @('a', 'b', 'c', 'd')
++   Push END
++      @('a', 'b', 'c', 'd', 'END')
++      @('a', 'b', 'c', 'd', 'END', 'e')
++   Add BEGIN
++      @('BEGIN', 'a', 'b', 'c', 'd', 'END')
++      @('BEGIN', 'a', 'b', 'c', 'd', 'END', 'e')
++
++sublist(@a, 0, 5) = @('a', 'b', 'c', 'd', 'e')
++   Push END
++      @('a', 'b', 'c', 'd', 'e', 'END')
++      @('a', 'b', 'c', 'd', 'e', 'END')
++   Add BEGIN
++      @('BEGIN', 'a', 'b', 'c', 'd', 'e', 'END')
++      @('BEGIN', 'a', 'b', 'c', 'd', 'e', 'END')
++
++sublist(@a, 1, 1) = @()
++   Push END
++      @('END')
++      @('a', 'END', 'b', 'c', 'd', 'e')
++   Add BEGIN
++      @('BEGIN', 'END')
++      @('a', 'BEGIN', 'END', 'b', 'c', 'd', 'e')
++
++sublist(@a, 1, 2) = @('b')
++   Push END
++      @('b', 'END')
++      @('a', 'b', 'END', 'c', 'd', 'e')
++   Add BEGIN
++      @('BEGIN', 'b', 'END')
++      @('a', 'BEGIN', 'b', 'END', 'c', 'd', 'e')
++
++sublist(@a, 1, 3) = @('b', 'c')
++   Push END
++      @('b', 'c', 'END')
++      @('a', 'b', 'c', 'END', 'd', 'e')
++   Add BEGIN
++      @('BEGIN', 'b', 'c', 'END')
++      @('a', 'BEGIN', 'b', 'c', 'END', 'd', 'e')
++
++sublist(@a, 1, 4) = @('b', 'c', 'd')
++   Push END
++      @('b', 'c', 'd', 'END')
++      @('a', 'b', 'c', 'd', 'END', 'e')
++   Add BEGIN
++      @('BEGIN', 'b', 'c', 'd', 'END')
++      @('a', 'BEGIN', 'b', 'c', 'd', 'END', 'e')
++
++sublist(@a, 1, 5) = @('b', 'c', 'd', 'e')
++   Push END
++      @('b', 'c', 'd', 'e', 'END')
++      @('a', 'b', 'c', 'd', 'e', 'END')
++   Add BEGIN
++      @('BEGIN', 'b', 'c', 'd', 'e', 'END')
++      @('a', 'BEGIN', 'b', 'c', 'd', 'e', 'END')
++
++sublist(@a, 2, 2) = @()
++   Push END
++      @('END')
++      @('a', 'b', 'END', 'c', 'd', 'e')
++   Add BEGIN
++      @('BEGIN', 'END')
++      @('a', 'b', 'BEGIN', 'END', 'c', 'd', 'e')
++
++sublist(@a, 2, 3) = @('c')
++   Push END
++      @('c', 'END')
++      @('a', 'b', 'c', 'END', 'd', 'e')
++   Add BEGIN
++      @('BEGIN', 'c', 'END')
++      @('a', 'b', 'BEGIN', 'c', 'END', 'd', 'e')
++
++sublist(@a, 2, 4) = @('c', 'd')
++   Push END
++      @('c', 'd', 'END')
++      @('a', 'b', 'c', 'd', 'END', 'e')
++   Add BEGIN
++      @('BEGIN', 'c', 'd', 'END')
++      @('a', 'b', 'BEGIN', 'c', 'd', 'END', 'e')
++
++sublist(@a, 2, 5) = @('c', 'd', 'e')
++   Push END
++      @('c', 'd', 'e', 'END')
++      @('a', 'b', 'c', 'd', 'e', 'END')
++   Add BEGIN
++      @('BEGIN', 'c', 'd', 'e', 'END')
++      @('a', 'b', 'BEGIN', 'c', 'd', 'e', 'END')
++
++sublist(@a, 3, 3) = @()
++   Push END
++      @('END')
++      @('a', 'b', 'c', 'END', 'd', 'e')
++   Add BEGIN
++      @('BEGIN', 'END')
++      @('a', 'b', 'c', 'BEGIN', 'END', 'd', 'e')
++
++sublist(@a, 3, 4) = @('d')
++   Push END
++      @('d', 'END')
++      @('a', 'b', 'c', 'd', 'END', 'e')
++   Add BEGIN
++      @('BEGIN', 'd', 'END')
++      @('a', 'b', 'c', 'BEGIN', 'd', 'END', 'e')
++
++sublist(@a, 3, 5) = @('d', 'e')
++   Push END
++      @('d', 'e', 'END')
++      @('a', 'b', 'c', 'd', 'e', 'END')
++   Add BEGIN
++      @('BEGIN', 'd', 'e', 'END')
++      @('a', 'b', 'c', 'BEGIN', 'd', 'e', 'END')
++
++sublist(@a, 4, 4) = @()
++   Push END
++      @('END')
++      @('a', 'b', 'c', 'd', 'END', 'e')
++   Add BEGIN
++      @('BEGIN', 'END')
++      @('a', 'b', 'c', 'd', 'BEGIN', 'END', 'e')
++
++sublist(@a, 4, 5) = @('e')
++   Push END
++      @('e', 'END')
++      @('a', 'b', 'c', 'd', 'e', 'END')
++   Add BEGIN
++      @('BEGIN', 'e', 'END')
++      @('a', 'b', 'c', 'd', 'BEGIN', 'e', 'END')
++
++sublist(@a, 5, 5) = @()
++   Push END
++      @('END')
++      @('a', 'b', 'c', 'd', 'e', 'END')
++   Add BEGIN
++      @('BEGIN', 'END')
++      @('a', 'b', 'c', 'd', 'e', 'BEGIN', 'END')
++
+
+Added: sleep/tests/output/removetest.sl
+===================================================================
+--- sleep/tests/output/removetest.sl	2008-05-30 15:49:19 UTC (rev 391)
++++ sleep/tests/output/removetest.sl	2008-05-30 16:09:15 UTC (rev 392)
+@@ -0,0 +1,141 @@
++@('a', 'b', 'c', 'd', 'e')
++sublist(@a, 0, 1) = @('a')
++   Remove 0:
++     @('b', 'c', 'd', 'e')
++     @()
++sublist(@a, 0, 2) = @('a', 'b')
++   Remove 0:
++     @('b', 'c', 'd', 'e')
++     @('b')
++sublist(@a, 0, 2) = @('a', 'b')
++   Remove 1:
++     @('a', 'c', 'd', 'e')
++     @('a')
++sublist(@a, 0, 3) = @('a', 'b', 'c')
++   Remove 0:
++     @('b', 'c', 'd', 'e')
++     @('b', 'c')
++sublist(@a, 0, 3) = @('a', 'b', 'c')
++   Remove 1:
++     @('a', 'c', 'd', 'e')
++     @('a', 'c')
++sublist(@a, 0, 3) = @('a', 'b', 'c')
++   Remove 2:
++     @('a', 'b', 'd', 'e')
++     @('a', 'b')
++sublist(@a, 0, 4) = @('a', 'b', 'c', 'd')
++   Remove 0:
++     @('b', 'c', 'd', 'e')
++     @('b', 'c', 'd')
++sublist(@a, 0, 4) = @('a', 'b', 'c', 'd')
++   Remove 1:
++     @('a', 'c', 'd', 'e')
++     @('a', 'c', 'd')
++sublist(@a, 0, 4) = @('a', 'b', 'c', 'd')
++   Remove 2:
++     @('a', 'b', 'd', 'e')
++     @('a', 'b', 'd')
++sublist(@a, 0, 4) = @('a', 'b', 'c', 'd')
++   Remove 3:
++     @('a', 'b', 'c', 'e')
++     @('a', 'b', 'c')
++sublist(@a, 0, 5) = @('a', 'b', 'c', 'd', 'e')
++   Remove 0:
++     @('b', 'c', 'd', 'e')
++     @('b', 'c', 'd', 'e')
++sublist(@a, 0, 5) = @('a', 'b', 'c', 'd', 'e')
++   Remove 1:
++     @('a', 'c', 'd', 'e')
++     @('a', 'c', 'd', 'e')
++sublist(@a, 0, 5) = @('a', 'b', 'c', 'd', 'e')
++   Remove 2:
++     @('a', 'b', 'd', 'e')
++     @('a', 'b', 'd', 'e')
++sublist(@a, 0, 5) = @('a', 'b', 'c', 'd', 'e')
++   Remove 3:
++     @('a', 'b', 'c', 'e')
++     @('a', 'b', 'c', 'e')
++sublist(@a, 0, 5) = @('a', 'b', 'c', 'd', 'e')
++   Remove 4:
++     @('a', 'b', 'c', 'd')
++     @('a', 'b', 'c', 'd')
++sublist(@a, 1, 2) = @('b')
++   Remove 0:
++     @('a', 'c', 'd', 'e')
++     @()
++sublist(@a, 1, 3) = @('b', 'c')
++   Remove 0:
++     @('a', 'c', 'd', 'e')
++     @('c')
++sublist(@a, 1, 3) = @('b', 'c')
++   Remove 1:
++     @('a', 'b', 'd', 'e')
++     @('b')
++sublist(@a, 1, 4) = @('b', 'c', 'd')
++   Remove 0:
++     @('a', 'c', 'd', 'e')
++     @('c', 'd')
++sublist(@a, 1, 4) = @('b', 'c', 'd')
++   Remove 1:
++     @('a', 'b', 'd', 'e')
++     @('b', 'd')
++sublist(@a, 1, 4) = @('b', 'c', 'd')
++   Remove 2:
++     @('a', 'b', 'c', 'e')
++     @('b', 'c')
++sublist(@a, 1, 5) = @('b', 'c', 'd', 'e')
++   Remove 0:
++     @('a', 'c', 'd', 'e')
++     @('c', 'd', 'e')
++sublist(@a, 1, 5) = @('b', 'c', 'd', 'e')
++   Remove 1:
++     @('a', 'b', 'd', 'e')
++     @('b', 'd', 'e')
++sublist(@a, 1, 5) = @('b', 'c', 'd', 'e')
++   Remove 2:
++     @('a', 'b', 'c', 'e')
++     @('b', 'c', 'e')
++sublist(@a, 1, 5) = @('b', 'c', 'd', 'e')
++   Remove 3:
++     @('a', 'b', 'c', 'd')
++     @('b', 'c', 'd')
++sublist(@a, 2, 3) = @('c')
++   Remove 0:
++     @('a', 'b', 'd', 'e')
++     @()
++sublist(@a, 2, 4) = @('c', 'd')
++   Remove 0:
++     @('a', 'b', 'd', 'e')
++     @('d')
++sublist(@a, 2, 4) = @('c', 'd')
++   Remove 1:
++     @('a', 'b', 'c', 'e')
++     @('c')
++sublist(@a, 2, 5) = @('c', 'd', 'e')
++   Remove 0:
++     @('a', 'b', 'd', 'e')
++     @('d', 'e')
++sublist(@a, 2, 5) = @('c', 'd', 'e')
++   Remove 1:
++     @('a', 'b', 'c', 'e')
++     @('c', 'e')
++sublist(@a, 2, 5) = @('c', 'd', 'e')
++   Remove 2:
++     @('a', 'b', 'c', 'd')
++     @('c', 'd')
++sublist(@a, 3, 4) = @('d')
++   Remove 0:
++     @('a', 'b', 'c', 'e')
++     @()
++sublist(@a, 3, 5) = @('d', 'e')
++   Remove 0:
++     @('a', 'b', 'c', 'e')
++     @('e')
++sublist(@a, 3, 5) = @('d', 'e')
++   Remove 1:
++     @('a', 'b', 'c', 'd')
++     @('d')
++sublist(@a, 4, 5) = @('e')
++   Remove 0:
++     @('a', 'b', 'c', 'd')
++     @()
+
+Added: sleep/tests/removetest.sl
+===================================================================
+--- sleep/tests/removetest.sl	2008-05-30 15:49:19 UTC (rev 391)
++++ sleep/tests/removetest.sl	2008-05-30 16:09:15 UTC (rev 392)
+@@ -0,0 +1,23 @@
++#
++# test out the add and push ops in many different scenarios.
++#
++
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">+ at a</A> = @(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;, &quot;d&quot;, &quot;e&quot;);
++println(@a);
++
++for ($x = 0; $x &lt; 6; $x++)
++{
++   for ($y = $x; $y &lt; 6; $y++)
++   {
++      for ($z = 0; $z &lt; ($y - $x); $z++)
++      {
++         @a = @(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;, &quot;d&quot;, &quot;e&quot;);
++         @b = sublist(@a, $x, $y);
++         println(&quot;sublist(@a, $x $+ , $y $+ ) = &quot; . @b);
++         removeAt(@b, $z);
++         println(&quot;   Remove $z $+ :&quot;);
++         println(&quot;     &quot; . @a);
++         println(&quot;     &quot; . @b);
++      }
++   }
++}
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000367.html">[Sleep-svn] r391 - sleep/src/sleep/engine/types
+</A></li>
+	<LI>Next message: <A HREF="000369.html">[Sleep-svn] r393 - in sleep: . src/sleep/engine	src/sleep/engine/types tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#368">[ date ]</a>
+              <a href="thread.html#368">[ thread ]</a>
+              <a href="subject.html#368">[ subject ]</a>
+              <a href="author.html#368">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

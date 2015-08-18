@@ -1,0 +1,366 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r235 - in sleep: . src/sleep/bridges src/sleep/runtime	tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2007-March/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r235%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20src/sleep/runtime%0A%09tests%20tests/output&In-Reply-To=%3C200703242038.l2OKcPJW009116%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000213.html">
+   <LINK REL="Next"  HREF="000215.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r235 - in sleep: . src/sleep/bridges src/sleep/runtime	tests tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r235%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20src/sleep/runtime%0A%09tests%20tests/output&In-Reply-To=%3C200703242038.l2OKcPJW009116%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r235 - in sleep: . src/sleep/bridges src/sleep/runtime	tests tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Sat Mar 24 21:38:25 CET 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000213.html">[Sleep-svn] r234 - in sleep: . docs src/sleep/runtime
+</A></li>
+        <LI>Next message: <A HREF="000215.html">[Sleep-svn] r236 - in sleep: . src/sleep/runtime
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#214">[ date ]</a>
+              <a href="thread.html#214">[ thread ]</a>
+              <a href="subject.html#214">[ subject ]</a>
+              <a href="author.html#214">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2007-03-24 21:38:23 +0100 (Sat, 24 Mar 2007)
+New Revision: 235
+
+Added:
+   sleep/tests/border.sl
+   sleep/tests/output/border.sl
+Modified:
+   sleep/readme.txt
+   sleep/src/sleep/bridges/BasicStrings.java
+   sleep/src/sleep/bridges/BasicUtilities.java
+   sleep/src/sleep/bridges/BridgeUtilities.java
+   sleep/src/sleep/runtime/SleepUtils.java
+   sleep/tests/output/arrmods.sl
+   sleep/tests/output/include.sl
+   sleep/tests/output/strmods.sl
+   sleep/tests/strmods.sl
+   sleep/whatsnew.txt
+Log:
+Sleep 2.1-b14 baby!
+
+
+Modified: sleep/readme.txt
+===================================================================
+--- sleep/readme.txt	2007-03-23 23:50:57 UTC (rev 234)
++++ sleep/readme.txt	2007-03-24 20:38:23 UTC (rev 235)
+@@ -1,5 +1,5 @@
+  ------- -------------------- ---------   ---------------  ------- ---------
+-Sleep - 2.1 beta 13 - README   
++Sleep - 2.1 beta 14 - README   
+ -  ------------- -------- -   ---------------- --       -    -     -     - - -
+ 
+ &quot;You got the language, all you need now is the O'Reilly book&quot;.  That is
+
+Modified: sleep/src/sleep/bridges/BasicStrings.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicStrings.java	2007-03-23 23:50:57 UTC (rev 234)
++++ sleep/src/sleep/bridges/BasicStrings.java	2007-03-24 20:38:23 UTC (rev 235)
+@@ -649,8 +649,12 @@
+       end   = (_end &lt; 0 ? _end + length : _end);
+       end   = end &lt;= length ? end : length;
+ 
+-      if (start &gt;= end)
++      if (start == end)
+       {
++         return &quot;&quot;;
++      }
++      else if (start &gt; end)
++      {
+          throw new IllegalArgumentException(func + &quot;: illegal substring('&quot; + str + &quot;', &quot; + _start + &quot; -&gt; &quot; + start + &quot;, &quot; + _end + &quot; -&gt; &quot; + end + &quot;) indices&quot;);
+       }
+ 
+
+Modified: sleep/src/sleep/bridges/BasicUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicUtilities.java	2007-03-23 23:50:57 UTC (rev 234)
++++ sleep/src/sleep/bridges/BasicUtilities.java	2007-03-24 20:38:23 UTC (rev 235)
+@@ -898,7 +898,7 @@
+        else if (n.equals(&quot;&amp;add&quot;) &amp;&amp; value.getArray() != null)
+        {
+           Scalar item = BridgeUtilities.getScalar(l);
+-          int index   = BridgeUtilities.normalize(BridgeUtilities.getInt(l, 0), value.getArray().size());
++          int index   = BridgeUtilities.normalize(BridgeUtilities.getInt(l, 0), value.getArray().size() + 1);
+           return value.getArray().add(SleepUtils.getScalar(item), index);
+        }
+        else if (n.equals(&quot;&amp;splice&quot;) &amp;&amp; value.getArray() != null)
+@@ -1158,11 +1158,11 @@
+           int length = value.getArray().size();
+           int start, end;
+ 
+-          start = (_start &lt; 0 ? _start + length : _start) % length;
++          start = BridgeUtilities.normalize(_start, length);
+           end   = (_end &lt; 0 ? _end + length : _end);
+           end   = end &lt;= length ? end : length;
+ 
+-          if (start &gt;= end)
++          if (start &gt; end)
+           {
+              throw new IllegalArgumentException(&quot;illegal subarray(&quot; + SleepUtils.describe(value) + &quot;, &quot; + _start + &quot; -&gt; &quot; + start + &quot;, &quot; + _end + &quot; -&gt; &quot; + end + &quot;)&quot;);
+           }
+
+Modified: sleep/src/sleep/bridges/BridgeUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BridgeUtilities.java	2007-03-23 23:50:57 UTC (rev 234)
++++ sleep/src/sleep/bridges/BridgeUtilities.java	2007-03-24 20:38:23 UTC (rev 235)
+@@ -303,7 +303,6 @@
+    /** normalizes the index value based on the specified length */
+    public static final int normalize(int value, int length)
+    {
+-      if (length == 0) { return 0; }
+-      return (value &lt; 0 ? value + length : value) % length;
++      return value &lt; 0 ? value + length : value;
+    }
+ }
+
+Modified: sleep/src/sleep/runtime/SleepUtils.java
+===================================================================
+--- sleep/src/sleep/runtime/SleepUtils.java	2007-03-23 23:50:57 UTC (rev 234)
++++ sleep/src/sleep/runtime/SleepUtils.java	2007-03-24 20:38:23 UTC (rev 235)
+@@ -26,7 +26,7 @@
+ public class SleepUtils
+ {
+    /** A date stamp of this Sleep release in YYYYMMDD format */
+-   public static final int    SLEEP_RELEASE = 20070323;
++   public static final int    SLEEP_RELEASE = 20070324;
+ 
+    /** A string description of this Sleep release */
+    public static final String SLEEP_VERSION = &quot;Sleep 2.1&quot;;
+
+Added: sleep/tests/border.sl
+===================================================================
+--- sleep/tests/border.sl	2007-03-23 23:50:57 UTC (rev 234)
++++ sleep/tests/border.sl	2007-03-24 20:38:23 UTC (rev 235)
+@@ -0,0 +1,32 @@
++#
++# borderline string manipulation cases...
++#
++
++println(substr(&quot;ab&quot;, 1));
++println(substr(&quot;a&quot;, 1));
++println(substr(&quot;abc&quot;, 2));
++println(substr(&quot;ab&quot;, 2));
++
++println(subarray(@(&quot;a&quot;, &quot;b&quot;), 1));
++println(subarray(@(&quot;a&quot;), 1));
++println(subarray(@(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;), 2));
++println(subarray(@(&quot;a&quot;, &quot;b&quot;), 2));
++
++println(subarray(@(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;), -1));
++println(subarray(@(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;), -2));
++println(subarray(@(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;), -3));
++
++println(substr(&quot;abc&quot;, -1));
++println(substr(&quot;abc&quot;, -2));
++println(substr(&quot;abc&quot;, -3));
++
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">+ at test</A> = @(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;, &quot;d&quot;);
++add(@test, &quot;e&quot;, -1);
++
++println(@test);
++
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">+ at test</A> = @(&quot;v&quot;, &quot;w&quot;, &quot;x&quot;, &quot;y&quot;, &quot;z&quot;);
++removeAt(@test, -1);
++
++println(@test);
++
+
+Modified: sleep/tests/output/arrmods.sl
+===================================================================
+--- sleep/tests/output/arrmods.sl	2007-03-23 23:50:57 UTC (rev 234)
++++ sleep/tests/output/arrmods.sl	2007-03-24 20:38:23 UTC (rev 235)
+@@ -4,4 +4,4 @@
+ 12
+ @(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 14)
+ @('test!!!', 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 14)
+-@('test!!!', 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 'zzzz', 14)
++@('test!!!', 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 14, 'zzzz')
+
+Added: sleep/tests/output/border.sl
+===================================================================
+--- sleep/tests/output/border.sl	2007-03-23 23:50:57 UTC (rev 234)
++++ sleep/tests/output/border.sl	2007-03-24 20:38:23 UTC (rev 235)
+@@ -0,0 +1,16 @@
++b
++
++c
++
++@('b')
++@()
++@('c')
++@()
++@('c')
++@('b', 'c')
++@('a', 'b', 'c')
++c
++bc
++abc
++@('a', 'b', 'c', 'd', 'e')
++@('v', 'w', 'x', 'y')
+
+Modified: sleep/tests/output/include.sl
+===================================================================
+--- sleep/tests/output/include.sl	2007-03-23 23:50:57 UTC (rev 234)
++++ sleep/tests/output/include.sl	2007-03-24 20:38:23 UTC (rev 235)
+@@ -6,8 +6,8 @@
+ Trace: &amp;foo() at injar.sl:9
+ Done with injar.sl -- Harf... bish
+ Trace: &amp;println('Done with injar.sl -- Harf... bish') at injar.sl:12
+-Trace: &amp;substr('test', 8, 20) = 'test' at injar.sl:17
+-Warning: variable '$x' not declared at injar.sl:17
++Trace: &amp;substr('test', 8, 20) - FAILED! at injar.sl:17
++Warning: &amp;substr: illegal substring('test', 8 -&gt; 8, 20 -&gt; 4) indices at injar.sl:17
+ Trace: &amp;debug(7) = 7 at include.sl:19
+ Eh?!? Hello from injar.sl
+ Warning: checkError(): YourCodeSucksException: 3 error(s): Mismatched Parentheses - missing close paren at 9; Mismatched Braces - missing close brace at 6; Runaway string at 9 at include.sl:24
+
+Modified: sleep/tests/output/strmods.sl
+===================================================================
+--- sleep/tests/output/strmods.sl	2007-03-23 23:50:57 UTC (rev 234)
++++ sleep/tests/output/strmods.sl	2007-03-24 20:38:23 UTC (rev 235)
+@@ -4,12 +4,11 @@
+ this is a
+ this is uNF test
+ a
+-this is a testthis is a testthis is a testthis is a testthis is a testthis is a 
+-t a si sihttset a si sihttset a si sihttset a si sihttset a si sihttset a si siht
++this is a testthis is a test
+ --): gnirts elbisrever a si siht++
+ string
+ string
+-Warning: &amp;substr: illegal substring('++this is a reversible string :)--', -11 -&gt; 23, -15 -&gt; 19) indices at strmods.sl:42
++Warning: &amp;substr: illegal substring('++this is a reversible string :)--', -11 -&gt; 23, -15 -&gt; 19) indices at strmods.sl:52
+ 2
+ 2
+ 2
+@@ -24,14 +23,3 @@
+ -1
+ -1
+ -1
+-2
+-2
+-2
+-5
+-5
+-5
+--1
+--1
+--1
+--1
+--1
+
+Modified: sleep/tests/strmods.sl
+===================================================================
+--- sleep/tests/strmods.sl	2007-03-23 23:50:57 UTC (rev 234)
++++ sleep/tests/strmods.sl	2007-03-24 20:38:23 UTC (rev 235)
+@@ -2,24 +2,34 @@
+ # test of string functions...
+ #
+ 
++
+ println(right(&quot;this is a test&quot;, 4));  # the right most 4 chars
+ println(left(&quot;this is a test&quot;, 4));   # the left most 4 chars
+ 
++# expected:
++# test
++# this
++
+ println(right(&quot;this is a test&quot;, -5)); # all right chars except the left 5
+ println(left(&quot;this is a test&quot;, -5));  # all left chars except the right 5
+ 
++# expected:
++# is a test
++# this is a
++
+ println(replaceAt(&quot;this is a test&quot;, &quot;uNF&quot;, -6, 1));
+ 
++# expected:
++# this is uNF test
++
+ println(charAt(&quot;this is a test&quot;, -6));
+ 
+-for ($x = 0; $x &lt; 80; $x++)
+-{
+-   print(charAt(&quot;this is a test&quot;, $x));
+-}
++# expected:
++# a
+ 
+-println();
++$len = strlen(&quot;this is a test&quot;);
+ 
+-for ($x = 80; $x &gt;= 0; $x--)
++for ($x = $len * -1; $x &lt; $len; $x++)
+ {
+    print(charAt(&quot;this is a test&quot;, $x));
+ }
+@@ -41,7 +51,7 @@
+ 
+ [{ println(substr($str, -11, -15)); }];
+ 
+-for ($x = 0; $x &lt; 25; $x++)
++for ($x = 0; $x &lt; $len; $x++)
+ {
+    println(indexOf(&quot;this is a test&quot;, &quot;i&quot;, $x));
+ }
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2007-03-23 23:50:57 UTC (rev 234)
++++ sleep/whatsnew.txt	2007-03-24 20:38:23 UTC (rev 235)
+@@ -1,4 +1,4 @@
+-2.1-beta 14  (23 Mar 07)
++2.1-beta 14  (24 Mar 07)
+ ===========
+ - added splice(@array, @insertme, position, n) for modifying an array.  
+   works a lot like replaceAt, i.e. up to n elements at the specified
+@@ -12,6 +12,7 @@
+   objects.
+ - the import/from syntax now allows the jar filename to be quoted with 
+   double or single quotes to specify a path with spaces.
++- fixed a bug with normalized parameters (for both arrays and strings)
+ 
+ 2.1-beta 13  (18 Mar 07)
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000213.html">[Sleep-svn] r234 - in sleep: . docs src/sleep/runtime
+</A></li>
+	<LI>Next message: <A HREF="000215.html">[Sleep-svn] r236 - in sleep: . src/sleep/runtime
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#214">[ date ]</a>
+              <a href="thread.html#214">[ thread ]</a>
+              <a href="subject.html#214">[ subject ]</a>
+              <a href="author.html#214">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

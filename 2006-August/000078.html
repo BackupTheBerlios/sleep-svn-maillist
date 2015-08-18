@@ -1,0 +1,145 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r96 - in sleep: . src/sleep/bridges	src/sleep/engine/atoms src/sleep/runtime
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2006-August/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r96%20-%20in%20sleep%3A%20.%20src/sleep/bridges%0A%09src/sleep/engine/atoms%20src/sleep/runtime&In-Reply-To=%3C200608090043.k790hnQv011396%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000077.html">
+   <LINK REL="Next"  HREF="000079.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r96 - in sleep: . src/sleep/bridges	src/sleep/engine/atoms src/sleep/runtime</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r96%20-%20in%20sleep%3A%20.%20src/sleep/bridges%0A%09src/sleep/engine/atoms%20src/sleep/runtime&In-Reply-To=%3C200608090043.k790hnQv011396%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r96 - in sleep: . src/sleep/bridges	src/sleep/engine/atoms src/sleep/runtime">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Wed Aug  9 02:43:49 CEST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000077.html">[Sleep-svn] r95 - in sleep: . src/sleep/bridges src/sleep/bridges/io
+</A></li>
+        <LI>Next message: <A HREF="000079.html">[Sleep-svn] r97 - in sleep: . src/sleep/bridges tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#78">[ date ]</a>
+              <a href="thread.html#78">[ thread ]</a>
+              <a href="subject.html#78">[ subject ]</a>
+              <a href="author.html#78">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2006-08-09 02:43:44 +0200 (Wed, 09 Aug 2006)
+New Revision: 96
+
+Modified:
+   sleep/src/sleep/bridges/BasicUtilities.java
+   sleep/src/sleep/engine/atoms/Get.java
+   sleep/src/sleep/runtime/ScriptInstance.java
+   sleep/whatsnew.txt
+Log:
+Added DEBUG_STRICT, every one will love it... also added global()
+
+
+
+Modified: sleep/src/sleep/bridges/BasicUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicUtilities.java	2006-08-09 00:25:15 UTC (rev 95)
++++ sleep/src/sleep/bridges/BasicUtilities.java	2006-08-09 00:43:44 UTC (rev 96)
+@@ -87,6 +87,7 @@
+ 
+         temp.put(&quot;&amp;local&quot;,    scopeFunctions);
+         temp.put(&quot;&amp;this&quot;,     scopeFunctions);
++        temp.put(&quot;&amp;global&quot;,     scopeFunctions);
+ 
+         temp.put(&quot;&amp;reverse&quot;,  new reverse());      // @array2 = &amp;reverse(@array) 
+         temp.put(&quot;&amp;removeAt&quot;, new removeAt());   // not safe within foreach loops yada yada yada...
+@@ -500,6 +501,7 @@
+ 
+           if (n.equals(&quot;&amp;local&quot;)) { level = i.getScriptVariables().getLocalVariables(); }
+           else if (n.equals(&quot;&amp;this&quot;)) { level = i.getScriptVariables().getClosureVariables(); }
++          else if (n.equals(&quot;&amp;global&quot;)) { level = i.getScriptVariables().getGlobalVariables(); }
+ 
+           String temp = l.pop().toString();
+ 
+
+Modified: sleep/src/sleep/engine/atoms/Get.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/Get.java	2006-08-09 00:25:15 UTC (rev 95)
++++ sleep/src/sleep/engine/atoms/Get.java	2006-08-09 00:43:44 UTC (rev 96)
+@@ -64,6 +64,11 @@
+                structure = SleepUtils.getEmptyScalar();
+ 
+             e.putScalar(value, structure);
++
++            if ((e.getScriptInstance().getDebugFlags() &amp; ScriptInstance.DEBUG_REQUIRE_STRICT) == ScriptInstance.DEBUG_REQUIRE_STRICT)
++            {
++               e.showDebugMessage(&quot;variable '&quot; + value + &quot;' not declared&quot;);
++            }
+          }
+ 
+          e.getCurrentFrame().push(structure);
+
+Modified: sleep/src/sleep/runtime/ScriptInstance.java
+===================================================================
+--- sleep/src/sleep/runtime/ScriptInstance.java	2006-08-09 00:25:15 UTC (rev 95)
++++ sleep/src/sleep/runtime/ScriptInstance.java	2006-08-09 00:43:44 UTC (rev 96)
+@@ -80,6 +80,9 @@
+     /** fire runtime warnings for anything flagged for retrieval with checkError() */
+     public static final int DEBUG_SHOW_WARNINGS = 2;
+ 
++    /** fire runtime warning whenever an undeclared variable is fired */
++    public static final int DEBUG_REQUIRE_STRICT = 4;
++
+     /** track all of the flagged debug options for this script (set to DEBUG_SHOW_ERRORS by default) */
+     protected int debug = DEBUG_SHOW_ERRORS;
+ 
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-08-09 00:25:15 UTC (rev 95)
++++ sleep/whatsnew.txt	2006-08-09 00:43:44 UTC (rev 96)
+@@ -6,6 +6,11 @@
+ - modified listen to create bind to the specified port, each call to listen
+   is a call to accept a connection on the specified port.  to stop listening
+   on the specified port use closef(port number) instead of $handle.
++- added a function global to declare a series of variables into the global 
++  scope
++- added a require strict debug flag, this flag causes a runtime warning to
++  be fired whenever a script uses a variable without delcaring it using
++  global, local, or this.
+ 
+ 2.1-beta 2
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000077.html">[Sleep-svn] r95 - in sleep: . src/sleep/bridges src/sleep/bridges/io
+</A></li>
+	<LI>Next message: <A HREF="000079.html">[Sleep-svn] r97 - in sleep: . src/sleep/bridges tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#78">[ date ]</a>
+              <a href="thread.html#78">[ thread ]</a>
+              <a href="subject.html#78">[ subject ]</a>
+              <a href="author.html#78">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

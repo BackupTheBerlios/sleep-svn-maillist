@@ -1,0 +1,246 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r247 - in sleep: . src/sleep/bridges tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2007-April/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r247%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20tests/output&In-Reply-To=%3C200704070525.l375PqQQ032648%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000225.html">
+   <LINK REL="Next"  HREF="000227.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r247 - in sleep: . src/sleep/bridges tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r247%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20tests/output&In-Reply-To=%3C200704070525.l375PqQQ032648%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r247 - in sleep: . src/sleep/bridges tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Sat Apr  7 07:25:52 CEST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000225.html">[Sleep-svn] r246 - in sleep: . src/sleep/runtime
+</A></li>
+        <LI>Next message: <A HREF="000227.html">[Sleep-svn] r248 - sleep
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#226">[ date ]</a>
+              <a href="thread.html#226">[ thread ]</a>
+              <a href="subject.html#226">[ subject ]</a>
+              <a href="author.html#226">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2007-04-07 07:25:51 +0200 (Sat, 07 Apr 2007)
+New Revision: 247
+
+Modified:
+   sleep/src/sleep/bridges/BasicStrings.java
+   sleep/tests/output/forker.sl
+   sleep/tests/output/trace.sl
+   sleep/tests/output/wrong.sl
+   sleep/whatsnew.txt
+Log:
+collapsed some of the sort functions together... in theory it is to save space?!? 
+
+
+
+Modified: sleep/src/sleep/bridges/BasicStrings.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicStrings.java	2007-04-07 05:01:58 UTC (rev 246)
++++ sleep/src/sleep/bridges/BasicStrings.java	2007-04-07 05:25:51 UTC (rev 247)
+@@ -79,10 +79,12 @@
+         temp.put(&quot;&amp;chr&quot;,     new func_chr());
+ 
+         temp.put(&quot;&amp;sort&quot;,    new func_sort());
+-        temp.put(&quot;&amp;sorta&quot;,    new func_sorta());
+-        temp.put(&quot;&amp;sortn&quot;,    new func_sortn());
+-        temp.put(&quot;&amp;sortd&quot;,    new func_sortd());
+ 
++        func_sorters funky = new func_sorters();
++        temp.put(&quot;&amp;sorta&quot;,   funky);
++        temp.put(&quot;&amp;sortn&quot;,   funky);
++        temp.put(&quot;&amp;sortd&quot;,   funky);
++
+         // predicates
+         temp.put(&quot;eq&quot;, new pred_eq());
+         temp.put(&quot;ne&quot;, new pred_ne());
+@@ -485,39 +487,29 @@
+         }
+     }
+ 
+-    private static class func_sorta implements Function
++    private static class func_sorters implements Function
+     {
+         public Scalar evaluate(String n, ScriptInstance i, Stack l)
+         {
+            ScalarArray  array     = BridgeUtilities.getWorkableArray(l);
+ 
+-           array.sort(new CompareStrings());
+-           return SleepUtils.getArrayScalar(array);
+-        }
+-    }
++           if (n.equals(&quot;&amp;sorta&quot;))
++           {
++              array.sort(new CompareStrings());
++           }
++           else if (n.equals(&quot;&amp;sortn&quot;))
++           {
++              array.sort(new CompareNumbers());
++           }
++           else if (n.equals(&quot;&amp;sortd&quot;))
++           {
++              array.sort(new CompareDoubles());
++           }
+ 
+-    private static class func_sortn implements Function
+-    {
+-        public Scalar evaluate(String n, ScriptInstance i, Stack l)
+-        {
+-           ScalarArray  array     = BridgeUtilities.getWorkableArray(l);
+-
+-           array.sort(new CompareNumbers());
+            return SleepUtils.getArrayScalar(array);
+         }
+     }
+ 
+-    private static class func_sortd implements Function
+-    {
+-        public Scalar evaluate(String n, ScriptInstance i, Stack l)
+-        {
+-           ScalarArray  array     = BridgeUtilities.getWorkableArray(l);
+-
+-           array.sort(new CompareDoubles());
+-           return SleepUtils.getArrayScalar(array);
+-        }
+-    }
+-
+     private static class CompareFunction implements Comparator
+     {
+         protected Function       func;
+
+Modified: sleep/tests/output/forker.sl
+===================================================================
+--- sleep/tests/output/forker.sl	2007-04-07 05:01:58 UTC (rev 246)
++++ sleep/tests/output/forker.sl	2007-04-07 05:25:51 UTC (rev 247)
+@@ -1,4 +1,4 @@
+ Trace: &amp;check('within fork') at forker.sl:9
+-Trace: &amp;fork(&amp;closure[forker.sl:9]#2) = <A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">sleep.bridges.io.IOObject at 1a1399</A> at forker.sl:8
++Trace: &amp;fork(&amp;closure[forker.sl:9]#2) = <A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">sleep.bridges.io.IOObject at c2ee15</A> at forker.sl:8
+ Trace: &amp;sleep(1000) at forker.sl:12
+ Trace: &amp;check('outside of fork') at forker.sl:14
+
+Modified: sleep/tests/output/trace.sl
+===================================================================
+--- sleep/tests/output/trace.sl	2007-04-07 05:01:58 UTC (rev 246)
++++ sleep/tests/output/trace.sl	2007-04-07 05:25:51 UTC (rev 247)
+@@ -1,13 +1,13 @@
+ this is a test
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at c7e2da</A> println: 'this is a test'] at trace.sl:6
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at f1916f</A> println: 'this is a test'] at trace.sl:6
+ Trace: [java.lang.Math pow: 3, 4] = 81.0 at trace.sl:7
+ 81.0
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at c7e2da</A> println: 81.0] at trace.sl:7
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at f1916f</A> println: 81.0] at trace.sl:7
+ Trace: [java.lang.Math pow: 3, 5] = 243.0 at trace.sl:8
+ 243.0
+ Trace: &amp;println(243.0) at trace.sl:8
+ testing again...
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at c7e2da</A> println: 'testing again...'] at trace.sl:10
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at f1916f</A> println: 'testing again...'] at trace.sl:10
+ Trace: [sleep.runtime.SleepUtils getListFromArray: @('a', 'b', 'c')] = [a, b, c] at trace.sl:12
+ Trace: [new java.util.LinkedList: [a, b, c]] = [a, b, c] at trace.sl:12
+ Warning: variable '$list' not declared at trace.sl:12
+
+Modified: sleep/tests/output/wrong.sl
+===================================================================
+--- sleep/tests/output/wrong.sl	2007-04-07 05:01:58 UTC (rev 246)
++++ sleep/tests/output/wrong.sl	2007-04-07 05:25:51 UTC (rev 247)
+@@ -1,32 +1,32 @@
+ Trace: [java.lang.Math pow: 3, 4] = 81.0 at wrong.sl:6
+ 81.0
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at f4bcf7</A> println: 81.0] at wrong.sl:6
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at caf6c1</A> println: 81.0] at wrong.sl:6
+ Trace: &amp;casti(1, 'z') = true at wrong.sl:9
+ true
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at f4bcf7</A> println: true] at wrong.sl:9
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at caf6c1</A> println: true] at wrong.sl:9
+ Trace: &amp;casti(0, 'z') = false at wrong.sl:10
+ false
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at f4bcf7</A> println: false] at wrong.sl:10
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at caf6c1</A> println: false] at wrong.sl:10
+ Trace: &amp;casti(1, 'd') = 1.0 at wrong.sl:13
+ 1.0
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at f4bcf7</A> println: 1.0] at wrong.sl:13
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at caf6c1</A> println: 1.0] at wrong.sl:13
+ Trace: &amp;casti(1, 'b') = 1 at wrong.sl:16
+ 1
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at f4bcf7</A> println: 1] at wrong.sl:16
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at caf6c1</A> println: 1] at wrong.sl:16
+ Trace: &amp;casti(100, 'f') = 100.0 at wrong.sl:19
+ 100.0
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at f4bcf7</A> println: 100.0] at wrong.sl:19
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at caf6c1</A> println: 100.0] at wrong.sl:19
+ Trace: &amp;casti('b', 'c') = b at wrong.sl:22
+ b
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at f4bcf7</A> println: b] at wrong.sl:22
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at caf6c1</A> println: b] at wrong.sl:22
+ Trace: &amp;casti(63, 'i') = 63 at wrong.sl:25
+ 63
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at f4bcf7</A> println: 63] at wrong.sl:25
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at caf6c1</A> println: 63] at wrong.sl:25
+ this is a string y0
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at f4bcf7</A> println: 'this is a string y0'] at wrong.sl:28
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at caf6c1</A> println: 'this is a string y0'] at wrong.sl:28
+ Trace: [new java.lang.StringBuilder: 'test'] = test at wrong.sl:31
+ test
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at f4bcf7</A> println: test] at wrong.sl:31
+-Trace: &amp;cast(@('a', 'b', 'c', 'd'), 'c') = [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">C at 199939</A> at wrong.sl:34
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at caf6c1</A> println: test] at wrong.sl:31
++Trace: &amp;cast(@('a', 'b', 'c', 'd'), 'c') = [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">C at 29c58e</A> at wrong.sl:34
+ abcd
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at f4bcf7</A> println: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">C at 199939</A>] at wrong.sl:34
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at caf6c1</A> println: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">C at 29c58e</A>] at wrong.sl:34
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2007-04-07 05:01:58 UTC (rev 246)
++++ sleep/whatsnew.txt	2007-04-07 05:25:51 UTC (rev 247)
+@@ -27,6 +27,7 @@
+ - unloading a script through ScriptLoader now causes the entire block
+   cache to be cleared.  This will ensure that external files loaded
+   with include() will be purged from the cache as well.
++- added &amp;sorto for sorting a Sleep array of Java Comparable objects
+ 
+ 2.1-beta 14  (24 Mar 07)
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000225.html">[Sleep-svn] r246 - in sleep: . src/sleep/runtime
+</A></li>
+	<LI>Next message: <A HREF="000227.html">[Sleep-svn] r248 - sleep
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#226">[ date ]</a>
+              <a href="thread.html#226">[ thread ]</a>
+              <a href="subject.html#226">[ subject ]</a>
+              <a href="author.html#226">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

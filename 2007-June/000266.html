@@ -1,0 +1,249 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r287 - in sleep: . src/sleep/parser tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2007-June/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r287%20-%20in%20sleep%3A%20.%20src/sleep/parser%20tests%20tests/output&In-Reply-To=%3C200706270400.l5R40n8v014163%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000265.html">
+   
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r287 - in sleep: . src/sleep/parser tests tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r287%20-%20in%20sleep%3A%20.%20src/sleep/parser%20tests%20tests/output&In-Reply-To=%3C200706270400.l5R40n8v014163%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r287 - in sleep: . src/sleep/parser tests tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Wed Jun 27 06:00:49 CEST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000265.html">[Sleep-svn] r286 - in sleep: . src/sleep/runtime
+</A></li>
+        
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#266">[ date ]</a>
+              <a href="thread.html#266">[ thread ]</a>
+              <a href="subject.html#266">[ subject ]</a>
+              <a href="author.html#266">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2007-06-27 06:00:48 +0200 (Wed, 27 Jun 2007)
+New Revision: 287
+
+Added:
+   sleep/tests/output/scalref.sl
+   sleep/tests/scalref.sl
+Modified:
+   sleep/build.xml
+   sleep/src/sleep/parser/Checkers.java
+   sleep/src/sleep/parser/CodeGenerator.java
+   sleep/src/sleep/parser/ParserConstants.java
+   sleep/src/sleep/parser/TokenParser.java
+   sleep/whatsnew.txt
+Log:
+Added scalar references (*pHEAR*)
+
+
+
+Modified: sleep/build.xml
+===================================================================
+--- sleep/build.xml	2007-06-17 20:29:11 UTC (rev 286)
++++ sleep/build.xml	2007-06-27 04:00:48 UTC (rev 287)
+@@ -16,7 +16,7 @@
+            destdir=&quot;${project.build}&quot;
+            nowarn=&quot;yes&quot;
+            depend=&quot;yes&quot;
+-           debug=&quot;false&quot;
++           debug=&quot;true&quot;
+            source=&quot;1.4&quot;
+            target=&quot;1.4&quot;
+            optimize=&quot;yes&quot;
+
+Modified: sleep/src/sleep/parser/Checkers.java
+===================================================================
+--- sleep/src/sleep/parser/Checkers.java	2007-06-17 20:29:11 UTC (rev 286)
++++ sleep/src/sleep/parser/Checkers.java	2007-06-27 04:00:48 UTC (rev 287)
+@@ -159,6 +159,11 @@
+       return (a.charAt(0) == '&amp;' &amp;&amp; a.length() &gt; 1 &amp;&amp; !a.equals(&quot;&amp;&amp;&quot;));
+    }
+ 
++   public static final boolean isVariableReference (String temp)
++   {
++      return temp.length() &gt;= 3 &amp;&amp; temp.charAt(0) == '\\' &amp;&amp; !temp.equals(&quot;\\$null&quot;) &amp;&amp; isVariable(temp.substring(1));
++   }
++
+    public static final boolean isVariable (String temp)
+    {
+       return (isScalar(temp) || isHash(temp) || isArray(temp));
+
+Modified: sleep/src/sleep/parser/CodeGenerator.java
+===================================================================
+--- sleep/src/sleep/parser/CodeGenerator.java	2007-06-17 20:29:11 UTC (rev 286)
++++ sleep/src/sleep/parser/CodeGenerator.java	2007-06-27 04:00:48 UTC (rev 287)
+@@ -352,6 +352,20 @@
+ 
+        switch (datum.getType())
+        {
++         case VALUE_SCALAR_REFERENCE:
++           atom = GeneratedSteps.CreateFrame();
++           add(atom, tokens[0]);
++
++           atom = GeneratedSteps.Get(strings[0].substring(1)); /* generate rhs with scalar value */
++           add(atom, tokens[0]);
++
++           ascalar = SleepUtils.getScalar(strings[0].substring(1)); /* generate lhs string scalar with var name */
++           atom    = GeneratedSteps.SValue(ascalar);
++           add(atom, tokens[0]);
++
++           atom = GeneratedSteps.Operate(&quot;=&gt;&quot;);
++           add(atom, tokens[0]);
++           break;
+          case IDEA_HASH_PAIR:
+            //
+            // parsing A =&gt; B
+
+Modified: sleep/src/sleep/parser/ParserConstants.java
+===================================================================
+--- sleep/src/sleep/parser/ParserConstants.java	2007-06-17 20:29:11 UTC (rev 286)
++++ sleep/src/sleep/parser/ParserConstants.java	2007-06-27 04:00:48 UTC (rev 287)
+@@ -45,8 +45,9 @@
+    public static final int OBJECT_IMPORT   = 444;
+    public static final int OBJECT_CL_CALL  = 446; // a object closure call [$closure:parm1, parm2, parm3] or [$closure] 
+ 
+-   public static final int VALUE_SCALAR    = 701;
+-   public static final int VALUE_INDEXED   = 710;
++   public static final int VALUE_SCALAR           = 701;
++   public static final int VALUE_SCALAR_REFERENCE = 705;
++   public static final int VALUE_INDEXED          = 710;
+ 
+ 
+    public static final int PRED_BI         = 801;
+
+Modified: sleep/src/sleep/parser/TokenParser.java
+===================================================================
+--- sleep/src/sleep/parser/TokenParser.java	2007-06-17 20:29:11 UTC (rev 286)
++++ sleep/src/sleep/parser/TokenParser.java	2007-06-27 04:00:48 UTC (rev 287)
+@@ -414,6 +414,11 @@
+             myToken.setType(HACK_DEC);
+             myToken.add(tokens[x]);
+          }
++         else if (Checkers.isVariableReference(strings[x]))
++         {
++            myToken.setType(VALUE_SCALAR_REFERENCE);
++            myToken.add(tokens[x]);
++         }
+          // a normal block
+          else if (Checkers.isVariable(strings[x]))
+          {
+
+Added: sleep/tests/output/scalref.sl
+===================================================================
+--- sleep/tests/output/scalref.sl	2007-06-17 20:29:11 UTC (rev 286)
++++ sleep/tests/output/scalref.sl	2007-06-27 04:00:48 UTC (rev 287)
+@@ -0,0 +1,10 @@
++%($x =&gt; 3, $z =&gt; 1200174232L, $y =&gt; 'a string')
++@('a', 'b', 'c')
++%(z =&gt; 45L, y =&gt; 123, x =&gt; 'xxx')
++ and 
++&amp;closure[scalref.sl:32-33]#4
++xx in closure c and yy in closure c
++&amp;closure[scalref.sl:28]#3
++$c=&amp;closure[scalref.sl:28]#3
++$x=3$y=a string$z=1200174232
++YourCodeSucksException: 1 error(s): Unknown expression at 0
+
+Added: sleep/tests/scalref.sl
+===================================================================
+--- sleep/tests/scalref.sl	2007-06-17 20:29:11 UTC (rev 286)
++++ sleep/tests/scalref.sl	2007-06-27 04:00:48 UTC (rev 287)
+@@ -0,0 +1,43 @@
++#
++# a test of the scalar references... pHEAR
++#
++
++sub atest
++{
++   local('@array %hash');
++   @array = @(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;);
++   %hash  = %(x =&gt; &quot;xxx&quot;, y =&gt; 123, z =&gt; 45L);
++   foo(\@array, \%hash); # pass these values directly into &amp;foo
++}
++
++sub foo
++{
++   local('@array %hash'); # passed as named params hopefully.
++
++   println(@array);
++   println(%hash);
++}
++
++$x = 3;
++$y = &quot;a string&quot;;
++$z = 0x47893498L;
++
++println(%(\$x, \$y, \$z));
++atest();
++
++$c = let({ invoke(&amp;blah, \$this); }, $xx =&gt; &quot;xx in closure c&quot;, $yy =&gt; &quot;yy in closure c&quot;);
++
++sub blah
++{
++   println(&quot;$xx and $yy&quot;);   
++   println($this);
++}
++
++blah();
++[$c];
++
++println(\$c);
++println(\$x . \$y . \$z);
++
++eval('println(\$null);');
++println(checkError());
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2007-06-17 20:29:11 UTC (rev 286)
++++ sleep/whatsnew.txt	2007-06-27 04:00:48 UTC (rev 287)
+@@ -1,3 +1,9 @@
++2.1-beta 18  (26 Jun 07)
++===========
++- added scalar references: \$x is equivalent to $x =&gt; $x.  this sugar
++  was added for the common case of passing a key/value pair to copy a
++  scalar into the local/this environment of a function.
++
+ 2.1-beta 17  (17 Jun 07)
+ ===========
+ - reduced number of Class.forName calls made when parsing scripts...
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000265.html">[Sleep-svn] r286 - in sleep: . src/sleep/runtime
+</A></li>
+	
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#266">[ date ]</a>
+              <a href="thread.html#266">[ thread ]</a>
+              <a href="subject.html#266">[ subject ]</a>
+              <a href="author.html#266">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,366 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r193 - in sleep: . src/sleep/engine	src/sleep/engine/atoms tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2006-December/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r193%20-%20in%20sleep%3A%20.%20src/sleep/engine%0A%09src/sleep/engine/atoms%20tests%20tests/output&In-Reply-To=%3C200612030033.kB30XMCD000654%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000174.html">
+   <LINK REL="Next"  HREF="000176.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r193 - in sleep: . src/sleep/engine	src/sleep/engine/atoms tests tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r193%20-%20in%20sleep%3A%20.%20src/sleep/engine%0A%09src/sleep/engine/atoms%20tests%20tests/output&In-Reply-To=%3C200612030033.kB30XMCD000654%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r193 - in sleep: . src/sleep/engine	src/sleep/engine/atoms tests tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Sun Dec  3 01:33:22 CET 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000174.html">[Sleep-svn] r192 - in sleep: . src/sleep/parser tests tests/output
+</A></li>
+        <LI>Next message: <A HREF="000176.html">[Sleep-svn] r194 - in sleep: . src/sleep/console src/sleep/engine
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#175">[ date ]</a>
+              <a href="thread.html#175">[ thread ]</a>
+              <a href="subject.html#175">[ subject ]</a>
+              <a href="author.html#175">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2006-12-03 01:33:22 +0100 (Sun, 03 Dec 2006)
+New Revision: 193
+
+Added:
+   sleep/tests/blockskew.sl
+   sleep/tests/operorder.sl
+   sleep/tests/output/blockskew.sl
+   sleep/tests/output/operorder.sl
+Modified:
+   sleep/src/sleep/engine/Block.java
+   sleep/src/sleep/engine/Step.java
+   sleep/src/sleep/engine/atoms/Decide.java
+   sleep/src/sleep/engine/atoms/Goto.java
+   sleep/tests/output/fe_generatordb.sl
+   sleep/whatsnew.txt
+Log:
+fixed another line number skew issue.
+
+
+
+Modified: sleep/src/sleep/engine/Block.java
+===================================================================
+--- sleep/src/sleep/engine/Block.java	2006-12-02 23:35:11 UTC (rev 192)
++++ sleep/src/sleep/engine/Block.java	2006-12-03 00:33:22 UTC (rev 193)
+@@ -79,26 +79,52 @@
+        return -1;
+     }
+ 
+-    /** Returns an approximate range of line numbers for the steps in this block object.  Useful for formatting error messages in script warnings and such. */
+-    public String getApproximateLineRange()
++    /** return the highest line number associated with this block */
++    public int getHighLineNumber()
+     {
+        int high = 0;
+-       int low  = Integer.MAX_VALUE;
+  
+-       int n;
++       int m;
+        Step temp = first;
+        while (temp != null)
+        {
+-          n = temp.getLineNumber();
+-          if (n &lt; low)
+-              low = n;
++          m = temp.getHighLineNumber();
+ 
+-          if (n &gt; high)
+-              high = n;
++          if (m &gt; high)
++              high = m;
+ 
+           temp = temp.next;
+        }
+ 
++       return high;
++    }
++
++    /** return the lowest line number associated with this block */
++    public int getLowLineNumber()
++    {
++       int low = Integer.MAX_VALUE;
++ 
++       int m;
++       Step temp = first;
++       while (temp != null)
++       {
++          m = temp.getHighLineNumber();
++
++          if (m &lt; low)
++              low = m;
++
++          temp = temp.next;
++       }
++
++       return low;
++    }
++
++    /** Returns an approximate range of line numbers for the steps in this block object.  Useful for formatting error messages in script warnings and such. */
++    public String getApproximateLineRange()
++    {
++       int low  = getLowLineNumber();
++       int high = getHighLineNumber();
++
+        if (low == high)
+           return low + &quot;&quot;;
+ 
+
+Modified: sleep/src/sleep/engine/Step.java
+===================================================================
+--- sleep/src/sleep/engine/Step.java	2006-12-02 23:35:11 UTC (rev 192)
++++ sleep/src/sleep/engine/Step.java	2006-12-03 00:33:22 UTC (rev 193)
+@@ -50,6 +50,20 @@
+       line = _line;
+    }
+ 
++   /** returns the last line number that this step is associated with (assuming it is
++       associated with multiple lines */
++   public int getHighLineNumber()
++   {
++      return getLineNumber();
++   }
++
++   /** returns the first line number that this step is associated with (assuming it is
++       associated with multiple lines */
++   public int getLowLineNumber()
++   {
++      return getLineNumber();
++   }
++
+    /** returns the line number this step is associated with */
+    public int getLineNumber()
+    {
+
+Modified: sleep/src/sleep/engine/atoms/Decide.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/Decide.java	2006-12-02 23:35:11 UTC (rev 192)
++++ sleep/src/sleep/engine/atoms/Decide.java	2006-12-03 00:33:22 UTC (rev 193)
+@@ -64,6 +64,13 @@
+       return temp.toString();
+    }
+ 
++   public int getHighLineNumber()
++   {
++      int x = iftrue.getHighLineNumber(); 
++      int y = iffalse.getHighLineNumber();
++      return x &gt; y ? x : y;
++   }
++
+    public void setChoices(Block t, Block f)
+    {
+       iftrue  = t;
+
+Modified: sleep/src/sleep/engine/atoms/Goto.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/Goto.java	2006-12-02 23:35:11 UTC (rev 192)
++++ sleep/src/sleep/engine/atoms/Goto.java	2006-12-03 00:33:22 UTC (rev 193)
+@@ -74,6 +74,11 @@
+       iftrue = t;
+    }
+ 
++   public int getHighLineNumber()
++   {
++      return iftrue.getHighLineNumber();
++   }
++
+    public Scalar evaluate(ScriptEnvironment e)
+    {
+       while (!e.isReturn() &amp;&amp; start.check(e))
+
+Added: sleep/tests/blockskew.sl
+===================================================================
+--- sleep/tests/blockskew.sl	2006-12-02 23:35:11 UTC (rev 192)
++++ sleep/tests/blockskew.sl	2006-12-03 00:33:22 UTC (rev 193)
+@@ -0,0 +1,36 @@
++#
++# preventing block skew... maybe?!?
++#
++
++$x = {
++  println(&quot;this is a test&quot;);
++  if (1 == 2)
++  {
++     println(&quot;this won't ever happen&quot;);
++  }
++};
++
++$y = {
++  println(&quot;this is a test&quot;);
++  while (1 == 2)
++  {
++     println(&quot;this won't ever happen&quot;);
++  }
++};
++
++$z = {
++  println(&quot;this is a test&quot;);
++  if (1 == 2)
++  {
++     println(&quot;this won't ever happen&quot;);
++  }
++  else
++  {
++     println(&quot;this will though&quot;);
++  }
++};
++
++println($x);
++println($y);
++println($z);
++
+
+Added: sleep/tests/operorder.sl
+===================================================================
+--- sleep/tests/operorder.sl	2006-12-02 23:35:11 UTC (rev 192)
++++ sleep/tests/operorder.sl	2006-12-03 00:33:22 UTC (rev 193)
+@@ -0,0 +1,54 @@
++#
++#  this is a unit test locking in place what the current behavior is for evaluation
++#  order of operands/arguments...
++#
++#  for better or worse here is what we are stuck with:
++#  1. predicate operators evaluate the left hand side first, then the right hand side
++#  2. functions evaluate their last argument first, and their first argument last
++#     (so in reverse order)
++#  3. operators evaluate their right hand side first, then their left hand side
++#
++#  to &quot;fix&quot; this behavior would require work within the interpreter and every bridge used
++#  to grabbing their arguments off of a stack.  I've investigated changing this but
++#  to change it now could break too many things.  For now I've opted to not make the
++#  change.
++#
++
++sub buildArray
++{
++   return @(1, 2, 3, 4, 5, 6, 7, 8, 9, 0);
++}
++
++println(buildArray());
++
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">+ at test</A> = buildArray();
++println(shift(@test) . shift(@test) . shift(@test) . shift(@test));
++
++sub fun1
++{
++   println(&quot;Function 1 called!&quot;);
++   return $null;
++}
++
++sub fun2
++{
++   println(&quot;Function 2 called!&quot;);
++   return $null;
++}
++
++if (fun1() eq fun2())
++{
++   println(&quot;IF test 1&quot;);
++}
++
++if (fun1() || fun2())
++{
++   println(&quot;IF test 2&quot;);
++}
++
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">+ at test</A> = buildArray();
++println(&quot;Test: &quot; . @(shift(@test), shift(@test), shift(@test), shift(@test)));
++
++sub foo { }
++
++foo(fun1(), fun2());
+
+Added: sleep/tests/output/blockskew.sl
+===================================================================
+--- sleep/tests/output/blockskew.sl	2006-12-02 23:35:11 UTC (rev 192)
++++ sleep/tests/output/blockskew.sl	2006-12-03 00:33:22 UTC (rev 193)
+@@ -0,0 +1,3 @@
++&amp;closure1:6-9
++&amp;closure2:14-17
++&amp;closure3:22-29
+
+Modified: sleep/tests/output/fe_generatordb.sl
+===================================================================
+--- sleep/tests/output/fe_generatordb.sl	2006-12-02 23:35:11 UTC (rev 192)
++++ sleep/tests/output/fe_generatordb.sl	2006-12-03 00:33:22 UTC (rev 193)
+@@ -19,7 +19,7 @@
+ Trace: &amp;println('8 =&gt; val: 8') at line 8
+ 9 =&gt; val: 9
+ Trace: &amp;println('9 =&gt; val: 9') at line 8
+-Trace: &amp;lambda(&amp;closure2:13-19, $start =&gt; 50, $stop =&gt; 60) = &amp;closure3:13-19 at line 22
++Trace: &amp;lambda(&amp;closure2:16-19, $start =&gt; 50, $stop =&gt; 60) = &amp;closure3:16-19 at line 22
+ Testing out range stuff: 0 =&gt; 50
+ Trace: &amp;println('Testing out range stuff: 0 =&gt; 50') at line 24
+ Testing out range stuff: 1 =&gt; 51
+
+Added: sleep/tests/output/operorder.sl
+===================================================================
+--- sleep/tests/output/operorder.sl	2006-12-02 23:35:11 UTC (rev 192)
++++ sleep/tests/output/operorder.sl	2006-12-03 00:33:22 UTC (rev 193)
+@@ -0,0 +1,10 @@
++@(1, 2, 3, 4, 5, 6, 7, 8, 9, 0)
++4321
++Function 1 called!
++Function 2 called!
++IF test 1
++Function 1 called!
++Function 2 called!
++Test: @(4, 3, 2, 1)
++Function 2 called!
++Function 1 called!
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-12-02 23:35:11 UTC (rev 192)
++++ sleep/whatsnew.txt	2006-12-03 00:33:22 UTC (rev 193)
+@@ -16,6 +16,8 @@
+   statistics with the &amp;profile() function which returns an array.  
+ - fixed a line number skew issue with multi-line tokens passed as parameters
+   to a function/expression.  
++- fixed a line number skew issue when approximating the line numbers where
++  a closure originated.
+ 
+ 2.1-beta 10 (20 Nov 06)
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000174.html">[Sleep-svn] r192 - in sleep: . src/sleep/parser tests tests/output
+</A></li>
+	<LI>Next message: <A HREF="000176.html">[Sleep-svn] r194 - in sleep: . src/sleep/console src/sleep/engine
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#175">[ date ]</a>
+              <a href="thread.html#175">[ thread ]</a>
+              <a href="subject.html#175">[ subject ]</a>
+              <a href="author.html#175">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

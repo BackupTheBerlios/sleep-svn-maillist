@@ -1,0 +1,223 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r299 - in sleep: . src/sleep/bridges	src/sleep/engine/types src/sleep/runtime tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2007-October/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r299%20-%20in%20sleep%3A%20.%20src/sleep/bridges%0A%09src/sleep/engine/types%20src/sleep/runtime%20tests%20tests/output&In-Reply-To=%3C200710110132.l9B1WaHv026440%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   
+   <LINK REL="Next"  HREF="000279.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r299 - in sleep: . src/sleep/bridges	src/sleep/engine/types src/sleep/runtime tests tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r299%20-%20in%20sleep%3A%20.%20src/sleep/bridges%0A%09src/sleep/engine/types%20src/sleep/runtime%20tests%20tests/output&In-Reply-To=%3C200710110132.l9B1WaHv026440%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r299 - in sleep: . src/sleep/bridges	src/sleep/engine/types src/sleep/runtime tests tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Thu Oct 11 03:32:36 CEST 2007</I>
+    <P><UL>
+        
+        <LI>Next message: <A HREF="000279.html">[Sleep-svn] r300 - in sleep: . src/sleep/bridges	src/sleep/bridges/io
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#278">[ date ]</a>
+              <a href="thread.html#278">[ thread ]</a>
+              <a href="subject.html#278">[ subject ]</a>
+              <a href="author.html#278">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2007-10-11 03:32:36 +0200 (Thu, 11 Oct 2007)
+New Revision: 299
+
+Added:
+   sleep/tests/ohash.sl
+   sleep/tests/output/ohash.sl
+Modified:
+   sleep/src/sleep/bridges/BasicUtilities.java
+   sleep/src/sleep/engine/types/HashContainer.java
+   sleep/src/sleep/runtime/SleepUtils.java
+   sleep/whatsnew.txt
+Log:
+added &amp;ohash(...)
+
+
+
+Modified: sleep/src/sleep/bridges/BasicUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicUtilities.java	2007-09-23 22:30:57 UTC (rev 298)
++++ sleep/src/sleep/bridges/BasicUtilities.java	2007-10-11 01:32:36 UTC (rev 299)
+@@ -64,6 +64,7 @@
+ 
+         temp.put(&quot;&amp;array&quot;, f_array); 
+         temp.put(&quot;&amp;hash&quot;, f_hash);
++        temp.put(&quot;&amp;ohash&quot;, f_hash);
+         temp.put(&quot;&amp;@&quot;, f_array);
+         temp.put(&quot;&amp;%&quot;, f_hash);  
+ 
+@@ -525,7 +526,7 @@
+     {
+        public Scalar evaluate(String n, ScriptInstance si, Stack l)
+        {
+-          Scalar value = SleepUtils.getHashScalar();
++          Scalar value = n.equals(&quot;&amp;ohash&quot;) ? SleepUtils.getOrderedHashScalar() : SleepUtils.getHashScalar();
+            
+           while (!l.isEmpty())
+           {
+
+Modified: sleep/src/sleep/engine/types/HashContainer.java
+===================================================================
+--- sleep/src/sleep/engine/types/HashContainer.java	2007-09-23 22:30:57 UTC (rev 298)
++++ sleep/src/sleep/engine/types/HashContainer.java	2007-10-11 01:32:36 UTC (rev 299)
+@@ -4,13 +4,23 @@
+ 
+ import java.util.*;
+ 
++/* Container for Sleep hashes.  *phEAR* */
+ public class HashContainer implements ScalarHash
+ {
+-   protected HashMap values;
++   protected Map values;
+ 
++   /* constructs this hash container using the specified Map compatible data structure as the
++      backing.  this data structure will hold sleep.runtime.Scalar objects and should by empty
++      when passed to this constructor */
++   public HashContainer(Map container)
++   {
++      values = container;
++   }
++
++   /* constructs this hash container backed by a HashMap data structure */
+    public HashContainer()
+    {
+-      values = new HashMap();
++      this(new HashMap());
+    }
+ 
+    public Scalar getAt(Scalar key)
+
+Modified: sleep/src/sleep/runtime/SleepUtils.java
+===================================================================
+--- sleep/src/sleep/runtime/SleepUtils.java	2007-09-23 22:30:57 UTC (rev 298)
++++ sleep/src/sleep/runtime/SleepUtils.java	2007-10-11 01:32:36 UTC (rev 299)
+@@ -457,6 +457,15 @@
+       return temp;
+    }
+ 
++   /** returns an empty ordered hashmap scalar */
++   public static Scalar getOrderedHashScalar()
++   {
++      Scalar temp = new Scalar();
++      temp.setValue(new HashContainer(new LinkedHashMap()));
++
++      return temp;
++   }
++
+    /** returns an int scalar with value x */
+    public static Scalar getScalar(int x)
+    {
+
+Added: sleep/tests/ohash.sl
+===================================================================
+--- sleep/tests/ohash.sl	2007-09-23 22:30:57 UTC (rev 298)
++++ sleep/tests/ohash.sl	2007-10-11 01:32:36 UTC (rev 299)
+@@ -0,0 +1,34 @@
++#
++# test of the pHEARsome ordered hash.
++#
++
++%hash = ohash(a =&gt; &quot;apple&quot;, c =&gt; &quot;cat&quot;, d =&gt; &quot;dog&quot;, p =&gt; &quot;pHEAR&quot;, aa =&gt; 33, b =&gt; 56L);
++println(%hash);
++
++foreach $key =&gt; $value (%hash)
++{
++   println(&quot;$[10]key is $value&quot;);
++}
++
++%hash[&quot;a&quot;] = $null;
++%hash[&quot;a&quot;] = &quot;ordered insert...&quot;;  # in this case a will just be updated.
++
++println(%hash);
++
++%hash[&quot;a&quot;] = $null; 
++
++println(%hash);
++
++%hash[&quot;a&quot;] = &quot;at the end&quot;;
++
++println(%hash);
++
++%phear = %hash;
++%phear[&quot;zzz&quot;] = &quot;this is at the end of phear&quot;;
++println(%phear);
++
++%copy = ohash(begin =&gt; &quot;front end&quot;);
++putAll(%copy, keys(%phear), values(%phear));
++
++println(%copy);
++println(%phear);
+
+Added: sleep/tests/output/ohash.sl
+===================================================================
+--- sleep/tests/output/ohash.sl	2007-09-23 22:30:57 UTC (rev 298)
++++ sleep/tests/output/ohash.sl	2007-10-11 01:32:36 UTC (rev 299)
+@@ -0,0 +1,13 @@
++%(a =&gt; 'apple', c =&gt; 'cat', d =&gt; 'dog', p =&gt; 'pHEAR', aa =&gt; 33, b =&gt; 56L)
++a          is apple
++c          is cat
++d          is dog
++p          is pHEAR
++aa         is 33
++b          is 56
++%(a =&gt; 'ordered insert...', c =&gt; 'cat', d =&gt; 'dog', p =&gt; 'pHEAR', aa =&gt; 33, b =&gt; 56L)
++%(c =&gt; 'cat', d =&gt; 'dog', p =&gt; 'pHEAR', aa =&gt; 33, b =&gt; 56L)
++%(c =&gt; 'cat', d =&gt; 'dog', p =&gt; 'pHEAR', aa =&gt; 33, b =&gt; 56L, a =&gt; 'at the end')
++%(c =&gt; 'cat', d =&gt; 'dog', p =&gt; 'pHEAR', aa =&gt; 33, b =&gt; 56L, a =&gt; 'at the end', zzz =&gt; 'this is at the end of phear')
++%(begin =&gt; 'front end', c =&gt; 'cat', d =&gt; 'dog', p =&gt; 'pHEAR', aa =&gt; 33, b =&gt; 56L, a =&gt; 'at the end', zzz =&gt; 'this is at the end of phear')
++%(c =&gt; 'cat', d =&gt; 'dog', p =&gt; 'pHEAR', aa =&gt; 33, b =&gt; 56L, a =&gt; 'at the end', zzz =&gt; 'this is at the end of phear')
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2007-09-23 22:30:57 UTC (rev 298)
++++ sleep/whatsnew.txt	2007-10-11 01:32:36 UTC (rev 299)
+@@ -7,6 +7,8 @@
+   deserializing Sleep functions.  
+ - closure context metadata (regex matcher and iterator for foreach 
+   loops) is no longer serialized with the closure...  beware of this.
++- added &amp;ohash(...) to initialize a Sleep hash that keeps track of
++  key insertion order.  requested by Marty.
+ 
+ 2.1-beta 18  (5 Jul 07)
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	
+	<LI>Next message: <A HREF="000279.html">[Sleep-svn] r300 - in sleep: . src/sleep/bridges	src/sleep/bridges/io
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#278">[ date ]</a>
+              <a href="thread.html#278">[ thread ]</a>
+              <a href="subject.html#278">[ subject ]</a>
+              <a href="author.html#278">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

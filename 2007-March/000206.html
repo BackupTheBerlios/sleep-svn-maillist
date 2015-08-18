@@ -1,0 +1,146 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r227 - in sleep: . src/sleep/engine/types
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2007-March/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r227%20-%20in%20sleep%3A%20.%20src/sleep/engine/types&In-Reply-To=%3C200703171349.l2HDn2E8028371%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000205.html">
+   <LINK REL="Next"  HREF="000207.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r227 - in sleep: . src/sleep/engine/types</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r227%20-%20in%20sleep%3A%20.%20src/sleep/engine/types&In-Reply-To=%3C200703171349.l2HDn2E8028371%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r227 - in sleep: . src/sleep/engine/types">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Sat Mar 17 14:49:02 CET 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000205.html">[Sleep-svn] r226 - in sleep/tests: . output
+</A></li>
+        <LI>Next message: <A HREF="000207.html">[Sleep-svn] r228 - in sleep: . src/sleep/bridges	src/sleep/engine/atoms tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#206">[ date ]</a>
+              <a href="thread.html#206">[ thread ]</a>
+              <a href="subject.html#206">[ subject ]</a>
+              <a href="author.html#206">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2007-03-17 14:49:02 +0100 (Sat, 17 Mar 2007)
+New Revision: 227
+
+Modified:
+   sleep/src/sleep/engine/types/DoubleValue.java
+   sleep/src/sleep/engine/types/IntValue.java
+   sleep/src/sleep/engine/types/LongValue.java
+   sleep/src/sleep/engine/types/StringValue.java
+   sleep/whatsnew.txt
+Log:
+small optimization.. y0
+
+
+
+Modified: sleep/src/sleep/engine/types/DoubleValue.java
+===================================================================
+--- sleep/src/sleep/engine/types/DoubleValue.java	2007-03-17 13:15:59 UTC (rev 226)
++++ sleep/src/sleep/engine/types/DoubleValue.java	2007-03-17 13:49:02 UTC (rev 227)
+@@ -13,7 +13,7 @@
+ 
+    public ScalarType copyValue()
+    {
+-      return new DoubleValue(value);
++      return this;
+    }
+ 
+    public int intValue()
+
+Modified: sleep/src/sleep/engine/types/IntValue.java
+===================================================================
+--- sleep/src/sleep/engine/types/IntValue.java	2007-03-17 13:15:59 UTC (rev 226)
++++ sleep/src/sleep/engine/types/IntValue.java	2007-03-17 13:49:02 UTC (rev 227)
+@@ -13,7 +13,7 @@
+ 
+    public ScalarType copyValue()
+    {
+-      return new IntValue(value);
++      return this;
+    }
+ 
+    public int intValue()
+
+Modified: sleep/src/sleep/engine/types/LongValue.java
+===================================================================
+--- sleep/src/sleep/engine/types/LongValue.java	2007-03-17 13:15:59 UTC (rev 226)
++++ sleep/src/sleep/engine/types/LongValue.java	2007-03-17 13:49:02 UTC (rev 227)
+@@ -13,7 +13,7 @@
+ 
+    public ScalarType copyValue()
+    {
+-      return new LongValue(value);
++      return this;
+    }
+ 
+    public int intValue()
+
+Modified: sleep/src/sleep/engine/types/StringValue.java
+===================================================================
+--- sleep/src/sleep/engine/types/StringValue.java	2007-03-17 13:15:59 UTC (rev 226)
++++ sleep/src/sleep/engine/types/StringValue.java	2007-03-17 13:49:02 UTC (rev 227)
+@@ -13,7 +13,7 @@
+ 
+    public ScalarType copyValue()
+    {
+-      return new StringValue(value);
++      return this;
+    }
+ 
+    /** does nothing for now... */
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2007-03-17 13:15:59 UTC (rev 226)
++++ sleep/whatsnew.txt	2007-03-17 13:49:02 UTC (rev 227)
+@@ -38,6 +38,8 @@
+ - fixed a bug causing @_ to return the same size value no matter how many
+   modifications had been made to the array (thanks to Ralph Becker for 
+   finding this one).
++- made a small (possibly negligible) performance optimization to Sleep's
++  scalar value transfer code.
+ 
+ 2.1-beta 12  (11 Mar 07)
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000205.html">[Sleep-svn] r226 - in sleep/tests: . output
+</A></li>
+	<LI>Next message: <A HREF="000207.html">[Sleep-svn] r228 - in sleep: . src/sleep/bridges	src/sleep/engine/atoms tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#206">[ date ]</a>
+              <a href="thread.html#206">[ thread ]</a>
+              <a href="subject.html#206">[ subject ]</a>
+              <a href="author.html#206">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

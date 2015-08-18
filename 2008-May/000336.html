@@ -1,0 +1,328 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r360 - in sleep: . src/sleep/bridges	src/sleep/engine/types src/sleep/runtime src/sleep/taint	tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2008-May/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r360%20-%20in%20sleep%3A%20.%20src/sleep/bridges%0A%09src/sleep/engine/types%20src/sleep/runtime%20src/sleep/taint%0A%09tests%20tests/output&In-Reply-To=%3C200805122313.m4CNDEj0002341%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000335.html">
+   <LINK REL="Next"  HREF="000337.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r360 - in sleep: . src/sleep/bridges	src/sleep/engine/types src/sleep/runtime src/sleep/taint	tests tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r360%20-%20in%20sleep%3A%20.%20src/sleep/bridges%0A%09src/sleep/engine/types%20src/sleep/runtime%20src/sleep/taint%0A%09tests%20tests/output&In-Reply-To=%3C200805122313.m4CNDEj0002341%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r360 - in sleep: . src/sleep/bridges	src/sleep/engine/types src/sleep/runtime src/sleep/taint	tests tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Tue May 13 01:13:14 CEST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000335.html">[Sleep-svn] r359 - sleep/tests/output
+</A></li>
+        <LI>Next message: <A HREF="000337.html">[Sleep-svn] r361 - in sleep: . src/sleep/bridges	src/sleep/engine/types src/sleep/runtime src/sleep/taint	tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#336">[ date ]</a>
+              <a href="thread.html#336">[ thread ]</a>
+              <a href="subject.html#336">[ subject ]</a>
+              <a href="author.html#336">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2008-05-13 01:13:13 +0200 (Tue, 13 May 2008)
+New Revision: 360
+
+Added:
+   sleep/tests/output/rehash.sl
+   sleep/tests/rehash.sl
+Modified:
+   sleep/build.xml
+   sleep/readme.txt
+   sleep/src/sleep/bridges/BasicUtilities.java
+   sleep/src/sleep/engine/types/HashContainer.java
+   sleep/src/sleep/engine/types/OrderedHashContainer.java
+   sleep/src/sleep/runtime/MapWrapper.java
+   sleep/src/sleep/runtime/ScalarHash.java
+   sleep/src/sleep/taint/TaintHash.java
+   sleep/whatsnew.txt
+Log:
+some hash stuff...
+
+
+Modified: sleep/build.xml
+===================================================================
+--- sleep/build.xml	2008-05-08 21:57:55 UTC (rev 359)
++++ sleep/build.xml	2008-05-12 23:13:13 UTC (rev 360)
+@@ -1,5 +1,5 @@
+ &lt;project name=&quot;sleep&quot; default=&quot;all&quot; basedir=&quot;.&quot;&gt;
+-  &lt;property name=&quot;project.src&quot;   location=&quot;src&quot; /&gt;
++  &lt;property name=&quot;project.src&quot;   location=&quot;src/sleep&quot; /&gt;
+   &lt;property name=&quot;project.build&quot; location=&quot;bin&quot; /&gt;
+ 
+   &lt;property name=&quot;project.path&quot;  value=&quot;sleep&quot; /&gt;
+@@ -65,6 +65,7 @@
+      &lt;jar destfile=&quot;sleep.jar&quot;
+           basedir=&quot;bin&quot;
+           includes=&quot;**/*.class&quot;&gt;
++&lt;!--         &lt;service type=&quot;javax.script.ScriptEngineFactory&quot; provider=&quot;org.dashnine.sleep.SleepFactory&quot; /&gt; --&gt;
+          &lt;manifest&gt;
+            &lt;attribute name=&quot;Main-Class&quot; value=&quot;sleep.console.TextConsole&quot; /&gt;
+          &lt;/manifest&gt;
+
+Modified: sleep/readme.txt
+===================================================================
+--- sleep/readme.txt	2008-05-08 21:57:55 UTC (rev 359)
++++ sleep/readme.txt	2008-05-12 23:13:13 UTC (rev 360)
+@@ -62,7 +62,7 @@
+ Build Instructions
+ -  ------------- -------- -   ---------------- --       -    -     -     - - -
+ 
+-You will need Apache Ant to compile this source code. I use version 1.6.0. 
++You will need Apache Ant to compile this source code. I use version 1.7.0. 
+ Ant is easy to install and is available at <A HREF="http://ant.apache.org">http://ant.apache.org</A> 
+ 
+ To compile sleep:
+
+Modified: sleep/src/sleep/bridges/BasicUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicUtilities.java	2008-05-08 21:57:55 UTC (rev 359)
++++ sleep/src/sleep/bridges/BasicUtilities.java	2008-05-12 23:13:13 UTC (rev 360)
+@@ -72,6 +72,7 @@
+         temp.put(&quot;&amp;%&quot;, f_hash);  
+ 
+         // array &amp; hashtable related
++        temp.put(&quot;&amp;rehash&quot;, this);
+         temp.put(&quot;&amp;keys&quot;,  this);      // &amp;keys(%hash) = @array
+         temp.put(&quot;&amp;size&quot;,  this);      // &amp;size(@array) = &lt;int&gt;
+         temp.put(&quot;&amp;push&quot;,  this);      // &amp;push(@array, $value) = $scalar
+@@ -1233,6 +1234,14 @@
+ 
+           return value;
+        }
++       else if (n.equals(&quot;&amp;rehash&quot;))
++       {
++          if (value.getHash() != null)
++          {
++             value.getHash().rehash(BridgeUtilities.getInt(l, 32), (float)BridgeUtilities.getDouble(l, 0.50));
++             return value;
++          }
++       }
+        else if (n.equals(&quot;&amp;keys&quot;)) // &amp;keys(%hash)
+        {
+           if (value.getHash() != null)
+
+Modified: sleep/src/sleep/engine/types/HashContainer.java
+===================================================================
+--- sleep/src/sleep/engine/types/HashContainer.java	2008-05-08 21:57:55 UTC (rev 359)
++++ sleep/src/sleep/engine/types/HashContainer.java	2008-05-12 23:13:13 UTC (rev 360)
+@@ -17,6 +17,14 @@
+       values = container;
+    }
+ 
++   public void rehash(int capacity, float load)
++   {
++      HashMap temp = new HashMap(capacity, load);
++      temp.putAll(values);
++
++      values = temp;
++   }
++
+    /* constructs this hash container backed by a HashMap data structure */
+    public HashContainer()
+    {
+
+Modified: sleep/src/sleep/engine/types/OrderedHashContainer.java
+===================================================================
+--- sleep/src/sleep/engine/types/OrderedHashContainer.java	2008-05-08 21:57:55 UTC (rev 359)
++++ sleep/src/sleep/engine/types/OrderedHashContainer.java	2008-05-12 23:13:13 UTC (rev 360)
+@@ -15,17 +15,33 @@
+ 
+    private class OrderedHash extends LinkedHashMap
+    {
++      protected boolean ordered;
++
+       public OrderedHash(int c, float l, boolean b)
+       {
+          super(c, l, b);
++         ordered = b;
+       }
+ 
++      public OrderedHash recreate(int capacity, float load)
++      {
++         OrderedHash temp = new OrderedHash(capacity, load, ordered);
++         temp.putAll(this);
++
++         return temp;
++      }
++
+       protected boolean removeEldestEntry(Map.Entry eldest)
+       {
+          return removeEldestEntryCheck(eldest); 
+       }
+    }
+ 
++   public void rehash(int capacity, float load)
++   {
++       values = ((OrderedHash)values).recreate(capacity, load);
++   }
++
+    /** constructs an ordered hash container based on the specified items */
+    public OrderedHashContainer(int capacity, float loadfactor, boolean type)
+    {
+@@ -106,7 +122,8 @@
+ 
+    public Scalar getAt(Scalar key)
+    {
+-      Scalar value = (Scalar)values.get(key.getValue().toString());
++      String temp = key.getValue().toString();
++      Scalar value = (Scalar)values.get(temp);
+ 
+       if (missPolicy != null &amp;&amp; SleepUtils.isEmptyScalar(value))
+       {
+@@ -117,14 +134,14 @@
+          locals.push(SleepUtils.getHashScalar(this));
+ 
+          value = missPolicy.callClosure(&quot;miss&quot;, null, locals);
+-         values.put(key.getValue().toString(), value);
++         values.put(temp, value);
+       }
+       else if (value == null)
+       {
+          cleanup();
+ 
+          value = SleepUtils.getEmptyScalar();
+-         values.put(key.getValue().toString(), value);
++         values.put(temp, value);
+       }
+ 
+       return value;
+
+Modified: sleep/src/sleep/runtime/MapWrapper.java
+===================================================================
+--- sleep/src/sleep/runtime/MapWrapper.java	2008-05-08 21:57:55 UTC (rev 359)
++++ sleep/src/sleep/runtime/MapWrapper.java	2008-05-12 23:13:13 UTC (rev 360)
+@@ -48,6 +48,11 @@
+       return temp;
+    }
+ 
++   public void rehash(int capacity, float load)
++   {
++      throw new RuntimeException(&quot;hash is read-only&quot;);
++   }
++
+    public String toString()
+    {
+       return values.toString();
+
+Modified: sleep/src/sleep/runtime/ScalarHash.java
+===================================================================
+--- sleep/src/sleep/runtime/ScalarHash.java	2008-05-08 21:57:55 UTC (rev 359)
++++ sleep/src/sleep/runtime/ScalarHash.java	2008-05-12 23:13:13 UTC (rev 360)
+@@ -33,4 +33,8 @@
+ 
+    /** Return the data structure backing this hash please */
+    public Map getData();
++
++   /** request a rehash of the underlying data structure to the specified capacity and loadFactor parameters.  This functionality
++       allows scripters to tune the performance of their Hash scalars.  This can make a difference with large data sets */
++   public void rehash(int capacity, float loadFactor);
+ }
+
+Modified: sleep/src/sleep/taint/TaintHash.java
+===================================================================
+--- sleep/src/sleep/taint/TaintHash.java	2008-05-08 21:57:55 UTC (rev 359)
++++ sleep/src/sleep/taint/TaintHash.java	2008-05-12 23:13:13 UTC (rev 360)
+@@ -9,6 +9,11 @@
+ {
+    protected ScalarHash source;
+ 
++   public void rehash(int capacity, float load)
++   {
++      source.rehash(capacity, load);
++   }
++
+    public TaintHash(ScalarHash src)
+    {
+       source = src;
+
+Added: sleep/tests/output/rehash.sl
+===================================================================
+--- sleep/tests/output/rehash.sl	2008-05-08 21:57:55 UTC (rev 359)
++++ sleep/tests/output/rehash.sl	2008-05-12 23:13:13 UTC (rev 360)
+@@ -0,0 +1,5 @@
++%(a =&gt; 'apple', c =&gt; 'cat', d =&gt; 'dog', b =&gt; 'blah')
++%(a =&gt; 'apple', c =&gt; 'cat', d =&gt; 'dog', b =&gt; 'blah')
++%(a =&gt; 'apple', d =&gt; 'dog', b =&gt; 'blah', c =&gt; 'car')
++Didn't find: ee
++33
+
+Added: sleep/tests/rehash.sl
+===================================================================
+--- sleep/tests/rehash.sl	2008-05-08 21:57:55 UTC (rev 359)
++++ sleep/tests/rehash.sl	2008-05-12 23:13:13 UTC (rev 360)
+@@ -0,0 +1,14 @@
++debug(7);
++
++global('%hash');
++
++%hash = ohasha(a =&gt; &quot;apple&quot;, b =&gt; &quot;bat&quot;, c =&gt; &quot;cat&quot;, d =&gt; &quot;dog&quot;);
++setMissPolicy(%hash, { println(&quot;Didn't find: $2&quot;); return 33; });
++%hash['b'] = 'blah';
++println(%hash);
++
++rehash(%hash, 100, 0.2);
++println(%hash);
++%hash['c'] = 'car';
++println(%hash);
++println(%hash['ee']);
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2008-05-08 21:57:55 UTC (rev 359)
++++ sleep/whatsnew.txt	2008-05-12 23:13:13 UTC (rev 360)
+@@ -1,3 +1,13 @@
++2.1-beta 26
++===========
++- added rehash(%hash, capacity, load factor) to request a hash
++  to recreate itself with the specified parameters.  This
++  functionality allows you to tune hashes for better performance
++  when working with many keys.  &amp;rehash will not affect miss
++  and removal policies of ordered hashes.
++- removed extra key string conversion within ordered hashes.  
++  may offer a performance speedup in some cases.
++
+ 2.1-beta 25  (8 May 08) [will this beta process ever end?]
+ ===========
+ - added &amp;chdir() to change the current working directory of the
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000335.html">[Sleep-svn] r359 - sleep/tests/output
+</A></li>
+	<LI>Next message: <A HREF="000337.html">[Sleep-svn] r361 - in sleep: . src/sleep/bridges	src/sleep/engine/types src/sleep/runtime src/sleep/taint	tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#336">[ date ]</a>
+              <a href="thread.html#336">[ thread ]</a>
+              <a href="subject.html#336">[ subject ]</a>
+              <a href="author.html#336">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

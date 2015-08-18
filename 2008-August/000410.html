@@ -1,0 +1,87 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r434 - sleep/tests
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2008-August/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r434%20-%20sleep/tests&In-Reply-To=%3C200808072011.m77KBWHp011587%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000409.html">
+   <LINK REL="Next"  HREF="000411.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r434 - sleep/tests</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r434%20-%20sleep/tests&In-Reply-To=%3C200808072011.m77KBWHp011587%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r434 - sleep/tests">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Thu Aug  7 22:11:32 CEST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000409.html">[Sleep-svn] r433 - in sleep: . src/sleep/runtime
+</A></li>
+        <LI>Next message: <A HREF="000411.html">[Sleep-svn] r435 - in sleep: . src/sleep/bridges tests tests/data3	tests/data3/src tests/data3/src/com tests/data3/src/com/eric	tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#410">[ date ]</a>
+              <a href="thread.html#410">[ thread ]</a>
+              <a href="subject.html#410">[ subject ]</a>
+              <a href="author.html#410">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2008-08-07 22:11:32 +0200 (Thu, 07 Aug 2008)
+New Revision: 434
+
+Added:
+   sleep/tests/setfield3.sl
+Log:
+..
+
+
+Added: sleep/tests/setfield3.sl
+===================================================================
+--- sleep/tests/setfield3.sl	2008-08-07 01:44:53 UTC (rev 433)
++++ sleep/tests/setfield3.sl	2008-08-07 20:11:32 UTC (rev 434)
+@@ -0,0 +1,10 @@
++import com.eric.* from: data3/test.jar;
++
++$eric = [new Eric: &quot;Eric&quot;, &quot;Smith&quot;];
++
++println([$eric fname]);
++println([$eric lname]);
++
++setField($eric, fname =&gt; &quot;Dave&quot;);
++
++println([$eric fname]);
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000409.html">[Sleep-svn] r433 - in sleep: . src/sleep/runtime
+</A></li>
+	<LI>Next message: <A HREF="000411.html">[Sleep-svn] r435 - in sleep: . src/sleep/bridges tests tests/data3	tests/data3/src tests/data3/src/com tests/data3/src/com/eric	tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#410">[ date ]</a>
+              <a href="thread.html#410">[ thread ]</a>
+              <a href="subject.html#410">[ subject ]</a>
+              <a href="author.html#410">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

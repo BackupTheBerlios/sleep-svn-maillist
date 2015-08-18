@@ -1,0 +1,106 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r24 - in sleep: . src/sleep/bridges/io
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2005-June/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r24%20-%20in%20sleep%3A%20.%20src/sleep/bridges/io&In-Reply-To=%3C200506162301.j5GN1PWR006302%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000011.html">
+   <LINK REL="Next"  HREF="000013.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r24 - in sleep: . src/sleep/bridges/io</H1>
+    <B>Raphael Mudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r24%20-%20in%20sleep%3A%20.%20src/sleep/bridges/io&In-Reply-To=%3C200506162301.j5GN1PWR006302%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r24 - in sleep: . src/sleep/bridges/io">rsmudge at sheep.berlios.de
+       </A><BR>
+    <I>Fri Jun 17 01:01:25 CEST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000011.html">[Sleep-svn] r23 - in sleep: . src/sleep/bridges/io
+</A></li>
+        <LI>Next message: <A HREF="000013.html">[Sleep-svn] r25 - sleep/src/sleep/runtime
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#12">[ date ]</a>
+              <a href="thread.html#12">[ thread ]</a>
+              <a href="subject.html#12">[ subject ]</a>
+              <a href="author.html#12">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2005-06-17 01:01:23 +0200 (Fri, 17 Jun 2005)
+New Revision: 24
+
+Modified:
+   sleep/src/sleep/bridges/io/SocketObject.java
+   sleep/whatsnew.txt
+Log:
+Eh, fixed a deadlock condition homez.
+
+
+Modified: sleep/src/sleep/bridges/io/SocketObject.java
+===================================================================
+--- sleep/src/sleep/bridges/io/SocketObject.java	2005-06-15 13:23:31 UTC (rev 23)
++++ sleep/src/sleep/bridges/io/SocketObject.java	2005-06-16 23:01:23 UTC (rev 24)
+@@ -47,12 +47,12 @@
+ 
+    public void close()
+    {
+-      super.close();
+-
+       try
+       {
+          socket.close();
+       }
+       catch (Exception ex) { }
++
++      super.close();
+    }
+ }
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2005-06-15 13:23:31 UTC (rev 23)
++++ sleep/whatsnew.txt	2005-06-16 23:01:23 UTC (rev 24)
+@@ -20,7 +20,7 @@
+ - added callback parameters for &amp;listen() and &amp;connect().  this will allow 
+   sleep to call a function when a connection is established or failed for
+   either of these functions.
+-- fixed a deadlock condition caused by calling close() on an IOObject from 
++- fixed a deadlock condition caused by calling closef() on a socket from 
+   a thread other than the read thread. 
+ 
+ 2.0-b8
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000011.html">[Sleep-svn] r23 - in sleep: . src/sleep/bridges/io
+</A></li>
+	<LI>Next message: <A HREF="000013.html">[Sleep-svn] r25 - sleep/src/sleep/runtime
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#12">[ date ]</a>
+              <a href="thread.html#12">[ thread ]</a>
+              <a href="subject.html#12">[ subject ]</a>
+              <a href="author.html#12">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

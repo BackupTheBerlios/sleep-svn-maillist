@@ -1,0 +1,284 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r294 - in sleep: . src/sleep/engine/atoms	src/sleep/runtime tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2007-July/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r294%20-%20in%20sleep%3A%20.%20src/sleep/engine/atoms%0A%09src/sleep/runtime%20tests%20tests/output&In-Reply-To=%3C200707082315.l68NF7KH007283%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000272.html">
+   <LINK REL="Next"  HREF="000274.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r294 - in sleep: . src/sleep/engine/atoms	src/sleep/runtime tests tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r294%20-%20in%20sleep%3A%20.%20src/sleep/engine/atoms%0A%09src/sleep/runtime%20tests%20tests/output&In-Reply-To=%3C200707082315.l68NF7KH007283%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r294 - in sleep: . src/sleep/engine/atoms	src/sleep/runtime tests tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Mon Jul  9 01:15:07 CEST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000272.html">[Sleep-svn] r293 - sleep/docs
+</A></li>
+        <LI>Next message: <A HREF="000274.html">[Sleep-svn] r295 - sleep/src/sleep/engine/atoms
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#273">[ date ]</a>
+              <a href="thread.html#273">[ thread ]</a>
+              <a href="subject.html#273">[ subject ]</a>
+              <a href="author.html#273">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2007-07-09 01:15:06 +0200 (Mon, 09 Jul 2007)
+New Revision: 294
+
+Added:
+   sleep/tests/corrupt1.sl
+   sleep/tests/output/corrupt1.sl
+Modified:
+   sleep/src/sleep/engine/atoms/Call.java
+   sleep/src/sleep/engine/atoms/ObjectAccess.java
+   sleep/src/sleep/engine/atoms/ObjectNew.java
+   sleep/src/sleep/engine/atoms/Try.java
+   sleep/src/sleep/runtime/ScriptEnvironment.java
+   sleep/whatsnew.txt
+Log:
+better stack hygeine...
+
+
+Modified: sleep/src/sleep/engine/atoms/Call.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/Call.java	2007-07-05 01:15:51 UTC (rev 293)
++++ sleep/src/sleep/engine/atoms/Call.java	2007-07-08 23:15:06 UTC (rev 294)
+@@ -54,6 +54,8 @@
+       Scalar temp = null;
+       Function callme = e.getFunction(function);
+ 
++      int mark = e.markFrame();
++
+       if (callme != null)
+       {
+          if ((e.getScriptInstance().getDebugFlags() &amp; ScriptInstance.DEBUG_TRACE_CALLS) == ScriptInstance.DEBUG_TRACE_CALLS &amp;&amp; !function.equals(&quot;&amp;@&quot;) &amp;&amp; !function.equals(&quot;&amp;%&quot;))
+@@ -94,6 +96,7 @@
+                 }
+                 catch (RuntimeException rex)
+                 {
++                   e.cleanFrame(mark);
+                    e.KillFrame();
+                    e.getScriptInstance().fireWarning(message + &quot; - FAILED!&quot;, getLineNumber(), true);
+                    throw(rex);
+@@ -109,6 +112,7 @@
+              }
+              catch (RuntimeException rex)
+              {
++                e.cleanFrame(mark);
+                 e.KillFrame();
+                 throw(rex);
+              }
+@@ -125,6 +129,7 @@
+          temp = SleepUtils.getEmptyScalar();
+       }
+ 
++      e.cleanFrame(mark);
+       e.FrameResult(temp);
+ 
+       return null;
+
+Modified: sleep/src/sleep/engine/atoms/ObjectAccess.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/ObjectAccess.java	2007-07-05 01:15:51 UTC (rev 293)
++++ sleep/src/sleep/engine/atoms/ObjectAccess.java	2007-07-08 23:15:06 UTC (rev 294)
+@@ -66,6 +66,8 @@
+ 
+       Scalar scalar   = null;
+ 
++      int mark = e.markFrame();
++
+       if (classRef == null)
+       {
+          scalar    = (Scalar)e.getCurrentFrame().pop();
+@@ -74,6 +76,7 @@
+          if (accessMe == null)
+          {
+             e.getScriptInstance().fireWarning(&quot;Attempted to call a non-static method on a null reference&quot;, getLineNumber());
++            e.cleanFrame(mark);
+             e.KillFrame();
+ 
+             e.getCurrentFrame().push(SleepUtils.getEmptyScalar());
+@@ -162,6 +165,7 @@
+             e.getScriptInstance().recordStackFrame(scalar.toString(), getLineNumber());
+          }
+          
++         e.cleanFrame(mark);
+          e.FrameResult(result);
+          return null;
+       }
+@@ -169,6 +173,7 @@
+       if (name == null)
+       {
+          e.getScriptInstance().fireWarning(&quot;Attempted to query an object with no method/field&quot;, getLineNumber());
++         e.cleanFrame(mark);
+          e.KillFrame();
+          e.getCurrentFrame().push(result);
+ 
+@@ -311,6 +316,7 @@
+          e.getScriptInstance().fireWarning(&quot;cannot access &quot; + name + &quot; in &quot; + theClass + &quot;: &quot; + iax.getMessage(), getLineNumber());
+       }
+ 
++      e.cleanFrame(mark);
+       e.FrameResult(result);
+       return null;
+    }
+
+Modified: sleep/src/sleep/engine/atoms/ObjectNew.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/ObjectNew.java	2007-07-05 01:15:51 UTC (rev 293)
++++ sleep/src/sleep/engine/atoms/ObjectNew.java	2007-07-08 23:15:06 UTC (rev 294)
+@@ -60,6 +60,8 @@
+       Object[]    parameters     = null;
+       Constructor theConstructor = null;
+ 
++      int mark = e.markFrame();
++
+       try
+       {
+          theConstructor  = ObjectUtilities.findConstructor(name, e.getCurrentFrame());
+@@ -156,6 +158,7 @@
+          e.getScriptInstance().fireWarning(iax.toString(), getLineNumber());
+       }
+ 
++      e.cleanFrame(mark);
+       e.FrameResult(result);
+       return null;
+    }
+
+Modified: sleep/src/sleep/engine/atoms/Try.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/Try.java	2007-07-05 01:15:51 UTC (rev 293)
++++ sleep/src/sleep/engine/atoms/Try.java	2007-07-08 23:15:06 UTC (rev 294)
+@@ -31,8 +31,11 @@
+ 
+    public Scalar evaluate(ScriptEnvironment e)
+    {
++      int mark = e.markFrame();
+       e.installExceptionHandler(owner, handler, var);
+-      return owner.evaluate(e);
++      Scalar o = owner.evaluate(e);
++      e.cleanFrame(mark);
++      return o;
+    }
+ }
+ 
+
+Modified: sleep/src/sleep/runtime/ScriptEnvironment.java
+===================================================================
+--- sleep/src/sleep/runtime/ScriptEnvironment.java	2007-07-05 01:15:51 UTC (rev 293)
++++ sleep/src/sleep/runtime/ScriptEnvironment.java	2007-07-08 23:15:06 UTC (rev 294)
+@@ -553,6 +553,21 @@
+     protected ArrayList frames = new ArrayList(10);
+     protected int       findex = -1;
+ 
++    /** markFrame and cleanFrame are used to keep the sleep stack in good order after certain error conditions */
++    public int markFrame()
++    {
++        return findex;
++    }
++
++    /** markFrame and cleanFrame are used to keep the sleep stack in good order after certain error conditions */
++    public void cleanFrame(int mark)
++    {
++        while (findex &gt; mark)
++        {
++           KillFrame();
++        }
++    } 
++
+     public Stack getCurrentFrame()
+     {
+        return (Stack)frames.get(findex);    
+
+Added: sleep/tests/corrupt1.sl
+===================================================================
+--- sleep/tests/corrupt1.sl	2007-07-05 01:15:51 UTC (rev 293)
++++ sleep/tests/corrupt1.sl	2007-07-08 23:15:06 UTC (rev 294)
+@@ -0,0 +1,31 @@
++debug(7 | 34);
++
++global('$zz');
++
++sub doit
++{
++   throw &quot;an exception&quot;;
++}
++
++sub bar 
++{
++   local('$s');
++   $s = int(doit());
++}
++
++sub foo
++{
++   local('$x');
++
++   try
++   {
++      $x = bar(&quot;aaa&quot;, &quot;bbb&quot;, &quot;ccc&quot;);
++   }
++   catch $problem 
++   { 
++   }
++
++   return $x;
++}
++
++$zz = foo();
+
+Added: sleep/tests/output/corrupt1.sl
+===================================================================
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2007-07-05 01:15:51 UTC (rev 293)
++++ sleep/whatsnew.txt	2007-07-08 23:15:06 UTC (rev 294)
+@@ -1,3 +1,8 @@
++2.1-beta 19  (8 Jul 07)
++===========
++- sleep interpreter now performs better stack hygeine to prevent 
++  exceptions and errors from corrupting the stack inadvertently.
++
+ 2.1-beta 18  (5 Jul 07)
+ ===========
+ - added scalar references: \$x is equivalent to $x =&gt; $x.  this sugar
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000272.html">[Sleep-svn] r293 - sleep/docs
+</A></li>
+	<LI>Next message: <A HREF="000274.html">[Sleep-svn] r295 - sleep/src/sleep/engine/atoms
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#273">[ date ]</a>
+              <a href="thread.html#273">[ thread ]</a>
+              <a href="subject.html#273">[ subject ]</a>
+              <a href="author.html#273">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

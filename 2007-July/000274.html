@@ -1,0 +1,129 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r295 - sleep/src/sleep/engine/atoms
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2007-July/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r295%20-%20sleep/src/sleep/engine/atoms&In-Reply-To=%3C200707082357.l68Nvcxw003210%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000273.html">
+   <LINK REL="Next"  HREF="000275.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r295 - sleep/src/sleep/engine/atoms</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r295%20-%20sleep/src/sleep/engine/atoms&In-Reply-To=%3C200707082357.l68Nvcxw003210%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r295 - sleep/src/sleep/engine/atoms">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Mon Jul  9 01:57:38 CEST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000273.html">[Sleep-svn] r294 - in sleep: . src/sleep/engine/atoms	src/sleep/runtime tests tests/output
+</A></li>
+        <LI>Next message: <A HREF="000275.html">[Sleep-svn] r296 - in sleep: . src/sleep/runtime tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#274">[ date ]</a>
+              <a href="thread.html#274">[ thread ]</a>
+              <a href="subject.html#274">[ subject ]</a>
+              <a href="author.html#274">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2007-07-09 01:57:37 +0200 (Mon, 09 Jul 2007)
+New Revision: 295
+
+Modified:
+   sleep/src/sleep/engine/atoms/ObjectAccess.java
+Log:
+..
+
+
+Modified: sleep/src/sleep/engine/atoms/ObjectAccess.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/ObjectAccess.java	2007-07-08 23:15:06 UTC (rev 294)
++++ sleep/src/sleep/engine/atoms/ObjectAccess.java	2007-07-08 23:57:37 UTC (rev 295)
+@@ -104,6 +104,7 @@
+             {
+                long stat = System.currentTimeMillis();
+                result = func.evaluate(name, e.getScriptInstance(), e.getCurrentFrame());
++               e.clearReturn();
+                stat = System.currentTimeMillis() - stat;
+                e.getScriptInstance().collect(((SleepClosure)scalar.objectValue()).toStringGeneric(), getLineNumber(), stat);
+             }
+@@ -132,7 +133,10 @@
+                try
+                {
+                   long stat = System.currentTimeMillis();
++
+                   result = func.evaluate(name, e.getScriptInstance(), e.getCurrentFrame());
++                  e.clearReturn();
++
+                   stat = System.currentTimeMillis() - stat;
+                   e.getScriptInstance().collect(((SleepClosure)scalar.objectValue()).toStringGeneric(), getLineNumber(), stat);
+ 
+@@ -145,7 +149,8 @@
+                }
+                catch (RuntimeException rex)
+                {
+-                  /** execute a kill frame here?!? */
++                  e.cleanFrame(mark);
++                  e.KillFrame();
+                   trace.append(&quot; - FAILED!&quot;);
+                   e.getScriptInstance().fireWarning(trace.toString(), getLineNumber(), true); 
+                   throw(rex);
+@@ -154,12 +159,19 @@
+          }
+          else
+          {
+-            result = func.evaluate(name, e.getScriptInstance(), e.getCurrentFrame());
++            try
++            {
++               result = func.evaluate(name, e.getScriptInstance(), e.getCurrentFrame());
++               e.clearReturn();
++            }
++            catch (RuntimeException rex)
++            {
++               e.cleanFrame(mark);
++               e.KillFrame();
++               throw(rex);
++            }
+          }         
+ 
+-         e.clearReturn(); // this has to be done or else bad things will happen when the closure returns stuff
+-         // ^-- evaluate, is this really necessary or are closures smart enough to clear the return themselves? // RSM
+-
+          if (e.isThrownValue())
+          {
+             e.getScriptInstance().recordStackFrame(scalar.toString(), getLineNumber());
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000273.html">[Sleep-svn] r294 - in sleep: . src/sleep/engine/atoms	src/sleep/runtime tests tests/output
+</A></li>
+	<LI>Next message: <A HREF="000275.html">[Sleep-svn] r296 - in sleep: . src/sleep/runtime tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#274">[ date ]</a>
+              <a href="thread.html#274">[ thread ]</a>
+              <a href="subject.html#274">[ subject ]</a>
+              <a href="author.html#274">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

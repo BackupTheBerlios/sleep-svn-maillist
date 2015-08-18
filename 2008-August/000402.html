@@ -1,0 +1,326 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r426 - in sleep: . src/sleep/bridges	src/sleep/engine/atoms src/sleep/runtime tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2008-August/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r426%20-%20in%20sleep%3A%20.%20src/sleep/bridges%0A%09src/sleep/engine/atoms%20src/sleep/runtime%20tests%20tests/output&In-Reply-To=%3C200808042259.m74MxwsH016578%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000401.html">
+   <LINK REL="Next"  HREF="000403.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r426 - in sleep: . src/sleep/bridges	src/sleep/engine/atoms src/sleep/runtime tests tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r426%20-%20in%20sleep%3A%20.%20src/sleep/bridges%0A%09src/sleep/engine/atoms%20src/sleep/runtime%20tests%20tests/output&In-Reply-To=%3C200808042259.m74MxwsH016578%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r426 - in sleep: . src/sleep/bridges	src/sleep/engine/atoms src/sleep/runtime tests tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Tue Aug  5 00:59:58 CEST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000401.html">[Sleep-svn] r425 - in sleep: . src/sleep/bridges tests tests/output
+</A></li>
+        <LI>Next message: <A HREF="000403.html">[Sleep-svn] r427 - in sleep: . src/sleep/taint tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#402">[ date ]</a>
+              <a href="thread.html#402">[ thread ]</a>
+              <a href="subject.html#402">[ subject ]</a>
+              <a href="author.html#402">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2008-08-05 00:59:56 +0200 (Tue, 05 Aug 2008)
+New Revision: 426
+
+Added:
+   sleep/src/sleep/runtime/ProxyIterator.java
+   sleep/tests/jiter1.sl
+   sleep/tests/jiter2.sl
+   sleep/tests/jiter3.sl
+   sleep/tests/output/jiter1.sl
+   sleep/tests/output/jiter2.sl
+   sleep/tests/output/jiter3.sl
+Modified:
+   sleep/src/sleep/bridges/BridgeUtilities.java
+   sleep/src/sleep/engine/atoms/Iterate.java
+   sleep/src/sleep/runtime/CollectionWrapper.java
+   sleep/whatsnew.txt
+Log:
+Added support for Iterating over Java iterators.
+
+
+
+Modified: sleep/src/sleep/bridges/BridgeUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BridgeUtilities.java	2008-08-04 22:33:21 UTC (rev 425)
++++ sleep/src/sleep/bridges/BridgeUtilities.java	2008-08-04 22:59:56 UTC (rev 426)
+@@ -151,11 +151,14 @@
+       {
+          return temp.getArray().scalarIterator();
+       }      
+-
+-      if (SleepUtils.isFunctionScalar(temp))
++      else if (SleepUtils.isFunctionScalar(temp))
+       {
+          return SleepUtils.getFunctionFromScalar(temp).scalarIterator();
+       }
++      else if (ProxyIterator.isIterator(temp))
++      {
++         return new ProxyIterator((Iterator)temp.objectValue(), true);
++      }
+ 
+       throw new IllegalArgumentException(&quot;expected iterator (@array or &amp;closure)--received: &quot; + SleepUtils.describe(temp));
+    }
+
+Modified: sleep/src/sleep/engine/atoms/Iterate.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/Iterate.java	2008-08-04 22:33:21 UTC (rev 425)
++++ sleep/src/sleep/engine/atoms/Iterate.java	2008-08-04 22:59:56 UTC (rev 426)
+@@ -125,6 +125,10 @@
+       {
+          data.iterator = SleepUtils.getFunctionFromScalar(data.source, e.getScriptInstance()).scalarIterator();
+       }
++      else if (ProxyIterator.isIterator(data.source))
++      {
++         data.iterator = new ProxyIterator((Iterator)data.source.objectValue(), true);
++      }
+       else
+       {
+          e.getScriptInstance().fireWarning(&quot;Attempted to use foreach on non-array: '&quot; + data.source + &quot;'&quot;, getLineNumber());
+
+Modified: sleep/src/sleep/runtime/CollectionWrapper.java
+===================================================================
+--- sleep/src/sleep/runtime/CollectionWrapper.java	2008-08-04 22:33:21 UTC (rev 425)
++++ sleep/src/sleep/runtime/CollectionWrapper.java	2008-08-04 22:59:56 UTC (rev 426)
+@@ -75,7 +75,7 @@
+ 
+    public Iterator scalarIterator()
+    {
+-      return new ProxyIterator();
++      return new ProxyIterator(values.iterator(), false);
+    }
+ 
+    public Scalar add(Scalar value, int index)
+@@ -88,31 +88,4 @@
+       throw new RuntimeException(&quot;array is read-only&quot;);
+       // do nothing
+    }
+-
+-   protected class ProxyIterator implements Iterator
+-   {
+-      protected Iterator realIterator;
+-
+-      public ProxyIterator()
+-      {
+-         realIterator = values.iterator();
+-      }
+-
+-      public boolean hasNext()
+-      {
+-         return realIterator.hasNext(); 
+-      }
+-
+-      public Object next()
+-      {
+-         Object temp = realIterator.next();
+-         return ObjectUtilities.BuildScalar(true, temp);
+-      }
+-
+-      public void remove()
+-      {
+-          throw new RuntimeException(&quot;array is read-only&quot;);
+-          // no dice
+-      }
+-   }
+ }
+
+Added: sleep/src/sleep/runtime/ProxyIterator.java
+===================================================================
+--- sleep/src/sleep/runtime/ProxyIterator.java	2008-08-04 22:33:21 UTC (rev 425)
++++ sleep/src/sleep/runtime/ProxyIterator.java	2008-08-04 22:59:56 UTC (rev 426)
+@@ -0,0 +1,47 @@
++package sleep.runtime;
++
++import java.util.*;
++import sleep.engine.ObjectUtilities;
++
++/* An iterator wrapper that constructs Sleep compatible Scalars for 
++   each iterator. */
++public class ProxyIterator implements Iterator
++{
++   protected Iterator realIterator;
++   protected boolean  modifyAllow;
++
++   public ProxyIterator(Iterator iter, boolean _modifyAllow)
++   {
++      realIterator = iter;
++      modifyAllow  = _modifyAllow;
++   }
++
++   /** Check if the Scalar contains a Java iterator value */
++   public static boolean isIterator(Scalar value)
++   {
++      return value.getActualValue() != null &amp;&amp; value.objectValue() instanceof Iterator;
++   }
++
++   public boolean hasNext()
++   {
++      return realIterator.hasNext(); 
++   }
++
++   public Object next()
++   {
++      Object temp = realIterator.next();
++      return ObjectUtilities.BuildScalar(true, temp);
++   }
++
++   public void remove()
++   {
++      if (modifyAllow)
++      {
++         realIterator.remove();
++      }
++      else
++      {
++         throw new RuntimeException(&quot;iterator is read-only&quot;);
++      }
++   }
++}
+
+Added: sleep/tests/jiter1.sl
+===================================================================
+--- sleep/tests/jiter1.sl	2008-08-04 22:33:21 UTC (rev 425)
++++ sleep/tests/jiter1.sl	2008-08-04 22:59:56 UTC (rev 426)
+@@ -0,0 +1,14 @@
++#
++#
++
++$list = [new LinkedList];
++[$list add: &quot;a&quot;];
++[$list add: &quot;b&quot;];
++[$list add: &quot;c&quot;];
++[$list add: &quot;d&quot;];
++[$list add: &quot;e&quot;];
++
++foreach $count =&gt; $value ([$list iterator])
++{
++   println(&quot;$count and $value&quot;);
++}
+
+Added: sleep/tests/jiter2.sl
+===================================================================
+--- sleep/tests/jiter2.sl	2008-08-04 22:33:21 UTC (rev 425)
++++ sleep/tests/jiter2.sl	2008-08-04 22:59:56 UTC (rev 426)
+@@ -0,0 +1,21 @@
++#
++#
++
++$list = [new LinkedList];
++[$list add: &quot;a&quot;];
++[$list add: &quot;b&quot;];
++[$list add: &quot;c&quot;];
++[$list add: &quot;d&quot;];
++[$list add: &quot;e&quot;];
++
++foreach $count =&gt; $value ([$list iterator])
++{
++   println(&quot;$count and $value&quot;);
++
++   if ($count &gt; 2)
++   {
++      remove();
++   }
++}
++
++println($list);
+
+Added: sleep/tests/jiter3.sl
+===================================================================
+--- sleep/tests/jiter3.sl	2008-08-04 22:33:21 UTC (rev 425)
++++ sleep/tests/jiter3.sl	2008-08-04 22:59:56 UTC (rev 426)
+@@ -0,0 +1,8 @@
++$list = [new LinkedList];
++[$list add: 1];
++[$list add: 3];
++[$list add: 9];
++[$list add: 12];
++
++println(map({ return $1 * 3; }, [$list iterator]));
++
+
+Added: sleep/tests/output/jiter1.sl
+===================================================================
+--- sleep/tests/output/jiter1.sl	2008-08-04 22:33:21 UTC (rev 425)
++++ sleep/tests/output/jiter1.sl	2008-08-04 22:59:56 UTC (rev 426)
+@@ -0,0 +1,5 @@
++0 and a
++1 and b
++2 and c
++3 and d
++4 and e
+
+Added: sleep/tests/output/jiter2.sl
+===================================================================
+--- sleep/tests/output/jiter2.sl	2008-08-04 22:33:21 UTC (rev 425)
++++ sleep/tests/output/jiter2.sl	2008-08-04 22:59:56 UTC (rev 426)
+@@ -0,0 +1,6 @@
++0 and a
++1 and b
++2 and c
++3 and d
++3 and e
++[a, b, c]
+
+Added: sleep/tests/output/jiter3.sl
+===================================================================
+--- sleep/tests/output/jiter3.sl	2008-08-04 22:33:21 UTC (rev 425)
++++ sleep/tests/output/jiter3.sl	2008-08-04 22:59:56 UTC (rev 426)
+@@ -0,0 +1 @@
++@(3, 9, 27, 36)
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2008-08-04 22:33:21 UTC (rev 425)
++++ sleep/whatsnew.txt	2008-08-04 22:59:56 UTC (rev 426)
+@@ -22,6 +22,9 @@
+   Sleep hash--usually by keys() or values() functions)
+ - Fixed bug causing -exists &quot;&quot; to return true..  turns out
+   toSleepFile evaluated &quot;&quot; to the current working directory
++- Sleep functions (map, reduce, filter, etc.) that support 
++  iterating over a closure or array and foreach loops can now
++  iterate over Java iterators.  
+ 
+ 2.1-release  (1 Jul 08)
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000401.html">[Sleep-svn] r425 - in sleep: . src/sleep/bridges tests tests/output
+</A></li>
+	<LI>Next message: <A HREF="000403.html">[Sleep-svn] r427 - in sleep: . src/sleep/taint tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#402">[ date ]</a>
+              <a href="thread.html#402">[ thread ]</a>
+              <a href="subject.html#402">[ subject ]</a>
+              <a href="author.html#402">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

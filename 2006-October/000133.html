@@ -1,0 +1,203 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r151 - in sleep: . docs src/sleep/bridges	src/sleep/bridges/io
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2006-October/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r151%20-%20in%20sleep%3A%20.%20docs%20src/sleep/bridges%0A%09src/sleep/bridges/io&In-Reply-To=%3C200610300300.k9U301ks014395%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000132.html">
+   <LINK REL="Next"  HREF="000134.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r151 - in sleep: . docs src/sleep/bridges	src/sleep/bridges/io</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r151%20-%20in%20sleep%3A%20.%20docs%20src/sleep/bridges%0A%09src/sleep/bridges/io&In-Reply-To=%3C200610300300.k9U301ks014395%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r151 - in sleep: . docs src/sleep/bridges	src/sleep/bridges/io">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Mon Oct 30 04:00:01 CET 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000132.html">[Sleep-svn] r150 - in sleep: . docs src/sleep/runtime
+</A></li>
+        <LI>Next message: <A HREF="000134.html">[Sleep-svn] r152 - sleep
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#133">[ date ]</a>
+              <a href="thread.html#133">[ thread ]</a>
+              <a href="subject.html#133">[ subject ]</a>
+              <a href="author.html#133">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2006-10-30 04:00:00 +0100 (Mon, 30 Oct 2006)
+New Revision: 151
+
+Modified:
+   sleep/docs/sleeplang.html
+   sleep/src/sleep/bridges/BasicIO.java
+   sleep/src/sleep/bridges/io/ProcessObject.java
+   sleep/whatsnew.txt
+Log:
+enhancements to exec and readb
+
+
+
+Modified: sleep/docs/sleeplang.html
+===================================================================
+--- sleep/docs/sleeplang.html	2006-10-30 02:04:21 UTC (rev 150)
++++ sleep/docs/sleeplang.html	2006-10-30 03:00:00 UTC (rev 151)
+@@ -2067,8 +2067,8 @@
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td&gt;$&lt;/td&gt;
+-  &lt;td&gt;exec(&quot;command&quot;)&lt;/td&gt;
+-  &lt;td&gt;executes the specified command and returns a $handle.  Check for issues executing a process with checkError()&lt;/td&gt;
++  &lt;td&gt;exec(&quot;command&quot;, [%env], [&quot;directory&quot;])&lt;/td&gt;
++  &lt;td&gt;executes the specified command and returns a $handle.  Check for issues executing a process with checkError().  If $null is specified for either the environment (%env) or the starting &quot;directory&quot; then the process will inherit the current processes settings.&lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td&gt;$&lt;/td&gt;
+@@ -2141,7 +2141,7 @@
+  &lt;tr&gt;
+   &lt;td&gt;$&lt;/td&gt;
+   &lt;td&gt;readb([$handle], n)&lt;/td&gt;
+-  &lt;td&gt;reads n bytes from $handle&lt;/td&gt;
++  &lt;td&gt;reads n bytes from $handle.  If 0 bytes are read &lt;var&gt;$null&lt;/var&gt; will be returned.&lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td&gt;$&lt;/td&gt;
+
+Modified: sleep/src/sleep/bridges/BasicIO.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicIO.java	2006-10-30 02:04:21 UTC (rev 150)
++++ sleep/src/sleep/bridges/BasicIO.java	2006-10-30 03:00:00 UTC (rev 151)
+@@ -263,10 +263,43 @@
+     {
+        public Scalar evaluate(String n, ScriptInstance i, Stack l)
+        {
+-          String a = ((Scalar)l.pop()).toString();
++          String   command  = BridgeUtilities.getString(l, null);
++          String[] envp     = null;
++          File     start    = null;
+ 
++          if (!l.isEmpty())
++          {
++             if (SleepUtils.isEmptyScalar((Scalar)l.peek()))
++             {
++                l.pop();
++             }
++             else
++             {
++                ScalarHash env  = BridgeUtilities.getHash(l);
++                Iterator   keys = env.keys().scalarIterator();
++                envp = new String[env.keys().size()];
++                for (int x = 0; x &lt; envp.length; x++)
++                {
++                   Scalar key = (Scalar)keys.next();
++                   envp[x] = key.toString() + &quot;=&quot; + env.getAt(key);
++                }
++             }
++          }
++
++          if (!l.isEmpty() &amp;&amp; !SleepUtils.isEmptyScalar((Scalar)l.peek()))
++          {
++             if (SleepUtils.isEmptyScalar((Scalar)l.peek()))
++             {
++                l.pop();
++             }
++             else
++             {
++                start = BridgeUtilities.getFile(l); 
++             }
++          }
++
+           ProcessObject temp = new ProcessObject();
+-          temp.open(a, i.getScriptEnvironment());
++          temp.open(command, envp, start, i.getScriptEnvironment());
+ 
+           return SleepUtils.getScalar(temp);
+        }
+@@ -1128,6 +1161,8 @@
+              i.getScriptEnvironment().flagError(ex.toString());
+           }
+ 
++          if (temp.length() == 0) { return SleepUtils.getEmptyScalar(); }
++
+           return SleepUtils.getScalar(temp.toString());
+        }
+     }
+
+Modified: sleep/src/sleep/bridges/io/ProcessObject.java
+===================================================================
+--- sleep/src/sleep/bridges/io/ProcessObject.java	2006-10-30 02:04:21 UTC (rev 150)
++++ sleep/src/sleep/bridges/io/ProcessObject.java	2006-10-30 03:00:00 UTC (rev 151)
+@@ -13,7 +13,7 @@
+       return process;
+    }
+ 
+-   public void open(String command, ScriptEnvironment env)
++   public void open(String command, String[] environment, File startDir, ScriptEnvironment env)
+    {
+       try
+       {
+@@ -25,13 +25,14 @@
+             command = command + args;
+          }
+ 
+-         process = Runtime.getRuntime().exec(command);
++         process = Runtime.getRuntime().exec(command, environment, startDir);
+ 
+          openRead(process.getInputStream());
+          openWrite(process.getOutputStream());
+       }
+       catch (Exception ex)
+       {
++         ex.printStackTrace();
+          env.flagError(ex.toString());
+       }
+    }
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-10-30 02:04:21 UTC (rev 150)
++++ sleep/whatsnew.txt	2006-10-30 03:00:00 UTC (rev 151)
+@@ -26,6 +26,7 @@
+   to use the closure scope/environment of the specified &amp;closure
+ - added a &amp;putAll(%hash, &amp;/@, [&amp;/@]) to populate the passed in hash from the
+   passed in iterator(s).
++- readb now returns a $null if the read failed to return any data
+ 
+ 2.1-beta 7  (15 Oct 06)
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000132.html">[Sleep-svn] r150 - in sleep: . docs src/sleep/runtime
+</A></li>
+	<LI>Next message: <A HREF="000134.html">[Sleep-svn] r152 - sleep
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#133">[ date ]</a>
+              <a href="thread.html#133">[ thread ]</a>
+              <a href="subject.html#133">[ subject ]</a>
+              <a href="author.html#133">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

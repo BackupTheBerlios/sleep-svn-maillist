@@ -1,0 +1,169 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r97 - in sleep: . src/sleep/bridges tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2006-August/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r97%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20tests%20tests/output&In-Reply-To=%3C200608090058.k790w8pu015234%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000078.html">
+   <LINK REL="Next"  HREF="000080.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r97 - in sleep: . src/sleep/bridges tests tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r97%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20tests%20tests/output&In-Reply-To=%3C200608090058.k790w8pu015234%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r97 - in sleep: . src/sleep/bridges tests tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Wed Aug  9 02:58:08 CEST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000078.html">[Sleep-svn] r96 - in sleep: . src/sleep/bridges	src/sleep/engine/atoms src/sleep/runtime
+</A></li>
+        <LI>Next message: <A HREF="000080.html">[Sleep-svn] r98 - in sleep: . src/sleep/bridges src/sleep/bridges/io
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#79">[ date ]</a>
+              <a href="thread.html#79">[ thread ]</a>
+              <a href="subject.html#79">[ subject ]</a>
+              <a href="author.html#79">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2006-08-09 02:57:51 +0200 (Wed, 09 Aug 2006)
+New Revision: 97
+
+Added:
+   sleep/tests/dtest1.sl
+   sleep/tests/output/dtest1.sl
+Modified:
+   sleep/src/sleep/bridges/BasicUtilities.java
+   sleep/whatsnew.txt
+Log:
+Added &amp;debug for programatically setting the debug level of a script
+
+
+
+Modified: sleep/src/sleep/bridges/BasicUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicUtilities.java	2006-08-09 00:43:44 UTC (rev 96)
++++ sleep/src/sleep/bridges/BasicUtilities.java	2006-08-09 00:57:51 UTC (rev 97)
+@@ -89,6 +89,8 @@
+         temp.put(&quot;&amp;this&quot;,     scopeFunctions);
+         temp.put(&quot;&amp;global&quot;,     scopeFunctions);
+ 
++        temp.put(&quot;&amp;debug&quot;, this);
++
+         temp.put(&quot;&amp;reverse&quot;,  new reverse());      // @array2 = &amp;reverse(@array) 
+         temp.put(&quot;&amp;removeAt&quot;, new removeAt());   // not safe within foreach loops yada yada yada...
+         temp.put(&quot;&amp;shift&quot;,    new shift());   // not safe within foreach loops yada yada yada...
+@@ -627,7 +629,18 @@
+          
+           return SleepUtils.getEmptyScalar();
+        }
++       else if (n.equals(&quot;&amp;debug&quot;))
++       {
++          /* allow the script to programatically set the debug level */
++          if (!l.isEmpty())
++          {
++             int flag = BridgeUtilities.getInt(l, 0);
++             i.setDebugFlags(flag);
++          }
+ 
++          return SleepUtils.getScalar(i.getDebugFlags());
++       }
++
+        Scalar value = BridgeUtilities.getScalar(l);
+ 
+        if (n.equals(&quot;&amp;push&quot;))
+
+Added: sleep/tests/dtest1.sl
+===================================================================
+--- sleep/tests/dtest1.sl	2006-08-09 00:43:44 UTC (rev 96)
++++ sleep/tests/dtest1.sl	2006-08-09 00:57:51 UTC (rev 97)
+@@ -0,0 +1,18 @@
++#
++# test out strict debug mode...
++#
++
++global('$a');
++
++debug(7); # turn on all debugging options (4 is strict)
++
++$a = &quot;hello&quot;;
++$b = &quot;world&quot;;
++
++println(&quot;$a $b&quot;);
++
++debug(0);
++
++$c = &quot;hi&quot;;
++
++println(&quot;$c $b&quot;);
+
+Added: sleep/tests/output/dtest1.sl
+===================================================================
+--- sleep/tests/output/dtest1.sl	2006-08-09 00:43:44 UTC (rev 96)
++++ sleep/tests/output/dtest1.sl	2006-08-09 00:57:51 UTC (rev 97)
+@@ -0,0 +1,3 @@
++Warning: variable '$b' not declared at line 10
++hello world
++hi world
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-08-09 00:43:44 UTC (rev 96)
++++ sleep/whatsnew.txt	2006-08-09 00:57:51 UTC (rev 97)
+@@ -11,7 +11,21 @@
+ - added a require strict debug flag, this flag causes a runtime warning to
+   be fired whenever a script uses a variable without delcaring it using
+   global, local, or this.
++- added &amp;debug(mode) allows scripters to programatically set the debug flags
++  for their script..  debug with no arguments returns the current debug flags
+ 
++  levels are:
++  1 - show errors: dump all critical script errors as runtime warnings, this
++      should never be turned off.
++  2 - show warnings: dump all non-critical script exceptions as runtime 
++      warnings.  These can be checked for programatically with &amp;checkError
++  4 - require strict: dump all first time uses of non-declared variables as
++      runtime warnings.  
++
++  any of these flags can be OR'd together i.e.:
++
++  debug(1 | 4); # show all errors and uses of non-declared variables
++
+ 2.1-beta 2
+ ===========
+ - added a few more FP-style functions to Sleep:
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000078.html">[Sleep-svn] r96 - in sleep: . src/sleep/bridges	src/sleep/engine/atoms src/sleep/runtime
+</A></li>
+	<LI>Next message: <A HREF="000080.html">[Sleep-svn] r98 - in sleep: . src/sleep/bridges src/sleep/bridges/io
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#79">[ date ]</a>
+              <a href="thread.html#79">[ thread ]</a>
+              <a href="subject.html#79">[ subject ]</a>
+              <a href="author.html#79">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

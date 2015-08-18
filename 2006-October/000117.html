@@ -1,0 +1,118 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r135 - in sleep: . src/sleep/engine/atoms
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2006-October/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r135%20-%20in%20sleep%3A%20.%20src/sleep/engine/atoms&In-Reply-To=%3C200610142112.k9ELCN3c012785%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000116.html">
+   <LINK REL="Next"  HREF="000118.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r135 - in sleep: . src/sleep/engine/atoms</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r135%20-%20in%20sleep%3A%20.%20src/sleep/engine/atoms&In-Reply-To=%3C200610142112.k9ELCN3c012785%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r135 - in sleep: . src/sleep/engine/atoms">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Sat Oct 14 23:12:23 CEST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000116.html">[Sleep-svn] r134 - sleep/docs
+</A></li>
+        <LI>Next message: <A HREF="000118.html">[Sleep-svn] r136 - in sleep: . src/sleep/bridges src/sleep/parser	tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#117">[ date ]</a>
+              <a href="thread.html#117">[ thread ]</a>
+              <a href="subject.html#117">[ subject ]</a>
+              <a href="author.html#117">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2006-10-14 23:12:22 +0200 (Sat, 14 Oct 2006)
+New Revision: 135
+
+Modified:
+   sleep/build.xml
+   sleep/src/sleep/engine/atoms/Index.java
+Log:
+implemented an idea that is crazy as hell, indexing operator can now be used to access values in a closures this scope...
+full on sleep OO next?
+
+
+
+Modified: sleep/build.xml
+===================================================================
+--- sleep/build.xml	2006-10-09 11:13:41 UTC (rev 134)
++++ sleep/build.xml	2006-10-14 21:12:22 UTC (rev 135)
+@@ -16,7 +16,7 @@
+            destdir=&quot;${project.build}&quot;
+            nowarn=&quot;yes&quot;
+            depend=&quot;yes&quot;
+-           debug=&quot;true&quot;
++           debug=&quot;false&quot;
+            source=&quot;1.4&quot;
+            target=&quot;1.4&quot;
+            optimize=&quot;yes&quot;
+
+Modified: sleep/src/sleep/engine/atoms/Index.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/Index.java	2006-10-09 11:13:41 UTC (rev 134)
++++ sleep/src/sleep/engine/atoms/Index.java	2006-10-14 21:12:22 UTC (rev 135)
+@@ -26,6 +26,7 @@
+ import sleep.interfaces.*;
+ import sleep.engine.*;
+ import sleep.runtime.*;
++import sleep.bridges.SleepClosure;
+ 
+ public class Index extends Step
+ {
+@@ -90,6 +91,16 @@
+ 
+       if (structure.getArray() != null) { rv = structure.getArray().getAt(pos.getValue().intValue()); }
+       else if (structure.getHash() != null) { rv = structure.getHash().getAt(pos); }
++      else if (structure.objectValue() != null &amp;&amp; structure.objectValue() instanceof SleepClosure)
++      {
++         SleepClosure closure = (SleepClosure)structure.objectValue();
++
++         if (!closure.getVariables().scalarExists(pos.toString()))
++         {
++            closure.getVariables().putScalar(pos.toString(), SleepUtils.getEmptyScalar());
++         }
++         rv = closure.getVariables().getScalar(pos.toString());
++      }
+       else { rv = SleepUtils.getEmptyScalar(); } // always return an empty scalar if we are not referencing a hash or an array
+ 
+       e.FrameResult(rv);
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000116.html">[Sleep-svn] r134 - sleep/docs
+</A></li>
+	<LI>Next message: <A HREF="000118.html">[Sleep-svn] r136 - in sleep: . src/sleep/bridges src/sleep/parser	tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#117">[ date ]</a>
+              <a href="thread.html#117">[ thread ]</a>
+              <a href="subject.html#117">[ subject ]</a>
+              <a href="author.html#117">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

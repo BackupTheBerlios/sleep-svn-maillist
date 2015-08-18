@@ -1,0 +1,205 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r282 - in sleep: . src/sleep/engine tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2007-June/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r282%20-%20in%20sleep%3A%20.%20src/sleep/engine%20tests%20tests/output&In-Reply-To=%3C200706152304.l5FN4fwq021981%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000260.html">
+   <LINK REL="Next"  HREF="000262.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r282 - in sleep: . src/sleep/engine tests tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r282%20-%20in%20sleep%3A%20.%20src/sleep/engine%20tests%20tests/output&In-Reply-To=%3C200706152304.l5FN4fwq021981%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r282 - in sleep: . src/sleep/engine tests tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Sat Jun 16 01:04:41 CEST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000260.html">[Sleep-svn] r281 - in sleep: . src/sleep/runtime tests tests/output
+</A></li>
+        <LI>Next message: <A HREF="000262.html">[Sleep-svn] r283 - in sleep/tests: . output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#261">[ date ]</a>
+              <a href="thread.html#261">[ thread ]</a>
+              <a href="subject.html#261">[ subject ]</a>
+              <a href="author.html#261">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2007-06-16 01:04:33 +0200 (Sat, 16 Jun 2007)
+New Revision: 282
+
+Added:
+   sleep/tests/output/trybreaks.sl
+   sleep/tests/trybreaks.sl
+Modified:
+   sleep/src/sleep/engine/Block.java
+   sleep/whatsnew.txt
+Log:
+fixed a bug with try/catch
+
+
+
+Modified: sleep/src/sleep/engine/Block.java
+===================================================================
+--- sleep/src/sleep/engine/Block.java	2007-06-15 22:35:06 UTC (rev 281)
++++ sleep/src/sleep/engine/Block.java	2007-06-15 23:04:33 UTC (rev 282)
+@@ -187,6 +187,19 @@
+         }
+     }
+ 
++    /** clean up the environment */
++    private void cleanupEnvironment(ScriptEnvironment environment)
++    {
++        /* pop source information from the stack */
++        environment.popSource();
++
++        /* remove exception handlers associated with this block (we obviously returned within one */
++        if (environment.isResponsible(this))
++        {
++           environment.popExceptionContext();
++        }
++    }
++
+     /** evaluates this block of code.  please note that if the block has a return statement and the method clearReturn() is not 
+         called on the corresponding script environment chaos will ensue.  use SleepUtils.runCode() to safely execute a block of
+         code.  don't call this method yourself.  okay? */
+@@ -198,7 +211,7 @@
+            {
+               environment.pushSource(source); /* may not be necessary, but then again, maybe they are... used for stack traces */
+               handleException(environment);
+-              environment.popSource();
++              cleanupEnvironment(environment);
+            }
+ 
+            return environment.getReturnValue();
+@@ -241,7 +254,7 @@
+                  ex.printStackTrace(System.out);
+               }
+ 
+-              environment.popSource();
++              cleanupEnvironment(environment);
+               return SleepUtils.getEmptyScalar();
+            } 
+ 
+@@ -282,7 +295,7 @@
+                     handleException(environment);
+                  }
+ 
+-                 environment.popSource();
++                 cleanupEnvironment(environment);
+                  return environment.getReturnValue(); /* we do this because the exception will get cleared and after that
+                                                          there may be a return value */
+               }
+@@ -293,7 +306,7 @@
+               }
+               else
+               {
+-                 environment.popSource();
++                 cleanupEnvironment(environment);
+                  return environment.getReturnValue();
+               }
+            }
+@@ -301,7 +314,7 @@
+            temp = temp.next;
+         }
+ 
+-        environment.popSource();
++        cleanupEnvironment(environment);
+         return SleepUtils.getEmptyScalar(); 
+     }
+ }
+
+Added: sleep/tests/output/trybreaks.sl
+===================================================================
+--- sleep/tests/output/trybreaks.sl	2007-06-15 22:35:06 UTC (rev 281)
++++ sleep/tests/output/trybreaks.sl	2007-06-15 23:04:33 UTC (rev 282)
+@@ -0,0 +1,3 @@
++...
++foo!
++outside: test!
+
+Added: sleep/tests/trybreaks.sl
+===================================================================
+--- sleep/tests/trybreaks.sl	2007-06-15 22:35:06 UTC (rev 281)
++++ sleep/tests/trybreaks.sl	2007-06-15 23:04:33 UTC (rev 282)
+@@ -0,0 +1,30 @@
++sub foo
++{
++   try
++   {
++      println(&quot;...&quot;);
++      try
++      {
++         println(&quot;foo!&quot;);
++         return;
++      }
++      catch $ex
++      {
++         println(&quot;foo: $ex&quot;);
++      }
++   }
++   catch $ex3
++   {
++      println(&quot;foo o: $ex3&quot;);
++   }
++}
++
++try
++{
++   foo();
++   throw &quot;test!&quot;;
++}
++catch $ex2
++{
++   println(&quot;outside: $ex2&quot;);
++}
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2007-06-15 22:35:06 UTC (rev 281)
++++ sleep/whatsnew.txt	2007-06-15 23:04:33 UTC (rev 282)
+@@ -29,6 +29,8 @@
+   of a Java object backed by the specified interfaces
+ - try/catch is no longer dependent on putting the caught value into
+   the global scope.
++- returning within a try block no longer breaks Sleep's exception
++  mechanism.
+ 
+ 2.1-beta 16  (11 Jun 07)
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000260.html">[Sleep-svn] r281 - in sleep: . src/sleep/runtime tests tests/output
+</A></li>
+	<LI>Next message: <A HREF="000262.html">[Sleep-svn] r283 - in sleep/tests: . output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#261">[ date ]</a>
+              <a href="thread.html#261">[ thread ]</a>
+              <a href="subject.html#261">[ subject ]</a>
+              <a href="author.html#261">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

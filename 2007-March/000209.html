@@ -1,0 +1,387 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r230 - in sleep: . docs src/sleep/runtime tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2007-March/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r230%20-%20in%20sleep%3A%20.%20docs%20src/sleep/runtime%20tests/output&In-Reply-To=%3C200703181607.l2IG7xe8032268%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000208.html">
+   <LINK REL="Next"  HREF="000210.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r230 - in sleep: . docs src/sleep/runtime tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r230%20-%20in%20sleep%3A%20.%20docs%20src/sleep/runtime%20tests/output&In-Reply-To=%3C200703181607.l2IG7xe8032268%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r230 - in sleep: . docs src/sleep/runtime tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Sun Mar 18 17:07:59 CET 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000208.html">[Sleep-svn] r229 - in sleep: . src/sleep/bridges src/sleep/runtime	tests tests/output
+</A></li>
+        <LI>Next message: <A HREF="000210.html">[Sleep-svn] r231 - in sleep: . src/sleep/bridges tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#209">[ date ]</a>
+              <a href="thread.html#209">[ thread ]</a>
+              <a href="subject.html#209">[ subject ]</a>
+              <a href="author.html#209">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2007-03-18 17:07:55 +0100 (Sun, 18 Mar 2007)
+New Revision: 230
+
+Modified:
+   sleep/build.xml
+   sleep/docs/sleeplang.html
+   sleep/readme.txt
+   sleep/src/sleep/runtime/SleepUtils.java
+   sleep/tests/output/forker.sl
+   sleep/tests/output/trace.sl
+   sleep/tests/output/wrong.sl
+   sleep/whatsnew.txt
+Log:
+beta 13 baby!!!
+
+
+
+Modified: sleep/build.xml
+===================================================================
+--- sleep/build.xml	2007-03-17 15:35:30 UTC (rev 229)
++++ sleep/build.xml	2007-03-18 16:07:55 UTC (rev 230)
+@@ -16,7 +16,7 @@
+            destdir=&quot;${project.build}&quot;
+            nowarn=&quot;yes&quot;
+            depend=&quot;yes&quot;
+-           debug=&quot;true&quot;
++           debug=&quot;false&quot;
+            source=&quot;1.4&quot;
+            target=&quot;1.4&quot;
+            optimize=&quot;yes&quot;
+
+Modified: sleep/docs/sleeplang.html
+===================================================================
+--- sleep/docs/sleeplang.html	2007-03-17 15:35:30 UTC (rev 229)
++++ sleep/docs/sleeplang.html	2007-03-18 16:07:55 UTC (rev 230)
+@@ -622,6 +622,82 @@
+ &lt;p&gt;The return command causes the current subroutine to stop executing and return to where it started.  You can specify a scalar 
+ with return that will be the value of the function call.&lt;/p&gt;
+ 
++&lt;h3&gt;&lt;a name=&quot;throw&quot;&gt;&lt;/a&gt;Throwing Errors&lt;/h3&gt;
++
++&lt;p&gt;Sometimes an error or condition occurs that you don't want to handle in your subroutine but expect someone would
++want to handle it higher up in the call stack.  This type of thing is referred to as an exceptional condition and 
++Sleep has ample support for &quot;exception&quot; handling.&lt;/p&gt;
++
++&lt;p&gt;To notify Sleep that an exception has occured, use the throw command.  The throw command works similiarly to return
++in that it expects you to specify a scalar that will be passed to an exception handler later on.  It is worth noteing
++that if the thrown value evaluates to &lt;var&gt;$null&lt;/var&gt; then it will not be thrown.&lt;/p&gt;
++
++&lt;pre&gt;sub multiplyBy3
++{
++   if (!-isnumber $1)
++   {
++      throw &quot;&amp;multipyBy3( $+ $1 $+ ) requires a number!&quot;;
++   }
++
++   return $1 * 3;
++}&lt;/pre&gt;
++
++&lt;p&gt;The subroutine above checks if its argument is a number or not.  If someone where to call &lt;code&gt;multiplyBy3(&quot;hi&quot;)&lt;/code&gt;
++then this function would throw the string &quot;&amp;multiplyBy3(hi) requires a number!&quot; up the call stack.   This string would
++bubble up through the Sleep call stack.  The first part of the call stack to have a handler to catch the exception will 
++get to handle it.  If there are no error handlers in place then a warning message will be printed: 
++&quot;Warning: Uncaught exception: &amp;multiplyBy3(hi) requires a number! at 5&quot;.  An uncaught exception will cause the 
++current script to stop executing.&lt;/p&gt;
++
++&lt;p&gt;In general, an uncaught exception will be swallowed by Sleep.  There is one special case where this is not true and 
++that is covered under &lt;a href=&quot;#interfaces&quot;&gt;Sleep Interfaces&lt;/a&gt; later in this manual.&lt;/p&gt;
++
++&lt;p&gt;So with all of this in mind, hoes does one catch these exception errors?  The answer is to enclose executing code
++into a try / catch block.&lt;/p&gt;
++
++&lt;pre&gt;try
++{
++   multiplyBy3(&quot;hi&quot;);
++}
++catch $message
++{
++   println(&quot;Failed to multiply by 3: $message&quot;);
++   printAll(getStackTrace());
++}&lt;/pre&gt;
++
++&lt;p&gt;The code above will attempt the multiplyBy3 within the try block.  The catch block immediately following the try
++block will catch any error messages that bubble up while the try block is part of the call stack.  This means that if
++&lt;code&gt;&amp;multiplyBy3&lt;/code&gt; calls a function that calls another function that throws an exception - your catch block will still work
++for catching that message.&lt;/p&gt;
++
++&lt;p&gt;In the example above &lt;var&gt;$message&lt;/var&gt; is specified as the place to dump the exception message to.  When an 
++exception handler is invoked, the variable specified after the catch keyword will be populated with the exception
++message.&lt;/p&gt;
++
++&lt;p&gt;The function &lt;code&gt;&amp;getStackTrace()&lt;/code&gt; is a special function to describe where in your script the thrown message
++originated from and which other functions were executed before leading to the thrown message.&lt;/p&gt;
++
++&lt;h4&gt;&lt;a name=&quot;choice&quot;&gt;&lt;/a&gt;Choice in Error Handling&lt;/h4&gt;
++
++&lt;p&gt;Sleep does not use this mechanism for flagging and reporting errors.  In general errors are made available with 
++&lt;code&gt;&amp;checkError($error)&lt;/code&gt;.  This function will return the last reported error message flagged by Sleep or Java.
++If you prefer to handle these types of errors with the try catch mechanism then you have two options:  
++
++&lt;p&gt;You can throw individual errors yourself.  Simply inserting &lt;code&gt;throw checkError($error);&lt;/code&gt; in certain places
++will cause the error to be thrown if there is one.  If there is no error, &lt;code&gt;&amp;checkError($error)&lt;/code&gt; will
++return &lt;var&gt;$null&lt;/var&gt;.  If this is the case then the throw command will not process it.  If there is an error then
++the throw command will throw it and it will bubble up itself.&lt;/p&gt;
++
++&lt;p&gt;The other option is to enable the Sleep debug option to cause all errors to be thrown.  This option can be enabled
++by calling: &lt;code&gt;debug(34)&lt;/code&gt;.  With this debug option in place anything that would have been available to 
++&lt;code&gt;&amp;checkError()&lt;/code&gt; will be automatically converted into an exception and thrown.&lt;/p&gt;
++
++&lt;p&gt;The &lt;code&gt;&amp;checkError()&lt;/code&gt; mechanism for handling errors is simple, requires little code on your part to
++accomodate, and has support for automatic reporting through Sleep's debug flags.  The try/catch/throw mechanism requires
++writing a little bit more code but the ability to retrieve the full stack trace that created the error condition can
++be valuable for debugging.  Ultimately the choice is yours.  You can handle errors the Sleep &lt;code&gt;&amp;checkError()&lt;/code&gt; 
++way, the Java try/catch way, or somewhere in between.&lt;/p&gt;
++
+ &lt;h3&gt;Arrays and Hashes as Arguments&lt;/h3&gt;
+ 
+ &lt;p&gt;Arrays and Hashes can be passed to subroutines as arguments.&lt;/p&gt;
+@@ -1502,7 +1578,7 @@
+ &lt;p&gt;Sleep will try to find the specified jar file (i.e. jdom.jar) using the Sleep classpath.  This value is the
+ sleep.classpath accessible as systemProperties()[&quot;sleep.classpath&quot;].&lt;/p&gt;
+ 
+-&lt;h3&gt;Sleep Interfaces&lt;/h3&gt;
++&lt;h3&gt;&lt;a name=&quot;interfaces&quot;&gt;&lt;/a&gt;Sleep Interfaces&lt;/h3&gt;
+ 
+ &lt;p&gt;A neat feature of HOES is how interfaces can be quickly and easily created and passed to Java objects.  A Java interface
+ defines methods that a Java class should implement to facilitate interacting with certain objects.  &lt;/p&gt;
+@@ -1544,6 +1620,8 @@
+ only message passed to ActionListener interfaces is the actionPerformed message.  The button_pressed subroutine is passed as a 
+ closure parameter in this line: &lt;code&gt;[$button addActionListener:&amp;button_pressed];&lt;/code&gt;.&lt;/p&gt;
+ 
++&lt;p&gt;Any uncaught exceptions originating from a Sleep script will bubble up to the Java caller of the Sleep interface.&lt;/p&gt;
++
+ &lt;h3&gt;Scalar Conversions&lt;/h3&gt;
+ 
+ &lt;p&gt;Sleep automatically converts scalar data into the appropriate Java types when necessary.  Sleep strings map easily to Java 
+@@ -1575,8 +1653,11 @@
+ 
+ &lt;h3&gt;Catching Exceptions&lt;/h3&gt;
+ 
+-&lt;p&gt;Often times Java API's acessed via HOES can throw an &quot;exception&quot;.  Exceptions are a mechanism used to notify programs that some type of error has occured.  You can check for an exception using the &lt;code&gt;checkError($scalar)&lt;/code&gt; function.&lt;/p&gt;
++&lt;p&gt;Often times Java API's acessed via HOES can throw an &quot;exception&quot;.  Exceptions are a mechanism used to notify programs that some type of error has occured.  You can check for an exception using the &lt;code&gt;checkError($scalar)&lt;/code&gt; function.  The value returned by checkError() will be the actual Exception object.  This object can be used within object expressions.&lt;/p&gt;
+ 
++&lt;p&gt;If you prefer a more Java-esque method of handling exceptions, Sleep does have a &lt;a href=&quot;#throw&quot;&gt;try/catch/throw&lt;/a&gt; mechanism that can
++be utilized.&lt;/p&gt;
++
+ &lt;h2&gt;&lt;a name=&quot;10a&quot;&gt;Sleep Closures&lt;/a&gt;&lt;/h2&gt;
+ 
+ &lt;p&gt;Closely coupled with HOES is the concept of Sleep closures.  A closure in sleep is a block of code that contains its own 
+@@ -2630,7 +2711,7 @@
+  &lt;tr&gt;
+   &lt;td&gt;$&lt;/td&gt;
+   &lt;td&gt;checkError([$scalar])&lt;/td&gt;
+-  &lt;td&gt;returns the last error message to occur.  if a $scalar is specified : $scalar is set to the error string.  Once chekError() is called the error message is cleared.  Functions that might flag an error will be documented.&lt;/td&gt;
++  &lt;td&gt;returns the last error message to occur.  if a $scalar is specified : $scalar is set to the error string.  Once chekError() is called the error message is cleared.  Functions that might flag an error will be documented.  Any type of Scalar can be returned by checkError(). i.e. often times the error message might be a Java exception Object.&lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td&gt;$&lt;/td&gt;
+@@ -2646,7 +2727,7 @@
+  &lt;tr&gt;
+   &lt;td&gt;$&lt;/td&gt;
+   &lt;td&gt;debug(level)&lt;/td&gt;
+-  &lt;td&gt;explicitly enables the specified debug level for this script: 0 - no debugging; 1 - show only critical errors (default); 2 - show all warnings; 4 - show first time use of non-declared variables; 8 - trace all function calls (collects profiler statistics) or 24 - trace only for the purpose of collecting profiler statistics.  any of the levels can be |'d together.&lt;/td&gt;
++  &lt;td&gt;explicitly enables the specified debug level for this script: 0 - no debugging; 1 - show only critical errors (default); 2 - show all messages flagged for retrieval with checkError(); 4 - show first time use of non-declared variables; 8 - trace all function calls (collects profiler statistics); 24 - trace only for the purpose of collecting profiler statistics; 34 - &quot;throw&quot; all messages flagged for use with checkError() - this allows use of try/catch to deal with errors.  any of the levels can be |'d together.&lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td&gt;$&lt;/td&gt;
+@@ -2655,6 +2736,11 @@
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td&gt;$&lt;/td&gt;
++  &lt;td&gt;exit()&lt;/td&gt;
++  &lt;td&gt;causes the currently executing script context to exit.&lt;/td&gt;
++ &lt;/tr&gt;
++ &lt;tr&gt;
++  &lt;td&gt;$&lt;/td&gt;
+   &lt;td&gt;expr(&quot;expr&quot;)&lt;/td&gt;
+   &lt;td&gt;parses and evaluates the specified sleep expression code returning the value of the expression.  syntax errors can be obtained with &amp;checkError()&lt;/td&gt;
+  &lt;/tr&gt;
+@@ -2664,6 +2750,12 @@
+   &lt;td&gt;obtains the function handle for the function bound to the specified string&lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
++  &lt;td&gt;@&lt;/td&gt;
++  &lt;td&gt;getStackTrace()&lt;/td&gt;
++  &lt;td&gt;in the context of a catch block (try/catch handlers) this function will return a trace of the Sleep call stack
++      that caused the exceptional condition.  Returns an empty array otherwise.&lt;/td&gt;
++ &lt;/tr&gt;
++ &lt;tr&gt;
+   &lt;td&gt;$&lt;/td&gt;
+   &lt;td&gt;global('$x $y')&lt;/td&gt;
+   &lt;td&gt;parses the specified string and declares all variables in the string as global variables.&lt;/td&gt;
+@@ -2748,6 +2840,11 @@
+   &lt;td&gt;use(&quot;/path/to/file.jar&quot;, &quot;Loadable&quot;)&lt;/td&gt;
+   &lt;td&gt;loads the specified class into the current script environment.  The sleep.interfaces.Loadable class is loaded from the specified jar file.  Use to import sleep modules and the like.&lt;/td&gt;
+  &lt;/tr&gt;
++ &lt;tr&gt;
++  &lt;td&gt;&lt;/td&gt;
++  &lt;td&gt;watch('$x $y')&lt;/td&gt;
++  &lt;td&gt;A useful debug function for tracking variable changes.  parses the specified string and declares all variables in the string as &quot;watch&quot; variables.  Any attempt to update the container *referenced* by a watch variable will print out a warning.&lt;/td&gt;
++ &lt;/tr&gt;
+ &lt;/table&gt;
+ 
+ &lt;h2&gt;&lt;a name=&quot;12&quot;&gt;Appendix A - System Properties&lt;/a&gt;&lt;/h2&gt;
+
+Modified: sleep/readme.txt
+===================================================================
+--- sleep/readme.txt	2007-03-17 15:35:30 UTC (rev 229)
++++ sleep/readme.txt	2007-03-18 16:07:55 UTC (rev 230)
+@@ -1,5 +1,5 @@
+  ------- -------------------- ---------   ---------------  ------- ---------
+-Sleep - 2.1 beta 12 - README   
++Sleep - 2.1 beta 13 - README   
+ -  ------------- -------- -   ---------------- --       -    -     -     - - -
+ 
+ &quot;You got the language, all you need now is the O'Reilly book&quot;.  That is
+
+Modified: sleep/src/sleep/runtime/SleepUtils.java
+===================================================================
+--- sleep/src/sleep/runtime/SleepUtils.java	2007-03-17 15:35:30 UTC (rev 229)
++++ sleep/src/sleep/runtime/SleepUtils.java	2007-03-18 16:07:55 UTC (rev 230)
+@@ -26,7 +26,7 @@
+ public class SleepUtils
+ {
+    /** A date stamp of this Sleep release in YYYYMMDD format */
+-   public static final int    SLEEP_RELEASE = 20070311;
++   public static final int    SLEEP_RELEASE = 20070318;
+ 
+    /** A string description of this Sleep release */
+    public static final String SLEEP_VERSION = &quot;Sleep 2.1&quot;;
+
+Modified: sleep/tests/output/forker.sl
+===================================================================
+--- sleep/tests/output/forker.sl	2007-03-17 15:35:30 UTC (rev 229)
++++ sleep/tests/output/forker.sl	2007-03-18 16:07:55 UTC (rev 230)
+@@ -1,4 +1,4 @@
+ Trace: &amp;check('within fork') at forker.sl:9
+-Trace: &amp;fork(&amp;closure[forker.sl:9]#2) = <A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">sleep.bridges.io.IOObject at 96f4b5</A> at forker.sl:8
++Trace: &amp;fork(&amp;closure[forker.sl:9]#2) = <A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">sleep.bridges.io.IOObject at 57ea4a</A> at forker.sl:8
+ Trace: &amp;sleep(1000) at forker.sl:12
+ Trace: &amp;check('outside of fork') at forker.sl:14
+
+Modified: sleep/tests/output/trace.sl
+===================================================================
+--- sleep/tests/output/trace.sl	2007-03-17 15:35:30 UTC (rev 229)
++++ sleep/tests/output/trace.sl	2007-03-18 16:07:55 UTC (rev 230)
+@@ -1,13 +1,13 @@
+ this is a test
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at d4d66b</A> println: 'this is a test'] at trace.sl:6
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at fe571f</A> println: 'this is a test'] at trace.sl:6
+ Trace: [java.lang.Math pow: 3, 4] = 81.0 at trace.sl:7
+ 81.0
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at d4d66b</A> println: 81.0] at trace.sl:7
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at fe571f</A> println: 81.0] at trace.sl:7
+ Trace: [java.lang.Math pow: 3, 5] = 243.0 at trace.sl:8
+ 243.0
+ Trace: &amp;println(243.0) at trace.sl:8
+ testing again...
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at d4d66b</A> println: 'testing again...'] at trace.sl:10
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at fe571f</A> println: 'testing again...'] at trace.sl:10
+ Trace: [sleep.runtime.SleepUtils getListFromArray: @('a', 'b', 'c')] = [a, b, c] at trace.sl:12
+ Trace: [new java.util.LinkedList: [a, b, c]] = [a, b, c] at trace.sl:12
+ Warning: variable '$list' not declared at trace.sl:12
+
+Modified: sleep/tests/output/wrong.sl
+===================================================================
+--- sleep/tests/output/wrong.sl	2007-03-17 15:35:30 UTC (rev 229)
++++ sleep/tests/output/wrong.sl	2007-03-18 16:07:55 UTC (rev 230)
+@@ -1,32 +1,32 @@
+ Trace: [java.lang.Math pow: 3, 4] = 81.0 at wrong.sl:6
+ 81.0
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 691dee</A> println: 81.0] at wrong.sl:6
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at a2220f</A> println: 81.0] at wrong.sl:6
+ Trace: &amp;casti(1, 'z') = true at wrong.sl:9
+ true
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 691dee</A> println: true] at wrong.sl:9
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at a2220f</A> println: true] at wrong.sl:9
+ Trace: &amp;casti(0, 'z') = false at wrong.sl:10
+ false
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 691dee</A> println: false] at wrong.sl:10
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at a2220f</A> println: false] at wrong.sl:10
+ Trace: &amp;casti(1, 'd') = 1.0 at wrong.sl:13
+ 1.0
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 691dee</A> println: 1.0] at wrong.sl:13
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at a2220f</A> println: 1.0] at wrong.sl:13
+ Trace: &amp;casti(1, 'b') = 1 at wrong.sl:16
+ 1
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 691dee</A> println: 1] at wrong.sl:16
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at a2220f</A> println: 1] at wrong.sl:16
+ Trace: &amp;casti(100, 'f') = 100.0 at wrong.sl:19
+ 100.0
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 691dee</A> println: 100.0] at wrong.sl:19
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at a2220f</A> println: 100.0] at wrong.sl:19
+ Trace: &amp;casti('b', 'c') = b at wrong.sl:22
+ b
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 691dee</A> println: b] at wrong.sl:22
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at a2220f</A> println: b] at wrong.sl:22
+ Trace: &amp;casti(63, 'i') = 63 at wrong.sl:25
+ 63
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 691dee</A> println: 63] at wrong.sl:25
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at a2220f</A> println: 63] at wrong.sl:25
+ this is a string y0
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 691dee</A> println: 'this is a string y0'] at wrong.sl:28
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at a2220f</A> println: 'this is a string y0'] at wrong.sl:28
+ Trace: [new java.lang.StringBuilder: 'test'] = test at wrong.sl:31
+ test
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 691dee</A> println: test] at wrong.sl:31
+-Trace: &amp;cast(@('a', 'b', 'c', 'd'), 'c') = [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">C at dccedd</A> at wrong.sl:34
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at a2220f</A> println: test] at wrong.sl:31
++Trace: &amp;cast(@('a', 'b', 'c', 'd'), 'c') = [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">C at 9a9b65</A> at wrong.sl:34
+ abcd
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 691dee</A> println: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">C at dccedd</A>] at wrong.sl:34
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at a2220f</A> println: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">C at 9a9b65</A>] at wrong.sl:34
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2007-03-17 15:35:30 UTC (rev 229)
++++ sleep/whatsnew.txt	2007-03-18 16:07:55 UTC (rev 230)
+@@ -1,4 +1,4 @@
+-2.1-beta 13
++2.1-beta 13  (18 Mar 07)
+ ===========
+ - trace debug option now reports the parameters for a HOES call even if an
+   exception is thrown.
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000208.html">[Sleep-svn] r229 - in sleep: . src/sleep/bridges src/sleep/runtime	tests tests/output
+</A></li>
+	<LI>Next message: <A HREF="000210.html">[Sleep-svn] r231 - in sleep: . src/sleep/bridges tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#209">[ date ]</a>
+              <a href="thread.html#209">[ thread ]</a>
+              <a href="subject.html#209">[ subject ]</a>
+              <a href="author.html#209">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

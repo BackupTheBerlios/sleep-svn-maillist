@@ -1,0 +1,415 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r237 - in sleep: . src/sleep/engine tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2007-April/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r237%20-%20in%20sleep%3A%20.%20src/sleep/engine%20tests/output&In-Reply-To=%3C200704060222.l362MBuI020725%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   
+   <LINK REL="Next"  HREF="000217.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r237 - in sleep: . src/sleep/engine tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r237%20-%20in%20sleep%3A%20.%20src/sleep/engine%20tests/output&In-Reply-To=%3C200704060222.l362MBuI020725%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r237 - in sleep: . src/sleep/engine tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Fri Apr  6 04:22:11 CEST 2007</I>
+    <P><UL>
+        
+        <LI>Next message: <A HREF="000217.html">[Sleep-svn] r238 - in sleep: . src/sleep/runtime
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#216">[ date ]</a>
+              <a href="thread.html#216">[ thread ]</a>
+              <a href="subject.html#216">[ subject ]</a>
+              <a href="author.html#216">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2007-04-06 04:22:09 +0200 (Fri, 06 Apr 2007)
+New Revision: 237
+
+Added:
+   sleep/src/sleep/engine/ProxyInterface.java
+Modified:
+   sleep/src/sleep/engine/ObjectUtilities.java
+   sleep/tests/output/trace.sl
+   sleep/tests/output/wrong.sl
+   sleep/whatsnew.txt
+Log:
+beta 15 fun and games... :)
+
+
+
+Modified: sleep/src/sleep/engine/ObjectUtilities.java
+===================================================================
+--- sleep/src/sleep/engine/ObjectUtilities.java	2007-03-25 16:05:34 UTC (rev 236)
++++ sleep/src/sleep/engine/ObjectUtilities.java	2007-04-06 02:22:09 UTC (rev 237)
+@@ -406,7 +406,7 @@
+       }
+       else if (type.isInterface() &amp;&amp; SleepUtils.isFunctionScalar(value))
+       {
+-         return BuildInterface(type, SleepUtils.getFunctionFromScalar(value, script), script);
++         return ProxyInterface.BuildInterface(type, SleepUtils.getFunctionFromScalar(value, script), script);
+       }
+ 
+       return value.objectValue();
+@@ -527,103 +527,6 @@
+ 
+    }
+ 
+-   public static Object BuildInterface(Class className, Function subroutine, ScriptInstance script)
+-   {
+-      InvocationHandler temp = new ProxyInterface(subroutine, script);
+-      return Proxy.newProxyInstance(className.getClassLoader(), new Class[] { className }, temp);
+-   } 
+-
+-   private static class ProxyInterface implements InvocationHandler
+-   {
+-      protected ScriptInstance    script;
+-      protected Function          func;
+-
+-      public ProxyInterface(Function _method, ScriptInstance _script)
+-      {
+-         func        = _method;
+-         script      = _script;
+-      }
+-
+-      public Object invoke(Object proxy, Method method, Object[] args) throws Throwable
+-      {
+-         Stack temp = new Stack();
+-
+-         boolean isTrace = (script.getDebugFlags() &amp; ScriptInstance.DEBUG_TRACE_CALLS) == ScriptInstance.DEBUG_TRACE_CALLS;
+-         StringBuffer message = null;
+-
+-         if (args != null)
+-         {
+-            for (int z = args.length - 1; z &gt;= 0; z--)
+-            { 
+-               temp.push(BuildScalar(true, args[z]));
+-            }
+-         }
+-
+-         Scalar value;
+-
+-         script.getScriptEnvironment().installExceptionHandler(null, null, null);
+-
+-         if (isTrace)
+-         {
+-            if (!script.isProfileOnly())
+-            {
+-               message = new StringBuffer(&quot;[&quot; + func + &quot; &quot; + method.getName());
+-
+-               if (!temp.isEmpty())
+-                  message.append(&quot;: &quot; + SleepUtils.describe(temp));
+-
+-               message.append(&quot;]&quot;);
+-            }
+-
+-            long stat = System.currentTimeMillis();
+-            value = func.evaluate(method.getName(), script, temp); 
+-            stat = System.currentTimeMillis() - stat;
+-
+-            if (func.getClass() == SleepClosure.class)
+-            {
+-               script.collect(((SleepClosure)func).toStringGeneric(), -1, stat);
+-            }
+-
+-            if (message != null)
+-            {
+-               if (script.getScriptEnvironment().isThrownValue()) 
+-                  message.append(&quot; - FAILED!&quot;); 
+-               else
+-                  message.append(&quot; = &quot; + SleepUtils.describe(value)); 
+-
+-               script.fireWarning(message.toString(), -1, true);
+-            }
+-         }
+-         else
+-         {
+-            value = func.evaluate(method.getName(), script, temp); 
+-         }
+-         script.getScriptEnvironment().popExceptionContext();
+-         script.getScriptEnvironment().clearReturn();
+- 
+-         if (script.getScriptEnvironment().isThrownValue())
+-         {
+-            script.recordStackFrame(func + &quot; as &quot; + method.toString(), &quot;&lt;internal&gt;&quot;, 0);
+-
+-            Object exvalue = (script.getScriptEnvironment().getExceptionMessage()).objectValue();
+-           
+-            if (exvalue instanceof Throwable)
+-            {
+-               throw (Throwable)exvalue;
+-            }
+-            else
+-            {
+-               throw new RuntimeException(exvalue.toString());
+-            }
+-         }        
+-
+-         if (value != null)
+-            return buildArgument(method.getReturnType(), value, script);
+-
+-         return null;
+-      }
+-   }
+-
+    /** Determines the primitive type of the specified array.  Primitive Sleep values (int, long, double) will return the appropriate Number.TYPE class.  This is an important distinction as Double.TYPE != new Double().getClass() */
+    public static Class getArrayType(Scalar value, Class defaultc)
+    {
+
+Added: sleep/src/sleep/engine/ProxyInterface.java
+===================================================================
+--- sleep/src/sleep/engine/ProxyInterface.java	2007-03-25 16:05:34 UTC (rev 236)
++++ sleep/src/sleep/engine/ProxyInterface.java	2007-04-06 02:22:09 UTC (rev 237)
+@@ -0,0 +1,127 @@
++package sleep.engine;
++
++import java.lang.reflect.*;
++import java.util.*;
++
++import sleep.runtime.*;
++
++import sleep.engine.types.*;
++import sleep.interfaces.Function;
++
++import sleep.bridges.*;
++
++/** This class is used to mock an instance of a class that implements a specified Java interface 
++    using a Sleep function. */
++public class ProxyInterface implements InvocationHandler
++{
++   protected ScriptInstance    script;
++   protected Function          func;
++
++   public ProxyInterface(Function _method, ScriptInstance _script)
++   {
++      func        = _method;
++      script      = _script;
++   }
++
++   /** Returns the script associated with this proxy interface. */
++   public ScriptInstance getOwner()
++   {
++      return script;
++   }
++
++   /** Constructs a new instance of the specified class that uses the passed Sleep function to respond
++       to all method calls on this instance. */
++   public static Object BuildInterface(Class className, Function subroutine, ScriptInstance script)
++   {
++      InvocationHandler temp = new ProxyInterface(subroutine, script);
++      return Proxy.newProxyInstance(className.getClassLoader(), new Class[] { className }, temp);
++   } 
++
++   /** Constructs a new instance of the specified class that uses the passed block to respond
++       to all method calls on this instance. */
++   public static Object BuildInterface(Class className, Block block, ScriptInstance script)
++   {
++      return BuildInterface(className, new SleepClosure(script, block), script);
++   } 
++
++   /** This function invokes the contained Sleep closure with the specified arguments */
++   public Object invoke(Object proxy, Method method, Object[] args) throws Throwable
++   {
++      Stack temp = new Stack();
++
++      boolean isTrace = (script.getDebugFlags() &amp; ScriptInstance.DEBUG_TRACE_CALLS) == ScriptInstance.DEBUG_TRACE_CALLS;
++      StringBuffer message = null;
++
++      if (args != null)
++      {
++         for (int z = args.length - 1; z &gt;= 0; z--)
++         { 
++            temp.push(ObjectUtilities.BuildScalar(true, args[z]));
++         }
++      }
++
++      Scalar value;
++
++      script.getScriptEnvironment().installExceptionHandler(null, null, null);
++
++      if (isTrace)
++      {
++         if (!script.isProfileOnly())
++         {
++            message = new StringBuffer(&quot;[&quot; + func + &quot; &quot; + method.getName());
++
++            if (!temp.isEmpty())
++               message.append(&quot;: &quot; + SleepUtils.describe(temp));
++
++            message.append(&quot;]&quot;);
++         }
++
++         long stat = System.currentTimeMillis();
++         value = func.evaluate(method.getName(), script, temp); 
++         stat = System.currentTimeMillis() - stat;
++
++         if (func.getClass() == SleepClosure.class)
++         {
++            script.collect(((SleepClosure)func).toStringGeneric(), -1, stat);
++         }
++
++         if (message != null)
++         {
++            if (script.getScriptEnvironment().isThrownValue()) 
++               message.append(&quot; - FAILED!&quot;); 
++            else
++               message.append(&quot; = &quot; + SleepUtils.describe(value)); 
++
++            script.fireWarning(message.toString(), -1, true);
++         }
++      }
++      else
++      {
++         value = func.evaluate(method.getName(), script, temp); 
++      }
++      script.getScriptEnvironment().popExceptionContext();
++      script.getScriptEnvironment().clearReturn();
++ 
++      if (script.getScriptEnvironment().isThrownValue())
++      {
++         script.recordStackFrame(func + &quot; as &quot; + method.toString(), &quot;&lt;internal&gt;&quot;, 0);
++
++         Object exvalue = (script.getScriptEnvironment().getExceptionMessage()).objectValue();
++           
++         if (exvalue instanceof Throwable)
++         {
++            throw (Throwable)exvalue;
++         }
++         else
++         {
++            throw new RuntimeException(exvalue.toString());
++         }
++      }        
++
++      if (value != null)
++         return ObjectUtilities.buildArgument(method.getReturnType(), value, script);
++
++      return null;
++   }
++}
++	
+
+Modified: sleep/tests/output/trace.sl
+===================================================================
+--- sleep/tests/output/trace.sl	2007-03-25 16:05:34 UTC (rev 236)
++++ sleep/tests/output/trace.sl	2007-04-06 02:22:09 UTC (rev 237)
+@@ -1,13 +1,13 @@
+ this is a test
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 57ea4a</A> println: 'this is a test'] at trace.sl:6
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at c7e2da</A> println: 'this is a test'] at trace.sl:6
+ Trace: [java.lang.Math pow: 3, 4] = 81.0 at trace.sl:7
+ 81.0
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 57ea4a</A> println: 81.0] at trace.sl:7
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at c7e2da</A> println: 81.0] at trace.sl:7
+ Trace: [java.lang.Math pow: 3, 5] = 243.0 at trace.sl:8
+ 243.0
+ Trace: &amp;println(243.0) at trace.sl:8
+ testing again...
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 57ea4a</A> println: 'testing again...'] at trace.sl:10
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at c7e2da</A> println: 'testing again...'] at trace.sl:10
+ Trace: [sleep.runtime.SleepUtils getListFromArray: @('a', 'b', 'c')] = [a, b, c] at trace.sl:12
+ Trace: [new java.util.LinkedList: [a, b, c]] = [a, b, c] at trace.sl:12
+ Warning: variable '$list' not declared at trace.sl:12
+
+Modified: sleep/tests/output/wrong.sl
+===================================================================
+--- sleep/tests/output/wrong.sl	2007-03-25 16:05:34 UTC (rev 236)
++++ sleep/tests/output/wrong.sl	2007-04-06 02:22:09 UTC (rev 237)
+@@ -1,32 +1,32 @@
+ Trace: [java.lang.Math pow: 3, 4] = 81.0 at wrong.sl:6
+ 81.0
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at a4488</A> println: 81.0] at wrong.sl:6
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at f4bcf7</A> println: 81.0] at wrong.sl:6
+ Trace: &amp;casti(1, 'z') = true at wrong.sl:9
+ true
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at a4488</A> println: true] at wrong.sl:9
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at f4bcf7</A> println: true] at wrong.sl:9
+ Trace: &amp;casti(0, 'z') = false at wrong.sl:10
+ false
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at a4488</A> println: false] at wrong.sl:10
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at f4bcf7</A> println: false] at wrong.sl:10
+ Trace: &amp;casti(1, 'd') = 1.0 at wrong.sl:13
+ 1.0
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at a4488</A> println: 1.0] at wrong.sl:13
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at f4bcf7</A> println: 1.0] at wrong.sl:13
+ Trace: &amp;casti(1, 'b') = 1 at wrong.sl:16
+ 1
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at a4488</A> println: 1] at wrong.sl:16
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at f4bcf7</A> println: 1] at wrong.sl:16
+ Trace: &amp;casti(100, 'f') = 100.0 at wrong.sl:19
+ 100.0
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at a4488</A> println: 100.0] at wrong.sl:19
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at f4bcf7</A> println: 100.0] at wrong.sl:19
+ Trace: &amp;casti('b', 'c') = b at wrong.sl:22
+ b
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at a4488</A> println: b] at wrong.sl:22
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at f4bcf7</A> println: b] at wrong.sl:22
+ Trace: &amp;casti(63, 'i') = 63 at wrong.sl:25
+ 63
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at a4488</A> println: 63] at wrong.sl:25
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at f4bcf7</A> println: 63] at wrong.sl:25
+ this is a string y0
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at a4488</A> println: 'this is a string y0'] at wrong.sl:28
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at f4bcf7</A> println: 'this is a string y0'] at wrong.sl:28
+ Trace: [new java.lang.StringBuilder: 'test'] = test at wrong.sl:31
+ test
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at a4488</A> println: test] at wrong.sl:31
+-Trace: &amp;cast(@('a', 'b', 'c', 'd'), 'c') = [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">C at 712651</A> at wrong.sl:34
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at f4bcf7</A> println: test] at wrong.sl:31
++Trace: &amp;cast(@('a', 'b', 'c', 'd'), 'c') = [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">C at 199939</A> at wrong.sl:34
+ abcd
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at a4488</A> println: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">C at 712651</A>] at wrong.sl:34
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at f4bcf7</A> println: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">C at 199939</A>] at wrong.sl:34
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2007-03-25 16:05:34 UTC (rev 236)
++++ sleep/whatsnew.txt	2007-04-06 02:22:09 UTC (rev 237)
+@@ -2,6 +2,11 @@
+ ===========
+ - fixed a potential problem that could arise when one attempts to 
+   query which file is currently executing and no file is executing.
++- made the ProxyInterface class in sleep.engine public.  For those of you
++  looking to embed Sleep,  a Sleep closure backed instance of a  Java 
++  interface may be the way to go.  Using the ProxyInterface class you
++  can create these closure backed instances and you get all of the built-in
++  function call tracing, profiling, error checking, etc. for free.
+ 
+ 2.1-beta 14  (24 Mar 07)
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	
+	<LI>Next message: <A HREF="000217.html">[Sleep-svn] r238 - in sleep: . src/sleep/runtime
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#216">[ date ]</a>
+              <a href="thread.html#216">[ thread ]</a>
+              <a href="subject.html#216">[ subject ]</a>
+              <a href="author.html#216">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

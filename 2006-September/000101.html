@@ -1,0 +1,152 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r119 - in sleep: . src/sleep/bridges/io tests	tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2006-September/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r119%20-%20in%20sleep%3A%20.%20src/sleep/bridges/io%20tests%0A%09tests/output&In-Reply-To=%3C200609161439.k8GEdLCL029705%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000100.html">
+   <LINK REL="Next"  HREF="000102.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r119 - in sleep: . src/sleep/bridges/io tests	tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r119%20-%20in%20sleep%3A%20.%20src/sleep/bridges/io%20tests%0A%09tests/output&In-Reply-To=%3C200609161439.k8GEdLCL029705%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r119 - in sleep: . src/sleep/bridges/io tests	tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Sat Sep 16 16:39:21 CEST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000100.html">[Sleep-svn] r118 - in sleep: src/sleep/engine/atoms tests/output
+</A></li>
+        <LI>Next message: <A HREF="000102.html">[Sleep-svn] r120 - in sleep: . src/sleep/bridges	src/sleep/bridges/io
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#101">[ date ]</a>
+              <a href="thread.html#101">[ thread ]</a>
+              <a href="subject.html#101">[ subject ]</a>
+              <a href="author.html#101">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2006-09-16 16:39:21 +0200 (Sat, 16 Sep 2006)
+New Revision: 119
+
+Added:
+   sleep/tests/forkdl.sl
+   sleep/tests/output/forkdl.sl
+Modified:
+   sleep/src/sleep/bridges/io/IOObject.java
+   sleep/whatsnew.txt
+Log:
+fixed a silly deadlock bug with fork
+
+
+
+Modified: sleep/src/sleep/bridges/io/IOObject.java
+===================================================================
+--- sleep/src/sleep/bridges/io/IOObject.java	2006-09-16 05:13:38 UTC (rev 118)
++++ sleep/src/sleep/bridges/io/IOObject.java	2006-09-16 14:39:21 UTC (rev 119)
+@@ -156,9 +156,13 @@
+    {
+       try
+       {
+-         in.notifyAll();  // done to prevent a deadlock, trust me it works
+-         out.notifyAll(); // done to prevent a deadlock, trust me it works
+-
++         if (in != null) { in.notifyAll(); } // done to prevent a deadlock, trust me it works
++         if (out != null) { out.notifyAll(); } // done to prevent a deadlock, trust me it works
++      }
++      catch (Exception ex) { } /* we might get an illegal monitor state type exception if we don't own
++                                  the lock from this thread... in that case we move on with our lives */
++      try
++      {
+          if (reader != null)
+            reader.close();
+ 
+@@ -176,7 +180,6 @@
+       }
+       catch (Exception ex)
+       {
+-
+       }
+       finally
+       {
+
+Added: sleep/tests/forkdl.sl
+===================================================================
+--- sleep/tests/forkdl.sl	2006-09-16 05:13:38 UTC (rev 118)
++++ sleep/tests/forkdl.sl	2006-09-16 14:39:21 UTC (rev 119)
+@@ -0,0 +1,19 @@
++#
++# reproduce a deadlock problem with fork...
++#
++
++$REAL = 990741747; # output of UNIX crc32 command for test.jar
++
++# third test.. the kewlest test of them all...
++
++$sumfork = fork({
++   $summer = checksum($source);
++   readAll($source);
++   return checksum($summer);
++});
++
++writeb($sumfork, readb(openf(&quot;data/test.jar&quot;), lof(&quot;data/test.jar&quot;)));
++closef($sumfork);
++
++println(&quot;Checksum of written data is: &quot; . wait($sumfork));
++
+
+Added: sleep/tests/output/forkdl.sl
+===================================================================
+--- sleep/tests/output/forkdl.sl	2006-09-16 05:13:38 UTC (rev 118)
++++ sleep/tests/output/forkdl.sl	2006-09-16 14:39:21 UTC (rev 119)
+@@ -0,0 +1 @@
++Checksum of written data is: 990741747
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-09-16 05:13:38 UTC (rev 118)
++++ sleep/whatsnew.txt	2006-09-16 14:39:21 UTC (rev 119)
+@@ -38,6 +38,8 @@
+   of unsigned types.
+ - When a Java byte array is returned by a HOES call, a sleep byte string will 
+   be created from this value.
++- fixed a deadlock issue with fork/wait with close being called on fork while
++  in the middle of a read.
+ 
+ 2.1-beta 4  (11 Sept 06)
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000100.html">[Sleep-svn] r118 - in sleep: src/sleep/engine/atoms tests/output
+</A></li>
+	<LI>Next message: <A HREF="000102.html">[Sleep-svn] r120 - in sleep: . src/sleep/bridges	src/sleep/bridges/io
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#101">[ date ]</a>
+              <a href="thread.html#101">[ thread ]</a>
+              <a href="subject.html#101">[ subject ]</a>
+              <a href="author.html#101">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

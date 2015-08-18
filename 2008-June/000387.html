@@ -1,0 +1,157 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r412 - in sleep: . src/sleep/bridges tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2008-June/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r412%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20tests%20tests/output&In-Reply-To=%3C200806172132.m5HLWopk031440%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000386.html">
+   <LINK REL="Next"  HREF="000388.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r412 - in sleep: . src/sleep/bridges tests tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r412%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20tests%20tests/output&In-Reply-To=%3C200806172132.m5HLWopk031440%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r412 - in sleep: . src/sleep/bridges tests tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Tue Jun 17 23:32:50 CEST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000386.html">[Sleep-svn] r410 - in sleep: . src/sleep/bridges/io src/sleep/engine
+</A></li>
+        <LI>Next message: <A HREF="000388.html">[Sleep-svn] r413 - sleep/src/sleep/bridges
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#387">[ date ]</a>
+              <a href="thread.html#387">[ thread ]</a>
+              <a href="subject.html#387">[ subject ]</a>
+              <a href="author.html#387">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2008-06-17 23:32:50 +0200 (Tue, 17 Jun 2008)
+New Revision: 412
+
+Added:
+   sleep/tests/output/splsublist.sl
+   sleep/tests/splsublist.sl
+Modified:
+   sleep/src/sleep/bridges/BasicUtilities.java
+   sleep/whatsnew.txt
+Log:
+small fix to splice(...)
+
+
+Modified: sleep/src/sleep/bridges/BasicUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicUtilities.java	2008-06-16 11:06:43 UTC (rev 411)
++++ sleep/src/sleep/bridges/BasicUtilities.java	2008-06-17 21:32:50 UTC (rev 412)
+@@ -1152,23 +1152,28 @@
+ 
+           /* remove the specified elements please */
+ 
+-          ScalarArray toRemove = value.getArray().sublist(start, torem);
+-          Iterator iter = toRemove.scalarIterator();
+-          while (iter.hasNext())
++          int y = start;
++
++          Iterator iter = value.getArray().scalarIterator();
++          for (int x = 0; x &lt;= start &amp;&amp; iter.hasNext(); x++) { iter.next(); }
++
++          while (y &lt; torem &amp;&amp; iter.hasNext())
+           {
++             iter.remove();
++             y++;
+              iter.next();
+-             iter.remove();
+           }
+ 
+           /* insert some elements */
+ 
+-          ScalarArray addToMe = value.getArray().sublist(0, start); 
+-
++          ListIterator liter = (ListIterator)value.getArray().scalarIterator();
++          for (int x = 0; x &lt; start &amp;&amp; liter.hasNext(); x++) { liter.next(); }
++          
+           Iterator j = insert.scalarIterator();
+           while (j.hasNext())
+           {
+              Scalar ins = (Scalar)j.next();
+-             addToMe.push(SleepUtils.getScalar(ins));
++             liter.add(ins);
+           }
+ 
+           return value;
+
+Added: sleep/tests/output/splsublist.sl
+===================================================================
+--- sleep/tests/output/splsublist.sl	2008-06-16 11:06:43 UTC (rev 411)
++++ sleep/tests/output/splsublist.sl	2008-06-17 21:32:50 UTC (rev 412)
+@@ -0,0 +1,3 @@
++@('c', 'd', 'e', 'f', 'g', 'h')
++@('c', 'd', 'foo', 'bar', 'h')
++@('a', 'b', 'c', 'd', 'foo', 'bar', 'h', 'i')
+
+Added: sleep/tests/splsublist.sl
+===================================================================
+--- sleep/tests/splsublist.sl	2008-06-16 11:06:43 UTC (rev 411)
++++ sleep/tests/splsublist.sl	2008-06-17 21:32:50 UTC (rev 412)
+@@ -0,0 +1,13 @@
++#
++#
++#
++
++# @subs             0    1    2    3    4    5
++#         0    1    2    3    4    5    6    7    8
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">+ at list</A> = @(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;, &quot;d&quot;, &quot;e&quot;, &quot;f&quot;, &quot;g&quot;, &quot;h&quot;, &quot;i&quot;);
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">+ at subs</A> = sublist(@list, 2, 8);
++println(@subs);
++splice(@subs, @(&quot;foo&quot;, &quot;bar&quot;), 2, 3);
++println(@subs);
++println(@list);
++
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2008-06-16 11:06:43 UTC (rev 411)
++++ sleep/whatsnew.txt	2008-06-17 21:32:50 UTC (rev 412)
+@@ -1,3 +1,7 @@
++2.1-release  (...)
++===========
++- splice() no longer corrupts sublists.
++
+ 2.1-release  (16 Jun 08)
+ ===========
+ - SleepUtils#runCode(SleepClosure, ...) now accepts a null value
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000386.html">[Sleep-svn] r410 - in sleep: . src/sleep/bridges/io src/sleep/engine
+</A></li>
+	<LI>Next message: <A HREF="000388.html">[Sleep-svn] r413 - sleep/src/sleep/bridges
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#387">[ date ]</a>
+              <a href="thread.html#387">[ thread ]</a>
+              <a href="subject.html#387">[ subject ]</a>
+              <a href="author.html#387">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,186 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r171 - in sleep: . src/sleep/bridges	src/sleep/bridges/io
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2006-November/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r171%20-%20in%20sleep%3A%20.%20src/sleep/bridges%0A%09src/sleep/bridges/io&In-Reply-To=%3C200611070353.kA73rYJJ012568%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000152.html">
+   <LINK REL="Next"  HREF="000154.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r171 - in sleep: . src/sleep/bridges	src/sleep/bridges/io</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r171%20-%20in%20sleep%3A%20.%20src/sleep/bridges%0A%09src/sleep/bridges/io&In-Reply-To=%3C200611070353.kA73rYJJ012568%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r171 - in sleep: . src/sleep/bridges	src/sleep/bridges/io">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Tue Nov  7 04:53:34 CET 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000152.html">[Sleep-svn] r170 - sleep
+</A></li>
+        <LI>Next message: <A HREF="000154.html">[Sleep-svn] r172 - in sleep: . src/sleep/engine/atoms tests	tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#153">[ date ]</a>
+              <a href="thread.html#153">[ thread ]</a>
+              <a href="subject.html#153">[ subject ]</a>
+              <a href="author.html#153">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2006-11-07 04:53:33 +0100 (Tue, 07 Nov 2006)
+New Revision: 171
+
+Modified:
+   sleep/src/sleep/bridges/BasicIO.java
+   sleep/src/sleep/bridges/io/DataPattern.java
+   sleep/whatsnew.txt
+Log:
+added sizeof(...)
+
+
+
+Modified: sleep/src/sleep/bridges/BasicIO.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicIO.java	2006-11-06 03:35:48 UTC (rev 170)
++++ sleep/src/sleep/bridges/BasicIO.java	2006-11-07 03:53:33 UTC (rev 171)
+@@ -82,6 +82,7 @@
+         // object io functions
+         temp.put(&quot;&amp;readObject&quot;,      this);
+         temp.put(&quot;&amp;writeObject&quot;,     this);
++        temp.put(&quot;&amp;sizeof&quot;, this);
+ 
+         temp.put(&quot;&amp;pack&quot;,       new pack());
+         temp.put(&quot;&amp;unpack&quot;,     new unpack());
+@@ -232,6 +233,10 @@
+ 
+           return SleepUtils.getEmptyScalar();
+        }
++       else if (n.equals(&quot;&amp;sizeof&quot;))
++       {
++          return SleepUtils.getScalar(DataPattern.EstimateSize(BridgeUtilities.getString(l, &quot;&quot;)));
++       }
+        else if (n.equals(&quot;&amp;checksum&quot;))
+        {
+           Scalar   s = BridgeUtilities.getScalar(l);
+@@ -1134,7 +1139,7 @@
+        {
+           String    pattern = BridgeUtilities.getString(l, &quot;&quot;);
+ 
+-          ByteArrayOutputStream temp = new ByteArrayOutputStream(DataPattern.EstimateSize(pattern));
++          ByteArrayOutputStream temp = new ByteArrayOutputStream(DataPattern.EstimateSize(pattern) + 128);
+          
+           WriteFormatted(pattern, new DataOutputStream(temp), l, null);
+ 
+
+Modified: sleep/src/sleep/bridges/io/DataPattern.java
+===================================================================
+--- sleep/src/sleep/bridges/io/DataPattern.java	2006-11-06 03:35:48 UTC (rev 170)
++++ sleep/src/sleep/bridges/io/DataPattern.java	2006-11-07 03:53:33 UTC (rev 171)
+@@ -9,6 +9,7 @@
+    public DataPattern next  = null;
+    public int         count = 1;
+    public char        value = ' ';
++   public int         size  = 0;
+    public ByteOrder   order = ByteOrder.BIG_ENDIAN;
+ 
+    private static HashMap patternCache = new HashMap();
+@@ -22,7 +23,7 @@
+       while (pattern != null)
+       {
+          if (pattern.count &gt; 0)
+-           count += pattern.count;
++           count += pattern.count * pattern.size;
+ 
+          pattern = pattern.next;
+       }
+@@ -60,9 +61,40 @@
+             count = new StringBuffer(3);
+             temp.value = format.charAt(x);
+ 
+-            if (format.charAt(x) == 'z' || format.charAt(x) == 'Z' || format.charAt(x) == 'u' || format.charAt(x) == 'U')
++            switch (temp.value)
+             {
+-               temp.count = -1;
++               case 'b':
++               case 'B':
++               case 'C':
++               case 'h':
++               case 'H':
++               case 'x':
++                 temp.size = 1;
++                 break;
++               case 'u':
++               case 'U':
++                 temp.count = -1;
++                 temp.size = 2;
++                 break;
++               case 'z':
++               case 'Z':
++                 temp.count = -1;
++                 temp.size = 1;
++                 break;
++               case 'c':
++               case 's':
++               case 'S':
++                 temp.size = 2;
++                 break;
++               case 'i':
++               case 'I':
++               case 'f':
++                 temp.size = 4;
++                 break;
++               case 'd':
++               case 'l':
++                 temp.size = 8;
++                 break;  
+             }
+          }
+          else if (format.charAt(x) == '*')
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-11-06 03:35:48 UTC (rev 170)
++++ sleep/whatsnew.txt	2006-11-07 03:53:33 UTC (rev 171)
+@@ -1,3 +1,8 @@
++2.1-beta 10
++===========
++- added sizeof(&quot;data format&quot;) to return the size (in bytes) of the
++  data structure represented by the specified format string. 
++
+ 2.1-beta 9  (6 Nov 06)
+ ===========
+ - made sleep data structures and sleepclosure all serializable.
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000152.html">[Sleep-svn] r170 - sleep
+</A></li>
+	<LI>Next message: <A HREF="000154.html">[Sleep-svn] r172 - in sleep: . src/sleep/engine/atoms tests	tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#153">[ date ]</a>
+              <a href="thread.html#153">[ thread ]</a>
+              <a href="subject.html#153">[ subject ]</a>
+              <a href="author.html#153">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

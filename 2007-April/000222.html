@@ -1,0 +1,468 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r243 - in sleep: . src/sleep/engine tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2007-April/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r243%20-%20in%20sleep%3A%20.%20src/sleep/engine%20tests%20tests/output&In-Reply-To=%3C200704070423.l374NT8k017839%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000221.html">
+   <LINK REL="Next"  HREF="000223.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r243 - in sleep: . src/sleep/engine tests tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r243%20-%20in%20sleep%3A%20.%20src/sleep/engine%20tests%20tests/output&In-Reply-To=%3C200704070423.l374NT8k017839%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r243 - in sleep: . src/sleep/engine tests tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Sat Apr  7 06:23:29 CEST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000221.html">[Sleep-svn] r242 - in sleep: . src/sleep/parser tests tests/output
+</A></li>
+        <LI>Next message: <A HREF="000223.html">[Sleep-svn] r244 - in sleep/tests: . output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#222">[ date ]</a>
+              <a href="thread.html#222">[ thread ]</a>
+              <a href="subject.html#222">[ subject ]</a>
+              <a href="author.html#222">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2007-04-07 06:23:28 +0200 (Sat, 07 Apr 2007)
+New Revision: 243
+
+Added:
+   sleep/tests/output/proxy.sl
+   sleep/tests/proxy.sl
+Modified:
+   sleep/src/sleep/engine/ProxyInterface.java
+   sleep/tests/output/tcatch4.sl
+   sleep/tests/output/tracepo.sl
+   sleep/whatsnew.txt
+Log:
+fixes to proxy interface, synchronization, added some source information, etc.
+
+
+
+Modified: sleep/src/sleep/engine/ProxyInterface.java
+===================================================================
+--- sleep/src/sleep/engine/ProxyInterface.java	2007-04-07 03:44:13 UTC (rev 242)
++++ sleep/src/sleep/engine/ProxyInterface.java	2007-04-07 04:23:28 UTC (rev 243)
+@@ -61,81 +61,87 @@
+    /** This function invokes the contained Sleep closure with the specified arguments */
+    public Object invoke(Object proxy, Method method, Object[] args) throws Throwable
+    {
+-      Stack temp = new Stack();
++      synchronized (script.getScriptVariables())
++      {
++         script.getScriptEnvironment().pushSource(&quot;&lt;Java&gt;&quot;);
+ 
+-      boolean isTrace = (script.getDebugFlags() &amp; ScriptInstance.DEBUG_TRACE_CALLS) == ScriptInstance.DEBUG_TRACE_CALLS;
+-      StringBuffer message = null;
++         Stack temp = new Stack();
+ 
+-      if (args != null)
+-      {
+-         for (int z = args.length - 1; z &gt;= 0; z--)
+-         { 
+-            temp.push(ObjectUtilities.BuildScalar(true, args[z]));
++         boolean isTrace = (script.getDebugFlags() &amp; ScriptInstance.DEBUG_TRACE_CALLS) == ScriptInstance.DEBUG_TRACE_CALLS;
++         StringBuffer message = null;
++
++         if (args != null)
++         {
++            for (int z = args.length - 1; z &gt;= 0; z--)
++            { 
++               temp.push(ObjectUtilities.BuildScalar(true, args[z]));
++            }
+          }
+-      }
+ 
+-      Scalar value;
++         Scalar value;
+ 
+-      script.getScriptEnvironment().installExceptionHandler(null, null, null);
++         script.getScriptEnvironment().installExceptionHandler(null, null, null);
+ 
+-      if (isTrace)
+-      {
+-         if (!script.isProfileOnly())
++         if (isTrace)
+          {
+-            message = new StringBuffer(&quot;[&quot; + func + &quot; &quot; + method.getName());
++            if (!script.isProfileOnly())
++            {
++               message = new StringBuffer(&quot;[&quot; + func + &quot; &quot; + method.getName());
+ 
+-            if (!temp.isEmpty())
+-               message.append(&quot;: &quot; + SleepUtils.describe(temp));
++               if (!temp.isEmpty())
++                   message.append(&quot;: &quot; + SleepUtils.describe(temp));
+ 
+-            message.append(&quot;]&quot;);
+-         }
++               message.append(&quot;]&quot;);
++            }
+ 
+-         long stat = System.currentTimeMillis();
+-         value = func.evaluate(method.getName(), script, temp); 
+-         stat = System.currentTimeMillis() - stat;
++            long stat = System.currentTimeMillis();
++            value = func.evaluate(method.getName(), script, temp); 
++            stat = System.currentTimeMillis() - stat;
+ 
+-         if (func.getClass() == SleepClosure.class)
+-         {
+-            script.collect(((SleepClosure)func).toStringGeneric(), -1, stat);
+-         }
++            if (func.getClass() == SleepClosure.class)
++            {
++               script.collect(((SleepClosure)func).toStringGeneric(), -1, stat);
++            }
+ 
+-         if (message != null)
+-         {
+-            if (script.getScriptEnvironment().isThrownValue()) 
+-               message.append(&quot; - FAILED!&quot;); 
+-            else
+-               message.append(&quot; = &quot; + SleepUtils.describe(value)); 
++            if (message != null)
++            {
++               if (script.getScriptEnvironment().isThrownValue()) 
++                  message.append(&quot; - FAILED!&quot;); 
++               else
++                  message.append(&quot; = &quot; + SleepUtils.describe(value)); 
+ 
+-            script.fireWarning(message.toString(), -1, true);
++               script.fireWarning(message.toString(), -1, true);
++            }
+          }
+-      }
+-      else
+-      {
+-         value = func.evaluate(method.getName(), script, temp); 
+-      }
+-      script.getScriptEnvironment().popExceptionContext();
+-      script.getScriptEnvironment().clearReturn();
++         else
++         {  
++            value = func.evaluate(method.getName(), script, temp); 
++         }
++         script.getScriptEnvironment().popExceptionContext();
++         script.getScriptEnvironment().clearReturn();
++         script.getScriptEnvironment().popSource();
+  
+-      if (script.getScriptEnvironment().isThrownValue())
+-      {
+-         script.recordStackFrame(func + &quot; as &quot; + method.toString(), &quot;&lt;internal&gt;&quot;, 0);
+-
+-         Object exvalue = (script.getScriptEnvironment().getExceptionMessage()).objectValue();
+-           
+-         if (exvalue instanceof Throwable)
++         if (script.getScriptEnvironment().isThrownValue())
+          {
+-            throw (Throwable)exvalue;
+-         }
+-         else
+-         {
+-            throw new RuntimeException(exvalue.toString());
+-         }
+-      }        
++            script.recordStackFrame(func + &quot; as &quot; + method.toString(), &quot;&lt;Java&gt;&quot;, -1);
+ 
+-      if (value != null)
+-         return ObjectUtilities.buildArgument(method.getReturnType(), value, script);
++            Object exvalue = (script.getScriptEnvironment().getExceptionMessage()).objectValue();
++             
++            if (exvalue instanceof Throwable)
++            {
++               throw (Throwable)exvalue;
++            }
++            else
++            {
++               throw new RuntimeException(exvalue.toString());
++            }
++         }        
+ 
+-      return null;
++         if (value != null)
++            return ObjectUtilities.buildArgument(method.getReturnType(), value, script);
++
++         return null;
++      }
+    }
+ }
+ 	
+
+Added: sleep/tests/output/proxy.sl
+===================================================================
+--- sleep/tests/output/proxy.sl	2007-04-07 03:44:13 UTC (rev 242)
++++ sleep/tests/output/proxy.sl	2007-04-07 04:23:28 UTC (rev 243)
+@@ -0,0 +1,63 @@
++Trace: &amp;local('$enumeration') at proxy.sl:25
++Trace: &amp;lambda(&amp;closure[proxy.sl:7-15]#1) = &amp;closure[proxy.sl:7-15]#3 at proxy.sl:26
++Trace: &amp;foo() = &amp;closure[proxy.sl:7-15]#3 at proxy.sl:45
++Trace: &amp;invoke(&amp;closure[proxy.sl:28]#4, @(), $this =&gt; &amp;closure[proxy.sl:7-15]#3) = 1 at proxy.sl:11
++Trace: [&amp;closure[proxy.sl:7-15]#3 hasMoreElements] = 1 at &lt;Java&gt;:-1
++Trace: &amp;size(@('a', 'b', 'c', 'd', 'e')) = 5 at proxy.sl:30
++Trace: &amp;pop(@('a', 'b', 'c', 'd', 'e')) = 'e' at proxy.sl:32
++Trace: &amp;invoke(&amp;closure[proxy.sl:30-36]#5, @(), $this =&gt; &amp;closure[proxy.sl:7-15]#3) = 'e' at proxy.sl:11
++Trace: [&amp;closure[proxy.sl:7-15]#3 nextElement] = 'e' at &lt;Java&gt;:-1
++Trace: &amp;invoke(&amp;closure[proxy.sl:28]#4, @(), $this =&gt; &amp;closure[proxy.sl:7-15]#3) = 1 at proxy.sl:11
++Trace: [&amp;closure[proxy.sl:7-15]#3 hasMoreElements] = 1 at &lt;Java&gt;:-1
++Trace: &amp;size(@('a', 'b', 'c', 'd')) = 4 at proxy.sl:30
++Trace: &amp;pop(@('a', 'b', 'c', 'd')) = 'd' at proxy.sl:32
++Trace: &amp;invoke(&amp;closure[proxy.sl:30-36]#5, @(), $this =&gt; &amp;closure[proxy.sl:7-15]#3) = 'd' at proxy.sl:11
++Trace: [&amp;closure[proxy.sl:7-15]#3 nextElement] = 'd' at &lt;Java&gt;:-1
++Trace: &amp;invoke(&amp;closure[proxy.sl:28]#4, @(), $this =&gt; &amp;closure[proxy.sl:7-15]#3) = 1 at proxy.sl:11
++Trace: [&amp;closure[proxy.sl:7-15]#3 hasMoreElements] = 1 at &lt;Java&gt;:-1
++Trace: &amp;size(@('a', 'b', 'c')) = 3 at proxy.sl:30
++Trace: &amp;pop(@('a', 'b', 'c')) = 'c' at proxy.sl:32
++Trace: &amp;invoke(&amp;closure[proxy.sl:30-36]#5, @(), $this =&gt; &amp;closure[proxy.sl:7-15]#3) = 'c' at proxy.sl:11
++Trace: [&amp;closure[proxy.sl:7-15]#3 nextElement] = 'c' at &lt;Java&gt;:-1
++Trace: &amp;invoke(&amp;closure[proxy.sl:28]#4, @(), $this =&gt; &amp;closure[proxy.sl:7-15]#3) = 1 at proxy.sl:11
++Trace: [&amp;closure[proxy.sl:7-15]#3 hasMoreElements] = 1 at &lt;Java&gt;:-1
++Trace: &amp;size(@('a', 'b')) = 2 at proxy.sl:30
++Trace: &amp;pop(@('a', 'b')) = 'b' at proxy.sl:32
++Trace: &amp;invoke(&amp;closure[proxy.sl:30-36]#5, @(), $this =&gt; &amp;closure[proxy.sl:7-15]#3) = 'b' at proxy.sl:11
++Trace: [&amp;closure[proxy.sl:7-15]#3 nextElement] = 'b' at &lt;Java&gt;:-1
++Trace: &amp;invoke(&amp;closure[proxy.sl:28]#4, @(), $this =&gt; &amp;closure[proxy.sl:7-15]#3) = 1 at proxy.sl:11
++Trace: [&amp;closure[proxy.sl:7-15]#3 hasMoreElements] = 1 at &lt;Java&gt;:-1
++Trace: &amp;size(@('a')) = 1 at proxy.sl:30
++Trace: &amp;pop(@('a')) = 'a' at proxy.sl:32
++Trace: &amp;invoke(&amp;closure[proxy.sl:30-36]#5, @(), $this =&gt; &amp;closure[proxy.sl:7-15]#3) = 'a' at proxy.sl:11
++Trace: [&amp;closure[proxy.sl:7-15]#3 nextElement] = 'a' at &lt;Java&gt;:-1
++Trace: &amp;invoke(&amp;closure[proxy.sl:28]#4, @(), $this =&gt; &amp;closure[proxy.sl:7-15]#3) = 1 at proxy.sl:11
++Trace: [&amp;closure[proxy.sl:7-15]#3 hasMoreElements] = 1 at &lt;Java&gt;:-1
++Trace: &amp;size(@()) = 0 at proxy.sl:30
++Trace: [new java.util.NoSuchElementException: 'overextending my bounds dude :('] = java.util.NoSuchElementException: overextending my bounds dude :( at proxy.sl:36
++Trace: &amp;invoke(&amp;closure[proxy.sl:30-36]#5, @(), $this =&gt; &amp;closure[proxy.sl:7-15]#3) - FAILED! at proxy.sl:11
++Trace: [&amp;closure[proxy.sl:7-15]#3 nextElement] - FAILED! at &lt;Java&gt;:-1
++Trace: [java.util.Collections list: &amp;closure[proxy.sl:7-15]#3] - FAILED! at proxy.sl:45
++Trace: [java.util.NoSuchElementException: overextending my bounds dude :( getClass] = class java.util.NoSuchElementException at proxy.sl:49
++Trace: [java.util.NoSuchElementException: overextending my bounds dude :( getMessage] = 'overextending my bounds dude :(' at proxy.sl:49
++Error: overextending my bounds dude :( from: class java.util.NoSuchElementException
++Trace: &amp;println('Error: overextending my bounds dude :( from: class java.util.NoSuchElementException') at proxy.sl:49
++Trace: &amp;getStackTrace() = @(   proxy.sl:45 public static java.util.ArrayList java.util.Collections.list(java.util.Enumeration),    &lt;Java&gt;:-1 &amp;closure[proxy.sl:7-15]#3 as public abstract java.lang.Object java.util.Enumeration.nextElement(),    proxy.sl:11 &amp;invoke(),    proxy.sl:36 &lt;origin of exception&gt;) at proxy.sl:50
++   proxy.sl:45 public static java.util.ArrayList java.util.Collections.list(java.util.Enumeration)
++   &lt;Java&gt;:-1 &amp;closure[proxy.sl:7-15]#3 as public abstract java.lang.Object java.util.Enumeration.nextElement()
++   proxy.sl:11 &amp;invoke()
++   proxy.sl:36 &lt;origin of exception&gt;
++Trace: &amp;printAll(@(   proxy.sl:45 public static java.util.ArrayList java.util.Collections.list(java.util.Enumeration),    &lt;Java&gt;:-1 &amp;closure[proxy.sl:7-15]#3 as public abstract java.lang.Object java.util.Enumeration.nextElement(),    proxy.sl:11 &amp;invoke(),    proxy.sl:36 &lt;origin of exception&gt;)) at proxy.sl:50
++Trying again... what will java do?
++Trace: &amp;println('Trying again... what will java do?') at proxy.sl:55
++Trace: [&amp;closure[proxy.sl:57]#6 hasMoreElements] - FAILED! at &lt;Java&gt;:-1
++Trace: [java.util.Collections list: &amp;closure[proxy.sl:57]#6] - FAILED! at proxy.sl:56
++Trace: [java.lang.RuntimeException: haha... testing bish!@#$ getClass] = class java.lang.RuntimeException at proxy.sl:62
++Trace: [java.lang.RuntimeException: haha... testing bish!@#$ getMessage] = 'haha... testing bish!@#$' at proxy.sl:62
++Error: haha... testing bish!@#$ from: class java.lang.RuntimeException
++Trace: &amp;println('Error: haha... testing bish!@#$ from: class java.lang.RuntimeException') at proxy.sl:62
++Trace: &amp;getStackTrace() = @(   proxy.sl:56 public static java.util.ArrayList java.util.Collections.list(java.util.Enumeration),    &lt;Java&gt;:-1 &amp;closure[proxy.sl:57]#6 as public abstract boolean java.util.Enumeration.hasMoreElements(),    proxy.sl:57 &lt;origin of exception&gt;) at proxy.sl:63
++   proxy.sl:56 public static java.util.ArrayList java.util.Collections.list(java.util.Enumeration)
++   &lt;Java&gt;:-1 &amp;closure[proxy.sl:57]#6 as public abstract boolean java.util.Enumeration.hasMoreElements()
++   proxy.sl:57 &lt;origin of exception&gt;
++Trace: &amp;printAll(@(   proxy.sl:56 public static java.util.ArrayList java.util.Collections.list(java.util.Enumeration),    &lt;Java&gt;:-1 &amp;closure[proxy.sl:57]#6 as public abstract boolean java.util.Enumeration.hasMoreElements(),    proxy.sl:57 &lt;origin of exception&gt;)) at proxy.sl:63
+
+Modified: sleep/tests/output/tcatch4.sl
+===================================================================
+--- sleep/tests/output/tcatch4.sl	2007-04-07 03:44:13 UTC (rev 242)
++++ sleep/tests/output/tcatch4.sl	2007-04-07 04:23:28 UTC (rev 243)
+@@ -1,10 +1,10 @@
+ Error: overextending my bounds dude :( from: class java.util.NoSuchElementException
+    tcatch4.sl:45 public static java.util.ArrayList java.util.Collections.list(java.util.Enumeration)
+-   &lt;internal&gt;:0 &amp;closure[tcatch4.sl:7-15]#3 as public abstract java.lang.Object java.util.Enumeration.nextElement()
++   &lt;Java&gt;:-1 &amp;closure[tcatch4.sl:7-15]#3 as public abstract java.lang.Object java.util.Enumeration.nextElement()
+    tcatch4.sl:11 &amp;invoke()
+    tcatch4.sl:36 &lt;origin of exception&gt;
+ Trying again... what will java do?
+ Error: haha... testing bish!@#$ from: class java.lang.RuntimeException
+    tcatch4.sl:56 public static java.util.ArrayList java.util.Collections.list(java.util.Enumeration)
+-   &lt;internal&gt;:0 &amp;closure[tcatch4.sl:57]#6 as public abstract boolean java.util.Enumeration.hasMoreElements()
++   &lt;Java&gt;:-1 &amp;closure[tcatch4.sl:57]#6 as public abstract boolean java.util.Enumeration.hasMoreElements()
+    tcatch4.sl:57 &lt;origin of exception&gt;
+
+Modified: sleep/tests/output/tracepo.sl
+===================================================================
+--- sleep/tests/output/tracepo.sl	2007-04-07 03:44:13 UTC (rev 242)
++++ sleep/tests/output/tracepo.sl	2007-04-07 04:23:28 UTC (rev 243)
+@@ -2,48 +2,48 @@
+ Trace: &amp;lambda(&amp;closure[tracepo.sl:7-15]#1) = &amp;closure[tracepo.sl:7-15]#3 at tracepo.sl:26
+ Trace: &amp;foo() = &amp;closure[tracepo.sl:7-15]#3 at tracepo.sl:45
+ Trace: &amp;invoke(&amp;closure[tracepo.sl:28]#4, @(), $this =&gt; &amp;closure[tracepo.sl:7-15]#3) = 1 at tracepo.sl:11
+-Trace: [&amp;closure[tracepo.sl:7-15]#3 hasMoreElements] = 1 at tracepo.sl:-1
++Trace: [&amp;closure[tracepo.sl:7-15]#3 hasMoreElements] = 1 at &lt;Java&gt;:-1
+ Trace: &amp;size(@('a', 'b', 'c', 'd', 'e')) = 5 at tracepo.sl:30
+ Trace: &amp;pop(@('a', 'b', 'c', 'd', 'e')) = 'e' at tracepo.sl:32
+ Trace: &amp;invoke(&amp;closure[tracepo.sl:30-36]#5, @(), $this =&gt; &amp;closure[tracepo.sl:7-15]#3) = 'e' at tracepo.sl:11
+-Trace: [&amp;closure[tracepo.sl:7-15]#3 nextElement] = 'e' at tracepo.sl:-1
++Trace: [&amp;closure[tracepo.sl:7-15]#3 nextElement] = 'e' at &lt;Java&gt;:-1
+ Trace: &amp;invoke(&amp;closure[tracepo.sl:28]#4, @(), $this =&gt; &amp;closure[tracepo.sl:7-15]#3) = 1 at tracepo.sl:11
+-Trace: [&amp;closure[tracepo.sl:7-15]#3 hasMoreElements] = 1 at tracepo.sl:-1
++Trace: [&amp;closure[tracepo.sl:7-15]#3 hasMoreElements] = 1 at &lt;Java&gt;:-1
+ Trace: &amp;size(@('a', 'b', 'c', 'd')) = 4 at tracepo.sl:30
+ Trace: &amp;pop(@('a', 'b', 'c', 'd')) = 'd' at tracepo.sl:32
+ Trace: &amp;invoke(&amp;closure[tracepo.sl:30-36]#5, @(), $this =&gt; &amp;closure[tracepo.sl:7-15]#3) = 'd' at tracepo.sl:11
+-Trace: [&amp;closure[tracepo.sl:7-15]#3 nextElement] = 'd' at tracepo.sl:-1
++Trace: [&amp;closure[tracepo.sl:7-15]#3 nextElement] = 'd' at &lt;Java&gt;:-1
+ Trace: &amp;invoke(&amp;closure[tracepo.sl:28]#4, @(), $this =&gt; &amp;closure[tracepo.sl:7-15]#3) = 1 at tracepo.sl:11
+-Trace: [&amp;closure[tracepo.sl:7-15]#3 hasMoreElements] = 1 at tracepo.sl:-1
++Trace: [&amp;closure[tracepo.sl:7-15]#3 hasMoreElements] = 1 at &lt;Java&gt;:-1
+ Trace: &amp;size(@('a', 'b', 'c')) = 3 at tracepo.sl:30
+ Trace: &amp;pop(@('a', 'b', 'c')) = 'c' at tracepo.sl:32
+ Trace: &amp;invoke(&amp;closure[tracepo.sl:30-36]#5, @(), $this =&gt; &amp;closure[tracepo.sl:7-15]#3) = 'c' at tracepo.sl:11
+-Trace: [&amp;closure[tracepo.sl:7-15]#3 nextElement] = 'c' at tracepo.sl:-1
++Trace: [&amp;closure[tracepo.sl:7-15]#3 nextElement] = 'c' at &lt;Java&gt;:-1
+ Trace: &amp;invoke(&amp;closure[tracepo.sl:28]#4, @(), $this =&gt; &amp;closure[tracepo.sl:7-15]#3) = 1 at tracepo.sl:11
+-Trace: [&amp;closure[tracepo.sl:7-15]#3 hasMoreElements] = 1 at tracepo.sl:-1
++Trace: [&amp;closure[tracepo.sl:7-15]#3 hasMoreElements] = 1 at &lt;Java&gt;:-1
+ Trace: &amp;size(@('a', 'b')) = 2 at tracepo.sl:30
+ Trace: &amp;pop(@('a', 'b')) = 'b' at tracepo.sl:32
+ Trace: &amp;invoke(&amp;closure[tracepo.sl:30-36]#5, @(), $this =&gt; &amp;closure[tracepo.sl:7-15]#3) = 'b' at tracepo.sl:11
+-Trace: [&amp;closure[tracepo.sl:7-15]#3 nextElement] = 'b' at tracepo.sl:-1
++Trace: [&amp;closure[tracepo.sl:7-15]#3 nextElement] = 'b' at &lt;Java&gt;:-1
+ Trace: &amp;invoke(&amp;closure[tracepo.sl:28]#4, @(), $this =&gt; &amp;closure[tracepo.sl:7-15]#3) = 1 at tracepo.sl:11
+-Trace: [&amp;closure[tracepo.sl:7-15]#3 hasMoreElements] = 1 at tracepo.sl:-1
++Trace: [&amp;closure[tracepo.sl:7-15]#3 hasMoreElements] = 1 at &lt;Java&gt;:-1
+ Trace: &amp;size(@('a')) = 1 at tracepo.sl:30
+ Trace: &amp;pop(@('a')) = 'a' at tracepo.sl:32
+ Trace: &amp;invoke(&amp;closure[tracepo.sl:30-36]#5, @(), $this =&gt; &amp;closure[tracepo.sl:7-15]#3) = 'a' at tracepo.sl:11
+-Trace: [&amp;closure[tracepo.sl:7-15]#3 nextElement] = 'a' at tracepo.sl:-1
++Trace: [&amp;closure[tracepo.sl:7-15]#3 nextElement] = 'a' at &lt;Java&gt;:-1
+ Trace: &amp;invoke(&amp;closure[tracepo.sl:28]#4, @(), $this =&gt; &amp;closure[tracepo.sl:7-15]#3) = 1 at tracepo.sl:11
+-Trace: [&amp;closure[tracepo.sl:7-15]#3 hasMoreElements] = 1 at tracepo.sl:-1
++Trace: [&amp;closure[tracepo.sl:7-15]#3 hasMoreElements] = 1 at &lt;Java&gt;:-1
+ Trace: &amp;size(@()) = 0 at tracepo.sl:30
+ Trace: [new java.util.NoSuchElementException: 'overextending my bounds dude :('] = java.util.NoSuchElementException: overextending my bounds dude :( at tracepo.sl:36
+ Trace: &amp;invoke(&amp;closure[tracepo.sl:30-36]#5, @(), $this =&gt; &amp;closure[tracepo.sl:7-15]#3) - FAILED! at tracepo.sl:11
+-Trace: [&amp;closure[tracepo.sl:7-15]#3 nextElement] - FAILED! at tracepo.sl:-1
++Trace: [&amp;closure[tracepo.sl:7-15]#3 nextElement] - FAILED! at &lt;Java&gt;:-1
+ Trace: [java.util.Collections list: &amp;closure[tracepo.sl:7-15]#3] - FAILED! at tracepo.sl:45
+ Warning: checkError(): java.util.NoSuchElementException: overextending my bounds dude :( at tracepo.sl:45
+ 
+ Trace: &amp;println($null) at tracepo.sl:45
+ Trying again... what will java do?
+ Trace: &amp;println('Trying again... what will java do?') at tracepo.sl:55
+-Trace: [&amp;closure[tracepo.sl:57]#6 hasMoreElements] - FAILED! at tracepo.sl:-1
++Trace: [&amp;closure[tracepo.sl:57]#6 hasMoreElements] - FAILED! at &lt;Java&gt;:-1
+ Trace: [java.util.Collections list: &amp;closure[tracepo.sl:57]#6] - FAILED! at tracepo.sl:56
+ Warning: checkError(): java.lang.RuntimeException: haha... testing bish!@#$ at tracepo.sl:56
+ 
+
+Added: sleep/tests/proxy.sl
+===================================================================
+--- sleep/tests/proxy.sl	2007-04-07 03:44:13 UTC (rev 242)
++++ sleep/tests/proxy.sl	2007-04-07 04:23:28 UTC (rev 243)
+@@ -0,0 +1,65 @@
++debug(15 | 34);
++
++import java.util.*;
++
++sub object
++{
++   if ($0 !is $null)
++   {
++      if (-isfunction $this[$0])
++      {
++         return invoke($this[$0], @_, $this =&gt; $this);
++      }
++      else
++      {
++         return $this[$0];
++      }
++   }
++}
++
++#
++# mmm, sleep objects :)
++#
++sub foo
++{
++   local('$enumeration');
++   $enumeration = lambda(&amp;object);
++   $enumeration['@data'] = @(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;, &quot;d&quot;, &quot;e&quot;);
++   $enumeration[&quot;hasMoreElements&quot;] = { return 1; };
++   $enumeration[&quot;nextElement&quot;] = { 
++      if (size(@data) &gt; 0)
++      {
++         return pop(@data);
++      }
++      else
++      {
++         throw [new NoSuchElementException: &quot;overextending my bounds dude :(&quot;];
++      }
++   };
++
++   return $enumeration;
++}
++
++try
++{
++   println([Collections list: foo()]);
++}
++catch $ex
++{
++   println(&quot;Error: &quot;.[$ex getMessage].&quot; from: &quot;.[$ex getClass]);
++   printAll(getStackTrace());
++}
++
++try
++{
++   println(&quot;Trying again... what will java do?&quot;);
++   println([Collections list: {
++      throw &quot;haha... testing bish!@#$&quot;;
++   }]);
++}
++catch $ex
++{
++   println(&quot;Error: &quot;.[$ex getMessage].&quot; from: &quot;.[$ex getClass]);
++   printAll(getStackTrace());
++}
++
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2007-04-07 03:44:13 UTC (rev 242)
++++ sleep/whatsnew.txt	2007-04-07 04:23:28 UTC (rev 243)
+@@ -19,6 +19,9 @@
+   failed&quot;.
+ - HOES expressions with no arguments following the : will report a 
+   syntax error (originally this error was crashing the parser)
++- Proxy instantiations of Java classes are now synchronized in the same
++  way as the rest of Sleep's interpreter and source information is now
++  installed to show calls on these classes as coming from &lt;Java&gt;
+ 
+ 2.1-beta 14  (24 Mar 07)
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000221.html">[Sleep-svn] r242 - in sleep: . src/sleep/parser tests tests/output
+</A></li>
+	<LI>Next message: <A HREF="000223.html">[Sleep-svn] r244 - in sleep/tests: . output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#222">[ date ]</a>
+              <a href="thread.html#222">[ thread ]</a>
+              <a href="subject.html#222">[ subject ]</a>
+              <a href="author.html#222">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

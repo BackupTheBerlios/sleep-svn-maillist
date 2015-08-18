@@ -1,0 +1,406 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r205 - in sleep: . src/sleep/bridges tests tests/data	tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2007-March/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r205%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20tests%20tests/data%0A%09tests/output&In-Reply-To=%3C200703080627.l286RZc3024085%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   
+   <LINK REL="Next"  HREF="000187.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r205 - in sleep: . src/sleep/bridges tests tests/data	tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r205%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20tests%20tests/data%0A%09tests/output&In-Reply-To=%3C200703080627.l286RZc3024085%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r205 - in sleep: . src/sleep/bridges tests tests/data	tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Thu Mar  8 07:27:35 CET 2007</I>
+    <P><UL>
+        
+        <LI>Next message: <A HREF="000187.html">[Sleep-svn] r206 - in sleep: . src/sleep/engine/atoms tests	tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#186">[ date ]</a>
+              <a href="thread.html#186">[ thread ]</a>
+              <a href="subject.html#186">[ subject ]</a>
+              <a href="author.html#186">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2007-03-08 07:27:33 +0100 (Thu, 08 Mar 2007)
+New Revision: 205
+
+Added:
+   sleep/tests/data/scripts.jar
+   sleep/tests/include.sl
+   sleep/tests/include2.sl
+   sleep/tests/output/include.sl
+   sleep/tests/output/include2.sl
+Modified:
+   sleep/src/sleep/bridges/BasicUtilities.java
+   sleep/src/sleep/bridges/SleepClosure.java
+   sleep/tests/output/forker.sl
+   sleep/tests/output/trace.sl
+   sleep/tests/output/useerr.sl
+   sleep/tests/output/wrong.sl
+   sleep/whatsnew.txt
+Log:
+added the include() function.
+
+
+
+Modified: sleep/src/sleep/bridges/BasicUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicUtilities.java	2007-03-03 19:20:21 UTC (rev 204)
++++ sleep/src/sleep/bridges/BasicUtilities.java	2007-03-08 06:27:33 UTC (rev 205)
+@@ -28,7 +28,7 @@
+ import sleep.interfaces.*;
+ import sleep.runtime.*;
+ 
+-import java.io.File;
++import java.io.*;
+ import java.net.URL;
+ import java.net.URLClassLoader;
+ 
+@@ -242,7 +242,7 @@
+ 
+           if (parent != null &amp;&amp; !parent.exists())
+           {
+-             throw new IllegalArgumentException(n + &quot;: could not locate jar file '&quot; + parent + &quot;'&quot;);
++             throw new IllegalArgumentException(n + &quot;: could not locate source '&quot; + parent + &quot;'&quot;);
+           }
+ 
+           try
+@@ -279,22 +279,33 @@
+              {
+                 Block          script;
+                 ScriptLoader   sloader = (ScriptLoader)si.getScriptEnvironment().getEnvironment().get(&quot;(isloaded)&quot;);
+-
+-                System.out.println(sloader);
+-
++                InputStream    istream;
++         
+                 if (parent != null)
+                 {
+                    URLClassLoader loader = new URLClassLoader(new URL[] { parent.toURL() });
+-                   script = sloader.compileScript(new File(parent, className).getAbsolutePath(), loader.getResourceAsStream(className));
++                   istream = loader.getResourceAsStream(className);
+                 }
+                 else
+                 {
+-                   script = sloader.compileScript(new File(className));
++                   istream = new FileInputStream(new File(className));
+                 }
+ 
+-                SleepUtils.runCode(script, si.getScriptEnvironment());
++                if (istream != null)
++                {
++                   script = sloader.compileScript(className, istream);
++                   SleepUtils.runCode(script, si.getScriptEnvironment());
++                }
++                else
++                {
++                   throw new IOException(&quot;unable to locate &quot; + className + &quot; from: &quot; + parent);
++                }
+              }
+           }
++          catch (YourCodeSucksException yex)
++          {
++             throw new RuntimeException(className + &quot;: &quot; + yex.getMessage());
++          }
+           catch (Exception ex)
+           {
+              throw new RuntimeException(ex.toString());
+
+Modified: sleep/src/sleep/bridges/SleepClosure.java
+===================================================================
+--- sleep/src/sleep/bridges/SleepClosure.java	2007-03-03 19:20:21 UTC (rev 204)
++++ sleep/src/sleep/bridges/SleepClosure.java	2007-03-08 06:27:33 UTC (rev 205)
+@@ -32,7 +32,7 @@
+ /** The Sleep Closure class.  This class represents a Function object that is also a self contained closure */
+ public class SleepClosure implements Function
+ {
+-    private static int ccount;
++    private static int ccount = 0;
+     private int id;
+ 
+     private class ClosureIterator implements Iterator
+
+Added: sleep/tests/data/scripts.jar
+===================================================================
+(Binary files differ)
+
+
+Property changes on: sleep/tests/data/scripts.jar
+___________________________________________________________________
+Name: svn:mime-type
+   + application/octet-stream
+
+Added: sleep/tests/include.sl
+===================================================================
+--- sleep/tests/include.sl	2007-03-03 19:20:21 UTC (rev 204)
++++ sleep/tests/include.sl	2007-03-08 06:27:33 UTC (rev 205)
+@@ -0,0 +1,27 @@
++#
++# test of the include function...
++#
++
++debug(7);
++
++global('$GLOBAL_VAR');
++
++$GLOBAL_VAR = &quot;Harf... bish&quot;;
++
++sub foo
++{
++   println(&quot;This is foo() - :)&quot;);
++}
++
++# case 1:
++include(&quot;data/scripts.jar&quot;, &quot;scripts/injar.sl&quot;);
++
++debug(7);
++println(&quot;Eh?!? $INJAR_VAR&quot;);
++
++# case 2:
++
++[{ include(&quot;data/scripts.jar&quot;, &quot;scripts/errors1.sl&quot;); }];
++
++# case 3:
++include(&quot;data/scripts.jar&quot;, &quot;scripts/does_not_exist.sl&quot;);
+
+Added: sleep/tests/include2.sl
+===================================================================
+--- sleep/tests/include2.sl	2007-03-03 19:20:21 UTC (rev 204)
++++ sleep/tests/include2.sl	2007-03-08 06:27:33 UTC (rev 205)
+@@ -0,0 +1,11 @@
++debug(15);
++
++println(&quot;Testing yo&quot;);
++println(&quot;Blargh&quot;);
++
++sub foof
++{
++   include(&quot;accum.sl&quot;);
++} 
++
++foof();
+
+Modified: sleep/tests/output/forker.sl
+===================================================================
+--- sleep/tests/output/forker.sl	2007-03-03 19:20:21 UTC (rev 204)
++++ sleep/tests/output/forker.sl	2007-03-08 06:27:33 UTC (rev 205)
+@@ -1,3 +1,3 @@
+ Trace: &amp;check('within fork') at forker.sl:9
+-Trace: &amp;fork(&amp;closure[forker.sl:9]#2) = <A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">sleep.bridges.io.IOObject at 1551b0</A> at forker.sl:8
++Trace: &amp;fork(&amp;closure[forker.sl:9]#2) = <A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">sleep.bridges.io.IOObject at e67e6a</A> at forker.sl:8
+ Trace: &amp;check('outside of fork') at forker.sl:12
+
+Added: sleep/tests/output/include.sl
+===================================================================
+--- sleep/tests/output/include.sl	2007-03-03 19:20:21 UTC (rev 204)
++++ sleep/tests/output/include.sl	2007-03-08 06:27:33 UTC (rev 205)
+@@ -0,0 +1,14 @@
++Trace: &amp;global('$INJAR_VAR') at injar.sl:3
++This is a script included from a jar file
++Trace: &amp;println('This is a script included from a jar file') at injar.sl:6
++This is foo() - :)
++Trace: &amp;println('This is foo() - :)') at include.sl:13
++Trace: &amp;foo() at injar.sl:9
++Done with injar.sl -- Harf... bish
++Trace: &amp;println('Done with injar.sl -- Harf... bish') at injar.sl:12
++Trace: &amp;substr('test', 8, 20) - FAILED! at injar.sl:17
++Warning: String index out of range: 20 at injar.sl:17
++Trace: &amp;debug(7) = 7 at include.sl:19
++Eh?!? Hello from injar.sl
++Warning: scripts/errors1.sl: 3 error(s): Mismatched Parentheses - missing close paren at 9; Mismatched Braces - missing close brace at 6; Runaway string at 9 at include.sl:24
++Warning: java.io.IOException: unable to locate scripts/does_not_exist.sl from: data/scripts.jar at include.sl:27
+
+Added: sleep/tests/output/include2.sl
+===================================================================
+--- sleep/tests/output/include2.sl	2007-03-03 19:20:21 UTC (rev 204)
++++ sleep/tests/output/include2.sl	2007-03-08 06:27:33 UTC (rev 205)
+@@ -0,0 +1,53 @@
++Testing yo
++Trace: &amp;println('Testing yo') at include2.sl:3
++Blargh
++Trace: &amp;println('Blargh') at include2.sl:4
++Trace: &amp;lambda(&amp;closure[accum.sl:7-8]#3, $i =&gt; 3) = &amp;closure[accum.sl:7-8]#4 at accum.sl:6
++Trace: &amp;accum(3) = &amp;closure[accum.sl:7-8]#4 at accum.sl:12
++Warning: variable '$a' not declared at accum.sl:12
++Trace: &amp;lambda(&amp;closure[accum.sl:7-8]#5, $i =&gt; 40) = &amp;closure[accum.sl:7-8]#6 at accum.sl:6
++Trace: &amp;accum(40) = &amp;closure[accum.sl:7-8]#6 at accum.sl:13
++Warning: variable '$b' not declared at accum.sl:13
++Warning: variable '$x' not declared at accum.sl:15
++Trace: [&amp;closure[accum.sl:7-8]#6: 2] = 42 at accum.sl:17
++Trace: [&amp;closure[accum.sl:7-8]#4: 1] = 4 at accum.sl:17
++Accumulate: a: 4 b: 42
++Trace: &amp;println('Accumulate: a: 4 b: 42') at accum.sl:17
++Trace: [&amp;closure[accum.sl:7-8]#6: 2] = 44 at accum.sl:17
++Trace: [&amp;closure[accum.sl:7-8]#4: 1] = 5 at accum.sl:17
++Accumulate: a: 5 b: 44
++Trace: &amp;println('Accumulate: a: 5 b: 44') at accum.sl:17
++Trace: [&amp;closure[accum.sl:7-8]#6: 2] = 46 at accum.sl:17
++Trace: [&amp;closure[accum.sl:7-8]#4: 1] = 6 at accum.sl:17
++Accumulate: a: 6 b: 46
++Trace: &amp;println('Accumulate: a: 6 b: 46') at accum.sl:17
++Trace: [&amp;closure[accum.sl:7-8]#6: 2] = 48 at accum.sl:17
++Trace: [&amp;closure[accum.sl:7-8]#4: 1] = 7 at accum.sl:17
++Accumulate: a: 7 b: 48
++Trace: &amp;println('Accumulate: a: 7 b: 48') at accum.sl:17
++Trace: [&amp;closure[accum.sl:7-8]#6: 2] = 50 at accum.sl:17
++Trace: [&amp;closure[accum.sl:7-8]#4: 1] = 8 at accum.sl:17
++Accumulate: a: 8 b: 50
++Trace: &amp;println('Accumulate: a: 8 b: 50') at accum.sl:17
++Trace: [&amp;closure[accum.sl:7-8]#6: 2] = 52 at accum.sl:17
++Trace: [&amp;closure[accum.sl:7-8]#4: 1] = 9 at accum.sl:17
++Accumulate: a: 9 b: 52
++Trace: &amp;println('Accumulate: a: 9 b: 52') at accum.sl:17
++Trace: [&amp;closure[accum.sl:7-8]#6: 2] = 54 at accum.sl:17
++Trace: [&amp;closure[accum.sl:7-8]#4: 1] = 10 at accum.sl:17
++Accumulate: a: 10 b: 54
++Trace: &amp;println('Accumulate: a: 10 b: 54') at accum.sl:17
++Trace: [&amp;closure[accum.sl:7-8]#6: 2] = 56 at accum.sl:17
++Trace: [&amp;closure[accum.sl:7-8]#4: 1] = 11 at accum.sl:17
++Accumulate: a: 11 b: 56
++Trace: &amp;println('Accumulate: a: 11 b: 56') at accum.sl:17
++Trace: [&amp;closure[accum.sl:7-8]#6: 2] = 58 at accum.sl:17
++Trace: [&amp;closure[accum.sl:7-8]#4: 1] = 12 at accum.sl:17
++Accumulate: a: 12 b: 58
++Trace: &amp;println('Accumulate: a: 12 b: 58') at accum.sl:17
++Trace: [&amp;closure[accum.sl:7-8]#6: 2] = 60 at accum.sl:17
++Trace: [&amp;closure[accum.sl:7-8]#4: 1] = 13 at accum.sl:17
++Accumulate: a: 13 b: 60
++Trace: &amp;println('Accumulate: a: 13 b: 60') at accum.sl:17
++Trace: &amp;include('accum.sl') at include2.sl:8
++Trace: &amp;foof() at include2.sl:11
+
+Modified: sleep/tests/output/trace.sl
+===================================================================
+--- sleep/tests/output/trace.sl	2007-03-03 19:20:21 UTC (rev 204)
++++ sleep/tests/output/trace.sl	2007-03-08 06:27:33 UTC (rev 205)
+@@ -1,13 +1,13 @@
+ this is a test
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 648016</A> println: 'this is a test'] at trace.sl:6
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 969c29</A> println: 'this is a test'] at trace.sl:6
+ Trace: [java.lang.Math pow: 3, 4] = 81.0 at trace.sl:7
+ 81.0
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 648016</A> println: 81.0] at trace.sl:7
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 969c29</A> println: 81.0] at trace.sl:7
+ Trace: [java.lang.Math pow: 3, 5] = 243.0 at trace.sl:8
+ 243.0
+ Trace: &amp;println(243.0) at trace.sl:8
+ testing again...
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 648016</A> println: 'testing again...'] at trace.sl:10
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 969c29</A> println: 'testing again...'] at trace.sl:10
+ Trace: [sleep.runtime.SleepUtils getListFromArray: @('a', 'b', 'c')] = [a, b, c] at trace.sl:12
+ Trace: [new java.util.LinkedList: [a, b, c]] = [a, b, c] at trace.sl:12
+ Warning: variable '$list' not declared at trace.sl:12
+
+Modified: sleep/tests/output/useerr.sl
+===================================================================
+--- sleep/tests/output/useerr.sl	2007-03-03 19:20:21 UTC (rev 204)
++++ sleep/tests/output/useerr.sl	2007-03-08 06:27:33 UTC (rev 205)
+@@ -1,2 +1,2 @@
+-Warning: &amp;use: could not locate jar file '/Users/raffi/jdbc.jar' at eval:0
++Warning: &amp;use: could not locate source '/Users/raffi/jdbc.jar' at eval:0
+ Warning: java.lang.ClassNotFoundException: ABCDE at eval:0
+
+Modified: sleep/tests/output/wrong.sl
+===================================================================
+--- sleep/tests/output/wrong.sl	2007-03-03 19:20:21 UTC (rev 204)
++++ sleep/tests/output/wrong.sl	2007-03-08 06:27:33 UTC (rev 205)
+@@ -1,32 +1,32 @@
+ Trace: [java.lang.Math pow: 3, 4] = 81.0 at wrong.sl:6
+ 81.0
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at c7e2da</A> println: 81.0] at wrong.sl:6
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 608760</A> println: 81.0] at wrong.sl:6
+ Trace: &amp;casti(1, 'z') = true at wrong.sl:9
+ true
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at c7e2da</A> println: true] at wrong.sl:9
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 608760</A> println: true] at wrong.sl:9
+ Trace: &amp;casti(0, 'z') = false at wrong.sl:10
+ false
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at c7e2da</A> println: false] at wrong.sl:10
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 608760</A> println: false] at wrong.sl:10
+ Trace: &amp;casti(1, 'd') = 1.0 at wrong.sl:13
+ 1.0
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at c7e2da</A> println: 1.0] at wrong.sl:13
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 608760</A> println: 1.0] at wrong.sl:13
+ Trace: &amp;casti(1, 'b') = 1 at wrong.sl:16
+ 1
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at c7e2da</A> println: 1] at wrong.sl:16
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 608760</A> println: 1] at wrong.sl:16
+ Trace: &amp;casti(100, 'f') = 100.0 at wrong.sl:19
+ 100.0
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at c7e2da</A> println: 100.0] at wrong.sl:19
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 608760</A> println: 100.0] at wrong.sl:19
+ Trace: &amp;casti('b', 'c') = b at wrong.sl:22
+ b
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at c7e2da</A> println: b] at wrong.sl:22
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 608760</A> println: b] at wrong.sl:22
+ Trace: &amp;casti(63, 'i') = 63 at wrong.sl:25
+ 63
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at c7e2da</A> println: 63] at wrong.sl:25
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 608760</A> println: 63] at wrong.sl:25
+ this is a string y0
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at c7e2da</A> println: 'this is a string y0'] at wrong.sl:28
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 608760</A> println: 'this is a string y0'] at wrong.sl:28
+ Trace: [new java.lang.StringBuilder: 'test'] = test at wrong.sl:31
+ test
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at c7e2da</A> println: test] at wrong.sl:31
+-Trace: &amp;cast(@('a', 'b', 'c', 'd'), 'c') = [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">C at caf6c1</A> at wrong.sl:34
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 608760</A> println: test] at wrong.sl:31
++Trace: &amp;cast(@('a', 'b', 'c', 'd'), 'c') = [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">C at ce85c4</A> at wrong.sl:34
+ abcd
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at c7e2da</A> println: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">C at caf6c1</A>] at wrong.sl:34
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 608760</A> println: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">C at ce85c4</A>] at wrong.sl:34
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2007-03-03 19:20:21 UTC (rev 204)
++++ sleep/whatsnew.txt	2007-03-08 06:27:33 UTC (rev 205)
+@@ -8,7 +8,11 @@
+ - improved tracking of source file information for blocks of code.  error
+   messages and closure string representations will now accurately represent
+   the code's origin information.
++- added an &amp;include function for including code from other sleep scripts.
++  included code is included as if it is part of the current source file.
+ 
++  include([&quot;/path-to/jar-file.jar&quot;], &quot;directory/filename.sl&quot;);
++
+ 2.1-beta 11  (3 Dec 06)
+ ===========
+ - multi-line parsed literals now make a more sincere effort to track which 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	
+	<LI>Next message: <A HREF="000187.html">[Sleep-svn] r206 - in sleep: . src/sleep/engine/atoms tests	tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#186">[ date ]</a>
+              <a href="thread.html#186">[ thread ]</a>
+              <a href="subject.html#186">[ subject ]</a>
+              <a href="author.html#186">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

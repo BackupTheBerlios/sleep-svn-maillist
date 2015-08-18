@@ -1,0 +1,127 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r242 - in sleep: . src/sleep/parser tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2007-April/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r242%20-%20in%20sleep%3A%20.%20src/sleep/parser%20tests%20tests/output&In-Reply-To=%3C200704070344.l373iEDC016248%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000220.html">
+   <LINK REL="Next"  HREF="000222.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r242 - in sleep: . src/sleep/parser tests tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r242%20-%20in%20sleep%3A%20.%20src/sleep/parser%20tests%20tests/output&In-Reply-To=%3C200704070344.l373iEDC016248%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r242 - in sleep: . src/sleep/parser tests tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Sat Apr  7 05:44:14 CEST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000220.html">[Sleep-svn] r241 - in sleep/src/sleep: engine runtime
+</A></li>
+        <LI>Next message: <A HREF="000222.html">[Sleep-svn] r243 - in sleep: . src/sleep/engine tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#221">[ date ]</a>
+              <a href="thread.html#221">[ thread ]</a>
+              <a href="subject.html#221">[ subject ]</a>
+              <a href="author.html#221">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2007-04-07 05:44:13 +0200 (Sat, 07 Apr 2007)
+New Revision: 242
+
+Added:
+   sleep/tests/output/sillysyntax.sl
+   sleep/tests/sillysyntax.sl
+Modified:
+   sleep/src/sleep/parser/TokenParser.java
+   sleep/whatsnew.txt
+Log:
+fixed a little syntax error...
+
+
+
+Modified: sleep/src/sleep/parser/TokenParser.java
+===================================================================
+--- sleep/src/sleep/parser/TokenParser.java	2007-04-07 03:08:02 UTC (rev 241)
++++ sleep/src/sleep/parser/TokenParser.java	2007-04-07 03:44:13 UTC (rev 242)
+@@ -154,6 +154,12 @@
+          parser.reportError(&quot;Object Access: parameter separator is :&quot;, new Token(data.toString(), tokens[0].getHint()));
+          return null;
+       }
++      else if ((idx + 1) &gt;= tokens.length)
++      {
++         parser.reportError(&quot;Object Access: can not specify empty arg list after :&quot;, new Token(&quot;[&quot; + data.toString().substring(0, data.toString().length() - 4) + &quot;:&lt;null&gt;]&quot;, tokens[0].getHint()));
++         return null;
++      }
++
+       idx++;
+ 
+       StringBuffer temp = new StringBuffer(strings[idx]);
+
+Added: sleep/tests/output/sillysyntax.sl
+===================================================================
+--- sleep/tests/output/sillysyntax.sl	2007-04-07 03:08:02 UTC (rev 241)
++++ sleep/tests/output/sillysyntax.sl	2007-04-07 03:44:13 UTC (rev 242)
+@@ -0,0 +1,2 @@
++Error: Object Access: can not specify empty arg list after : at line 5
++       [[System out] println :&lt;null&gt;]
+
+Added: sleep/tests/sillysyntax.sl
+===================================================================
+--- sleep/tests/sillysyntax.sl	2007-04-07 03:08:02 UTC (rev 241)
++++ sleep/tests/sillysyntax.sl	2007-04-07 03:44:13 UTC (rev 242)
+@@ -0,0 +1,5 @@
++#
++# a silly syntax error...
++#
++
++[[System out] println:];
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2007-04-07 03:08:02 UTC (rev 241)
++++ sleep/whatsnew.txt	2007-04-07 03:44:13 UTC (rev 242)
+@@ -17,6 +17,8 @@
+   parameter.  if the predicate expression does not evaluate to true then
+   the currently running script will exit with the message &quot;assertion
+   failed&quot;.
++- HOES expressions with no arguments following the : will report a 
++  syntax error (originally this error was crashing the parser)
+ 
+ 2.1-beta 14  (24 Mar 07)
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000220.html">[Sleep-svn] r241 - in sleep/src/sleep: engine runtime
+</A></li>
+	<LI>Next message: <A HREF="000222.html">[Sleep-svn] r243 - in sleep: . src/sleep/engine tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#221">[ date ]</a>
+              <a href="thread.html#221">[ thread ]</a>
+              <a href="subject.html#221">[ subject ]</a>
+              <a href="author.html#221">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,132 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r283 - in sleep/tests: . output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2007-June/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r283%20-%20in%20sleep/tests%3A%20.%20output&In-Reply-To=%3C200706152309.l5FN91PN025261%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000261.html">
+   <LINK REL="Next"  HREF="000263.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r283 - in sleep/tests: . output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r283%20-%20in%20sleep/tests%3A%20.%20output&In-Reply-To=%3C200706152309.l5FN91PN025261%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r283 - in sleep/tests: . output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Sat Jun 16 01:09:01 CEST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000261.html">[Sleep-svn] r282 - in sleep: . src/sleep/engine tests tests/output
+</A></li>
+        <LI>Next message: <A HREF="000263.html">[Sleep-svn] r284 - in sleep: . src/sleep/engine src/sleep/parser	tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#262">[ date ]</a>
+              <a href="thread.html#262">[ thread ]</a>
+              <a href="subject.html#262">[ subject ]</a>
+              <a href="author.html#262">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2007-06-16 01:08:54 +0200 (Sat, 16 Jun 2007)
+New Revision: 283
+
+Added:
+   sleep/tests/output/trybreaks2.sl
+   sleep/tests/trybreaks2.sl
+Log:
+..
+
+
+Added: sleep/tests/output/trybreaks2.sl
+===================================================================
+--- sleep/tests/output/trybreaks2.sl	2007-06-15 23:04:33 UTC (rev 282)
++++ sleep/tests/output/trybreaks2.sl	2007-06-15 23:08:54 UTC (rev 283)
+@@ -0,0 +1,6 @@
++...
++foo!
++foo: !!!! 1
++foo o: !!!! 2
++caught: !!! 3
++outside: test!
+
+Added: sleep/tests/trybreaks2.sl
+===================================================================
+--- sleep/tests/trybreaks2.sl	2007-06-15 23:04:33 UTC (rev 282)
++++ sleep/tests/trybreaks2.sl	2007-06-15 23:08:54 UTC (rev 283)
+@@ -0,0 +1,42 @@
++sub foo
++{
++   try
++   {
++      println(&quot;...&quot;);
++      try
++      {
++         println(&quot;foo!&quot;);
++         yield &quot;blah&quot;;
++         throw &quot;!!!! 1&quot;;
++      }
++      catch $ex
++      {
++         println(&quot;foo: $ex&quot;);
++      }
++ 
++      throw &quot;!!!! 2&quot;;
++   }
++   catch $ex3
++   {
++      println(&quot;foo o: $ex3&quot;);
++      throw &quot;!!! 3&quot;;
++   }
++}
++
++try
++{
++   foo();
++   try
++   {
++      foo();
++   }
++   catch $ex4
++   {
++      println(&quot;caught: $ex4&quot;);
++      throw &quot;test!&quot;;
++   }
++}
++catch $ex2
++{
++   println(&quot;outside: $ex2&quot;);
++}
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000261.html">[Sleep-svn] r282 - in sleep: . src/sleep/engine tests tests/output
+</A></li>
+	<LI>Next message: <A HREF="000263.html">[Sleep-svn] r284 - in sleep: . src/sleep/engine src/sleep/parser	tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#262">[ date ]</a>
+              <a href="thread.html#262">[ thread ]</a>
+              <a href="subject.html#262">[ subject ]</a>
+              <a href="author.html#262">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

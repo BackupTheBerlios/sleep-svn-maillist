@@ -1,0 +1,176 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r46 - in sleep: . docs src/sleep/bridges src/sleep/runtime tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2005-July/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r46%20-%20in%20sleep%3A%20.%20docs%20src/sleep/bridges%20src/sleep/runtime%20tests%20tests/output&In-Reply-To=%3C200507181317.j6IDHX0C031723%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000027.html">
+   
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r46 - in sleep: . docs src/sleep/bridges src/sleep/runtime tests tests/output</H1>
+    <B>Raphael Mudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r46%20-%20in%20sleep%3A%20.%20docs%20src/sleep/bridges%20src/sleep/runtime%20tests%20tests/output&In-Reply-To=%3C200507181317.j6IDHX0C031723%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r46 - in sleep: . docs src/sleep/bridges src/sleep/runtime tests tests/output">rsmudge at berlios.de
+       </A><BR>
+    <I>Mon Jul 18 15:17:33 CEST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000027.html">[Sleep-svn] r45 - in sleep: . docs src/sleep/bridges src/sleep/engine tests/output
+</A></li>
+        
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#28">[ date ]</a>
+              <a href="thread.html#28">[ thread ]</a>
+              <a href="subject.html#28">[ subject ]</a>
+              <a href="author.html#28">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2005-07-18 15:17:15 +0200 (Mon, 18 Jul 2005)
+New Revision: 46
+
+Added:
+   sleep/tests/ftest.sl
+   sleep/tests/output/ftest.sl
+Modified:
+   sleep/docs/sleepguide.pdf
+   sleep/docs/sleeplang.pdf
+   sleep/src/sleep/bridges/BasicIO.java
+   sleep/src/sleep/runtime/SleepUtils.java
+   sleep/whatsnew.txt
+Log:
+Sleep 2.0
+
+
+Modified: sleep/docs/sleepguide.pdf
+===================================================================
+(Binary files differ)
+
+Modified: sleep/docs/sleeplang.pdf
+===================================================================
+(Binary files differ)
+
+Modified: sleep/src/sleep/bridges/BasicIO.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicIO.java	2005-07-18 08:07:37 UTC (rev 45)
++++ sleep/src/sleep/bridges/BasicIO.java	2005-07-18 13:17:15 UTC (rev 46)
+@@ -146,6 +146,14 @@
+           ScriptInstance child = i.fork();
+           child.installBlock(param.getRunnableCode());
+ 
++          ScriptVariables vars = child.getScriptVariables();
++
++          while (!l.isEmpty())
++          {
++             KeyValuePair kvp = BridgeUtilities.getKeyValuePair(l);
++             vars.putScalar(kvp.getKey().toString(), kvp.getValue());
++          }
++
+           // create a pipe between these two items...
+           IOObject parent_io = new IOObject();
+           IOObject child_io  = new IOObject();
+
+Modified: sleep/src/sleep/runtime/SleepUtils.java
+===================================================================
+--- sleep/src/sleep/runtime/SleepUtils.java	2005-07-18 08:07:37 UTC (rev 45)
++++ sleep/src/sleep/runtime/SleepUtils.java	2005-07-18 13:17:15 UTC (rev 46)
+@@ -49,10 +49,10 @@
+ public class SleepUtils
+ {
+    /** A date stamp of this Sleep release in YYYYMMDD format */
+-   public static final int    SLEEP_RELEASE = 20050718;
++   public static final int    SLEEP_RELEASE = 20050720;
+ 
+    /** A string description of this Sleep release */
+-   public static final String SLEEP_VERSION = &quot;Sleep 2.0-stable&quot;;
++   public static final String SLEEP_VERSION = &quot;Sleep 2.0&quot;;
+ 
+    /** registers &quot;keyword&quot; as a keyword with the parser.  This is a necessity if you have extra non standard
+      bridges in sleep */
+
+Added: sleep/tests/ftest.sl
+===================================================================
+--- sleep/tests/ftest.sl	2005-07-18 08:07:37 UTC (rev 45)
++++ sleep/tests/ftest.sl	2005-07-18 13:17:15 UTC (rev 46)
+@@ -0,0 +1,23 @@
++#
++# simple fork test..
++#
++
++$closure = {
++   $value = 0L;
++   for ($x = 0; $x &lt; $initial; $x++)
++   {
++      $value = $value + long($x);
++   }
++
++   return $value;
++};
++
++$handle1 = fork($closure, $initial =&gt; 12348);
++$handle2 = fork($closure, $initial =&gt; 9000);
++$handle3 = fork($closure, $initial =&gt; 12345);
++$handle4 = fork($closure, $initial =&gt; 47857);
++
++println(&quot;Value 1 is: &quot; . wait($handle1));
++println(&quot;Value 2 is: &quot; . wait($handle2));
++println(&quot;Value 3 is: &quot; . wait($handle3));
++println(&quot;Value 4 is: &quot; . wait($handle4));
+
+Added: sleep/tests/output/ftest.sl
+===================================================================
+--- sleep/tests/output/ftest.sl	2005-07-18 08:07:37 UTC (rev 45)
++++ sleep/tests/output/ftest.sl	2005-07-18 13:17:15 UTC (rev 46)
+@@ -0,0 +1,4 @@
++Value 1 is: 76230378
++Value 2 is: 40495500
++Value 3 is: 76193340
++Value 4 is: 1145122296
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2005-07-18 08:07:37 UTC (rev 45)
++++ sleep/whatsnew.txt	2005-07-18 13:17:15 UTC (rev 46)
+@@ -24,6 +24,9 @@
+ - &amp;sort now throws an IllegalArgumentException if not enough args
+   are specified (I've been bitten by accidentally using &amp;sort when
+   I really wanted &amp;sorta and friends...)
++- added the ability for fork(&amp;closure, ...) to take an initial set
++  of values to pass to the forked script environment.  this feature
++  comes with a heavy warning, see the docs for more details
+ 
+ 2.0-b11
+ =======
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000027.html">[Sleep-svn] r45 - in sleep: . docs src/sleep/bridges src/sleep/engine tests/output
+</A></li>
+	
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#28">[ date ]</a>
+              <a href="thread.html#28">[ thread ]</a>
+              <a href="subject.html#28">[ subject ]</a>
+              <a href="author.html#28">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

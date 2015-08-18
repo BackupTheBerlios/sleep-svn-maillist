@@ -1,0 +1,92 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r180 - in sleep/tests: . output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2006-November/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r180%20-%20in%20sleep/tests%3A%20.%20output&In-Reply-To=%3C200611210214.kAL2EU5F000998%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000161.html">
+   <LINK REL="Next"  HREF="000163.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r180 - in sleep/tests: . output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r180%20-%20in%20sleep/tests%3A%20.%20output&In-Reply-To=%3C200611210214.kAL2EU5F000998%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r180 - in sleep/tests: . output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Tue Nov 21 03:14:30 CET 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000161.html">[Sleep-svn] r179 - in sleep: . src/sleep/engine	src/sleep/engine/atoms src/sleep/parser tests tests/output
+</A></li>
+        <LI>Next message: <A HREF="000163.html">[Sleep-svn] r181 - in sleep/tests: . output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#162">[ date ]</a>
+              <a href="thread.html#162">[ thread ]</a>
+              <a href="subject.html#162">[ subject ]</a>
+              <a href="author.html#162">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2006-11-21 03:14:29 +0100 (Tue, 21 Nov 2006)
+New Revision: 180
+
+Added:
+   sleep/tests/bareword.sl
+   sleep/tests/output/bareword.sl
+Log:
+one unit test I forgot... oops
+
+
+
+Added: sleep/tests/bareword.sl
+===================================================================
+--- sleep/tests/bareword.sl	2006-11-21 02:12:26 UTC (rev 179)
++++ sleep/tests/bareword.sl	2006-11-21 02:14:29 UTC (rev 180)
+@@ -0,0 +1,5 @@
++#
++# show that barewords are caught now!
++#
++
++println(&quot;this is a test: &quot; . iff($x == blah, 11, 22));
+
+Added: sleep/tests/output/bareword.sl
+===================================================================
+--- sleep/tests/output/bareword.sl	2006-11-21 02:12:26 UTC (rev 179)
++++ sleep/tests/output/bareword.sl	2006-11-21 02:14:29 UTC (rev 180)
+@@ -0,0 +1,2 @@
++Error: Unknown expression at line 5
++       blah 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000161.html">[Sleep-svn] r179 - in sleep: . src/sleep/engine	src/sleep/engine/atoms src/sleep/parser tests tests/output
+</A></li>
+	<LI>Next message: <A HREF="000163.html">[Sleep-svn] r181 - in sleep/tests: . output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#162">[ date ]</a>
+              <a href="thread.html#162">[ thread ]</a>
+              <a href="subject.html#162">[ subject ]</a>
+              <a href="author.html#162">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

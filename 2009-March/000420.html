@@ -1,0 +1,211 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r442 - in sleep: . src/sleep/bridges src/sleep/runtime	tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2009-March/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r442%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20src/sleep/runtime%0A%09tests%20tests/output&In-Reply-To=%3C200903201451.n2KEpimU023532%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   
+   <LINK REL="Next"  HREF="000421.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r442 - in sleep: . src/sleep/bridges src/sleep/runtime	tests tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r442%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20src/sleep/runtime%0A%09tests%20tests/output&In-Reply-To=%3C200903201451.n2KEpimU023532%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r442 - in sleep: . src/sleep/bridges src/sleep/runtime	tests tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Fri Mar 20 15:51:44 CET 2009</I>
+    <P><UL>
+        
+        <LI>Next message: <A HREF="000421.html">[Sleep-svn] r443 - in sleep: . src/sleep/bridges
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#420">[ date ]</a>
+              <a href="thread.html#420">[ thread ]</a>
+              <a href="subject.html#420">[ subject ]</a>
+              <a href="author.html#420">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2009-03-20 15:51:43 +0100 (Fri, 20 Mar 2009)
+New Revision: 442
+
+Added:
+   sleep/tests/forksubs.sl
+   sleep/tests/output/forksubs.sl
+Modified:
+   sleep/build.xml
+   sleep/src/sleep/bridges/Semaphore.java
+   sleep/src/sleep/runtime/ScriptInstance.java
+   sleep/tests/output/fork.sl
+   sleep/whatsnew.txt
+Log:
+a few changes, fun for the whole family.
+
+
+
+Modified: sleep/build.xml
+===================================================================
+--- sleep/build.xml	2008-09-25 22:36:28 UTC (rev 441)
++++ sleep/build.xml	2009-03-20 14:51:43 UTC (rev 442)
+@@ -16,7 +16,7 @@
+            destdir=&quot;${project.build}&quot;
+            nowarn=&quot;yes&quot;
+            depend=&quot;yes&quot;
+-           debug=&quot;false&quot;
++           debug=&quot;true&quot;
+            source=&quot;1.4&quot;
+            target=&quot;1.4&quot;
+            optimize=&quot;yes&quot;
+
+Modified: sleep/src/sleep/bridges/Semaphore.java
+===================================================================
+--- sleep/src/sleep/bridges/Semaphore.java	2008-09-25 22:36:28 UTC (rev 441)
++++ sleep/src/sleep/bridges/Semaphore.java	2009-03-20 14:51:43 UTC (rev 442)
+@@ -29,7 +29,7 @@
+          catch (InterruptedException ex)
+          { 
+             ex.printStackTrace();
+-            notify();
++            notifyAll();
+          }
+       }
+    }
+@@ -46,7 +46,7 @@
+       synchronized (this)
+       {
+          count++;
+-         notify();
++         notifyAll();
+       }
+    }
+ 
+
+Modified: sleep/src/sleep/runtime/ScriptInstance.java
+===================================================================
+--- sleep/src/sleep/runtime/ScriptInstance.java	2008-09-25 22:36:28 UTC (rev 441)
++++ sleep/src/sleep/runtime/ScriptInstance.java	2009-03-20 14:51:43 UTC (rev 442)
+@@ -436,7 +436,28 @@
+         The idea is to create a fork that shares the same environment as this script instance. */
+     public ScriptInstance fork()
+     {
+-        ScriptInstance si = new ScriptInstance(variables.getGlobalVariables().createInternalVariableContainer(), environment.getEnvironment());
++        Hashtable oldEnv = environment.getEnvironment();
++        Hashtable newEnv = new Hashtable(  (oldEnv.size() * 2) - 1  );
++
++        ScriptInstance si = new ScriptInstance(variables.getGlobalVariables().createInternalVariableContainer(), newEnv);
++
++        /* reset the environment please */
++        Iterator i = oldEnv.entrySet().iterator();
++        while (i.hasNext())
++        {
++            Map.Entry temp = (Map.Entry)i.next();
++            if (temp.getKey().toString().charAt(0) == '&amp;' &amp;&amp; temp.getValue() instanceof SleepClosure)
++            {
++               SleepClosure closure = new SleepClosure(si, ((SleepClosure)temp.getValue()).getRunnableCode());
++               newEnv.put(temp.getKey(), closure);
++            }
++            else
++            { 
++               newEnv.put(temp.getKey(), temp.getValue());
++            }
++        }
++
++        /* set the other cool stuff pls */
+         si.setName(getName());
+         si.setDebugFlags(getDebugFlags());
+         si.watchers = watchers;
+
+Added: sleep/tests/forksubs.sl
+===================================================================
+--- sleep/tests/forksubs.sl	2008-09-25 22:36:28 UTC (rev 441)
++++ sleep/tests/forksubs.sl	2009-03-20 14:51:43 UTC (rev 442)
+@@ -0,0 +1,17 @@
++#
++# test out how fork relates to subroutines
++# 
++
++sub foo
++{
++   println(&quot;Hello World: $this&quot;);
++}
++
++sub bar
++{
++   assert &amp;foo !is $closure : &quot;looks like we're copying closures over, bad news!&quot;;
++   foo();
++   [$closure];
++}
++
++wait(fork(&amp;bar, $closure =&gt; &amp;foo));
+
+Modified: sleep/tests/output/fork.sl
+===================================================================
+--- sleep/tests/output/fork.sl	2008-09-25 22:36:28 UTC (rev 441)
++++ sleep/tests/output/fork.sl	2009-03-20 14:51:43 UTC (rev 442)
+@@ -2,5 +2,5 @@
+ From fork_me: this is a global variable in the closure script
+ Main script: this is a global variable in the main script
+ Main script: 4
+-Forked: 5
+-Main script: 6
++Forked: 1
++Main script: 5
+
+Added: sleep/tests/output/forksubs.sl
+===================================================================
+--- sleep/tests/output/forksubs.sl	2008-09-25 22:36:28 UTC (rev 441)
++++ sleep/tests/output/forksubs.sl	2009-03-20 14:51:43 UTC (rev 442)
+@@ -0,0 +1,2 @@
++Hello World: &amp;closure[forksubs.sl:7]#3
++Hello World: &amp;closure[forksubs.sl:7]#1
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2008-09-25 22:36:28 UTC (rev 441)
++++ sleep/whatsnew.txt	2009-03-20 14:51:43 UTC (rev 442)
+@@ -1,3 +1,12 @@
++2.1-release (5 Nov 08)   [update 4]
++===========
++- Sleep semaphores use notifyAll() instead of notify() to wake up threads.
++  Was experiencing deadlock on a multicore box due to the single woken 
++  thread waiting on something else and no other threads being awoken.
++- fork() now copies script environment from parent env and creates fresh 
++  copies of all named closures.  This prevents unsynchronized saved state and
++  closure scope variables from leaking into the forked environment.  
++
+ 2.1-release (25 Sept 08) [update 3]
+ ===========
+ - fixed a problem with setField not accessing fields declared in a parent
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	
+	<LI>Next message: <A HREF="000421.html">[Sleep-svn] r443 - in sleep: . src/sleep/bridges
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#420">[ date ]</a>
+              <a href="thread.html#420">[ thread ]</a>
+              <a href="subject.html#420">[ subject ]</a>
+              <a href="author.html#420">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,5419 @@
+From rsmudge at mail.berlios.de  Sun Jun 10 06:59:38 2007
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Sun, 10 Jun 2007 06:59:38 +0200
+Subject: [Sleep-svn] r253 - in sleep: . src/sleep/bridges tests/output
+Message-ID: <200706100459.l5A4xcpi015085@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2007-06-10 06:59:37 +0200 (Sun, 10 Jun 2007)
+New Revision: 253
+
+Modified:
+   sleep/build.xml
+   sleep/src/sleep/bridges/BridgeUtilities.java
+   sleep/tests/output/convertds3.sl
+   sleep/tests/output/forker.sl
+   sleep/tests/output/trace.sl
+   sleep/tests/output/wrong.sl
+   sleep/whatsnew.txt
+Log:
+cleaned up extraction of key/value pairs from arg stack
+
+
+
+Modified: sleep/build.xml
+===================================================================
+--- sleep/build.xml	2007-04-26 00:14:09 UTC (rev 252)
++++ sleep/build.xml	2007-06-10 04:59:37 UTC (rev 253)
+@@ -16,7 +16,7 @@
+            destdir="${project.build}"
+            nowarn="yes"
+            depend="yes"
+-           debug="false"
++           debug="true"
+            source="1.4"
+            target="1.4"
+            optimize="yes"
+
+Modified: sleep/src/sleep/bridges/BridgeUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BridgeUtilities.java	2007-04-26 00:14:09 UTC (rev 252)
++++ sleep/src/sleep/bridges/BridgeUtilities.java	2007-06-10 04:59:37 UTC (rev 253)
+@@ -161,7 +161,7 @@
+ 
+       Scalar temp = (Scalar)arguments.pop();
+ 
+-      if (temp.getArray().getClass() == roarray)
++      if (temp.getArray().getClass() == sleep.runtime.CollectionWrapper.class)
+       {
+          ScalarArray array = SleepUtils.getArrayScalar().getArray();
+          Iterator i = temp.getArray().scalarIterator();
+@@ -236,19 +236,6 @@
+       return new File(temp);
+    }
+  
+-   private static Class kvpair;
+-   private static Class roarray;
+-
+-   static
+-   { 
+-      try
+-      {
+-         kvpair  = Class.forName("sleep.bridges.KeyValuePair");
+-         roarray = Class.forName("sleep.runtime.CollectionWrapper");
+-      }
+-      catch (Exception ex) { }
+-   }
+-
+    /** Pops a Key/Value pair object off of the argument stack.  A Key/Value pair is created using
+        the => operator within Sleep scripts.  If the top argument on this stack was not created using
+        =>, this function will try to parse a key/value pair using the pattern: [key]=[value] */
+@@ -256,25 +243,29 @@
+    {
+       Scalar temps = getScalar(arguments);
+ 
+-      if (temps.objectValue() != null && temps.objectValue().getClass() == kvpair)
++      if (temps.objectValue() != null && temps.objectValue().getClass() == sleep.bridges.KeyValuePair.class)
+          return (KeyValuePair)temps.objectValue();
+ 
+-      Scalar key, value;
++      if (temps.getActualValue() != null)
++      {
++         Scalar key, value;
++         String temp = temps.getActualValue().toString();
+ 
+-      String temp = temps.toString();
++         if (temp.indexOf('=') > -1)
++         {
++            key   = SleepUtils.getScalar(temp.substring(0, temp.indexOf('=')));
++            value = SleepUtils.getScalar(  temp.substring( temp.indexOf('=') + 1, temp.length() ) );
++         }
++         else
++         {
++            key   = SleepUtils.getScalar(temp);
++            value = SleepUtils.getEmptyScalar();
++         }
+ 
+-      if (temp.indexOf('=') > -1)
+-      {
+-         key   = SleepUtils.getScalar(temp.substring(0, temp.indexOf('=')));
+-         value = SleepUtils.getScalar(  temp.substring( temp.indexOf('=') + 1, temp.length() ) );
++         return new KeyValuePair(key, value);
+       }
+-      else
+-      {
+-         key   = SleepUtils.getScalar(temp);
+-         value = SleepUtils.getEmptyScalar();
+-      }
+ 
+-      return new KeyValuePair(key, value);
++      throw new IllegalArgumentException("attempted to pass a malformed key value pair: " + temps);
+    }
+ 
+    /** Flattens the specified scalar array.  The <var>toValue</var> field can be null. */
+
+Modified: sleep/tests/output/convertds3.sl
+===================================================================
+--- sleep/tests/output/convertds3.sl	2007-04-26 00:14:09 UTC (rev 252)
++++ sleep/tests/output/convertds3.sl	2007-06-10 04:59:37 UTC (rev 253)
+@@ -32,9 +32,9 @@
+ int[] a
+ Collection a
+ Collection a
+-Warning: there is no method that matches mar([Z at b51c29) in sleep.ArrayTest1 at convertds3.sl:36
+-Warning: there is no method that matches mar([F at 4bf53e) in sleep.ArrayTest1 at convertds3.sl:37
+-Warning: there is no method that matches mar([Ljava.lang.Object;@d1e7c2) in sleep.ArrayTest1 at convertds3.sl:38
++Warning: there is no method that matches mar([Z at 39c8c1) in sleep.ArrayTest1 at convertds3.sl:36
++Warning: there is no method that matches mar([F at ab2b55) in sleep.ArrayTest1 at convertds3.sl:37
++Warning: there is no method that matches mar([Ljava.lang.Object;@aa0877) in sleep.ArrayTest1 at convertds3.sl:38
+ int[] a
+ Collection a
+ Collection a
+
+Modified: sleep/tests/output/forker.sl
+===================================================================
+--- sleep/tests/output/forker.sl	2007-04-26 00:14:09 UTC (rev 252)
++++ sleep/tests/output/forker.sl	2007-06-10 04:59:37 UTC (rev 253)
+@@ -1,4 +1,4 @@
+ Trace: &check('within fork') at forker.sl:9
+-Trace: &fork(&closure[forker.sl:9]#2) = sleep.bridges.io.IOObject at c2ee15 at forker.sl:8
++Trace: &fork(&closure[forker.sl:9]#2) = sleep.bridges.io.IOObject at bf053f at forker.sl:8
+ Trace: &sleep(1000) at forker.sl:12
+ Trace: &check('outside of fork') at forker.sl:14
+
+Modified: sleep/tests/output/trace.sl
+===================================================================
+--- sleep/tests/output/trace.sl	2007-04-26 00:14:09 UTC (rev 252)
++++ sleep/tests/output/trace.sl	2007-06-10 04:59:37 UTC (rev 253)
+@@ -1,13 +1,13 @@
+ this is a test
+-Trace: [java.io.PrintStream at f1916f println: 'this is a test'] at trace.sl:6
++Trace: [java.io.PrintStream at 648016 println: 'this is a test'] at trace.sl:6
+ Trace: [java.lang.Math pow: 3, 4] = 81.0 at trace.sl:7
+ 81.0
+-Trace: [java.io.PrintStream at f1916f println: 81.0] at trace.sl:7
++Trace: [java.io.PrintStream at 648016 println: 81.0] at trace.sl:7
+ Trace: [java.lang.Math pow: 3, 5] = 243.0 at trace.sl:8
+ 243.0
+ Trace: &println(243.0) at trace.sl:8
+ testing again...
+-Trace: [java.io.PrintStream at f1916f println: 'testing again...'] at trace.sl:10
++Trace: [java.io.PrintStream at 648016 println: 'testing again...'] at trace.sl:10
+ Trace: [sleep.runtime.SleepUtils getListFromArray: @('a', 'b', 'c')] = [a, b, c] at trace.sl:12
+ Trace: [new java.util.LinkedList: [a, b, c]] = [a, b, c] at trace.sl:12
+ Warning: variable '$list' not declared at trace.sl:12
+
+Modified: sleep/tests/output/wrong.sl
+===================================================================
+--- sleep/tests/output/wrong.sl	2007-04-26 00:14:09 UTC (rev 252)
++++ sleep/tests/output/wrong.sl	2007-06-10 04:59:37 UTC (rev 253)
+@@ -1,32 +1,32 @@
+ Trace: [java.lang.Math pow: 3, 4] = 81.0 at wrong.sl:6
+ 81.0
+-Trace: [java.io.PrintStream at caf6c1 println: 81.0] at wrong.sl:6
++Trace: [java.io.PrintStream at fe571f println: 81.0] at wrong.sl:6
+ Trace: &casti(1, 'z') = true at wrong.sl:9
+ true
+-Trace: [java.io.PrintStream at caf6c1 println: true] at wrong.sl:9
++Trace: [java.io.PrintStream at fe571f println: true] at wrong.sl:9
+ Trace: &casti(0, 'z') = false at wrong.sl:10
+ false
+-Trace: [java.io.PrintStream at caf6c1 println: false] at wrong.sl:10
++Trace: [java.io.PrintStream at fe571f println: false] at wrong.sl:10
+ Trace: &casti(1, 'd') = 1.0 at wrong.sl:13
+ 1.0
+-Trace: [java.io.PrintStream at caf6c1 println: 1.0] at wrong.sl:13
++Trace: [java.io.PrintStream at fe571f println: 1.0] at wrong.sl:13
+ Trace: &casti(1, 'b') = 1 at wrong.sl:16
+ 1
+-Trace: [java.io.PrintStream at caf6c1 println: 1] at wrong.sl:16
++Trace: [java.io.PrintStream at fe571f println: 1] at wrong.sl:16
+ Trace: &casti(100, 'f') = 100.0 at wrong.sl:19
+ 100.0
+-Trace: [java.io.PrintStream at caf6c1 println: 100.0] at wrong.sl:19
++Trace: [java.io.PrintStream at fe571f println: 100.0] at wrong.sl:19
+ Trace: &casti('b', 'c') = b at wrong.sl:22
+ b
+-Trace: [java.io.PrintStream at caf6c1 println: b] at wrong.sl:22
++Trace: [java.io.PrintStream at fe571f println: b] at wrong.sl:22
+ Trace: &casti(63, 'i') = 63 at wrong.sl:25
+ 63
+-Trace: [java.io.PrintStream at caf6c1 println: 63] at wrong.sl:25
++Trace: [java.io.PrintStream at fe571f println: 63] at wrong.sl:25
+ this is a string y0
+-Trace: [java.io.PrintStream at caf6c1 println: 'this is a string y0'] at wrong.sl:28
++Trace: [java.io.PrintStream at fe571f println: 'this is a string y0'] at wrong.sl:28
+ Trace: [new java.lang.StringBuilder: 'test'] = test at wrong.sl:31
+ test
+-Trace: [java.io.PrintStream at caf6c1 println: test] at wrong.sl:31
+-Trace: &cast(@('a', 'b', 'c', 'd'), 'c') = [C at 29c58e at wrong.sl:34
++Trace: [java.io.PrintStream at fe571f println: test] at wrong.sl:31
++Trace: &cast(@('a', 'b', 'c', 'd'), 'c') = [C at e35d5 at wrong.sl:34
+ abcd
+-Trace: [java.io.PrintStream at caf6c1 println: [C at 29c58e] at wrong.sl:34
++Trace: [java.io.PrintStream at fe571f println: [C at e35d5] at wrong.sl:34
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2007-04-26 00:14:09 UTC (rev 252)
++++ sleep/whatsnew.txt	2007-06-10 04:59:37 UTC (rev 253)
+@@ -1,3 +1,6 @@
++2.1-beta 16
++===========
++
+ 2.1-beta 15  (25 Apr 07)
+ ===========
+ - fixed a potential problem that could arise when one attempts to 
+
+
+
+From rsmudge at mail.berlios.de  Sun Jun 10 22:58:21 2007
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Sun, 10 Jun 2007 22:58:21 +0200
+Subject: [Sleep-svn] r254 - in sleep: . src/sleep/bridges tests tests/output
+Message-ID: <200706102058.l5AKwLhg015289@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2007-06-10 22:58:20 +0200 (Sun, 10 Jun 2007)
+New Revision: 254
+
+Added:
+   sleep/tests/hash4.sl
+   sleep/tests/output/hash4.sl
+Modified:
+   sleep/src/sleep/bridges/BridgeUtilities.java
+   sleep/tests/hash2.sl
+   sleep/whatsnew.txt
+Log:
+..
+
+
+Modified: sleep/src/sleep/bridges/BridgeUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BridgeUtilities.java	2007-06-10 04:59:37 UTC (rev 253)
++++ sleep/src/sleep/bridges/BridgeUtilities.java	2007-06-10 20:58:20 UTC (rev 254)
+@@ -255,14 +255,13 @@
+          {
+             key   = SleepUtils.getScalar(temp.substring(0, temp.indexOf('=')));
+             value = SleepUtils.getScalar(  temp.substring( temp.indexOf('=') + 1, temp.length() ) );
++            return new KeyValuePair(key, value);
+          }
+-         else
++/*         else
+          {
+             key   = SleepUtils.getScalar(temp);
+             value = SleepUtils.getEmptyScalar();
+-         }
+-
+-         return new KeyValuePair(key, value);
++         } */
+       }
+ 
+       throw new IllegalArgumentException("attempted to pass a malformed key value pair: " + temps);
+
+Modified: sleep/tests/hash2.sl
+===================================================================
+--- sleep/tests/hash2.sl	2007-06-10 04:59:37 UTC (rev 253)
++++ sleep/tests/hash2.sl	2007-06-10 20:58:20 UTC (rev 254)
+@@ -4,7 +4,8 @@
+ 
+ println("Pre Removal:");
+ 
+-%hash = hash("key=hello world!@", "blah=bleh", "user=password", "skanks", "testing", "", "zing=1+2=3 or 4");
++#%hash = hash("key=hello world!@", "blah=bleh", "user=password", "skanks", "testing", "", "zing=1+2=3 or 4");
++%hash = hash("key=hello world!@", "blah=bleh", "user=password", "zing=1+2=3 or 4");
+ 
+ remove(%hash, "user");
+ 
+
+Added: sleep/tests/hash4.sl
+===================================================================
+--- sleep/tests/hash4.sl	2007-06-10 04:59:37 UTC (rev 253)
++++ sleep/tests/hash4.sl	2007-06-10 20:58:20 UTC (rev 254)
+@@ -0,0 +1,32 @@
++#
++# Test of clearing hashes and arrays and removing elements from hashes/arrays
++#
++
++println("Pre Removal:");
++
++try
++{
++   %hash = hash(@array);
++}
++catch $ex
++{
++
++}
++
++%hash = hash("key=hello world!@", "blah=bleh", "user=password", "skanks", "testing", "", "zing=1+2=3 or 4");
++
++remove(%hash, "user");
++
++foreach $var (keys(%hash))
++{
++   println("   $[10]var = ".%hash[$var]);
++}
++
++println("Post Removal:");
++clear(%hash);
++
++foreach $var (keys(%hash))
++{
++   println("   $[10]var = ".%hash[$var]);
++}
++
+
+Added: sleep/tests/output/hash4.sl
+===================================================================
+--- sleep/tests/output/hash4.sl	2007-06-10 04:59:37 UTC (rev 253)
++++ sleep/tests/output/hash4.sl	2007-06-10 20:58:20 UTC (rev 254)
+@@ -0,0 +1,3 @@
++Pre Removal:
++Warning: attempted to pass a malformed key value pair: @() at hash4.sl:9
++Warning: attempted to pass a malformed key value pair: skanks at hash4.sl:16
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2007-06-10 04:59:37 UTC (rev 253)
++++ sleep/whatsnew.txt	2007-06-10 20:58:20 UTC (rev 254)
+@@ -1,5 +1,8 @@
+ 2.1-beta 16
+ ===========
++- passing a value that can not be used as a key/value pair when a kvp 
++  is expected now results in an error message.   valid kvp's include:
++  expressions of (key => value) and strings with the form "key=value"
+ 
+ 2.1-beta 15  (25 Apr 07)
+ ===========
+
+
+
+From rsmudge at mail.berlios.de  Sun Jun 10 23:03:08 2007
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Sun, 10 Jun 2007 23:03:08 +0200
+Subject: [Sleep-svn] r255 - in sleep: . src/sleep/runtime
+Message-ID: <200706102103.l5AL38ka015569@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2007-06-10 23:03:07 +0200 (Sun, 10 Jun 2007)
+New Revision: 255
+
+Modified:
+   sleep/src/sleep/runtime/SleepUtils.java
+   sleep/whatsnew.txt
+Log:
+..
+
+
+Modified: sleep/src/sleep/runtime/SleepUtils.java
+===================================================================
+--- sleep/src/sleep/runtime/SleepUtils.java	2007-06-10 20:58:20 UTC (rev 254)
++++ sleep/src/sleep/runtime/SleepUtils.java	2007-06-10 21:03:07 UTC (rev 255)
+@@ -306,11 +306,18 @@
+        streams can each be null if necessary. */ 
+    public static Scalar getIOHandleScalar(InputStream in, OutputStream out)
+    {
++      return SleepUtils.getScalar(getIOHandle(in, out));
++   }
++
++   /** creates an IO handle scalar suitable for use with the sleep IO API.  The passed in
++       streams can each be null if necessary. */ 
++   public static sleep.bridges.io.IOObject getIOHandle(InputStream in, OutputStream out)
++   {
+       sleep.bridges.io.IOObject handle = new sleep.bridges.io.IOObject();
+       handle.openRead(in);
+       handle.openWrite(out);
+ 
+-      return SleepUtils.getScalar(handle);
++      return handle;
+    }
+ 
+    /** Creates a proxy instance of the specified class (limited to interfaces at this time) that is backed with the specified closure */
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2007-06-10 20:58:20 UTC (rev 254)
++++ sleep/whatsnew.txt	2007-06-10 21:03:07 UTC (rev 255)
+@@ -3,6 +3,7 @@
+ - passing a value that can not be used as a key/value pair when a kvp 
+   is expected now results in an error message.   valid kvp's include:
+   expressions of (key => value) and strings with the form "key=value"
++- added getIOHandle(InputStream, OutputStream) to SleepUtilities class
+ 
+ 2.1-beta 15  (25 Apr 07)
+ ===========
+
+
+
+From rsmudge at mail.berlios.de  Sun Jun 10 23:10:48 2007
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Sun, 10 Jun 2007 23:10:48 +0200
+Subject: [Sleep-svn] r256 - in sleep: . src/sleep/bridges tests tests/output
+Message-ID: <200706102110.l5ALAmtP016065@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2007-06-10 23:10:47 +0200 (Sun, 10 Jun 2007)
+New Revision: 256
+
+Added:
+   sleep/tests/keywrds.sl
+   sleep/tests/output/keywrds.sl
+Modified:
+   sleep/src/sleep/bridges/BasicStrings.java
+   sleep/whatsnew.txt
+Log:
+added cmp as a keyword.
+
+
+Modified: sleep/src/sleep/bridges/BasicStrings.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicStrings.java	2007-06-10 21:03:07 UTC (rev 255)
++++ sleep/src/sleep/bridges/BasicStrings.java	2007-06-10 21:10:47 UTC (rev 256)
+@@ -44,6 +44,7 @@
+         ParserConfig.addKeyword("gt");
+         ParserConfig.addKeyword("isin");
+         ParserConfig.addKeyword("iswm");
++        ParserConfig.addKeyword("cmp");
+     }
+ 
+     public boolean scriptUnloaded(ScriptInstance aScript)
+
+Added: sleep/tests/keywrds.sl
+===================================================================
+--- sleep/tests/keywrds.sl	2007-06-10 21:03:07 UTC (rev 255)
++++ sleep/tests/keywrds.sl	2007-06-10 21:10:47 UTC (rev 256)
+@@ -0,0 +1,7 @@
++$x = ("a") cmp ("b");
++$y = (1 + 2) <=> (3 + 4);
++assert($x != $null);
++
++println($x);
++println($y);
++
+
+Added: sleep/tests/output/keywrds.sl
+===================================================================
+--- sleep/tests/output/keywrds.sl	2007-06-10 21:03:07 UTC (rev 255)
++++ sleep/tests/output/keywrds.sl	2007-06-10 21:10:47 UTC (rev 256)
+@@ -0,0 +1,2 @@
++-1
++-4.0
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2007-06-10 21:03:07 UTC (rev 255)
++++ sleep/whatsnew.txt	2007-06-10 21:10:47 UTC (rev 256)
+@@ -4,6 +4,7 @@
+   is expected now results in an error message.   valid kvp's include:
+   expressions of (key => value) and strings with the form "key=value"
+ - added getIOHandle(InputStream, OutputStream) to SleepUtilities class
++- registered cmp operator to prevent parser confusing it with a function
+ 
+ 2.1-beta 15  (25 Apr 07)
+ ===========
+
+
+
+From rsmudge at mail.berlios.de  Sun Jun 10 23:47:37 2007
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Sun, 10 Jun 2007 23:47:37 +0200
+Subject: [Sleep-svn] r257 - in sleep: . src/sleep/bridges tests tests/output
+Message-ID: <200706102147.l5ALlbwH019065@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2007-06-10 23:47:37 +0200 (Sun, 10 Jun 2007)
+New Revision: 257
+
+Added:
+   sleep/tests/closurekvp.sl
+   sleep/tests/output/closurekvp.sl
+Modified:
+   sleep/build.xml
+   sleep/src/sleep/bridges/SleepClosure.java
+   sleep/whatsnew.txt
+Log:
+hashes/arrays can now be used as named arguments to closures
+
+
+Modified: sleep/build.xml
+===================================================================
+--- sleep/build.xml	2007-06-10 21:10:47 UTC (rev 256)
++++ sleep/build.xml	2007-06-10 21:47:37 UTC (rev 257)
+@@ -43,6 +43,8 @@
+            <include name="sleep/interfaces/*.java" />
+            <include name="sleep/parser/ParserConfig.java" />
+            <include name="sleep/runtime/*.java" />
++           <include name="sleep/engine/ProxyInterface.java" />
++           <exclude name="sleep/runtime/WatchScalar.java" />
+            <exclude name="sleep/runtime/CollectionWrapper.java" />
+            <exclude name="sleep/runtime/MapWrapper.java" />
+         </fileset>
+
+Modified: sleep/src/sleep/bridges/SleepClosure.java
+===================================================================
+--- sleep/src/sleep/bridges/SleepClosure.java	2007-06-10 21:10:47 UTC (rev 256)
++++ sleep/src/sleep/bridges/SleepClosure.java	2007-06-10 21:47:37 UTC (rev 257)
+@@ -228,7 +228,7 @@
+              {
+                 KeyValuePair kvp = (KeyValuePair)lvar.getValue().objectValue();
+ 
+-                if (kvp.getKey().toString().charAt(0) != '$')
++                if (!sleep.parser.Checkers.isVariable(kvp.getKey().toString()))
+                 {
+                    throw new IllegalArgumentException("unreachable named parameter: " + kvp.getKey());
+                 }
+
+Added: sleep/tests/closurekvp.sl
+===================================================================
+--- sleep/tests/closurekvp.sl	2007-06-10 21:10:47 UTC (rev 256)
++++ sleep/tests/closurekvp.sl	2007-06-10 21:47:37 UTC (rev 257)
+@@ -0,0 +1,19 @@
++#
++# ensure hashes/arrays can be passed as named parameters...
++#
++
++debug(7);
++
++sub foo
++{
++   local('$var');
++
++   foreach $var (@keys)
++   {
++      println("Cool: $var = " . %data[$var]);
++   }
++}
++
++global('%d');
++%d = %(a => "ardvark", c => "cat", b => "b4d a$$", p => "pHEAR", e => 'eAR');
++foo(@keys => sorta(keys(%d)), %data => %d);
+
+Added: sleep/tests/output/closurekvp.sl
+===================================================================
+--- sleep/tests/output/closurekvp.sl	2007-06-10 21:10:47 UTC (rev 256)
++++ sleep/tests/output/closurekvp.sl	2007-06-10 21:47:37 UTC (rev 257)
+@@ -0,0 +1,5 @@
++Cool: a = ardvark
++Cool: b = b4d a$$
++Cool: c = cat
++Cool: e = eAR
++Cool: p = pHEAR
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2007-06-10 21:10:47 UTC (rev 256)
++++ sleep/whatsnew.txt	2007-06-10 21:47:37 UTC (rev 257)
+@@ -5,6 +5,7 @@
+   expressions of (key => value) and strings with the form "key=value"
+ - added getIOHandle(InputStream, OutputStream) to SleepUtilities class
+ - registered cmp operator to prevent parser confusing it with a function
++- hashes/arrays can now be passed as named parameters to closures
+ 
+ 2.1-beta 15  (25 Apr 07)
+ ===========
+
+
+
+From rsmudge at mail.berlios.de  Mon Jun 11 00:02:12 2007
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Mon, 11 Jun 2007 00:02:12 +0200
+Subject: [Sleep-svn] r258 - in sleep: . docs src/sleep/bridges
+	src/sleep/console tests tests/output
+Message-ID: <200706102202.l5AM2CwK019975@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2007-06-11 00:02:11 +0200 (Mon, 11 Jun 2007)
+New Revision: 258
+
+Added:
+   sleep/tests/output/sizehash.sl
+   sleep/tests/sizehash.sl
+Modified:
+   sleep/docs/console.txt
+   sleep/src/sleep/bridges/BasicUtilities.java
+   sleep/src/sleep/console/ConsoleImplementation.java
+   sleep/whatsnew.txt
+Log:
+enhanced the console and made size() work with hashes
+
+
+Modified: sleep/docs/console.txt
+===================================================================
+--- sleep/docs/console.txt	2007-06-10 21:47:37 UTC (rev 257)
++++ sleep/docs/console.txt	2007-06-10 22:02:11 UTC (rev 258)
+@@ -45,9 +45,10 @@
+ interact
+    Enters the console into interactive mode.  From here full blocks of sleep
+    code can be typed in.  Once one wants to evaluate the typed in code they
+-   simply type '.' and the code will be evaluated and executed.  Any syntax
+-   errors will be reported back.  Typing 'done' or Ctrl+D will effectively
+-   stop interactive mode.
++   simply type '.' and the code will be evaluated and executed.  Subsequent 
++   uses of '.' will repeat the previous code sequence.   Any syntax errors 
++   will be reported back.  Typing 'done' or Ctrl+D will effectively stop 
++   interactive mode.
+ 
+ list
+    Lists all of the currently loaded scripts
+
+Modified: sleep/src/sleep/bridges/BasicUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicUtilities.java	2007-06-10 21:47:37 UTC (rev 257)
++++ sleep/src/sleep/bridges/BasicUtilities.java	2007-06-10 22:02:11 UTC (rev 258)
+@@ -932,6 +932,10 @@
+        {
+           return SleepUtils.getScalar(value.getArray().size());
+        }
++       else if (n.equals("&size") && value.getHash() != null) // &size(@array)
++       {
++          return SleepUtils.getScalar(value.getHash().keys().size());
++       }
+        else if (n.equals("&clear"))
+        {
+           if (value.getArray() != null)
+
+Modified: sleep/src/sleep/console/ConsoleImplementation.java
+===================================================================
+--- sleep/src/sleep/console/ConsoleImplementation.java	2007-06-10 21:47:37 UTC (rev 257)
++++ sleep/src/sleep/console/ConsoleImplementation.java	2007-06-10 22:02:11 UTC (rev 258)
+@@ -123,7 +123,8 @@
+        interact = false;
+ 
+        String input;
+-       StringBuffer code = new StringBuffer();
++       StringBuffer code   = new StringBuffer();
++       String       repeat = ""; 
+ 
+        while (true)
+        {
+@@ -140,8 +141,16 @@
+              }
+              else if (input.equals("."))
+              { 
+-                eval(code.toString(), code.toString());
+-                code = new StringBuffer();                                
++                if (code.length() == 0)
++                {
++                   eval(repeat, repeat);
++                }
++                else
++                {
++                   eval(code.toString(), code.toString());
++                   repeat = code.toString();
++                   code   = new StringBuffer();                                
++                }
+              }
+              else
+              {
+
+Added: sleep/tests/output/sizehash.sl
+===================================================================
+--- sleep/tests/output/sizehash.sl	2007-06-10 21:47:37 UTC (rev 257)
++++ sleep/tests/output/sizehash.sl	2007-06-10 22:02:11 UTC (rev 258)
+@@ -0,0 +1 @@
++Hash is: 3 elements
+
+Added: sleep/tests/sizehash.sl
+===================================================================
+--- sleep/tests/sizehash.sl	2007-06-10 21:47:37 UTC (rev 257)
++++ sleep/tests/sizehash.sl	2007-06-10 22:02:11 UTC (rev 258)
+@@ -0,0 +1,5 @@
++debug(7);
++
++global('%d');
++%d = %(a => "apple", b => "boy", c => "cat");
++println("Hash is: " . size(%d) . " elements");
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2007-06-10 21:47:37 UTC (rev 257)
++++ sleep/whatsnew.txt	2007-06-10 22:02:11 UTC (rev 258)
+@@ -6,6 +6,9 @@
+ - added getIOHandle(InputStream, OutputStream) to SleepUtilities class
+ - registered cmp operator to prevent parser confusing it with a function
+ - hashes/arrays can now be passed as named parameters to closures
++- &size now works with hashes
++- the '.' command in the console interact mode will not repeat the last
++  code sequence if no new code has been specified.
+ 
+ 2.1-beta 15  (25 Apr 07)
+ ===========
+
+
+
+From rsmudge at mail.berlios.de  Mon Jun 11 00:20:30 2007
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Mon, 11 Jun 2007 00:20:30 +0200
+Subject: [Sleep-svn] r259 - in sleep: . src/sleep/bridges tests tests/output
+Message-ID: <200706102220.l5AMKUmu021027@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2007-06-11 00:20:29 +0200 (Mon, 11 Jun 2007)
+New Revision: 259
+
+Added:
+   sleep/tests/compile_cl.sl
+   sleep/tests/output/compile_cl.sl
+Modified:
+   sleep/src/sleep/bridges/BasicUtilities.java
+   sleep/tests/output/convertds3.sl
+   sleep/tests/output/forker.sl
+   sleep/tests/output/trace.sl
+   sleep/tests/output/wrong.sl
+   sleep/whatsnew.txt
+Log:
+compile_closure now shares its implementation with let, lambda
+fixed an issue with $this sharing preventing passing of any other vars.
+
+
+
+Modified: sleep/src/sleep/bridges/BasicUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicUtilities.java	2007-06-10 22:02:11 UTC (rev 258)
++++ sleep/src/sleep/bridges/BasicUtilities.java	2007-06-10 22:20:29 UTC (rev 259)
+@@ -122,12 +122,12 @@
+ 
+         // closure / function handle type stuff
+         temp.put("&lambda",    new lambda());
++        temp.put("&compile_closure", temp.get("&lambda"));
+         temp.put("&let",    temp.get("&lambda"));
+ 
+         function funcs = new function();
+         temp.put("&function",  funcs);
+         temp.put("&setf",      funcs);
+-        temp.put("&compile_closure",    new compile_closure());
+         temp.put("&eval",     new eval());
+         temp.put("&expr",     new expr());
+ 
+@@ -498,15 +498,31 @@
+        public Scalar evaluate(String n, ScriptInstance si, Stack l)
+        {
+           SleepClosure value;
+- 
+-          SleepClosure temp = BridgeUtilities.getFunction(l, si);           
++          SleepClosure temp;
+ 
+           if (n.equals("&lambda"))
+           {
++             temp  = BridgeUtilities.getFunction(l, si);           
+              value = new SleepClosure(si, temp.getRunnableCode());
+           }
++          else if (n.equals("&compile_closure"))
++          {
++             String code  = l.pop().toString();
++
++             try 
++             {
++                 temp  = new SleepClosure(si, SleepUtils.ParseCode(code));
++                 value = temp;
++             }
++             catch (YourCodeSucksException ex)
++             {
++                si.getScriptEnvironment().flagError(ex);
++                return SleepUtils.getEmptyScalar();
++             }
++          }
+           else
+           {
++             temp  = BridgeUtilities.getFunction(l, si);           
+              value = temp;
+           }
+            
+@@ -520,6 +536,7 @@
+              {
+                 SleepClosure c = (SleepClosure)kvp.getValue().objectValue();
+                 value.setVariables(c.getVariables());
++                vars = c.getVariables();
+              }
+              else
+              {
+@@ -676,35 +693,6 @@
+        }
+     }
+ 
+-    private static class compile_closure implements Function
+-    {
+-       public Scalar evaluate(String n, ScriptInstance i, Stack l)
+-       {
+-          String code  = l.pop().toString();
+-
+-          try 
+-          {
+-             SleepClosure value = new SleepClosure(i, SleepUtils.ParseCode(code));
+-             Scalar       temp  = SleepUtils.getScalar(value);
+-
+-             Variable      vars = value.getVariables();
+-
+-             while (!l.isEmpty())
+-             {
+-                KeyValuePair kvp = BridgeUtilities.getKeyValuePair(l);
+-                vars.putScalar(kvp.getKey().toString(), kvp.getValue());
+-             }
+-
+-             return temp;
+-          }
+-          catch (YourCodeSucksException ex)
+-          {
+-             i.getScriptEnvironment().flagError(ex);
+-             return SleepUtils.getEmptyScalar();
+-          }
+-       }
+-    }
+-
+     private static class expr implements Function
+     {
+        public Scalar evaluate(String n, ScriptInstance i, Stack l)
+
+Added: sleep/tests/compile_cl.sl
+===================================================================
+--- sleep/tests/compile_cl.sl	2007-06-10 22:02:11 UTC (rev 258)
++++ sleep/tests/compile_cl.sl	2007-06-10 22:20:29 UTC (rev 259)
+@@ -0,0 +1,14 @@
++#
++# a test of compile_closure with its new nifty improvements.
++#
++
++sub bar { }
++&bar['$x'] = "bars x var is kewlios";
++
++$foo = compile_closure('
++   println("Hello from $name $+ !");
++   println($x);
++', $this => &bar, $name => "'new closure'");
++
++println($foo);
++[$foo];
+
+Added: sleep/tests/output/compile_cl.sl
+===================================================================
+--- sleep/tests/output/compile_cl.sl	2007-06-10 22:02:11 UTC (rev 258)
++++ sleep/tests/output/compile_cl.sl	2007-06-10 22:20:29 UTC (rev 259)
+@@ -0,0 +1,3 @@
++&closure[eval:1-2]#2
++Hello from 'new closure'!
++bars x var is kewlios
+
+Modified: sleep/tests/output/convertds3.sl
+===================================================================
+--- sleep/tests/output/convertds3.sl	2007-06-10 22:02:11 UTC (rev 258)
++++ sleep/tests/output/convertds3.sl	2007-06-10 22:20:29 UTC (rev 259)
+@@ -32,9 +32,9 @@
+ int[] a
+ Collection a
+ Collection a
+-Warning: there is no method that matches mar([Z at 39c8c1) in sleep.ArrayTest1 at convertds3.sl:36
+-Warning: there is no method that matches mar([F at ab2b55) in sleep.ArrayTest1 at convertds3.sl:37
+-Warning: there is no method that matches mar([Ljava.lang.Object;@aa0877) in sleep.ArrayTest1 at convertds3.sl:38
++Warning: there is no method that matches mar([Z at 1cb7a1) in sleep.ArrayTest1 at convertds3.sl:36
++Warning: there is no method that matches mar([F at 5bc6c8) in sleep.ArrayTest1 at convertds3.sl:37
++Warning: there is no method that matches mar([Ljava.lang.Object;@578073) in sleep.ArrayTest1 at convertds3.sl:38
+ int[] a
+ Collection a
+ Collection a
+
+Modified: sleep/tests/output/forker.sl
+===================================================================
+--- sleep/tests/output/forker.sl	2007-06-10 22:02:11 UTC (rev 258)
++++ sleep/tests/output/forker.sl	2007-06-10 22:20:29 UTC (rev 259)
+@@ -1,4 +1,4 @@
+ Trace: &check('within fork') at forker.sl:9
+-Trace: &fork(&closure[forker.sl:9]#2) = sleep.bridges.io.IOObject at bf053f at forker.sl:8
++Trace: &fork(&closure[forker.sl:9]#2) = sleep.bridges.io.IOObject at 843a75 at forker.sl:8
+ Trace: &sleep(1000) at forker.sl:12
+ Trace: &check('outside of fork') at forker.sl:14
+
+Modified: sleep/tests/output/trace.sl
+===================================================================
+--- sleep/tests/output/trace.sl	2007-06-10 22:02:11 UTC (rev 258)
++++ sleep/tests/output/trace.sl	2007-06-10 22:20:29 UTC (rev 259)
+@@ -1,13 +1,13 @@
+ this is a test
+-Trace: [java.io.PrintStream at 648016 println: 'this is a test'] at trace.sl:6
++Trace: [java.io.PrintStream at 7e8c4d println: 'this is a test'] at trace.sl:6
+ Trace: [java.lang.Math pow: 3, 4] = 81.0 at trace.sl:7
+ 81.0
+-Trace: [java.io.PrintStream at 648016 println: 81.0] at trace.sl:7
++Trace: [java.io.PrintStream at 7e8c4d println: 81.0] at trace.sl:7
+ Trace: [java.lang.Math pow: 3, 5] = 243.0 at trace.sl:8
+ 243.0
+ Trace: &println(243.0) at trace.sl:8
+ testing again...
+-Trace: [java.io.PrintStream at 648016 println: 'testing again...'] at trace.sl:10
++Trace: [java.io.PrintStream at 7e8c4d println: 'testing again...'] at trace.sl:10
+ Trace: [sleep.runtime.SleepUtils getListFromArray: @('a', 'b', 'c')] = [a, b, c] at trace.sl:12
+ Trace: [new java.util.LinkedList: [a, b, c]] = [a, b, c] at trace.sl:12
+ Warning: variable '$list' not declared at trace.sl:12
+
+Modified: sleep/tests/output/wrong.sl
+===================================================================
+--- sleep/tests/output/wrong.sl	2007-06-10 22:02:11 UTC (rev 258)
++++ sleep/tests/output/wrong.sl	2007-06-10 22:20:29 UTC (rev 259)
+@@ -1,32 +1,32 @@
+ Trace: [java.lang.Math pow: 3, 4] = 81.0 at wrong.sl:6
+ 81.0
+-Trace: [java.io.PrintStream at fe571f println: 81.0] at wrong.sl:6
++Trace: [java.io.PrintStream at fe8ce8 println: 81.0] at wrong.sl:6
+ Trace: &casti(1, 'z') = true at wrong.sl:9
+ true
+-Trace: [java.io.PrintStream at fe571f println: true] at wrong.sl:9
++Trace: [java.io.PrintStream at fe8ce8 println: true] at wrong.sl:9
+ Trace: &casti(0, 'z') = false at wrong.sl:10
+ false
+-Trace: [java.io.PrintStream at fe571f println: false] at wrong.sl:10
++Trace: [java.io.PrintStream at fe8ce8 println: false] at wrong.sl:10
+ Trace: &casti(1, 'd') = 1.0 at wrong.sl:13
+ 1.0
+-Trace: [java.io.PrintStream at fe571f println: 1.0] at wrong.sl:13
++Trace: [java.io.PrintStream at fe8ce8 println: 1.0] at wrong.sl:13
+ Trace: &casti(1, 'b') = 1 at wrong.sl:16
+ 1
+-Trace: [java.io.PrintStream at fe571f println: 1] at wrong.sl:16
++Trace: [java.io.PrintStream at fe8ce8 println: 1] at wrong.sl:16
+ Trace: &casti(100, 'f') = 100.0 at wrong.sl:19
+ 100.0
+-Trace: [java.io.PrintStream at fe571f println: 100.0] at wrong.sl:19
++Trace: [java.io.PrintStream at fe8ce8 println: 100.0] at wrong.sl:19
+ Trace: &casti('b', 'c') = b at wrong.sl:22
+ b
+-Trace: [java.io.PrintStream at fe571f println: b] at wrong.sl:22
++Trace: [java.io.PrintStream at fe8ce8 println: b] at wrong.sl:22
+ Trace: &casti(63, 'i') = 63 at wrong.sl:25
+ 63
+-Trace: [java.io.PrintStream at fe571f println: 63] at wrong.sl:25
++Trace: [java.io.PrintStream at fe8ce8 println: 63] at wrong.sl:25
+ this is a string y0
+-Trace: [java.io.PrintStream at fe571f println: 'this is a string y0'] at wrong.sl:28
++Trace: [java.io.PrintStream at fe8ce8 println: 'this is a string y0'] at wrong.sl:28
+ Trace: [new java.lang.StringBuilder: 'test'] = test at wrong.sl:31
+ test
+-Trace: [java.io.PrintStream at fe571f println: test] at wrong.sl:31
+-Trace: &cast(@('a', 'b', 'c', 'd'), 'c') = [C at e35d5 at wrong.sl:34
++Trace: [java.io.PrintStream at fe8ce8 println: test] at wrong.sl:31
++Trace: &cast(@('a', 'b', 'c', 'd'), 'c') = [C at 9ea96 at wrong.sl:34
+ abcd
+-Trace: [java.io.PrintStream at fe571f println: [C at e35d5] at wrong.sl:34
++Trace: [java.io.PrintStream at fe8ce8 println: [C at 9ea96] at wrong.sl:34
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2007-06-10 22:02:11 UTC (rev 258)
++++ sleep/whatsnew.txt	2007-06-10 22:20:29 UTC (rev 259)
+@@ -9,6 +9,12 @@
+ - &size now works with hashes
+ - the '.' command in the console interact mode will not repeat the last
+   code sequence if no new code has been specified.
++- fixed a bug with &let, &lambda: when a ($this => ...) is specified
++  all subsequent variable placements will be put into the shared this
++  scope.
++- &compile_closure now shares its implementation with &let, &lambda 
++  allowing it to function as they do for settings vars, passing $this 
++  scope, etc..
+ 
+ 2.1-beta 15  (25 Apr 07)
+ ===========
+
+
+
+From rsmudge at mail.berlios.de  Mon Jun 11 00:24:33 2007
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Mon, 11 Jun 2007 00:24:33 +0200
+Subject: [Sleep-svn] r260 - sleep/src/sleep/bridges
+Message-ID: <200706102224.l5AMOXZV022268@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2007-06-11 00:24:33 +0200 (Mon, 11 Jun 2007)
+New Revision: 260
+
+Modified:
+   sleep/src/sleep/bridges/BasicUtilities.java
+Log:
+merged eval/expr to share implementation.
+
+
+Modified: sleep/src/sleep/bridges/BasicUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicUtilities.java	2007-06-10 22:20:29 UTC (rev 259)
++++ sleep/src/sleep/bridges/BasicUtilities.java	2007-06-10 22:24:33 UTC (rev 260)
+@@ -129,7 +129,7 @@
+         temp.put("&function",  funcs);
+         temp.put("&setf",      funcs);
+         temp.put("&eval",     new eval());
+-        temp.put("&expr",     new expr());
++        temp.put("&expr",     temp.get("&eval"));
+ 
+         // synchronization primitives...
+         SyncPrimitives sync = new SyncPrimitives();
+@@ -682,8 +682,16 @@
+ 
+           try 
+           {
+-             Scalar temp = SleepUtils.getScalar(i.getScriptEnvironment().evaluateStatement(code));
+-             return temp;
++             if (n.equals("&eval"))
++             {
++                Scalar temp = SleepUtils.getScalar(i.getScriptEnvironment().evaluateStatement(code));
++                return temp;
++             }
++             else
++             {
++                Scalar temp = SleepUtils.getScalar(i.getScriptEnvironment().evaluateExpression(code));
++                return temp;
++             }
+           }
+           catch (YourCodeSucksException ex)
+           {
+@@ -693,25 +701,6 @@
+        }
+     }
+ 
+-    private static class expr implements Function
+-    {
+-       public Scalar evaluate(String n, ScriptInstance i, Stack l)
+-       {
+-          String code  = l.pop().toString();
+-
+-          try 
+-          {
+-             Scalar temp = SleepUtils.getScalar(i.getScriptEnvironment().evaluateExpression(code));
+-             return temp;
+-          }
+-          catch (YourCodeSucksException ex)
+-          {
+-             i.getScriptEnvironment().flagError(ex);
+-             return SleepUtils.getEmptyScalar();
+-          }
+-       }
+-    }
+-
+     public Scalar evaluate(String n, ScriptInstance i, Stack l)
+     {
+        if (l.isEmpty() && n.equals("&remove"))
+
+
+
+From rsmudge at mail.berlios.de  Mon Jun 11 00:56:32 2007
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Mon, 11 Jun 2007 00:56:32 +0200
+Subject: [Sleep-svn] r261 - in sleep: . src/sleep/bridges tests tests/output
+Message-ID: <200706102256.l5AMuWKQ030427@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2007-06-11 00:56:28 +0200 (Mon, 11 Jun 2007)
+New Revision: 261
+
+Added:
+   sleep/tests/joiniter.sl
+   sleep/tests/output/joiniter.sl
+Modified:
+   sleep/src/sleep/bridges/BasicUtilities.java
+   sleep/src/sleep/bridges/BridgeUtilities.java
+   sleep/src/sleep/bridges/RegexBridge.java
+   sleep/whatsnew.txt
+Log:
+..
+
+
+Modified: sleep/src/sleep/bridges/BasicUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicUtilities.java	2007-06-10 22:24:33 UTC (rev 260)
++++ sleep/src/sleep/bridges/BasicUtilities.java	2007-06-10 22:56:28 UTC (rev 261)
+@@ -809,6 +809,10 @@
+ 
+           return SleepUtils.getScalar(i.getDebugFlags());
+        }
++       else if (n.equals("&flatten"))
++       {
++          return BridgeUtilities.flattenIterator(BridgeUtilities.getIterator(l, i), null);
++       }
+ 
+        /** Start of many array functions */
+ 
+@@ -991,19 +995,10 @@
+ 
+           return a;
+        }
+-       else if (n.equals("&flatten") && value.getArray() != null)
+-       {
+-          return BridgeUtilities.flattenArray(value, null);
+-       }
+        else if (n.equals("&subarray"))
+        {
+           return subarray(value, BridgeUtilities.getInt(l, 0), BridgeUtilities.getInt(l, value.getArray().size()));
+        }
+-       else if (n.equals("&splice"))
+-       {
+-          // splice(@old, @new, start, nchars)
+-          
+-       }
+        else if (n.equals("&remove"))
+        {
+           while (!l.isEmpty())
+
+Modified: sleep/src/sleep/bridges/BridgeUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BridgeUtilities.java	2007-06-10 22:24:33 UTC (rev 260)
++++ sleep/src/sleep/bridges/BridgeUtilities.java	2007-06-10 22:56:28 UTC (rev 261)
+@@ -257,11 +257,6 @@
+             value = SleepUtils.getScalar(  temp.substring( temp.indexOf('=') + 1, temp.length() ) );
+             return new KeyValuePair(key, value);
+          }
+-/*         else
+-         {
+-            key   = SleepUtils.getScalar(temp);
+-            value = SleepUtils.getEmptyScalar();
+-         } */
+       }
+ 
+       throw new IllegalArgumentException("attempted to pass a malformed key value pair: " + temps);
+@@ -270,9 +265,14 @@
+    /** Flattens the specified scalar array.  The <var>toValue</var> field can be null. */
+    public static Scalar flattenArray(Scalar fromValue, Scalar toValue)
+    {
++      return flattenIterator(fromValue.getArray().scalarIterator(), toValue);
++   }
++
++   /** Flattens the specified arrays within the specified iterator.  The <var>toValue</var> field can be null. */
++   public static Scalar flattenIterator(Iterator i, Scalar toValue)
++   {
+       if (toValue == null) { toValue = SleepUtils.getArrayScalar(); }
+ 
+-      Iterator i = fromValue.getArray().scalarIterator();
+       while (i.hasNext())
+       {
+          Scalar temp = (Scalar)i.next();
+
+Modified: sleep/src/sleep/bridges/RegexBridge.java
+===================================================================
+--- sleep/src/sleep/bridges/RegexBridge.java	2007-06-10 22:24:33 UTC (rev 260)
++++ sleep/src/sleep/bridges/RegexBridge.java	2007-06-10 22:56:28 UTC (rev 261)
+@@ -216,19 +216,20 @@
+        public Scalar evaluate(String n, ScriptInstance script, Stack l)
+        {
+           String      a = ((Scalar)l.pop()).toString();
+-          ScalarArray b = ((Scalar)l.pop()).getArray();
++          Iterator    i = BridgeUtilities.getIterator(l, script);
+ 
+           StringBuffer result = new StringBuffer();
+-         
+-          Iterator i = b.scalarIterator();
++
++
++          if (i.hasNext())
++          {
++             result.append(i.next().toString());
++          }
++
+           while (i.hasNext())
+           {
++             result.append(a);
+              result.append(i.next().toString());
+-
+-             if (i.hasNext())
+-             { 
+-                result.append(a);
+-             }
+           }
+ 
+           return SleepUtils.getScalar(result.toString());
+
+Added: sleep/tests/joiniter.sl
+===================================================================
+--- sleep/tests/joiniter.sl	2007-06-10 22:24:33 UTC (rev 260)
++++ sleep/tests/joiniter.sl	2007-06-10 22:56:28 UTC (rev 261)
+@@ -0,0 +1,17 @@
++#
++
++println(join(", ", { local('$x'); for ($x = 0; $x < 10; $x++) { yield $x; } }));
++
++sub foo
++{
++   local('$x @a'); 
++   for ($x = 0; $x < 10; $x++)
++   {
++      @a = @(1, 2, 3);
++      yield @a;
++   }
++}
++
++println(flatten(&foo));
++
++println(search(&foo, { if ($1 == 3) { return 3; } }));
+
+Added: sleep/tests/output/joiniter.sl
+===================================================================
+--- sleep/tests/output/joiniter.sl	2007-06-10 22:24:33 UTC (rev 260)
++++ sleep/tests/output/joiniter.sl	2007-06-10 22:56:28 UTC (rev 261)
+@@ -0,0 +1,3 @@
++0, 1, 2, 3, 4, 5, 6, 7, 8, 9
++@(1, 2, 3, 1, 2, 3, 1, 2, 3, 1, 2, 3, 1, 2, 3, 1, 2, 3, 1, 2, 3, 1, 2, 3, 1, 2, 3, 1, 2, 3)
++
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2007-06-10 22:24:33 UTC (rev 260)
++++ sleep/whatsnew.txt	2007-06-10 22:56:28 UTC (rev 261)
+@@ -15,6 +15,8 @@
+ - &compile_closure now shares its implementation with &let, &lambda 
+   allowing it to function as they do for settings vars, passing $this 
+   scope, etc..
++- &join, &flatten functions now accept either a sleep array or generator
++  function.
+ 
+ 2.1-beta 15  (25 Apr 07)
+ ===========
+
+
+
+From rsmudge at mail.berlios.de  Mon Jun 11 01:08:27 2007
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Mon, 11 Jun 2007 01:08:27 +0200
+Subject: [Sleep-svn] r262 - in sleep: . src/sleep/bridges tests
+Message-ID: <200706102308.l5AN8Rab013878@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2007-06-11 01:08:26 +0200 (Mon, 11 Jun 2007)
+New Revision: 262
+
+Added:
+   sleep/tests/readobj.sl
+Modified:
+   sleep/src/sleep/bridges/BasicIO.java
+   sleep/whatsnew.txt
+Log:
+readobj no longer throws an EOF exception
+
+
+Modified: sleep/src/sleep/bridges/BasicIO.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicIO.java	2007-06-10 22:56:28 UTC (rev 261)
++++ sleep/src/sleep/bridges/BasicIO.java	2007-06-10 23:08:26 UTC (rev 262)
+@@ -171,6 +171,10 @@
+              Scalar value = (Scalar)ois.readObject();
+              return value;
+           }
++          catch (EOFException eofex)
++          {
++             a.close();
++          }
+           catch (Exception ex)
+           {
+              i.getScriptEnvironment().flagError(ex);
+
+Added: sleep/tests/readobj.sl
+===================================================================
+--- sleep/tests/readobj.sl	2007-06-10 22:56:28 UTC (rev 261)
++++ sleep/tests/readobj.sl	2007-06-10 23:08:26 UTC (rev 262)
+@@ -0,0 +1,23 @@
++
++debug(7);
++global('$handle $temp');
++
++$handle = allocate();
++writeObject($handle, "this is a test");
++writeObject($handle, 1);
++writeObject($handle, @("a", "b", @("c", "d", "e")));
++writeObject($handle, { println("Hello World!"); });
++closef($handle);
++
++while $temp (readObject($handle))
++{
++   if (!-isfunction $temp)
++   {
++      println("Read: $temp");
++   }
++   else
++   {
++      println("Read: $temp (function, will invoke!)");
++      invoke($temp);
++   }
++}
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2007-06-10 22:56:28 UTC (rev 261)
++++ sleep/whatsnew.txt	2007-06-10 23:08:26 UTC (rev 262)
+@@ -17,6 +17,7 @@
+   scope, etc..
+ - &join, &flatten functions now accept either a sleep array or generator
+   function.
++- &readObject no longer throws an EOFException.
+ 
+ 2.1-beta 15  (25 Apr 07)
+ ===========
+
+
+
+From rsmudge at mail.berlios.de  Mon Jun 11 01:36:22 2007
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Mon, 11 Jun 2007 01:36:22 +0200
+Subject: [Sleep-svn] r263 - in sleep: . src/sleep/engine/atoms
+	src/sleep/runtime tests tests/output
+Message-ID: <200706102336.l5ANaM3f012165@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2007-06-11 01:36:22 +0200 (Mon, 11 Jun 2007)
+New Revision: 263
+
+Added:
+   sleep/tests/ifand2.sl
+   sleep/tests/output/ifand2.sl
+   sleep/tests/output/readobj.sl
+Modified:
+   sleep/src/sleep/engine/atoms/Check.java
+   sleep/src/sleep/runtime/ScriptInstance.java
+   sleep/whatsnew.txt
+Log:
+added a new debug flag for tracing logic stuff...
+
+
+
+Modified: sleep/src/sleep/engine/atoms/Check.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/Check.java	2007-06-10 23:08:26 UTC (rev 262)
++++ sleep/src/sleep/engine/atoms/Check.java	2007-06-10 23:36:22 UTC (rev 263)
+@@ -169,7 +169,47 @@
+       }
+       else
+       {
+-         temp = choice.decide(name, env.getScriptInstance(), env.getCurrentFrame());
++         if ((env.getScriptInstance().getDebugFlags() & ScriptInstance.DEBUG_TRACE_LOGIC) == ScriptInstance.DEBUG_TRACE_LOGIC)
++         {
++            StringBuffer message = new StringBuffer(64);
++            if (env.getCurrentFrame().size() >= 2)
++            {
++               message.append(SleepUtils.describe((Scalar)env.getCurrentFrame().get(0)));
++               message.append(" "); 
++               if (negate) { message.append("!"); }
++               message.append(name);
++               message.append(" ");
++               message.append(SleepUtils.describe((Scalar)env.getCurrentFrame().get(1)));
++            }
++            else if (env.getCurrentFrame().size() == 1)
++            {
++               if (negate) { message.append("!"); }
++               message.append(name);
++               message.append(" ");
++               message.append(SleepUtils.describe((Scalar)env.getCurrentFrame().get(0)));
++            }
++            else
++            {
++               message.append("corrupted stack frame: " + name);
++            }
++            temp = choice.decide(name, env.getScriptInstance(), env.getCurrentFrame());
++            message.append(" ? ");
++
++            if (negate)
++            {
++               message.append((!temp + "").toUpperCase());
++            }
++            else
++            {
++               message.append((temp + "").toUpperCase());
++            }
++
++            env.getScriptInstance().fireWarning(message.toString(), hint, true);
++         }
++         else
++         {
++            temp = choice.decide(name, env.getScriptInstance(), env.getCurrentFrame());
++         }
+       }
+ 
+       env.KillFrame();
+
+Modified: sleep/src/sleep/runtime/ScriptInstance.java
+===================================================================
+--- sleep/src/sleep/runtime/ScriptInstance.java	2007-06-10 23:08:26 UTC (rev 262)
++++ sleep/src/sleep/runtime/ScriptInstance.java	2007-06-10 23:36:22 UTC (rev 263)
+@@ -93,6 +93,9 @@
+     /** throw exceptions for anything flagged for retrieval with checkError() */
+     public static final int DEBUG_THROW_WARNINGS = 2 | 32;
+ 
++    /** fire a runtime warning describing each predicate decision made */
++    public static final int DEBUG_TRACE_LOGIC = 64;
++
+     /** track all of the flagged debug options for this script (set to DEBUG_SHOW_ERRORS by default) */
+     protected int debug = DEBUG_SHOW_ERRORS;
+ 
+
+Added: sleep/tests/ifand2.sl
+===================================================================
+--- sleep/tests/ifand2.sl	2007-06-10 23:08:26 UTC (rev 262)
++++ sleep/tests/ifand2.sl	2007-06-10 23:36:22 UTC (rev 263)
+@@ -0,0 +1,56 @@
++#
++# Another test of "if" statements... lets make sure I didn't break anything, eh?
++#
++
++debug(64);
++
++if (3 == 1 && 3 == 2)
++{
++   printf("Never true 1");
++}
++
++if (3 == 3 && 4 == 4)
++{
++   printf("Always True 2");
++}
++
++if ((3 == 1) && (3 == 2))
++{
++   printf("Never true 3");
++}
++
++if (3 == 3 && (4 == 4))
++{
++   printf("Always True 4");
++}
++
++if ((3 == 3) && 4 == 4)
++{
++   printf("Always True 5");
++}
++
++if (-isnumber 5 && 6 == 6)
++{
++   printf("Test?");
++}
++
++if (-isnumber 5 && -isnumber 7)
++{
++   printf("I should be true as well");
++}
++
++if (-inumber 5 && -isnumber 6 && -isnumber 7 && -isnumber 8 && -isnumber 9 && -isnumber 385839)
++{
++   printf("Testing, this is true");
++}
++
++if (3 == 4 || 
++       
++
++     (5 == 5 && 
++
++
++-isnumber 10))
++{
++   printf("Definetly true");
++}
+
+Added: sleep/tests/output/ifand2.sl
+===================================================================
+--- sleep/tests/output/ifand2.sl	2007-06-10 23:08:26 UTC (rev 262)
++++ sleep/tests/output/ifand2.sl	2007-06-10 23:36:22 UTC (rev 263)
+@@ -0,0 +1,22 @@
++Trace: 3 == 1 ? FALSE at ifand2.sl:7
++Trace: 3 == 3 ? TRUE at ifand2.sl:12
++Trace: 4 == 4 ? TRUE at ifand2.sl:12
++Always True 2
++Trace: 3 == 1 ? FALSE at ifand2.sl:17
++Trace: 3 == 3 ? TRUE at ifand2.sl:22
++Trace: 4 == 4 ? TRUE at ifand2.sl:22
++Always True 4
++Trace: 3 == 3 ? TRUE at ifand2.sl:27
++Trace: 4 == 4 ? TRUE at ifand2.sl:27
++Always True 5
++Trace: -isnumber 5 ? TRUE at ifand2.sl:32
++Trace: 6 == 6 ? TRUE at ifand2.sl:32
++Test?
++Trace: -isnumber 5 ? TRUE at ifand2.sl:37
++Trace: -isnumber 7 ? TRUE at ifand2.sl:37
++I should be true as well
++Warning: Attempted to use non-existent predicate: -inumber at ifand2.sl:42
++Trace: 3 == 4 ? FALSE at ifand2.sl:47
++Trace: 5 == 5 ? TRUE at ifand2.sl:50
++Trace: -isnumber 10 ? TRUE at ifand2.sl:53
++Definetly true
+
+Added: sleep/tests/output/readobj.sl
+===================================================================
+--- sleep/tests/output/readobj.sl	2007-06-10 23:08:26 UTC (rev 262)
++++ sleep/tests/output/readobj.sl	2007-06-10 23:36:22 UTC (rev 263)
+@@ -0,0 +1,5 @@
++Read: this is a test
++Read: 1
++Read: @('a', 'b', @('c', 'd', 'e'))
++Read: &closure[readobj.sl:9]#1 (function, will invoke!)
++Hello World!
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2007-06-10 23:08:26 UTC (rev 262)
++++ sleep/whatsnew.txt	2007-06-10 23:36:22 UTC (rev 263)
+@@ -18,6 +18,8 @@
+ - &join, &flatten functions now accept either a sleep array or generator
+   function.
+ - &readObject no longer throws an EOFException.
++- added another debug mode: DEBUG_TRACE_LOGIC (64); use this to trace
++  the results of all predicate evaluations
+ 
+ 2.1-beta 15  (25 Apr 07)
+ ===========
+
+
+
+From rsmudge at mail.berlios.de  Mon Jun 11 04:21:50 2007
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Mon, 11 Jun 2007 04:21:50 +0200
+Subject: [Sleep-svn] r264 - in sleep: . src/sleep/bridges src/sleep/engine
+	src/sleep/engine/types src/sleep/runtime tests tests/output
+Message-ID: <200706110221.l5B2Lo9O024063@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2007-06-11 04:21:47 +0200 (Mon, 11 Jun 2007)
+New Revision: 264
+
+Added:
+   sleep/tests/assert2.sl
+   sleep/tests/output/assert2.sl
+Modified:
+   sleep/build.xml
+   sleep/src/sleep/bridges/BasicNumbers.java
+   sleep/src/sleep/bridges/BasicUtilities.java
+   sleep/src/sleep/bridges/SleepClosure.java
+   sleep/src/sleep/engine/ObjectUtilities.java
+   sleep/src/sleep/engine/types/ArrayContainer.java
+   sleep/src/sleep/engine/types/HashContainer.java
+   sleep/src/sleep/runtime/SleepUtils.java
+   sleep/tests/arrmods.sl
+   sleep/tests/hash2.sl
+   sleep/tests/output/forker.sl
+   sleep/tests/output/trace.sl
+   sleep/whatsnew.txt
+Log:
+lots of changes...
+
+
+Modified: sleep/build.xml
+===================================================================
+--- sleep/build.xml	2007-06-10 23:36:22 UTC (rev 263)
++++ sleep/build.xml	2007-06-11 02:21:47 UTC (rev 264)
+@@ -16,7 +16,7 @@
+            destdir="${project.build}"
+            nowarn="yes"
+            depend="yes"
+-           debug="true"
++           debug="false"
+            source="1.4"
+            target="1.4"
+            optimize="yes"
+
+Modified: sleep/src/sleep/bridges/BasicNumbers.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicNumbers.java	2007-06-10 23:36:22 UTC (rev 263)
++++ sleep/src/sleep/bridges/BasicNumbers.java	2007-06-11 02:21:47 UTC (rev 264)
+@@ -34,17 +34,6 @@
+ /** provides some of the basic number crunching functionality */
+ public class BasicNumbers implements Predicate, Operator, Loadable, Function
+ {
+-    public static Class TYPE_LONG;
+-    public static Class TYPE_INT;
+-    public static Class TYPE_DOUBLE;
+-  
+-    public BasicNumbers()
+-    {
+-       TYPE_LONG   = sleep.engine.types.LongValue.class;
+-       TYPE_INT    = sleep.engine.types.IntValue.class;
+-       TYPE_DOUBLE = sleep.engine.types.DoubleValue.class;
+-    }
+-
+     public boolean scriptUnloaded(ScriptInstance aScript)
+     {
+        return true;
+@@ -65,13 +54,13 @@
+        }
+ 
+        // functions
+-       temp.put("&double", new convert_double());
+-       temp.put("&int",    new convert_int());
+-       temp.put("&uint",    new convert_uint());
+-       temp.put("&long",   new convert_long());
++       temp.put("&double", this);
++       temp.put("&int", this);
++       temp.put("&uint", this);
++       temp.put("&long", this);
+ 
+-       temp.put("&parseNumber",   new parseNumber());
+-       temp.put("&formatNumber",   new formatNumber());
++       temp.put("&parseNumber",  this);
++       temp.put("&formatNumber", this);
+ 
+        // basic operators
+        temp.put("+", this);
+@@ -91,7 +80,7 @@
+        temp.put("&", this);
+        temp.put("|", this);
+        temp.put("^", this);
+-       temp.put("&not", new not());
++       temp.put("&not", this);
+  
+        // predicates
+        temp.put("==", this);
+@@ -103,23 +92,11 @@
+        temp.put("is", this);
+ 
+        // functions
+-       temp.put("&rand", new rand());
++       temp.put("&rand", this);
+ 
+        return true;
+     }
+ 
+-    private static class parseNumber implements Function
+-    {
+-       public Scalar evaluate(String name, ScriptInstance si, Stack args)
+-       {
+-          String number = BridgeUtilities.getString(args, "0");
+-          int    radix  = BridgeUtilities.getInt(args, 10);
+-
+-          BigInteger temp = new BigInteger(number, radix);
+-          return SleepUtils.getScalar(temp.longValue());
+-       }
+-    }
+-
+     public Scalar evaluate(String name, ScriptInstance si, Stack args)
+     {
+        if (name.equals("&abs")) { return SleepUtils.getScalar(Math.abs(BridgeUtilities.getDouble(args, 0.0))); }
+@@ -139,16 +116,47 @@
+        else if (name.equals("&radians")) { return SleepUtils.getScalar(Math.toRadians(BridgeUtilities.getDouble(args, 0.0))); }
+        else if (name.equals("&degrees")) { return SleepUtils.getScalar(Math.toDegrees(BridgeUtilities.getDouble(args, 0.0))); }
+        else if (name.equals("&exp")) { return SleepUtils.getScalar(Math.exp(BridgeUtilities.getDouble(args, 0.0))); }
++       else if (name.equals("&not")) {
++           ScalarType sa = ((Scalar)args.pop()).getActualValue(); /* we already assume this is a number */
+ 
+-       return SleepUtils.getEmptyScalar();
+-    }
+-    
+-    private static class formatNumber implements Function
+-    {
+-       public Scalar evaluate(String name, ScriptInstance si, Stack args)
++           if (sa.getClass() == IntValue.class)
++               return SleepUtils.getScalar(~ sa.intValue());
++
++           return SleepUtils.getScalar(~ sa.longValue());
++       }
++       else if (name.equals("&long"))
+        {
++          Scalar temp = BridgeUtilities.getScalar(args);
++          return SleepUtils.getScalar(temp.longValue());
++       }
++       else if (name.equals("&double"))
++       {
++          Scalar temp = BridgeUtilities.getScalar(args);
++          return SleepUtils.getScalar(temp.doubleValue());
++       }
++       else if (name.equals("&int"))
++       {
++          Scalar temp = BridgeUtilities.getScalar(args);
++          return SleepUtils.getScalar(temp.intValue());
++       }
++       else if (name.equals("&uint"))
++       {
++          int temp = BridgeUtilities.getInt(args, 0);
++          long templ = 0x00000000FFFFFFFFL & temp;
++          return SleepUtils.getScalar(templ);
++       }
++       else if (name.equals("&parseNumber"))
++       {
+           String number = BridgeUtilities.getString(args, "0");
++          int    radix  = BridgeUtilities.getInt(args, 10);
+ 
++          BigInteger temp = new BigInteger(number, radix);
++          return SleepUtils.getScalar(temp.longValue());
++       }
++       else if (name.equals("&formatNumber"))
++       {
++          String number = BridgeUtilities.getString(args, "0");
++
+           int from = 10, to = 10;
+ 
+           if (args.size() == 2)
+@@ -161,25 +169,8 @@
+           BigInteger temp = new BigInteger(number, from);
+           return SleepUtils.getScalar(temp.toString(to));
+        }
+-    }
+-    
+-    private static class not implements Function
+-    {
+-       public Scalar evaluate(String name, ScriptInstance si, Stack args)
++       else if (name.equals("&rand"))
+        {
+-           ScalarType sa = ((Scalar)args.pop()).getValue();
+-
+-           if (sa.getClass() == TYPE_INT)
+-               return SleepUtils.getScalar(~ sa.intValue());
+-
+-           return SleepUtils.getScalar(~ sa.longValue());
+-       }
+-    }
+-
+-    private static class rand implements Function
+-    {
+-       public Scalar evaluate(String name, ScriptInstance si, Stack args)
+-       {
+           if (! args.isEmpty())
+           {
+              Scalar temp = (Scalar)args.pop();
+@@ -197,54 +188,23 @@
+           
+           return SleepUtils.getScalar(Math.random());
+        }
+-    }
+ 
+-    private static class convert_double implements Function
+-    {
+-       public Scalar evaluate(String name, ScriptInstance si, Stack args)
+-       {          Scalar temp = BridgeUtilities.getScalar(args);
+-          return SleepUtils.getScalar(temp.doubleValue());
+-       }
++       return SleepUtils.getEmptyScalar();
+     }
+ 
+-    private static class convert_int implements Function
+-    {
+-       public Scalar evaluate(String name, ScriptInstance si, Stack args)
+-       {
+-          Scalar temp = BridgeUtilities.getScalar(args);
+-          return SleepUtils.getScalar(temp.intValue());
+-       }
+-    }
+-
+-    private static class convert_uint implements Function
+-    {
+-       public Scalar evaluate(String name, ScriptInstance si, Stack args)
+-       {
+-          int temp = BridgeUtilities.getInt(args, 0);
+-          long templ = 0x00000000FFFFFFFFL & temp;
+-          return SleepUtils.getScalar(templ);
+-       }
+-    }
+-
+-    private static class convert_long implements Function
+-    {
+-       public Scalar evaluate(String name, ScriptInstance si, Stack args)
+-       {
+-          Scalar temp = BridgeUtilities.getScalar(args);
+-          return SleepUtils.getScalar(temp.longValue());
+-       }
+-    }
+-
+     public boolean decide(String n, ScriptInstance i, Stack l)
+     {
+        Stack env = i.getScriptEnvironment().getEnvironmentStack();
+-       ScalarType sb = ((Scalar)l.pop()).getValue();
+-       ScalarType sa = ((Scalar)l.pop()).getValue();
++       Scalar vb = (Scalar)l.pop();
++       Scalar va = (Scalar)l.pop();
+ 
+        if (n.equals("is"))
+-          return sa.objectValue() == sb.objectValue();
++          return va.objectValue() == vb.objectValue(); /* could be anything! */
+ 
+-       if (sa.getClass() == TYPE_DOUBLE || sb.getClass() == TYPE_DOUBLE)
++       ScalarType sb = vb.getActualValue();
++       ScalarType sa = va.getActualValue();
++
++       if (sa.getClass() == DoubleValue.class || sb.getClass() == DoubleValue.class)
+        {
+           double a = sa.doubleValue();
+           double b = sb.doubleValue();
+@@ -256,7 +216,7 @@
+           if (n.equals("<"))  { return a <  b; }
+           if (n.equals(">"))  { return a >  b; }
+        }
+-       else if (sa.getClass() == TYPE_LONG || sb.getClass() == TYPE_LONG)
++       else if (sa.getClass() == LongValue.class || sb.getClass() == LongValue.class)
+        {
+           long a = sa.longValue();
+           long b = sb.longValue();
+@@ -286,10 +246,10 @@
+ 
+     public Scalar operate(String o, ScriptInstance i, Stack locals)
+     {
+-       ScalarType left  = ((Scalar)locals.pop()).getValue();
+-       ScalarType right = ((Scalar)locals.pop()).getValue();
++       ScalarType left  = ((Scalar)locals.pop()).getActualValue();
++       ScalarType right = ((Scalar)locals.pop()).getActualValue();
+ 
+-       if ((right.getClass() == TYPE_DOUBLE || left.getClass() == TYPE_DOUBLE) && !(o.equals(">>") || o.equals("<<") || o.equals("&") || o.equals("|") || o.equals("^")))
++       if ((right.getClass() == DoubleValue.class || left.getClass() == DoubleValue.class) && !(o.equals(">>") || o.equals("<<") || o.equals("&") || o.equals("|") || o.equals("^")))
+        {
+           double a = left.doubleValue();
+           double b = right.doubleValue();
+@@ -301,7 +261,7 @@
+           if (o.equals("% ")) { return SleepUtils.getScalar(a % b); }
+           if (o.equals("**")) { return SleepUtils.getScalar(Math.pow((double)a, (double)b)); }
+        }
+-       else if (right.getClass() == TYPE_LONG || left.getClass() == TYPE_LONG)
++       else if (right.getClass() == LongValue.class || left.getClass() == LongValue.class)
+        {
+           long a = left.longValue();
+           long b = right.longValue();
+
+Modified: sleep/src/sleep/bridges/BasicUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicUtilities.java	2007-06-10 23:36:22 UTC (rev 263)
++++ sleep/src/sleep/bridges/BasicUtilities.java	2007-06-11 02:21:47 UTC (rev 264)
+@@ -194,7 +194,10 @@
+        //  "3"      "3"      3         - true
+        //   
+        if (predName.equals("-istrue"))
+-          return value.getValue().toString().length() != 0 && !("0".equals(value.getValue().toString()));
++       {
++          return (value.getArray() != null || value.getHash() != null) || (
++                  value.getActualValue().toString().length() != 0 && !("0".equals(value.getActualValue().toString())));
++       }
+ 
+        if (predName.equals("-isfunction"))
+           return SleepUtils.isFunctionScalar(value);
+@@ -596,8 +599,26 @@
+     {
+        public Scalar evaluate(String n, ScriptInstance si, Stack l)
+        {
+-          ScalarArray value = BridgeUtilities.getArray(l);
+-          return value.remove(BridgeUtilities.normalize(BridgeUtilities.getInt(l, 0), value.size()));
++          Scalar value = (Scalar)l.pop();
++
++          if (value.getArray() != null)
++          {
++             int size = value.getArray().size();
++             while (!l.isEmpty())
++             {             
++                value.getArray().remove(BridgeUtilities.normalize(BridgeUtilities.getInt(l, 0), size));
++             }
++          }
++          else if (value.getHash() != null)
++          {
++             while (!l.isEmpty())
++             {
++                Scalar remove = value.getHash().getAt((Scalar)l.pop()); /* set each key to null to remove */
++                remove.setValue(SleepUtils.getEmptyScalar());
++             }
++          }
++
++          return SleepUtils.getEmptyScalar();
+        }
+     }
+ 
+
+Modified: sleep/src/sleep/bridges/SleepClosure.java
+===================================================================
+--- sleep/src/sleep/bridges/SleepClosure.java	2007-06-10 23:36:22 UTC (rev 263)
++++ sleep/src/sleep/bridges/SleepClosure.java	2007-06-11 02:21:47 UTC (rev 264)
+@@ -224,9 +224,9 @@
+           {
+              Scalar lvar = (Scalar)locals.pop();
+ 
+-             if (lvar.getValue() != null && lvar.getValue().getClass() == ObjectValue.class && lvar.getValue().objectValue() != null && lvar.getValue().objectValue().getClass() == KeyValuePair.class)
++             if (lvar.getActualValue() != null && lvar.getActualValue().getClass() == ObjectValue.class && lvar.getActualValue().objectValue() != null && lvar.getActualValue().objectValue().getClass() == KeyValuePair.class)
+              {
+-                KeyValuePair kvp = (KeyValuePair)lvar.getValue().objectValue();
++                KeyValuePair kvp = (KeyValuePair)lvar.getActualValue().objectValue();
+ 
+                 if (!sleep.parser.Checkers.isVariable(kvp.getKey().toString()))
+                 {
+
+Modified: sleep/src/sleep/engine/ObjectUtilities.java
+===================================================================
+--- sleep/src/sleep/engine/ObjectUtilities.java	2007-06-10 23:36:22 UTC (rev 263)
++++ sleep/src/sleep/engine/ObjectUtilities.java	2007-06-11 02:21:47 UTC (rev 264)
+@@ -162,7 +162,7 @@
+       }
+       else if (check.isPrimitive())
+       {
+-         Class stemp = scalar.getValue().getClass();
++         Class stemp = scalar.getActualValue().getClass(); /* at this point we know scalar is not null, not a hash, and not an array */
+ 
+          if (stemp == INT_SCALAR && check == Integer.TYPE)
+          {
+@@ -176,7 +176,7 @@
+          {
+             return ARG_MATCH_YES;
+          }
+-         else if (check == Character.TYPE && stemp == STRING_SCALAR && scalar.getValue().toString().length() == 1)
++         else if (check == Character.TYPE && stemp == STRING_SCALAR && scalar.getActualValue().toString().length() == 1)
+          {
+             return ARG_MATCH_YES;
+          }
+@@ -205,7 +205,7 @@
+       }
+       else if (check == String.class)
+       {
+-         Class stemp = scalar.getValue().getClass();
++         Class stemp = scalar.getActualValue().getClass();
+          return (stemp == STRING_SCALAR) ? ARG_MATCH_YES : ARG_MATCH_MAYBE;
+       }
+       else if (check == Object.class)
+@@ -214,7 +214,7 @@
+       }
+       else if (check.isInstance(scalar.objectValue()))
+       {
+-         Class stemp = scalar.getValue().getClass();
++         Class stemp = scalar.getActualValue().getClass();
+          return (stemp == OBJECT_SCALAR) ? ARG_MATCH_YES : ARG_MATCH_MAYBE;
+       }
+       else
+
+Modified: sleep/src/sleep/engine/types/ArrayContainer.java
+===================================================================
+--- sleep/src/sleep/engine/types/ArrayContainer.java	2007-06-10 23:36:22 UTC (rev 263)
++++ sleep/src/sleep/engine/types/ArrayContainer.java	2007-06-11 02:21:47 UTC (rev 264)
+@@ -54,16 +54,7 @@
+ 
+    public void remove(Scalar key)
+    {
+-      Iterator i = values.iterator();
+-      while (i.hasNext())
+-      {
+-         String value = i.next().toString();
+-
+-         if (value.equals(key.toString()))
+-         {
+-            i.remove();
+-         }
+-      }
++      SleepUtils.removeScalar(values.iterator(), key);
+    }
+ 
+    public Scalar remove(int index)
+
+Modified: sleep/src/sleep/engine/types/HashContainer.java
+===================================================================
+--- sleep/src/sleep/engine/types/HashContainer.java	2007-06-10 23:36:22 UTC (rev 263)
++++ sleep/src/sleep/engine/types/HashContainer.java	2007-06-11 02:21:47 UTC (rev 264)
+@@ -33,8 +33,12 @@
+       Iterator i = values.values().iterator();
+       while (i.hasNext())
+       {
+-         if (((Scalar)i.next()).getValue() == ntype)
++         Scalar next = (Scalar)i.next();
++
++         if (next.getArray() == null && next.getHash() == null && next.getActualValue() == ntype)
++         {
+             i.remove();
++         }
+       }
+ 
+       return new CollectionWrapper(values.keySet());
+@@ -42,12 +46,7 @@
+ 
+    public void remove(Scalar value)
+    {
+-      Iterator i = values.keySet().iterator();
+-      while (i.hasNext())
+-      {
+-         if (i.next().toString().equals(value.toString()))
+-            i.remove();
+-      }
++      SleepUtils.removeScalar(values.values().iterator(), value);
+    }
+ 
+    public String toString()
+
+Modified: sleep/src/sleep/runtime/SleepUtils.java
+===================================================================
+--- sleep/src/sleep/runtime/SleepUtils.java	2007-06-10 23:36:22 UTC (rev 263)
++++ sleep/src/sleep/runtime/SleepUtils.java	2007-06-11 02:21:47 UTC (rev 264)
+@@ -46,7 +46,38 @@
+ 
+        return parser.getRunnableBlock();
+     }
++  
++    /** Iterates over the specified collection and removes all items that are the same as the specified scalar
++        value.  Certain scalars (ints, doubles, etc.) are compared by string representation where as others 
++        (Object, Hash, Array) are compared by reference. */
++    public static void removeScalar(Iterator collection, Scalar value)
++    {
++        while (collection.hasNext())
++        {
++            Scalar next = (Scalar)collection.next();
+ 
++            if (value.getArray() != null && next.getArray() != null && value.getArray() == next.getArray())
++            {
++               collection.remove();
++            }
++            else if (value.getHash() != null && next.getHash() != null && value.getHash() == next.getHash())
++            {
++               collection.remove();
++            }
++            else if (value.getActualValue() != null && next.getActualValue() != null)
++            {
++               if (value.getActualValue().getClass() == ObjectValue.class && value.getActualValue().getClass() == ObjectValue.class && value.objectValue() == next.objectValue())
++               {
++                  collection.remove(); /* two objects with matching references! */
++               }
++               else if (value.getActualValue().toString().equals(next.getActualValue().toString()))
++               {
++                  collection.remove(); /* whee... */
++               } 
++            }
++        }
++    }
++
+    /** "safely" run a snippet of code.  The main thing this function does is clear the return value 
+     *  before returning the value to the caller.  This is important because the return value (if there 
+     *  is one) would not get cleared otherwise.  Kind of important.
+@@ -401,11 +432,11 @@
+       }
+       else
+       {
+-         if (scalar.getValue() instanceof NullValue)
++         if (scalar.getActualValue() instanceof NullValue)
+          {
+             return "$null";
+          }
+-         else if (scalar.getValue() instanceof StringValue)
++         else if (scalar.getActualValue() instanceof StringValue)
+          {
+             return "'" + scalar.toString() + "'";
+          }
+@@ -418,11 +449,11 @@
+             KeyValuePair kvp = (KeyValuePair)scalar.objectValue();
+             return kvp.getKey().toString() + " => " + describe(kvp.getValue());
+          }
+-         else if (scalar.getValue() instanceof ObjectValue)
++         else if (scalar.getActualValue() instanceof ObjectValue)
+          {
+             return scalar.toString();
+          }
+-         else if (scalar.getValue() instanceof LongValue)
++         else if (scalar.getActualValue() instanceof LongValue)
+          {
+             return scalar.toString() + "L";
+          }
+
+Modified: sleep/tests/arrmods.sl
+===================================================================
+--- sleep/tests/arrmods.sl	2007-06-10 23:36:22 UTC (rev 263)
++++ sleep/tests/arrmods.sl	2007-06-11 02:21:47 UTC (rev 264)
+@@ -15,7 +15,8 @@
+ println(splice(@c, subarray(@a, -4, -2), 3, 0));
+ 
+ @c = copy(@b);
+-println(removeAt(@c, -3));
++println(@c[-3]);
++removeAt(@c, -3);
+ println(@c);
+ 
+ add(@c, "test!!!", 0);
+
+Added: sleep/tests/assert2.sl
+===================================================================
+--- sleep/tests/assert2.sl	2007-06-10 23:36:22 UTC (rev 263)
++++ sleep/tests/assert2.sl	2007-06-11 02:21:47 UTC (rev 264)
+@@ -0,0 +1,16 @@
++#
++# Sleep script that tests recursion.
++# Computes the factorial of a number.
++#
++
++debug(15 | 64);
++
++sub fact
++{
++   assert -isnumber $1;
++   assert $1;
++   assert $1 >= 0;
++   return $1 * fact($1 - 1);
++}
++
++printf("fact(6) is: " . fact(6));
+
+Modified: sleep/tests/hash2.sl
+===================================================================
+--- sleep/tests/hash2.sl	2007-06-10 23:36:22 UTC (rev 263)
++++ sleep/tests/hash2.sl	2007-06-11 02:21:47 UTC (rev 264)
+@@ -7,7 +7,7 @@
+ #%hash = hash("key=hello world!@", "blah=bleh", "user=password", "skanks", "testing", "", "zing=1+2=3 or 4");
+ %hash = hash("key=hello world!@", "blah=bleh", "user=password", "zing=1+2=3 or 4");
+ 
+-remove(%hash, "user");
++removeAt(%hash, "user");
+ 
+ foreach $var (keys(%hash))
+ {
+
+Added: sleep/tests/output/assert2.sl
+===================================================================
+--- sleep/tests/output/assert2.sl	2007-06-10 23:36:22 UTC (rev 263)
++++ sleep/tests/output/assert2.sl	2007-06-11 02:21:47 UTC (rev 264)
+@@ -0,0 +1,29 @@
++Trace: -isnumber 6 ? TRUE at assert2.sl:10
++Trace: -istrue 6 ? TRUE at assert2.sl:11
++Trace: 6 >= 0 ? TRUE at assert2.sl:12
++Trace: -isnumber 5 ? TRUE at assert2.sl:10
++Trace: -istrue 5 ? TRUE at assert2.sl:11
++Trace: 5 >= 0 ? TRUE at assert2.sl:12
++Trace: -isnumber 4 ? TRUE at assert2.sl:10
++Trace: -istrue 4 ? TRUE at assert2.sl:11
++Trace: 4 >= 0 ? TRUE at assert2.sl:12
++Trace: -isnumber 3 ? TRUE at assert2.sl:10
++Trace: -istrue 3 ? TRUE at assert2.sl:11
++Trace: 3 >= 0 ? TRUE at assert2.sl:12
++Trace: -isnumber 2 ? TRUE at assert2.sl:10
++Trace: -istrue 2 ? TRUE at assert2.sl:11
++Trace: 2 >= 0 ? TRUE at assert2.sl:12
++Trace: -isnumber 1 ? TRUE at assert2.sl:10
++Trace: -istrue 1 ? TRUE at assert2.sl:11
++Trace: 1 >= 0 ? TRUE at assert2.sl:12
++Trace: -isnumber 0 ? TRUE at assert2.sl:10
++Trace: -istrue 0 ? FALSE at assert2.sl:11
++Trace: &exit('assertion failed') - FAILED! at assert2.sl:11
++Warning: assertion failed at assert2.sl:11
++Trace: &fact(0) - FAILED! at assert2.sl:13
++Trace: &fact(1) - FAILED! at assert2.sl:13
++Trace: &fact(2) - FAILED! at assert2.sl:13
++Trace: &fact(3) - FAILED! at assert2.sl:13
++Trace: &fact(4) - FAILED! at assert2.sl:13
++Trace: &fact(5) - FAILED! at assert2.sl:13
++Trace: &fact(6) - FAILED! at assert2.sl:16
+
+Modified: sleep/tests/output/forker.sl
+===================================================================
+--- sleep/tests/output/forker.sl	2007-06-10 23:36:22 UTC (rev 263)
++++ sleep/tests/output/forker.sl	2007-06-11 02:21:47 UTC (rev 264)
+@@ -1,4 +1,4 @@
+ Trace: &check('within fork') at forker.sl:9
+-Trace: &fork(&closure[forker.sl:9]#2) = sleep.bridges.io.IOObject at 843a75 at forker.sl:8
++Trace: &fork(&closure[forker.sl:9]#2) = sleep.bridges.io.IOObject at 7ec9f7 at forker.sl:8
+ Trace: &sleep(1000) at forker.sl:12
+ Trace: &check('outside of fork') at forker.sl:14
+
+Modified: sleep/tests/output/trace.sl
+===================================================================
+--- sleep/tests/output/trace.sl	2007-06-10 23:36:22 UTC (rev 263)
++++ sleep/tests/output/trace.sl	2007-06-11 02:21:47 UTC (rev 264)
+@@ -1,13 +1,13 @@
+ this is a test
+-Trace: [java.io.PrintStream at 7e8c4d println: 'this is a test'] at trace.sl:6
++Trace: [java.io.PrintStream at 2c3327 println: 'this is a test'] at trace.sl:6
+ Trace: [java.lang.Math pow: 3, 4] = 81.0 at trace.sl:7
+ 81.0
+-Trace: [java.io.PrintStream at 7e8c4d println: 81.0] at trace.sl:7
++Trace: [java.io.PrintStream at 2c3327 println: 81.0] at trace.sl:7
+ Trace: [java.lang.Math pow: 3, 5] = 243.0 at trace.sl:8
+ 243.0
+ Trace: &println(243.0) at trace.sl:8
+ testing again...
+-Trace: [java.io.PrintStream at 7e8c4d println: 'testing again...'] at trace.sl:10
++Trace: [java.io.PrintStream at 2c3327 println: 'testing again...'] at trace.sl:10
+ Trace: [sleep.runtime.SleepUtils getListFromArray: @('a', 'b', 'c')] = [a, b, c] at trace.sl:12
+ Trace: [new java.util.LinkedList: [a, b, c]] = [a, b, c] at trace.sl:12
+ Warning: variable '$list' not declared at trace.sl:12
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2007-06-10 23:36:22 UTC (rev 263)
++++ sleep/whatsnew.txt	2007-06-11 02:21:47 UTC (rev 264)
+@@ -20,6 +20,17 @@
+ - &readObject no longer throws an EOFException.
+ - added another debug mode: DEBUG_TRACE_LOGIC (64); use this to trace
+   the results of all predicate evaluations
++- cleaned up the code in BasicNumbers a bit to reduce the file size
++- cleaned up the implementation of &remove(%|@, ...), the function now
++  removes based on values (and not keys); comparisons are made as follows
++  hashes, arrays, and object scalars are compared by reference, everything
++  else is checked by string value.
++- fixed improper uses of (<Scalar>n).getValue() throughout the Sleep codebase.
++  this function builds discardable string representations of hashes/arrays.
++  sometimes this behavior is desired, usually its not.  these changes will
++  increase performance when using arrays/hashes extensively. 
++- &removeAt can now remove elements from arrays or hashes, multiple keys
++  can be specified as well.  the function no longer returns a value.
+ 
+ 2.1-beta 15  (25 Apr 07)
+ ===========
+
+
+
+From rsmudge at mail.berlios.de  Mon Jun 11 04:31:23 2007
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Mon, 11 Jun 2007 04:31:23 +0200
+Subject: [Sleep-svn] r265 - in sleep: src/sleep/runtime tests tests/output
+Message-ID: <200706110231.l5B2VN6i024502@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2007-06-11 04:31:22 +0200 (Mon, 11 Jun 2007)
+New Revision: 265
+
+Added:
+   sleep/tests/output/remove.sl
+   sleep/tests/remove.sl
+Modified:
+   sleep/src/sleep/runtime/SleepUtils.java
+Log:
+some changes to remove.
+
+
+
+Modified: sleep/src/sleep/runtime/SleepUtils.java
+===================================================================
+--- sleep/src/sleep/runtime/SleepUtils.java	2007-06-11 02:21:47 UTC (rev 264)
++++ sleep/src/sleep/runtime/SleepUtils.java	2007-06-11 02:31:22 UTC (rev 265)
+@@ -66,9 +66,12 @@
+             }
+             else if (value.getActualValue() != null && next.getActualValue() != null)
+             {
+-               if (value.getActualValue().getClass() == ObjectValue.class && value.getActualValue().getClass() == ObjectValue.class && value.objectValue() == next.objectValue())
++               if (value.getActualValue().getClass() == ObjectValue.class || next.getActualValue().getClass() == ObjectValue.class) 
+                {
+-                  collection.remove(); /* two objects with matching references! */
++                  if (value.objectValue() == next.objectValue())
++                  {
++                     collection.remove(); /* two objects with matching references! */
++                  }
+                }
+                else if (value.getActualValue().toString().equals(next.getActualValue().toString()))
+                {
+
+Added: sleep/tests/output/remove.sl
+===================================================================
+--- sleep/tests/output/remove.sl	2007-06-11 02:21:47 UTC (rev 264)
++++ sleep/tests/output/remove.sl	2007-06-11 02:31:22 UTC (rev 265)
+@@ -0,0 +1,9 @@
++%(d => 1, a => 'Apple', c => 1.0, b => 'Bat', e => 1L)
++%(d => 1, a => 'Apple', c => 1.0, b => 'Bat', e => 1L)
++%(d => 1, c => 1.0, b => 'Bat', e => 1L)
++%(c => 1.0, b => 'Bat')
++[]
++[foo]
++%(blah => [foo], c => 1.0, b => 'Bat')
++With foo? %(blah => [foo], c => 1.0, b => 'Bat')
++No foo!: %(c => 1.0, b => 'Bat')
+
+Added: sleep/tests/remove.sl
+===================================================================
+--- sleep/tests/remove.sl	2007-06-11 02:21:47 UTC (rev 264)
++++ sleep/tests/remove.sl	2007-06-11 02:31:22 UTC (rev 265)
+@@ -0,0 +1,18 @@
++%d = %(a => "Apple", b => "Bat", c => 1.0, d => 1, e => 1L);
++println(%d);
++removeAt(%d, 1);
++println(%d);
++removeAt(%d, "a");
++println(%d);
++remove(%d, 1);
++println(%d);
++$l = [new LinkedList];
++println($l);
++[$l add: "foo"];
++println($l);
++%d["blah"] = $l;
++println(%d);
++remove(%d, "[foo]");
++println("With foo? " . %d);
++remove(%d, $l);
++println("No foo!: " . %d);
+
+
+
+From rsmudge at mail.berlios.de  Mon Jun 11 04:44:08 2007
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Mon, 11 Jun 2007 04:44:08 +0200
+Subject: [Sleep-svn] r266 - in sleep: . docs src/sleep/bridges
+	src/sleep/runtime
+Message-ID: <200706110244.l5B2i8tP025133@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2007-06-11 04:44:07 +0200 (Mon, 11 Jun 2007)
+New Revision: 266
+
+Modified:
+   sleep/docs/sleeplang.html
+   sleep/readme.txt
+   sleep/src/sleep/bridges/BasicUtilities.java
+   sleep/src/sleep/runtime/SleepUtils.java
+   sleep/whatsnew.txt
+Log:
+Sleep 2.1-b16
+
+
+Modified: sleep/docs/sleeplang.html
+===================================================================
+--- sleep/docs/sleeplang.html	2007-06-11 02:31:22 UTC (rev 265)
++++ sleep/docs/sleeplang.html	2007-06-11 02:44:07 UTC (rev 266)
+@@ -1007,7 +1007,7 @@
+ it.</p>
+ 
+ <p>To obtain an @array of all of the keys in a hash you can use the keys() function with the %hash as the parameter.   To remove 
+-a key from a hash you can use remove(%hash, "key").</P>
++a value from a hash you can use remove(%hash, "value").</P>
+ 
+ <p>To remove a key key from a hash simply set the value to $null.</p>
+ 
+@@ -1037,6 +1037,9 @@
+ 
+ <p>The example above prints 'My name is Raphael Mudge, and I like ice cream!!!' three times.</p>
+ 
++<p>Sleep functions that expect a key/value pair will accept either a key/value expression or a string of the form
++"key=value".</p>
++
+ <h3>Multidimensional Hashes/Arrays</h3>
+ 
+ <p>Multidimensional hashes work exactly the same as Sleep arrays.  It is also possible to have an array of hashes, or a hash of 
+@@ -1939,8 +1942,8 @@
+  </tr>
+  <tr>
+   <td>@</td>
+-  <td>flatten(@array)</td>
+-  <td>returns a copy of a multidimensional(?) @array flattened into a one dimensional array</td>
++  <td>flatten(@|&amp;)</td>
++  <td>returns a copy of a multidimensional(?) @array or &amp;generator flattened into a one dimensional array (only array elements are flattened)</td>
+  </tr>
+  <tr>
+   <td>@</td>
+@@ -1973,9 +1976,9 @@
+   <td>removes all elements of @b from @a. equivalent to the different of @a and @b</td>
+  </tr>
+  <tr>
+-  <td>$</td>
+-  <td>removeAt(@arrray, index)</td>
+-  <td>removes the element at index from @array.</td>
++  <td></td>
++  <td>removeAt(@arrray, index, ...)</td>
++  <td>removes the elements at the specified indices.</td>
+  </tr>
+  <tr>
+   <td>@</td>
+@@ -2226,10 +2229,20 @@
+  </tr>
+  <tr>
+   <td></td>
+-  <td>remove(%hash, $key, ...)</td>
+-  <td>removes all specified keys from %hash</td>
++  <td>remove(%hash, $value, ...)</td>
++  <td>removes all specified values from %hash</td>
+  </tr>
+  <tr>
++  <td></td>
++  <td>removeAt(%hash, "key", ...)</td>
++  <td>removes the specified keys from the hash.</td>
++ </tr>
++ <tr>
++  <td>$</td>
++  <td>size(%hash)</td>
++  <td>returns the number of elements in %hash</td>
++ </tr>
++ <tr>
+   <td>@</td>
+   <td>values(%hash, $key)</td>
+   <td>returns a flat array of all the values in %hash</td>
+@@ -2643,8 +2656,8 @@
+  </tr>
+  <tr>
+   <td>$</td>
+-  <td>join("string", @array)</td>
+-  <td>joins the elements of @array with "string"</td>
++  <td>join("string", @|&amp;)</td>
++  <td>joins the elements of @array or &amp;generator with "string"</td>
+  </tr>
+  <tr>
+   <td>$</td>
+@@ -2755,7 +2768,12 @@
+  <tr>
+   <td>$</td>
+   <td>debug(level)</td>
+-  <td>explicitly enables the specified debug level for this script: 0 - no debugging; 1 - show only critical errors (default); 2 - show all messages flagged for retrieval with checkError(); 4 - show first time use of non-declared variables; 8 - trace all function calls (collects profiler statistics); 24 - trace only for the purpose of collecting profiler statistics; 34 - "throw" all messages flagged for use with checkError() - this allows use of try/catch to deal with errors.  any of the levels can be |'d together.</td>
++  <td>explicitly enables the specified debug level for this script: 0 - no debugging; 1 - show only critical
++errors (default); 2 - show all messages flagged for retrieval with checkError(); 4 - show first time use of
++non-declared variables; 8 - trace all function calls (collects profiler statistics); 24 - trace only for the
++purpose of collecting profiler statistics; 34 - "throw" all messages flagged for use with checkError() - this
++allows use of try/catch to deal with errors; 64 - trace all logical comparisons.  any of the levels can be |'d 
++together.</td>
+  </tr>
+  <tr>
+   <td>$</td>
+
+Modified: sleep/readme.txt
+===================================================================
+--- sleep/readme.txt	2007-06-11 02:31:22 UTC (rev 265)
++++ sleep/readme.txt	2007-06-11 02:44:07 UTC (rev 266)
+@@ -1,5 +1,5 @@
+  ------- -------------------- ---------   ---------------  ------- ---------
+-Sleep - 2.1 beta 15 - README   
++Sleep - 2.1 beta 16 - README   
+ -  ------------- -------- -   ---------------- --       -    -     -     - - -
+ 
+ "You got the language, all you need now is the O'Reilly book".  That is
+
+Modified: sleep/src/sleep/bridges/BasicUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicUtilities.java	2007-06-11 02:31:22 UTC (rev 265)
++++ sleep/src/sleep/bridges/BasicUtilities.java	2007-06-11 02:44:07 UTC (rev 266)
+@@ -603,10 +603,9 @@
+ 
+           if (value.getArray() != null)
+           {
+-             int size = value.getArray().size();
+              while (!l.isEmpty())
+              {             
+-                value.getArray().remove(BridgeUtilities.normalize(BridgeUtilities.getInt(l, 0), size));
++                value.getArray().remove(BridgeUtilities.normalize(BridgeUtilities.getInt(l, 0), value.getArray().size()));
+              }
+           }
+           else if (value.getHash() != null)
+
+Modified: sleep/src/sleep/runtime/SleepUtils.java
+===================================================================
+--- sleep/src/sleep/runtime/SleepUtils.java	2007-06-11 02:31:22 UTC (rev 265)
++++ sleep/src/sleep/runtime/SleepUtils.java	2007-06-11 02:44:07 UTC (rev 266)
+@@ -26,7 +26,7 @@
+ public class SleepUtils
+ {
+    /** A date stamp of this Sleep release in YYYYMMDD format */
+-   public static final int    SLEEP_RELEASE = 20070425;
++   public static final int    SLEEP_RELEASE = 20070611;
+ 
+    /** A string description of this Sleep release */
+    public static final String SLEEP_VERSION = "Sleep 2.1";
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2007-06-11 02:31:22 UTC (rev 265)
++++ sleep/whatsnew.txt	2007-06-11 02:44:07 UTC (rev 266)
+@@ -1,4 +1,4 @@
+-2.1-beta 16
++2.1-beta 16  (11 Jun 07)
+ ===========
+ - passing a value that can not be used as a key/value pair when a kvp 
+   is expected now results in an error message.   valid kvp's include:
+
+
+
+From rsmudge at mail.berlios.de  Mon Jun 11 04:53:36 2007
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Mon, 11 Jun 2007 04:53:36 +0200
+Subject: [Sleep-svn] r267 - sleep/tests/output
+Message-ID: <200706110253.l5B2raSt025529@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2007-06-11 04:53:35 +0200 (Mon, 11 Jun 2007)
+New Revision: 267
+
+Modified:
+   sleep/tests/output/convertds3.sl
+   sleep/tests/output/wrong.sl
+Log:
+..
+
+
+Modified: sleep/tests/output/convertds3.sl
+===================================================================
+--- sleep/tests/output/convertds3.sl	2007-06-11 02:44:07 UTC (rev 266)
++++ sleep/tests/output/convertds3.sl	2007-06-11 02:53:35 UTC (rev 267)
+@@ -32,9 +32,9 @@
+ int[] a
+ Collection a
+ Collection a
+-Warning: there is no method that matches mar([Z at 1cb7a1) in sleep.ArrayTest1 at convertds3.sl:36
+-Warning: there is no method that matches mar([F at 5bc6c8) in sleep.ArrayTest1 at convertds3.sl:37
+-Warning: there is no method that matches mar([Ljava.lang.Object;@578073) in sleep.ArrayTest1 at convertds3.sl:38
++Warning: there is no method that matches mar([Z at ee3aa7) in sleep.ArrayTest1 at convertds3.sl:36
++Warning: there is no method that matches mar([F at 4cd580) in sleep.ArrayTest1 at convertds3.sl:37
++Warning: there is no method that matches mar([Ljava.lang.Object;@54f9f1) in sleep.ArrayTest1 at convertds3.sl:38
+ int[] a
+ Collection a
+ Collection a
+
+Modified: sleep/tests/output/wrong.sl
+===================================================================
+--- sleep/tests/output/wrong.sl	2007-06-11 02:44:07 UTC (rev 266)
++++ sleep/tests/output/wrong.sl	2007-06-11 02:53:35 UTC (rev 267)
+@@ -1,32 +1,32 @@
+ Trace: [java.lang.Math pow: 3, 4] = 81.0 at wrong.sl:6
+ 81.0
+-Trace: [java.io.PrintStream at fe8ce8 println: 81.0] at wrong.sl:6
++Trace: [java.io.PrintStream at 4ac216 println: 81.0] at wrong.sl:6
+ Trace: &casti(1, 'z') = true at wrong.sl:9
+ true
+-Trace: [java.io.PrintStream at fe8ce8 println: true] at wrong.sl:9
++Trace: [java.io.PrintStream at 4ac216 println: true] at wrong.sl:9
+ Trace: &casti(0, 'z') = false at wrong.sl:10
+ false
+-Trace: [java.io.PrintStream at fe8ce8 println: false] at wrong.sl:10
++Trace: [java.io.PrintStream at 4ac216 println: false] at wrong.sl:10
+ Trace: &casti(1, 'd') = 1.0 at wrong.sl:13
+ 1.0
+-Trace: [java.io.PrintStream at fe8ce8 println: 1.0] at wrong.sl:13
++Trace: [java.io.PrintStream at 4ac216 println: 1.0] at wrong.sl:13
+ Trace: &casti(1, 'b') = 1 at wrong.sl:16
+ 1
+-Trace: [java.io.PrintStream at fe8ce8 println: 1] at wrong.sl:16
++Trace: [java.io.PrintStream at 4ac216 println: 1] at wrong.sl:16
+ Trace: &casti(100, 'f') = 100.0 at wrong.sl:19
+ 100.0
+-Trace: [java.io.PrintStream at fe8ce8 println: 100.0] at wrong.sl:19
++Trace: [java.io.PrintStream at 4ac216 println: 100.0] at wrong.sl:19
+ Trace: &casti('b', 'c') = b at wrong.sl:22
+ b
+-Trace: [java.io.PrintStream at fe8ce8 println: b] at wrong.sl:22
++Trace: [java.io.PrintStream at 4ac216 println: b] at wrong.sl:22
+ Trace: &casti(63, 'i') = 63 at wrong.sl:25
+ 63
+-Trace: [java.io.PrintStream at fe8ce8 println: 63] at wrong.sl:25
++Trace: [java.io.PrintStream at 4ac216 println: 63] at wrong.sl:25
+ this is a string y0
+-Trace: [java.io.PrintStream at fe8ce8 println: 'this is a string y0'] at wrong.sl:28
++Trace: [java.io.PrintStream at 4ac216 println: 'this is a string y0'] at wrong.sl:28
+ Trace: [new java.lang.StringBuilder: 'test'] = test at wrong.sl:31
+ test
+-Trace: [java.io.PrintStream at fe8ce8 println: test] at wrong.sl:31
+-Trace: &cast(@('a', 'b', 'c', 'd'), 'c') = [C at 9ea96 at wrong.sl:34
++Trace: [java.io.PrintStream at 4ac216 println: test] at wrong.sl:31
++Trace: &cast(@('a', 'b', 'c', 'd'), 'c') = [C at 9c2715 at wrong.sl:34
+ abcd
+-Trace: [java.io.PrintStream at fe8ce8 println: [C at 9ea96] at wrong.sl:34
++Trace: [java.io.PrintStream at 4ac216 println: [C at 9c2715] at wrong.sl:34
+
+
+
+From rsmudge at mail.berlios.de  Tue Jun 12 04:01:37 2007
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Tue, 12 Jun 2007 04:01:37 +0200
+Subject: [Sleep-svn] r268 - in sleep: . src/sleep/parser tests/output
+Message-ID: <200706120201.l5C21bGF027165@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2007-06-12 04:01:35 +0200 (Tue, 12 Jun 2007)
+New Revision: 268
+
+Modified:
+   sleep/build.xml
+   sleep/src/sleep/parser/Checkers.java
+   sleep/src/sleep/parser/Parser.java
+   sleep/tests/output/convertds3.sl
+   sleep/whatsnew.txt
+Log:
+reduce Class.forName usage (half way... sorta semi, whatever... blah)
+
+
+Modified: sleep/build.xml
+===================================================================
+--- sleep/build.xml	2007-06-11 02:53:35 UTC (rev 267)
++++ sleep/build.xml	2007-06-12 02:01:35 UTC (rev 268)
+@@ -16,7 +16,7 @@
+            destdir="${project.build}"
+            nowarn="yes"
+            depend="yes"
+-           debug="false"
++           debug="true"
+            source="1.4"
+            target="1.4"
+            optimize="yes"
+
+Modified: sleep/src/sleep/parser/Checkers.java
+===================================================================
+--- sleep/src/sleep/parser/Checkers.java	2007-06-11 02:53:35 UTC (rev 267)
++++ sleep/src/sleep/parser/Checkers.java	2007-06-12 02:01:35 UTC (rev 268)
+@@ -105,7 +105,20 @@
+ 
+    public static final boolean isClassIdentifier(Parser parser, String a)
+    {
+-       return !isIndex(a) && parser.findImportedClass(a) != null;
++       if (a.length() >= 1 && !isVariable(a) && Character.isJavaIdentifierStart(a.charAt(0)))
++       {
++          for (int x = 1; x < a.length(); x++)
++          {
++             if (!Character.isJavaIdentifierPart(a.charAt(x)) && a.charAt(x) != '.')
++             {
++                return false;
++             }
++          }
++
++          return parser.findImportedClass(a) != null;
++       }
++
++       return false;
+    }
+ 
+    public static final boolean isBindFilter(String a, String b, String c, String d)
+
+Modified: sleep/src/sleep/parser/Parser.java
+===================================================================
+--- sleep/src/sleep/parser/Parser.java	2007-06-11 02:53:35 UTC (rev 267)
++++ sleep/src/sleep/parser/Parser.java	2007-06-12 02:01:35 UTC (rev 268)
+@@ -162,6 +162,12 @@
+              }
+           }
+ 
++          if (rv == null)
++          {
++             System.err.println("Argh: " + name + " is not an imported class");
++             Thread.dumpStack();
++          }
++
+           classes.put(name, rv);
+        }
+      
+
+Modified: sleep/tests/output/convertds3.sl
+===================================================================
+--- sleep/tests/output/convertds3.sl	2007-06-11 02:53:35 UTC (rev 267)
++++ sleep/tests/output/convertds3.sl	2007-06-12 02:01:35 UTC (rev 268)
+@@ -32,9 +32,9 @@
+ int[] a
+ Collection a
+ Collection a
+-Warning: there is no method that matches mar([Z at ee3aa7) in sleep.ArrayTest1 at convertds3.sl:36
+-Warning: there is no method that matches mar([F at 4cd580) in sleep.ArrayTest1 at convertds3.sl:37
+-Warning: there is no method that matches mar([Ljava.lang.Object;@54f9f1) in sleep.ArrayTest1 at convertds3.sl:38
++Warning: there is no method that matches mar([Z at 969c29) in sleep.ArrayTest1 at convertds3.sl:36
++Warning: there is no method that matches mar([F at e67e6a) in sleep.ArrayTest1 at convertds3.sl:37
++Warning: there is no method that matches mar([Ljava.lang.Object;@758500) in sleep.ArrayTest1 at convertds3.sl:38
+ int[] a
+ Collection a
+ Collection a
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2007-06-11 02:53:35 UTC (rev 267)
++++ sleep/whatsnew.txt	2007-06-12 02:01:35 UTC (rev 268)
+@@ -1,3 +1,9 @@
++2.1-beta 17
++===========
++- reduced number of Class.forName calls made when parsing scripts...
++  should help those using Sleep in Java applets ;) 
++  [p.s. sorry I wasn't able to take care of this sooner]
++
+ 2.1-beta 16  (11 Jun 07)
+ ===========
+ - passing a value that can not be used as a key/value pair when a kvp 
+
+
+
+From rsmudge at mail.berlios.de  Tue Jun 12 05:17:47 2007
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Tue, 12 Jun 2007 05:17:47 +0200
+Subject: [Sleep-svn] r269 - in sleep: . src/sleep/parser tests tests/output
+Message-ID: <200706120317.l5C3HlhJ031188@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2007-06-12 05:17:46 +0200 (Tue, 12 Jun 2007)
+New Revision: 269
+
+Added:
+   sleep/tests/clazz.sl
+   sleep/tests/output/clazz.sl
+Modified:
+   sleep/src/sleep/parser/Checkers.java
+   sleep/src/sleep/parser/CodeGenerator.java
+   sleep/src/sleep/parser/LexicalAnalyzer.java
+   sleep/src/sleep/parser/ParserConstants.java
+   sleep/src/sleep/parser/TokenParser.java
+   sleep/whatsnew.txt
+Log:
+added a new class literal thing, it is pretty km-rad.
+
+
+
+Modified: sleep/src/sleep/parser/Checkers.java
+===================================================================
+--- sleep/src/sleep/parser/Checkers.java	2007-06-12 02:01:35 UTC (rev 268)
++++ sleep/src/sleep/parser/Checkers.java	2007-06-12 03:17:46 UTC (rev 269)
+@@ -103,8 +103,13 @@
+        return (a.equals("import"));
+    }
+ 
+-   public static final boolean isClassIdentifier(Parser parser, String a)
++   public static final boolean isClassLiteral(String a)
+    {
++       return a.length() >= 2 && a.charAt(0) == '^';
++   }
++
++   public static final boolean isClassPiece(String a)
++   {
+        if (a.length() >= 1 && !isVariable(a) && Character.isJavaIdentifierStart(a.charAt(0)))
+        {
+           for (int x = 1; x < a.length(); x++)
+@@ -114,13 +119,16 @@
+                 return false;
+              }
+           }
+-
+-          return parser.findImportedClass(a) != null;
++          return true;
+        }
+-
+        return false;
+    }
+ 
++   public static final boolean isClassIdentifier(Parser parser, String a)
++   {
++       return isClassPiece(a) && parser.findImportedClass(a) != null;
++   }
++
+    public static final boolean isBindFilter(String a, String b, String c, String d)
+    {
+       return (isBlock(d));
+
+Modified: sleep/src/sleep/parser/CodeGenerator.java
+===================================================================
+--- sleep/src/sleep/parser/CodeGenerator.java	2007-06-12 02:01:35 UTC (rev 268)
++++ sleep/src/sleep/parser/CodeGenerator.java	2007-06-12 03:17:46 UTC (rev 269)
+@@ -446,6 +446,20 @@
+            atom    = GeneratedSteps.SValue(ascalar);
+            add(atom, tokens[0]);
+            break;
++         case IDEA_CLASS:
++           Class claz = parser.findImportedClass(strings[0].substring(1));
++ 
++           if (claz == null)
++           {
++              parser.reportError("unable to resolve class: " + strings[0].substring(1), tokens[0]);
++           } 
++           else
++           {          
++              ascalar = SleepUtils.getScalar(parser.findImportedClass(strings[0].substring(1)));
++              atom    = GeneratedSteps.SValue(ascalar);
++              add(atom, tokens[0]);
++           }
++           break;
+          case VALUE_SCALAR:                       //   implemented
+            if (strings[0].equals("$null"))
+            {
+
+Modified: sleep/src/sleep/parser/LexicalAnalyzer.java
+===================================================================
+--- sleep/src/sleep/parser/LexicalAnalyzer.java	2007-06-12 02:01:35 UTC (rev 268)
++++ sleep/src/sleep/parser/LexicalAnalyzer.java	2007-06-12 03:17:46 UTC (rev 269)
+@@ -113,8 +113,20 @@
+ 
+             tok = x;
+ 
+-            if (Checkers.isFunctionCall(a, b) || Checkers.isIndexableItem(a, b))
++            if ((x + 2) < terms.length && Checkers.isClassLiteral(a) && b.equals("."))
+             {
++               rhs.append(terms[x]);
++
++               /** collapse a literal class string plz */
++               while ((x + 2) < terms.length && terms[x+1].toString().equals(".") && Checkers.isClassPiece(terms[x+2].toString()))
++               {
++                  rhs.append(".");
++                  rhs.append(terms[x+2]);
++                  x += 2;
++               }
++            }
++            else if (Checkers.isFunctionCall(a, b) || Checkers.isIndexableItem(a, b))
++            {
+                rhs.append(a.toString());
+                rhs.append(b.toString());
+ 
+
+Modified: sleep/src/sleep/parser/ParserConstants.java
+===================================================================
+--- sleep/src/sleep/parser/ParserConstants.java	2007-06-12 02:01:35 UTC (rev 268)
++++ sleep/src/sleep/parser/ParserConstants.java	2007-06-12 03:17:46 UTC (rev 269)
+@@ -37,6 +37,7 @@
+    public static final int IDEA_EXPR_I     = 611;
+    public static final int IDEA_HASH_PAIR  = 612;
+    public static final int IDEA_BLOCK      = 613;
++   public static final int IDEA_CLASS      = 614;
+   
+    public static final int OBJECT_NEW      = 441;
+    public static final int OBJECT_ACCESS   = 442;
+
+Modified: sleep/src/sleep/parser/TokenParser.java
+===================================================================
+--- sleep/src/sleep/parser/TokenParser.java	2007-06-12 02:01:35 UTC (rev 268)
++++ sleep/src/sleep/parser/TokenParser.java	2007-06-12 03:17:46 UTC (rev 269)
+@@ -465,6 +465,11 @@
+             myToken.setType(IDEA_BLOCK);
+             myToken.add(tokens[x]);
+          }
++         else if (Checkers.isClassLiteral(strings[x]))
++         {
++            myToken.setType(IDEA_CLASS);
++            myToken.add(tokens[x]);
++         }
+          else
+          {
+             parser.reportError("Unknown expression", new Token(data.toString(), tokens[x].getHint()));
+
+Added: sleep/tests/clazz.sl
+===================================================================
+--- sleep/tests/clazz.sl	2007-06-12 02:01:35 UTC (rev 268)
++++ sleep/tests/clazz.sl	2007-06-12 03:17:46 UTC (rev 269)
+@@ -0,0 +1,23 @@
++#
++# class literals...
++#
++
++println(^System);
++println(^LinkedList);
++println(^java.util.LinkedList);
++println(^java.util.LinkedList."this is a string :)");
++println(^java.util.LinkedList."this is a string :)");
++println(^java.util.LinkedList."this is a string :)");
++println(^java.lang.Character$Subset."another string...");
++
++$data = "HEllo World";
++
++println(^java.lang.Character$Subset.$data);
++
++$var = ^java.lang.Character$Subset x 4;
++println($var);
++
++expr('^java.lang.Characte$Subset');
++println([checkError() formatErrors]);
++
++printAll([^Map getMethods]);
+
+Added: sleep/tests/output/clazz.sl
+===================================================================
+--- sleep/tests/output/clazz.sl	2007-06-12 02:01:35 UTC (rev 268)
++++ sleep/tests/output/clazz.sl	2007-06-12 03:17:46 UTC (rev 269)
+@@ -0,0 +1,26 @@
++class java.lang.System
++class java.util.LinkedList
++class java.util.LinkedList
++class java.util.LinkedListthis is a string :)
++class java.util.LinkedListthis is a string :)
++class java.util.LinkedListthis is a string :)
++class java.lang.Character$Subsetanother string...
++class java.lang.Character$SubsetHEllo World
++class java.lang.Character$Subsetclass java.lang.Character$Subsetclass java.lang.Character$Subsetclass java.lang.Character$Subset
++Error: unable to resolve class: java.lang.Characte$Subset at line 0
++       ^java.lang.Characte$Subset
++
++public abstract int java.util.Map.hashCode()
++public abstract boolean java.util.Map.equals(java.lang.Object)
++public abstract java.lang.Object java.util.Map.get(java.lang.Object)
++public abstract java.lang.Object java.util.Map.put(java.lang.Object,java.lang.Object)
++public abstract void java.util.Map.clear()
++public abstract java.util.Collection java.util.Map.values()
++public abstract int java.util.Map.size()
++public abstract java.util.Set java.util.Map.entrySet()
++public abstract void java.util.Map.putAll(java.util.Map)
++public abstract java.lang.Object java.util.Map.remove(java.lang.Object)
++public abstract java.util.Set java.util.Map.keySet()
++public abstract boolean java.util.Map.isEmpty()
++public abstract boolean java.util.Map.containsValue(java.lang.Object)
++public abstract boolean java.util.Map.containsKey(java.lang.Object)
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2007-06-12 02:01:35 UTC (rev 268)
++++ sleep/whatsnew.txt	2007-06-12 03:17:46 UTC (rev 269)
+@@ -3,6 +3,9 @@
+ - reduced number of Class.forName calls made when parsing scripts...
+   should help those using Sleep in Java applets ;) 
+   [p.s. sorry I wasn't able to take care of this sooner]
++- added a new type of literal for resolving a Java class i.e.:
++  ^java.util.LinkedList resolves to java.util.LinkedList.class
++  ^Map$Entry would resolve to java.util.Map$Entry.class  etc..
+ 
+ 2.1-beta 16  (11 Jun 07)
+ ===========
+
+
+
+From rsmudge at mail.berlios.de  Tue Jun 12 05:47:39 2007
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Tue, 12 Jun 2007 05:47:39 +0200
+Subject: [Sleep-svn] r270 - in sleep: . src/sleep/bridges src/sleep/engine
+	tests tests/output
+Message-ID: <200706120347.l5C3ldJD000181@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2007-06-12 05:47:38 +0200 (Tue, 12 Jun 2007)
+New Revision: 270
+
+Added:
+   sleep/tests/isa.sl
+   sleep/tests/output/isa.sl
+Modified:
+   sleep/src/sleep/bridges/BasicUtilities.java
+   sleep/src/sleep/bridges/BridgeUtilities.java
+   sleep/src/sleep/engine/Block.java
+   sleep/tests/output/convertds3.sl
+   sleep/whatsnew.txt
+Log:
+added an isa predicate
+
+
+
+Modified: sleep/src/sleep/bridges/BasicUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicUtilities.java	2007-06-12 03:17:46 UTC (rev 269)
++++ sleep/src/sleep/bridges/BasicUtilities.java	2007-06-12 03:47:38 UTC (rev 270)
+@@ -34,12 +34,17 @@
+ 
+ import java.lang.reflect.*; // for array casting stuff
+ 
+-import sleep.parser.Parser;
++import sleep.parser.*;
+ import sleep.error.YourCodeSucksException;
+ 
+ /** implementation of basic utility functions */
+ public class BasicUtilities implements Function, Loadable, Predicate
+ {
++    static
++    {
++       ParserConfig.addKeyword("isa");
++    }
++
+     public boolean scriptUnloaded (ScriptInstance i)
+     {
+         return true;
+@@ -95,6 +100,7 @@
+         temp.put("-isarray", this);   
+         temp.put("-ishash",  this); 
+         temp.put("-isfunction", this);
++        temp.put("isa", this);
+         temp.put("&setField", this);
+ 
+         temp.put("&exit", this);
+@@ -181,6 +187,14 @@
+ 
+     public boolean decide(String predName, ScriptInstance anInstance, Stack terms)
+     {
++
++       if (predName.equals("isa"))
++       {
++          Class  blah = BridgeUtilities.getClass(terms, null);
++          Object bleh = BridgeUtilities.getObject(terms);
++          return blah != null && blah.isInstance(bleh);          
++       }
++ 
+        Scalar value = (Scalar)terms.pop();
+  
+        // Times when a scalar is considered true:
+
+Modified: sleep/src/sleep/bridges/BridgeUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BridgeUtilities.java	2007-06-12 03:17:46 UTC (rev 269)
++++ sleep/src/sleep/bridges/BridgeUtilities.java	2007-06-12 03:47:38 UTC (rev 270)
+@@ -67,6 +67,14 @@
+       return ((Scalar)arguments.pop()).intValue();
+    }
+ 
++   /** grab a class, if the stack is empty the default value will be returned */
++   public static Class getClass(Stack arguments, Class defaultValue)
++   {
++      Object obj = getObject(arguments);
++      if (obj == null) { return defaultValue; }
++      return (Class)obj;
++   }
++
+    /** grab a long.  if the stack is empty 0 will be returned. */
+    public static long getLong(Stack arguments)
+    {
+
+Modified: sleep/src/sleep/engine/Block.java
+===================================================================
+--- sleep/src/sleep/engine/Block.java	2007-06-12 03:17:46 UTC (rev 269)
++++ sleep/src/sleep/engine/Block.java	2007-06-12 03:47:38 UTC (rev 270)
+@@ -223,6 +223,10 @@
+               {
+                  environment.getScriptInstance().fireWarning("attempted an invalid index", temp.getLineNumber());
+               }
++              else if (ex instanceof ClassCastException)
++              {
++                 environment.getScriptInstance().fireWarning("attempted an invalid cast: " + ex.getMessage(), temp.getLineNumber());
++              }
+               else if (ex instanceof NullPointerException)
+               {
+                  environment.getScriptInstance().fireWarning("null value error", temp.getLineNumber());
+
+Added: sleep/tests/isa.sl
+===================================================================
+--- sleep/tests/isa.sl	2007-06-12 03:17:46 UTC (rev 269)
++++ sleep/tests/isa.sl	2007-06-12 03:47:38 UTC (rev 270)
+@@ -0,0 +1,15 @@
++#
++# test of the new isa op
++#
++
++debug(7 | 64);
++
++assert "blah" isa ^String;
++assert [new LinkedList] isa ^List;
++assert 3 isa ^Integer;
++assert 3 isa ^Number;
++assert 3.0 isa ^Number;
++assert 3.0 isa ^Double;
++assert 3.0 !isa ^Integer;
++assert 5 isa (^Integer);
++assert "blah" isa "bleh";
+
+Modified: sleep/tests/output/convertds3.sl
+===================================================================
+--- sleep/tests/output/convertds3.sl	2007-06-12 03:17:46 UTC (rev 269)
++++ sleep/tests/output/convertds3.sl	2007-06-12 03:47:38 UTC (rev 270)
+@@ -32,9 +32,9 @@
+ int[] a
+ Collection a
+ Collection a
+-Warning: there is no method that matches mar([Z at 969c29) in sleep.ArrayTest1 at convertds3.sl:36
+-Warning: there is no method that matches mar([F at e67e6a) in sleep.ArrayTest1 at convertds3.sl:37
+-Warning: there is no method that matches mar([Ljava.lang.Object;@758500) in sleep.ArrayTest1 at convertds3.sl:38
++Warning: there is no method that matches mar([Z at e78c96) in sleep.ArrayTest1 at convertds3.sl:36
++Warning: there is no method that matches mar([F at bf053f) in sleep.ArrayTest1 at convertds3.sl:37
++Warning: there is no method that matches mar([Ljava.lang.Object;@f1916f) in sleep.ArrayTest1 at convertds3.sl:38
+ int[] a
+ Collection a
+ Collection a
+
+Added: sleep/tests/output/isa.sl
+===================================================================
+--- sleep/tests/output/isa.sl	2007-06-12 03:17:46 UTC (rev 269)
++++ sleep/tests/output/isa.sl	2007-06-12 03:47:38 UTC (rev 270)
+@@ -0,0 +1,9 @@
++Trace: 'blah' isa class java.lang.String ? TRUE at isa.sl:7
++Trace: [] isa interface java.util.List ? TRUE at isa.sl:8
++Trace: 3 isa class java.lang.Integer ? TRUE at isa.sl:9
++Trace: 3 isa class java.lang.Number ? TRUE at isa.sl:10
++Trace: 3.0 isa class java.lang.Number ? TRUE at isa.sl:11
++Trace: 3.0 isa class java.lang.Double ? TRUE at isa.sl:12
++Trace: 3.0 !isa class java.lang.Integer ? TRUE at isa.sl:13
++Trace: 5 isa class java.lang.Integer ? TRUE at isa.sl:14
++Warning: attempted an invalid cast: java.lang.String at isa.sl:15
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2007-06-12 03:17:46 UTC (rev 269)
++++ sleep/whatsnew.txt	2007-06-12 03:47:38 UTC (rev 270)
+@@ -6,6 +6,10 @@
+ - added a new type of literal for resolving a Java class i.e.:
+   ^java.util.LinkedList resolves to java.util.LinkedList.class
+   ^Map$Entry would resolve to java.util.Map$Entry.class  etc..
++- added a new predicate 'isa' for determining if an object is a 
++  instance of a specific class i.e.:  "string" isa ^String
++- added a better error message for class cast exceptions caught w/i
++  the interpreter.
+ 
+ 2.1-beta 16  (11 Jun 07)
+ ===========
+
+
+
+From rsmudge at mail.berlios.de  Fri Jun 15 04:08:01 2007
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Fri, 15 Jun 2007 04:08:01 +0200
+Subject: [Sleep-svn] r271 - in sleep: . src/sleep/console src/sleep/parser
+Message-ID: <200706150208.l5F281VR006054@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2007-06-15 04:08:00 +0200 (Fri, 15 Jun 2007)
+New Revision: 271
+
+Added:
+   sleep/src/sleep/parser/ImportManager.java
+Modified:
+   sleep/src/sleep/console/TextConsole.java
+   sleep/src/sleep/parser/Parser.java
+   sleep/whatsnew.txt
+Log:
+..
+
+
+Modified: sleep/src/sleep/console/TextConsole.java
+===================================================================
+--- sleep/src/sleep/console/TextConsole.java	2007-06-12 03:47:38 UTC (rev 270)
++++ sleep/src/sleep/console/TextConsole.java	2007-06-15 02:08:00 UTC (rev 271)
+@@ -103,6 +103,7 @@
+             }
+ 
+             script.getScriptVariables().putScalar("@ARGV", array);  // set @ARGV to be our array of command line arguments
++            script.getScriptVariables().putScalar("$__SCRIPT__", SleepUtils.getScalar(script.getName()));
+ 
+             if (System.getProperty("sleep.debug") != null)
+             {
+
+Added: sleep/src/sleep/parser/ImportManager.java
+===================================================================
+--- sleep/src/sleep/parser/ImportManager.java	2007-06-12 03:47:38 UTC (rev 270)
++++ sleep/src/sleep/parser/ImportManager.java	2007-06-15 02:08:00 UTC (rev 271)
+@@ -0,0 +1,119 @@
++package sleep.parser;
++
++import java.util.*;
++import java.lang.reflect.*;
++import java.net.*;
++import java.io.*;
++
++/** This class mantains a cache of imported package names and resolve classes for a Sleep parser.
++    The existence of this class also allows these imports to be shared between parser instances.  Value is allowing
++    dynamically parsed code like eval, expr, compile_clousre etc.. to inherit their parents imported class
++    information. */
++public class ImportManager
++{
++   protected Map        imports   = new LinkedHashMap();
++   protected HashMap    classes   = new HashMap();
++   protected HashMap    jars      = new HashMap(); /* resolved jar files, key=jar name value=ClassLoader */  
++
++   /** Used by Sleep to import statement to save an imported package name. */
++   public File importPackage(String packagez, String from)
++   {
++       File returnValue = null;
++
++       String pack, clas;
++       clas = packagez.substring(packagez.lastIndexOf(".") + 1, packagez.length());
++       pack = packagez.substring(0, packagez.lastIndexOf("."));
++
++       /* resolve and setup our class loader for the specified jar file */
++
++       if (from != null)
++       {
++          try
++          {
++             returnValue = ParserConfig.findJarFile(from);
++ 
++             if (!jars.containsKey(from))
++             {
++                URLClassLoader loader = new URLClassLoader(new URL[] { returnValue.toURL() }, Thread.currentThread().getContextClassLoader());
++                jars.put(from, loader);
++             }
++          }
++          catch (Exception ex) { ex.printStackTrace(); }
++       }
++
++       /* handle importing our package */
++
++       if (clas.equals("*"))
++       {
++          imports.put(pack, from);
++       }
++       else
++       {
++          imports.put(packagez, from);
++         
++          Class found = findImportedClass(packagez);
++          classes.put(clas, found);
++       }
++
++       return returnValue;
++   }
++
++   /** This method is used by Sleep to resolve a specific class (or at least try) */
++   private Class resolveClass(String pack, String clas, String jar)
++   {
++       try
++       {
++          if (jar != null)
++          {
++             ClassLoader cl = (ClassLoader)jars.get(jar);
++             return Class.forName(pack + "." + clas, true, cl);
++          }
++          else
++          {
++             return Class.forName(pack + "." + clas);
++          }
++       }
++       catch (Exception ex) { }
++
++       return null;
++   }
++
++   /** Attempts to find a class, starts out with the passed in string itself, if that doesn't resolve then the string is 
++       appended to each imported package to see where the class might exist */
++   public Class findImportedClass(String name)
++   {
++       if (classes.get(name) == null)
++       {
++          Class rv = null;
++          String clas, pack;
++
++          if (name.indexOf(".") > -1)
++          {
++             clas = name.substring(name.lastIndexOf(".") + 1, name.length());
++             pack = name.substring(0, name.lastIndexOf("."));
++
++	     rv   = resolveClass(pack, clas, (String)imports.get(name));
++          }
++          else
++          {
++             Iterator i = imports.entrySet().iterator();
++             while (i.hasNext() && rv == null)
++             {
++                Map.Entry en = (Map.Entry)i.next();
++                rv = resolveClass((String)en.getKey(), name, (String)en.getValue());
++             }
++          }
++
++          if (rv == null)
++          {
++             System.err.println("Argh: " + name + " is not an imported class");
++             Thread.dumpStack();
++          }
++
++          classes.put(name, rv);
++       }
++     
++       return (Class)classes.get(name);
++   }
++}
++
+
+Modified: sleep/src/sleep/parser/Parser.java
+===================================================================
+--- sleep/src/sleep/parser/Parser.java	2007-06-12 03:47:38 UTC (rev 270)
++++ sleep/src/sleep/parser/Parser.java	2007-06-15 02:08:00 UTC (rev 271)
+@@ -71,107 +71,25 @@
+ 
+    public    char       EndOfTerm  = ';';
+ 
+-   protected Map        imports   = new LinkedHashMap();
+-   protected HashMap    classes   = new HashMap();
++   protected ImportManager imports;
+ 
+-   protected HashMap    jars      = new HashMap(); /* resolved jar files, key=jar name value=ClassLoader */
+-
+-   /** Used by hoes to import package names... */
+-   public File importPackage(String packagez, String from)
++   /** obtain the import manager, used for managing imported packages. */
++   public ImportManager getImportManager()
+    {
+-       File returnValue = null;
+-
+-       String pack, clas;
+-       clas = packagez.substring(packagez.lastIndexOf(".") + 1, packagez.length());
+-       pack = packagez.substring(0, packagez.lastIndexOf("."));
+-
+-       /* resolve and setup our class loader for the specified jar file */
+-
+-       if (from != null)
+-       {
+-          try
+-          {
+-             returnValue = ParserConfig.findJarFile(from);
+- 
+-             if (!jars.containsKey(from))
+-             {
+-                URLClassLoader loader = new URLClassLoader(new URL[] { returnValue.toURL() }, Thread.currentThread().getContextClassLoader());
+-                jars.put(from, loader);
+-             }
+-          }
+-          catch (Exception ex) { ex.printStackTrace(); }
+-       }
+-
+-       /* handle importing our package */
+-
+-       if (clas.equals("*"))
+-       {
+-          imports.put(pack, from);
+-       }
+-       else
+-       {
+-          imports.put(packagez, from);
+-         
+-          Class found = findImportedClass(packagez);
+-          classes.put(clas, found);
+-       }
+-
+-       return returnValue;
++      return imports;
+    }
+ 
+-   private Class resolveClass(String pack, String clas, String jar)
++   /** Used by Sleep to import statement to save an imported package name. */
++   public File importPackage(String packagez, String from)
+    {
+-       try
+-       {
+-          if (jar != null)
+-          {
+-             ClassLoader cl = (ClassLoader)jars.get(jar);
+-             return Class.forName(pack + "." + clas, true, cl);
+-          }
+-          else
+-          {
+-             return Class.forName(pack + "." + clas);
+-          }
+-       }
+-       catch (Exception ex) { }
++      return imports.importPackage(packagez, from);
++   }   
+ 
+-       return null;
+-   }
+-
++   /** Attempts to find a class, starts out with the passed in string itself, if that doesn't resolve then the string is
++       appended to each imported package to see where the class might exist */
+    public Class findImportedClass(String name)
+    {
+-       if (classes.get(name) == null)
+-       {
+-          Class rv = null;
+-          String clas, pack;
+-
+-          if (name.indexOf(".") > -1)
+-          {
+-             clas = name.substring(name.lastIndexOf(".") + 1, name.length());
+-             pack = name.substring(0, name.lastIndexOf("."));
+-
+-	     rv   = resolveClass(pack, clas, (String)imports.get(name));
+-          }
+-          else
+-          {
+-             Iterator i = imports.entrySet().iterator();
+-             while (i.hasNext() && rv == null)
+-             {
+-                Map.Entry en = (Map.Entry)i.next();
+-                rv = resolveClass((String)en.getKey(), name, (String)en.getValue());
+-             }
+-          }
+-
+-          if (rv == null)
+-          {
+-             System.err.println("Argh: " + name + " is not an imported class");
+-             Thread.dumpStack();
+-          }
+-
+-          classes.put(name, rv);
+-       }
+-     
+-       return (Class)classes.get(name);
++      return imports.findImportedClass(name);
+    }
+ 
+    public void setEndOfTerm(char c)
+@@ -188,6 +106,18 @@
+    /** initialize the parser with the code you want me to work with */
+    public Parser(String _name, String _code)
+    {
++      this(_name, _code, null);
++   }
++
++   /** initialize the parser with the code you want me to work with plus a shared import manager */
++   public Parser(String _name, String _code, ImportManager imps)
++   {
++      if (imps == null)
++      {
++         imps = new ImportManager();
++      }
++      imports = imps;
++
+       importPackage("java.lang.*", null);
+       importPackage("java.util.*", null);
+       importPackage("sleep.runtime.*", null);
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2007-06-12 03:47:38 UTC (rev 270)
++++ sleep/whatsnew.txt	2007-06-15 02:08:00 UTC (rev 271)
+@@ -10,6 +10,8 @@
+   instance of a specific class i.e.:  "string" isa ^String
+ - added a better error message for class cast exceptions caught w/i
+   the interpreter.
++- added a $__SCRIPT__ variable to indicate the name of the executed
++  script when running a Sleep script from the command line.
+ 
+ 2.1-beta 16  (11 Jun 07)
+ ===========
+
+
+
+From rsmudge at mail.berlios.de  Fri Jun 15 04:10:21 2007
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Fri, 15 Jun 2007 04:10:21 +0200
+Subject: [Sleep-svn] r272 - in sleep/tests: . output
+Message-ID: <200706150210.l5F2ALDq006299@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2007-06-15 04:10:20 +0200 (Fri, 15 Jun 2007)
+New Revision: 272
+
+Added:
+   sleep/tests/cmdline.sl
+   sleep/tests/output/cmdline.sl
+Log:
+<3
+
+
+Added: sleep/tests/cmdline.sl
+===================================================================
+--- sleep/tests/cmdline.sl	2007-06-15 02:08:00 UTC (rev 271)
++++ sleep/tests/cmdline.sl	2007-06-15 02:10:20 UTC (rev 272)
+@@ -0,0 +1,2 @@
++# test running of this thing from the command line.
++println("I am " . getFileName($__SCRIPT__));
+
+Added: sleep/tests/output/cmdline.sl
+===================================================================
+--- sleep/tests/output/cmdline.sl	2007-06-15 02:08:00 UTC (rev 271)
++++ sleep/tests/output/cmdline.sl	2007-06-15 02:10:20 UTC (rev 272)
+@@ -0,0 +1 @@
++I am cmdline.sl
+
+
+
+From rsmudge at mail.berlios.de  Fri Jun 15 04:20:52 2007
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Fri, 15 Jun 2007 04:20:52 +0200
+Subject: [Sleep-svn] r273 - in sleep: . src/sleep/bridges tests tests/output
+Message-ID: <200706150220.l5F2Kqo2006853@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2007-06-15 04:20:51 +0200 (Fri, 15 Jun 2007)
+New Revision: 273
+
+Added:
+   sleep/tests/output/typeof.sl
+   sleep/tests/typeof.sl
+Modified:
+   sleep/src/sleep/bridges/BasicUtilities.java
+   sleep/whatsnew.txt
+Log:
+added a typeOf function.
+
+
+Modified: sleep/src/sleep/bridges/BasicUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicUtilities.java	2007-06-15 02:10:20 UTC (rev 272)
++++ sleep/src/sleep/bridges/BasicUtilities.java	2007-06-15 02:20:51 UTC (rev 273)
+@@ -102,6 +102,7 @@
+         temp.put("-isfunction", this);
+         temp.put("isa", this);
+         temp.put("&setField", this);
++        temp.put("&typeOf", this);
+ 
+         temp.put("&exit", this);
+      
+@@ -774,6 +775,13 @@
+              }
+           }
+        }
++       else if (n.equals("&typeOf"))
++       {
++          Scalar s = BridgeUtilities.getScalar(l);
++          if (s.getArray() != null) { return SleepUtils.getScalar(s.getArray().getClass()); }
++          if (s.getHash() != null) { return SleepUtils.getScalar(s.getHash().getClass()); }
++          return SleepUtils.getScalar(s.getActualValue().getClass());
++       }
+        else if (n.equals("&invoke")) 
+        {
+           Map params = BridgeUtilities.extractNamedParameters(l);
+
+Added: sleep/tests/output/typeof.sl
+===================================================================
+--- sleep/tests/output/typeof.sl	2007-06-15 02:10:20 UTC (rev 272)
++++ sleep/tests/output/typeof.sl	2007-06-15 02:20:51 UTC (rev 273)
+@@ -0,0 +1,8 @@
++class sleep.engine.types.StringValue
++class sleep.engine.types.IntValue
++class sleep.engine.types.DoubleValue
++class sleep.engine.types.NullValue
++class sleep.engine.types.HashContainer
++class sleep.engine.types.ArrayContainer
++class sleep.engine.types.ObjectValue
++class sleep.engine.types.ObjectValue
+
+Added: sleep/tests/typeof.sl
+===================================================================
+--- sleep/tests/typeof.sl	2007-06-15 02:10:20 UTC (rev 272)
++++ sleep/tests/typeof.sl	2007-06-15 02:20:51 UTC (rev 273)
+@@ -0,0 +1,12 @@
++#
++# type of stuff...
++#
++println(typeOf("hello world!"));
++println(typeOf(3));
++println(typeOf(3.0));
++println(typeOf($null));
++println(typeOf(%()));
++println(typeOf(@()));
++println(typeOf({ println("foo!"); }));
++println(typeOf(^String));
++
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2007-06-15 02:10:20 UTC (rev 272)
++++ sleep/whatsnew.txt	2007-06-15 02:20:51 UTC (rev 273)
+@@ -12,6 +12,8 @@
+   the interpreter.
+ - added a $__SCRIPT__ variable to indicate the name of the executed
+   script when running a Sleep script from the command line.
++- added a typeOf($scalar) function to retrieve the class backing the
++  specified scalars value.  
+ 
+ 2.1-beta 16  (11 Jun 07)
+ ===========
+
+
+
+From rsmudge at mail.berlios.de  Fri Jun 15 04:38:58 2007
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Fri, 15 Jun 2007 04:38:58 +0200
+Subject: [Sleep-svn] r274 - in sleep: . src/sleep/parser tests tests/output
+Message-ID: <200706150238.l5F2cwif007780@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2007-06-15 04:38:54 +0200 (Fri, 15 Jun 2007)
+New Revision: 274
+
+Added:
+   sleep/tests/assertp.sl
+   sleep/tests/output/assertp.sl
+Modified:
+   sleep/src/sleep/parser/CodeGenerator.java
+   sleep/src/sleep/parser/ParserUtilities.java
+   sleep/whatsnew.txt
+Log:
+added a message parameter to assertions.
+
+
+Modified: sleep/src/sleep/parser/CodeGenerator.java
+===================================================================
+--- sleep/src/sleep/parser/CodeGenerator.java	2007-06-15 02:20:51 UTC (rev 273)
++++ sleep/src/sleep/parser/CodeGenerator.java	2007-06-15 02:38:54 UTC (rev 274)
+@@ -1099,19 +1099,28 @@
+               return;
+            }
+ 
++           Token assert_terms[] = ParserUtilities.groupByMessageTerm(parser, tokens[1]).getTokens();
++           
+            backup();
+               atom = GeneratedSteps.CreateFrame();
+               add(atom, tokens[0]);
+ 
+-              ascalar = SleepUtils.getScalar("assertion failed");
+-              atom    = GeneratedSteps.SValue(ascalar);
+-              add(atom, tokens[0]);
++              if (assert_terms.length == 1)
++              {
++                 ascalar = SleepUtils.getScalar("assertion failed");
++                 atom    = GeneratedSteps.SValue(ascalar);
++                 add(atom, tokens[0]);
++              }
++              else
++              {
++                 parseIdea(assert_terms[1]);
++              }
+ 
+               atom = GeneratedSteps.Call("&exit");
+               add(atom, tokens[0]);
+            b = restore();
+ 
+-           atom = GeneratedSteps.Decide(parsePredicate(tokens[1]), null, b);
++           atom = GeneratedSteps.Decide(parsePredicate(assert_terms[0]), null, b);
+            add(atom, tokens[1]);
+            break;
+          case EXPR_RETURN:                     // implemented
+
+Modified: sleep/src/sleep/parser/ParserUtilities.java
+===================================================================
+--- sleep/src/sleep/parser/ParserUtilities.java	2007-06-15 02:20:51 UTC (rev 273)
++++ sleep/src/sleep/parser/ParserUtilities.java	2007-06-15 02:38:54 UTC (rev 274)
+@@ -62,6 +62,14 @@
+        return groupByTerm(tokens);
+    }
+ 
++   /** breaks down the token into sub tokens that are one "term" wide, in the case of messages separated by : */
++   public static TokenList groupByMessageTerm(Parser parser, Token smokin)
++   {
++       StringIterator iterator = new StringIterator(smokin.toString(), smokin.getHint());
++       TokenList      tokens   = LexicalAnalyzer.GroupExpressionIndexTokens(parser, iterator);
++       return groupByTerm(tokens);
++   }
++
+    /** breaks down the token into sub tokens that are one "term" wide, a termi in the case of parameters it uses , */
+    public static TokenList groupByParameterTerm(Parser parser, Token smokin)
+    {
+@@ -70,6 +78,7 @@
+        return groupByTerm(tokens);
+    }
+ 
++
+    private static TokenList groupByTerm(TokenList n)
+    {
+        TokenList rv = new TokenList();
+
+Added: sleep/tests/assertp.sl
+===================================================================
+--- sleep/tests/assertp.sl	2007-06-15 02:20:51 UTC (rev 273)
++++ sleep/tests/assertp.sl	2007-06-15 02:38:54 UTC (rev 274)
+@@ -0,0 +1,14 @@
++#
++# Sleep script that tests recursion.
++# Computes the factorial of a number.
++#
++
++debug(15);
++
++sub fact
++{
++   assert $1 >= 0 : "argh! tied to pass a 0 value"; 
++   return $1 * fact($1 - 1);
++}
++
++printf("fact(6) is: " . fact(6));
+
+Added: sleep/tests/output/assertp.sl
+===================================================================
+--- sleep/tests/output/assertp.sl	2007-06-15 02:20:51 UTC (rev 273)
++++ sleep/tests/output/assertp.sl	2007-06-15 02:38:54 UTC (rev 274)
+@@ -0,0 +1,10 @@
++Trace: &exit('argh! tied to pass a 0 value') - FAILED! at assertp.sl:10
++Warning: argh! tied to pass a 0 value at assertp.sl:10
++Trace: &fact(-1) - FAILED! at assertp.sl:11
++Trace: &fact(0) - FAILED! at assertp.sl:11
++Trace: &fact(1) - FAILED! at assertp.sl:11
++Trace: &fact(2) - FAILED! at assertp.sl:11
++Trace: &fact(3) - FAILED! at assertp.sl:11
++Trace: &fact(4) - FAILED! at assertp.sl:11
++Trace: &fact(5) - FAILED! at assertp.sl:11
++Trace: &fact(6) - FAILED! at assertp.sl:14
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2007-06-15 02:20:51 UTC (rev 273)
++++ sleep/whatsnew.txt	2007-06-15 02:38:54 UTC (rev 274)
+@@ -14,6 +14,8 @@
+   script when running a Sleep script from the command line.
+ - added a typeOf($scalar) function to retrieve the class backing the
+   specified scalars value.  
++- added the ability to specify a failure message with an assert i.e.:
++  assert <predicate> : <message>; 
+ 
+ 2.1-beta 16  (11 Jun 07)
+ ===========
+
+
+
+From rsmudge at mail.berlios.de  Fri Jun 15 16:47:27 2007
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Fri, 15 Jun 2007 16:47:27 +0200
+Subject: [Sleep-svn] r275 - in sleep: . src/sleep/bridges src/sleep/parser
+	tests tests/output
+Message-ID: <200706151447.l5FElRn1030922@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2007-06-15 16:47:26 +0200 (Fri, 15 Jun 2007)
+New Revision: 275
+
+Added:
+   sleep/tests/output/use2.sl
+   sleep/tests/use2.sl
+Modified:
+   sleep/src/sleep/bridges/BasicUtilities.java
+   sleep/src/sleep/parser/CodeGenerator.java
+   sleep/tests/setfield.sl
+   sleep/whatsnew.txt
+Log:
+more changes...
+
+
+Modified: sleep/src/sleep/bridges/BasicUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicUtilities.java	2007-06-15 02:38:54 UTC (rev 274)
++++ sleep/src/sleep/bridges/BasicUtilities.java	2007-06-15 14:47:26 UTC (rev 275)
+@@ -232,8 +232,9 @@
+ 
+        public Scalar evaluate(String n, ScriptInstance si, Stack l)
+        {
+-          File   parent;
+-          String className;
++          File   parent    = null;
++          String className = "";
++          Class  bridge    = null;
+ 
+           if (l.size() == 2)
+           {
+@@ -242,10 +243,18 @@
+           }
+           else
+           {
+-             File a    = sleep.parser.ParserConfig.findJarFile(l.pop().toString());
++             Scalar obj = (Scalar)l.pop();
++             if (obj.objectValue() instanceof Class && n.equals("&use"))
++             {
++                bridge = (Class)obj.objectValue();
++             }
++             else
++             {
++                File a     = sleep.parser.ParserConfig.findJarFile(obj.toString());
+ 
+-             parent    = a.getParentFile();
+-             className = a.getName();
++                parent     = a.getParentFile();
++                className  = a.getName();
++             }
+           }
+ 
+           if (parent != null && !parent.exists())
+@@ -257,17 +266,18 @@
+           {
+              if (n.equals("&use"))
+              {
+-                Class bridge;
+-
+-                if (parent != null)
++                if (bridge == null)
+                 {
+-                   URLClassLoader loader = new URLClassLoader(new URL[] { parent.toURL() });
+-                   bridge = Class.forName(className, true, loader);
++                   if (parent != null)
++                   {
++                      URLClassLoader loader = new URLClassLoader(new URL[] { parent.toURL() });
++                      bridge = Class.forName(className, true, loader);
++                   }
++                   else
++                   {
++                      bridge = Class.forName(className);
++                   }
+                 }
+-                else
+-                {
+-                   bridge = Class.forName(className);
+-                }
+ 
+                 Loadable temp;
+ 
+@@ -1121,13 +1131,14 @@
+           Class  aClass = null;
+           Object inst   = null;
+ 
+-          if ("==CLASS==".equals(value.toString()))
++          if (value.objectValue() == null)
+           {
+-             aClass = (Class)(BridgeUtilities.getScalar(l).objectValue());
++             throw new IllegalArgumentException("&setField: can not set field on a null object");
+           }
+-          else if (value.objectValue() == null)
++          else if (value.objectValue() instanceof Class)
+           {
+-             throw new IllegalArgumentException("&setField: can not set field on a null object");
++             aClass = (Class)value.objectValue();
++             inst   = null;
+           }
+           else
+           {
+
+Modified: sleep/src/sleep/parser/CodeGenerator.java
+===================================================================
+--- sleep/src/sleep/parser/CodeGenerator.java	2007-06-15 02:38:54 UTC (rev 274)
++++ sleep/src/sleep/parser/CodeGenerator.java	2007-06-15 14:47:26 UTC (rev 275)
+@@ -789,16 +789,6 @@
+               atom = GeneratedSteps.Decide(parsePredicate(termsAr[0]), a, b);
+               add(atom, tokens[0]); 
+            }
+-           else if (strings[0].equals("&setField"))
+-           {
+-              atom = GeneratedSteps.CreateFrame();
+-              add(atom, tokens[0]);
+-
+-              parseSpecialParameters(ParserUtilities.extract(tokens[1]));
+-
+-              atom = GeneratedSteps.Call(strings[0]);
+-              add(atom, tokens[0]);
+-           }
+            else if (tokens.length > 1)
+            {
+               atom = GeneratedSteps.CreateFrame();
+@@ -1192,39 +1182,6 @@
+       }     
+    }
+ 
+-   /** checks if the first token is potentially a class literal, if it is creates an
+-       object scalar for it.  otherwise it is parsed as a normal literal idea */
+-   public void parseSpecialParameters(Token token)
+-   {
+-      TokenList terms   = ParserUtilities.groupByParameterTerm(parser, token);
+-      Token[]   termsAr = terms.getTokens();
+-
+-      for (int x = termsAr.length - 1; x >= 0; x--)
+-      {
+-         if (x == 0)
+-         {
+-            Class aClass = parser.findImportedClass(termsAr[x].toString());
+-
+-            if (aClass == null)
+-            {
+-               parseIdea(termsAr[x]);
+-            }
+-            else
+-            {
+-               Scalar  ascalar = SleepUtils.getScalar(aClass);
+-               Step    atom    = GeneratedSteps.SValue(ascalar);
+-               add(atom, termsAr[x]);
+-
+-               parseIdea(ParserUtilities.makeToken("'==CLASS=='", termsAr[x]));
+-            }
+-         }
+-         else
+-         {
+-            parseIdea(termsAr[x]);
+-         }
+-      }
+-   }
+-
+    public void parseParameters(Token token)
+    {
+       TokenList terms   = ParserUtilities.groupByParameterTerm(parser, token);
+
+Added: sleep/tests/output/use2.sl
+===================================================================
+--- sleep/tests/output/use2.sl	2007-06-15 02:38:54 UTC (rev 274)
++++ sleep/tests/output/use2.sl	2007-06-15 14:47:26 UTC (rev 275)
+@@ -0,0 +1,4 @@
++Foo has been called with args: []
++Foo has been called with args: [c, b, a]
++Foo has been called with args: []
++3
+
+Modified: sleep/tests/setfield.sl
+===================================================================
+--- sleep/tests/setfield.sl	2007-06-15 02:38:54 UTC (rev 274)
++++ sleep/tests/setfield.sl	2007-06-15 14:47:26 UTC (rev 275)
+@@ -10,7 +10,7 @@
+ println("Pre change:");
+ [$sb1 printValues];
+ 
+-setField(SqueezeBox, aDoubleField => 4);
++setField(^SqueezeBox, aDoubleField => 4);
+ [$sb1 printValues];
+ [$sb2 printValues];
+ 
+
+Added: sleep/tests/use2.sl
+===================================================================
+--- sleep/tests/use2.sl	2007-06-15 02:38:54 UTC (rev 274)
++++ sleep/tests/use2.sl	2007-06-15 14:47:26 UTC (rev 275)
+@@ -0,0 +1,14 @@
++#
++# A quick test of the use() function 
++#
++
++# assume we're running this from the toplevel sleep directory.
++
++import org.hick.tests.* from: "./data/test.jar";
++
++use(^TestLoadable);
++
++foo();
++foo("a", "b", "c");
++
++println("Testing: " + foo());
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2007-06-15 02:38:54 UTC (rev 274)
++++ sleep/whatsnew.txt	2007-06-15 14:47:26 UTC (rev 275)
+@@ -16,6 +16,11 @@
+   specified scalars value.  
+ - added the ability to specify a failure message with an assert i.e.:
+   assert <predicate> : <message>; 
++- setField can now accept a class literal as its first argument for
++  updating a static field
++- &use can now accept a class literal as its first argument (safer
++  than specifying bridge as a string as class literals are resolved 
++  at compile time)
+ 
+ 2.1-beta 16  (11 Jun 07)
+ ===========
+
+
+
+From rsmudge at mail.berlios.de  Fri Jun 15 17:06:35 2007
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Fri, 15 Jun 2007 17:06:35 +0200
+Subject: [Sleep-svn] r276 - in sleep: . src/sleep/bridges src/sleep/engine
+Message-ID: <200706151506.l5FF6ZRk032547@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2007-06-15 17:06:34 +0200 (Fri, 15 Jun 2007)
+New Revision: 276
+
+Modified:
+   sleep/src/sleep/bridges/BasicUtilities.java
+   sleep/src/sleep/engine/ObjectUtilities.java
+   sleep/whatsnew.txt
+Log:
+whee...
+
+
+
+Modified: sleep/src/sleep/bridges/BasicUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicUtilities.java	2007-06-15 14:47:26 UTC (rev 275)
++++ sleep/src/sleep/bridges/BasicUtilities.java	2007-06-15 15:06:34 UTC (rev 276)
+@@ -353,13 +353,11 @@
+        public Scalar evaluate(String n, ScriptInstance si, Stack l)
+        {
+           Scalar value      = BridgeUtilities.getScalar(l);
+-          String type       = BridgeUtilities.getString(l, " ");
++          Scalar type       = BridgeUtilities.getScalar(l);
+ 
+-          if (type.length() == 0) { type = " "; }
+-
+           if (n.equals("&casti"))
+           {
+-             Class  atype = ObjectUtilities.convertDescriptionToClass(type);
++             Class  atype = ObjectUtilities.convertScalarDescriptionToClass(type);
+ 
+              if (atype != null)
+              {
+@@ -374,11 +372,11 @@
+ 
+           if (value.getArray() == null)
+           {
+-             if (type.charAt(0) == 'c')
++             if (type.toString().charAt(0) == 'c')
+              {
+                 return SleepUtils.getScalar((Object)value.toString().toCharArray());
+              }             
+-             else if (type.charAt(0) == 'b')
++             else if (type.toString().charAt(0) == 'b')
+              {
+                 // we do a straight conversion here because we don't want byte data to be mucked up by charsets
+                 // this is because string stores an array of bytes as a string...
+@@ -410,7 +408,7 @@
+ 
+           Object rv;
+ 
+-          Class atype = ObjectUtilities.convertDescriptionToClass(type);
++          Class atype = ObjectUtilities.convertScalarDescriptionToClass(type);
+ 
+           if (atype == null)
+               atype = ObjectUtilities.getArrayType(value, Object.class);
+
+Modified: sleep/src/sleep/engine/ObjectUtilities.java
+===================================================================
+--- sleep/src/sleep/engine/ObjectUtilities.java	2007-06-15 14:47:26 UTC (rev 275)
++++ sleep/src/sleep/engine/ObjectUtilities.java	2007-06-15 15:06:34 UTC (rev 276)
+@@ -275,9 +275,25 @@
+       return temp;
+    }
+ 
++   /** this function checks if the specified scalar is a Class literal and uses that if it is, otherwise description is converted to a string and the convertDescriptionToClass method is used */
++   public static Class convertScalarDescriptionToClass(Scalar description)
++   {
++       if (description.objectValue() instanceof Class)
++       {
++          return (Class)description.objectValue();
++       }
++
++       return convertDescriptionToClass(description.toString());
++   }
++
+    /** converts the one character class description to the specified Class type, i.e. z = boolean, c = char, b = byte, i = integer, etc.. */
+    public static Class convertDescriptionToClass(String description)
+    {
++      if (description.length() != 1)
++      {
++         return null;
++      }
++
+       Class atype = null;
+ 
+       switch (description.charAt(0))
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2007-06-15 14:47:26 UTC (rev 275)
++++ sleep/whatsnew.txt	2007-06-15 15:06:34 UTC (rev 276)
+@@ -21,6 +21,8 @@
+ - &use can now accept a class literal as its first argument (safer
+   than specifying bridge as a string as class literals are resolved 
+   at compile time)
++- updated &cast and &casti to allow a class literal to be specified
++  as the type to cast to.
+ 
+ 2.1-beta 16  (11 Jun 07)
+ ===========
+
+
+
+From rsmudge at mail.berlios.de  Fri Jun 15 17:18:34 2007
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Fri, 15 Jun 2007 17:18:34 +0200
+Subject: [Sleep-svn] r277 - in sleep: . tests tests/output
+Message-ID: <200706151518.l5FFIYk2000872@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2007-06-15 17:18:34 +0200 (Fri, 15 Jun 2007)
+New Revision: 277
+
+Added:
+   sleep/tests/cast.sl
+   sleep/tests/output/cast.sl
+Modified:
+   sleep/whatsnew.txt
+Log:
+another unit test.
+
+
+Added: sleep/tests/cast.sl
+===================================================================
+--- sleep/tests/cast.sl	2007-06-15 15:06:34 UTC (rev 276)
++++ sleep/tests/cast.sl	2007-06-15 15:18:34 UTC (rev 277)
+@@ -0,0 +1,17 @@
++#
++# some tests of cast with its new found ability to love class literals
++#
++
++sub printIt
++{
++   println("$1 " . [$1 getClass]);
++}
++
++global('@a');
++ at a = cast(@("this is a string", "this is a test", "blah"), ^CharSequence);
++printIt(@a);
++
++import java.util.*;
++
++ at a = cast(@([new LinkedList], [new ArrayList]), ^List);
++printIt(@a);
+
+Added: sleep/tests/output/cast.sl
+===================================================================
+--- sleep/tests/output/cast.sl	2007-06-15 15:06:34 UTC (rev 276)
++++ sleep/tests/output/cast.sl	2007-06-15 15:18:34 UTC (rev 277)
+@@ -0,0 +1,2 @@
++[Ljava.lang.CharSequence;@1eb0 class [Ljava.lang.CharSequence;
++[Ljava.util.List;@16ef71 class [Ljava.util.List;
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2007-06-15 15:06:34 UTC (rev 276)
++++ sleep/whatsnew.txt	2007-06-15 15:18:34 UTC (rev 277)
+@@ -22,7 +22,7 @@
+   than specifying bridge as a string as class literals are resolved 
+   at compile time)
+ - updated &cast and &casti to allow a class literal to be specified
+-  as the type to cast to.
++  as the type to cast to.  
+ 
+ 2.1-beta 16  (11 Jun 07)
+ ===========
+
+
+
+From rsmudge at mail.berlios.de  Fri Jun 15 17:29:59 2007
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Fri, 15 Jun 2007 17:29:59 +0200
+Subject: [Sleep-svn] r278 - in sleep: . src/sleep/bridges tests tests/output
+Message-ID: <200706151529.l5FFTx13001469@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2007-06-15 17:29:58 +0200 (Fri, 15 Jun 2007)
+New Revision: 278
+
+Added:
+   sleep/tests/lindexOf.sl
+   sleep/tests/output/lindexOf.sl
+Modified:
+   sleep/src/sleep/bridges/BasicStrings.java
+   sleep/whatsnew.txt
+Log:
+added lindexOf function
+
+
+Modified: sleep/src/sleep/bridges/BasicStrings.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicStrings.java	2007-06-15 15:18:34 UTC (rev 277)
++++ sleep/src/sleep/bridges/BasicStrings.java	2007-06-15 15:29:58 UTC (rev 278)
+@@ -69,7 +69,8 @@
+         temp.put("&substr",  f_substr);
+         temp.put("&mid",  f_substr);
+ 
+-        temp.put("&indexOf", new func_indexOf());
++        temp.put("&indexOf",  new func_indexOf());
++        temp.put("&lindexOf", temp.get("&indexOf"));
+         temp.put("&strlen",  new func_strlen());
+         temp.put("&strrep",  new func_strrep());
+         temp.put("&replaceAt",  new func_replaceAt());
+@@ -443,9 +444,17 @@
+         {
+            String value = l.pop().toString();
+            String item  = l.pop().toString();
+-           int    start = BridgeUtilities.normalize(BridgeUtilities.getInt(l, 0), value.length());
+                   
+-           return SleepUtils.getScalar(value.indexOf(item, start));
++           if (n.equals("&lindexOf"))
++           {
++              int start = BridgeUtilities.normalize(BridgeUtilities.getInt(l, value.length()), value.length());
++              return SleepUtils.getScalar(value.lastIndexOf(item, start));
++           }
++           else
++           {
++              int start = BridgeUtilities.normalize(BridgeUtilities.getInt(l, 0), value.length());
++              return SleepUtils.getScalar(value.indexOf(item, start));
++           }
+         }
+     }
+ 
+
+Added: sleep/tests/lindexOf.sl
+===================================================================
+--- sleep/tests/lindexOf.sl	2007-06-15 15:18:34 UTC (rev 277)
++++ sleep/tests/lindexOf.sl	2007-06-15 15:29:58 UTC (rev 278)
+@@ -0,0 +1,7 @@
++println(lindexOf("this is a test", "is"));
++println(lindexOf("this is a testz0r", "0"));
++println(lindexOf("this is a test", "t"));
++println(lindexOf("this is a test", "t", 12));
++println(lindexOf("this is a test", "t", 11));
++println(lindexOf("this is a test", "t", 10));
++println(lindexOf("this is a test", "t", 9));
+
+Added: sleep/tests/output/lindexOf.sl
+===================================================================
+--- sleep/tests/output/lindexOf.sl	2007-06-15 15:18:34 UTC (rev 277)
++++ sleep/tests/output/lindexOf.sl	2007-06-15 15:29:58 UTC (rev 278)
+@@ -0,0 +1,7 @@
++5
++15
++13
++10
++10
++10
++0
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2007-06-15 15:18:34 UTC (rev 277)
++++ sleep/whatsnew.txt	2007-06-15 15:29:58 UTC (rev 278)
+@@ -23,6 +23,7 @@
+   at compile time)
+ - updated &cast and &casti to allow a class literal to be specified
+   as the type to cast to.  
++- added a lindexOf function to obtain the last index of a substring
+ 
+ 2.1-beta 16  (11 Jun 07)
+ ===========
+
+
+
+From rsmudge at mail.berlios.de  Fri Jun 15 19:44:05 2007
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Fri, 15 Jun 2007 19:44:05 +0200
+Subject: [Sleep-svn] r279 - in sleep: . src/sleep/console
+Message-ID: <200706151744.l5FHi5uZ023922@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2007-06-15 19:44:04 +0200 (Fri, 15 Jun 2007)
+New Revision: 279
+
+Modified:
+   sleep/src/sleep/console/ConsoleImplementation.java
+   sleep/whatsnew.txt
+Log:
+..
+
+
+Modified: sleep/src/sleep/console/ConsoleImplementation.java
+===================================================================
+--- sleep/src/sleep/console/ConsoleImplementation.java	2007-06-15 15:29:58 UTC (rev 278)
++++ sleep/src/sleep/console/ConsoleImplementation.java	2007-06-15 17:44:04 UTC (rev 279)
+@@ -54,6 +54,9 @@
+    /** the script loader */
+    private ScriptLoader     loader; 
+ 
++   /** our import manager */
++   private ImportManager    imports;
++
+    /** Creates an implementation of the sleep console.  The implementation created by this constructor is isolated from your 
+        applications environment.  Any scripts loaded via this console will have only the default bridges.  */
+    public ConsoleImplementation()
+@@ -506,7 +509,11 @@
+    {
+        try
+        {
+-          Block parsed = SleepUtils.ParseCode(expression.toString());
++          Parser parser = new Parser("eval", expression.toString(), imports);
++          imports = parser.getImportManager();
++          parser.parse();
++          Block parsed = parser.getRunnableBlock();
++
+           script = loader.loadScript("<interact mode>", parsed, sharedEnvironment);
+ 
+           if (System.getProperty("sleep.debug") != null)
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2007-06-15 15:29:58 UTC (rev 278)
++++ sleep/whatsnew.txt	2007-06-15 17:44:04 UTC (rev 279)
+@@ -24,6 +24,7 @@
+ - updated &cast and &casti to allow a class literal to be specified
+   as the type to cast to.  
+ - added a lindexOf function to obtain the last index of a substring
++- sleep console now shares one pool of imported packages for evaluations
+ 
+ 2.1-beta 16  (11 Jun 07)
+ ===========
+
+
+
+From rsmudge at mail.berlios.de  Fri Jun 15 20:59:02 2007
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Fri, 15 Jun 2007 20:59:02 +0200
+Subject: [Sleep-svn] r280 - in sleep: . src/sleep/bridges
+	src/sleep/engine/atoms tests tests/output
+Message-ID: <200706151859.l5FIx2be029597@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2007-06-15 20:59:01 +0200 (Fri, 15 Jun 2007)
+New Revision: 280
+
+Added:
+   sleep/tests/newInstance.sl
+   sleep/tests/output/newInstance.sl
+Modified:
+   sleep/src/sleep/bridges/BasicUtilities.java
+   sleep/src/sleep/engine/atoms/ObjectAccess.java
+   sleep/tests/border.sl
+   sleep/tests/output/border.sl
+   sleep/whatsnew.txt
+Log:
+..
+
+
+Modified: sleep/src/sleep/bridges/BasicUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicUtilities.java	2007-06-15 17:44:04 UTC (rev 279)
++++ sleep/src/sleep/bridges/BasicUtilities.java	2007-06-15 18:59:01 UTC (rev 280)
+@@ -103,6 +103,7 @@
+         temp.put("isa", this);
+         temp.put("&setField", this);
+         temp.put("&typeOf", this);
++        temp.put("&newInstance", this);
+ 
+         temp.put("&exit", this);
+      
+@@ -783,6 +784,25 @@
+              }
+           }
+        }
++       else if (n.equals("&newInstance"))
++       {
++          Scalar top = BridgeUtilities.getScalar(l);
++      
++          if (top.getArray() != null)
++          {
++             Class        clz[]   = (Class[])ObjectUtilities.buildArgument(Class[].class, top, i);
++             SleepClosure closure = (SleepClosure)BridgeUtilities.getObject(l);          
++
++             return SleepUtils.getScalar(ProxyInterface.BuildInterface(clz, closure, i));
++          }
++          else
++          {
++             Class        clz     = (Class)top.objectValue();
++             SleepClosure closure = (SleepClosure)BridgeUtilities.getObject(l);          
++
++             return SleepUtils.getScalar(SleepUtils.newInstance(clz, closure, i));
++          }
++       }
+        else if (n.equals("&typeOf"))
+        {
+           Scalar s = BridgeUtilities.getScalar(l);
+
+Modified: sleep/src/sleep/engine/atoms/ObjectAccess.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/ObjectAccess.java	2007-06-15 17:44:04 UTC (rev 279)
++++ sleep/src/sleep/engine/atoms/ObjectAccess.java	2007-06-15 18:59:01 UTC (rev 280)
+@@ -221,6 +221,10 @@
+                   {
+                      trace.append(theClass.getName() + " " + name + args + "]");
+                   }
++                  else if (Proxy.isProxyClass(theClass))
++                  {
++                     trace.append(theClass.getName() + " " + name + args + "]");
++                  }
+                   else
+                   {
+                      trace.append(SleepUtils.describe(scalar) + " " + name + args + "]");
+
+Modified: sleep/tests/border.sl
+===================================================================
+--- sleep/tests/border.sl	2007-06-15 17:44:04 UTC (rev 279)
++++ sleep/tests/border.sl	2007-06-15 18:59:01 UTC (rev 280)
+@@ -30,3 +30,5 @@
+ 
+ println(@test);
+ 
++println(subarray(@("a", "b", "c", "d", "e"), 2));
++println(substr("abcde", 2));
+
+Added: sleep/tests/newInstance.sl
+===================================================================
+--- sleep/tests/newInstance.sl	2007-06-15 17:44:04 UTC (rev 279)
++++ sleep/tests/newInstance.sl	2007-06-15 18:59:01 UTC (rev 280)
+@@ -0,0 +1,37 @@
++debug(7);
++
++sub foo
++{
++   if ($0 eq "toString")
++   {
++      return "<&foo as an object>";
++   }
++
++   local('$a');
++
++   println("I have been called with: $0");
++   println("My args are:");
++   foreach $n => $a (@_)
++   {
++      println("  $n => $a");
++   }
++
++   return 3;
++}
++
++global('$action');
++$action = newInstance(^Comparable, &foo);
++println("Class:      " . [$action getClass]);
++println("Interfaces: " . [[$action getClass] getInterfaces]); 
++println("Value:      " . $action);
++
++debug(7 | 15);
++println([$action compareTo: "foo"]);
++
++debug(7);
++
++$action = newInstance(@(^List, ^Comparable), &foo);
++println("Class:      " . [$action getClass]);
++println("Interfaces: " . [[$action getClass] getInterfaces]); 
++println("Value:      " . $action);
++
+
+Modified: sleep/tests/output/border.sl
+===================================================================
+--- sleep/tests/output/border.sl	2007-06-15 17:44:04 UTC (rev 279)
++++ sleep/tests/output/border.sl	2007-06-15 18:59:01 UTC (rev 280)
+@@ -14,3 +14,5 @@
+ abc
+ @('a', 'b', 'c', 'd', 'e')
+ @('v', 'w', 'x', 'y')
++@('c', 'd', 'e')
++cde
+
+Added: sleep/tests/output/newInstance.sl
+===================================================================
+--- sleep/tests/output/newInstance.sl	2007-06-15 17:44:04 UTC (rev 279)
++++ sleep/tests/output/newInstance.sl	2007-06-15 18:59:01 UTC (rev 280)
+@@ -0,0 +1,18 @@
++Class:      class $Proxy0
++Interfaces: @(interface java.lang.Comparable)
++Value:      <&foo as an object>
++Trace: &local('$a') at newInstance.sl:10
++I have been called with: compareTo
++Trace: &println('I have been called with: compareTo') at newInstance.sl:12
++My args are:
++Trace: &println('My args are:') at newInstance.sl:13
++  0 => foo
++Trace: &println('  0 => foo') at newInstance.sl:16
++Trace: [&closure[newInstance.sl:5-19]#1 compareTo: 'foo'] = 3 at <Java>:-1
++Trace: [$Proxy0 compareTo: 'foo'] = 3 at newInstance.sl:29
++3
++Trace: &println(3) at newInstance.sl:29
++Trace: &debug(7) = 7 at newInstance.sl:31
++Class:      class $Proxy1
++Interfaces: @(interface java.util.List, interface java.lang.Comparable)
++Value:      <&foo as an object>
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2007-06-15 17:44:04 UTC (rev 279)
++++ sleep/whatsnew.txt	2007-06-15 18:59:01 UTC (rev 280)
+@@ -25,6 +25,8 @@
+   as the type to cast to.  
+ - added a lindexOf function to obtain the last index of a substring
+ - sleep console now shares one pool of imported packages for evaluations
++- added newInstance(^Class|@, &closure) for creating a proxy instance
++  of a Java object backed by the specified interfaces
+ 
+ 2.1-beta 16  (11 Jun 07)
+ ===========
+
+
+
+From rsmudge at mail.berlios.de  Sat Jun 16 00:35:07 2007
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Sat, 16 Jun 2007 00:35:07 +0200
+Subject: [Sleep-svn] r281 - in sleep: . src/sleep/runtime tests tests/output
+Message-ID: <200706152235.l5FMZ790020889@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2007-06-16 00:35:06 +0200 (Sat, 16 Jun 2007)
+New Revision: 281
+
+Added:
+   sleep/tests/output/trylocal.sl
+   sleep/tests/trylocal.sl
+Modified:
+   sleep/src/sleep/runtime/ScriptEnvironment.java
+   sleep/whatsnew.txt
+Log:
+fixed a try/catch bug.
+
+
+Modified: sleep/src/sleep/runtime/ScriptEnvironment.java
+===================================================================
+--- sleep/src/sleep/runtime/ScriptEnvironment.java	2007-06-15 18:59:01 UTC (rev 280)
++++ sleep/src/sleep/runtime/ScriptEnvironment.java	2007-06-15 22:35:06 UTC (rev 281)
+@@ -142,7 +142,7 @@
+        return getScriptVariables().getScalar(key, getScriptInstance());
+     }
+ 
+-    /** puts a scalar into this scripts environment */
++    /** puts a scalar into this scripts environment (global scope) */
+     public void putScalar(String key, Scalar value)
+     {
+        getScriptVariables().putScalar(key, value);
+@@ -401,7 +401,16 @@
+     {
+        request     &= ~FLOW_CONTROL_THROW;       
+        Block  doit  = currentHandler.handler;
+-       putScalar(currentHandler.varname, rv);
++
++       Scalar temp  = getScriptVariables().getScalar(currentHandler.varname, getScriptInstance());
++       if (temp != null)
++       {
++          temp.setValue(rv);
++       }
++       else
++       {
++          putScalar(currentHandler.varname, rv);
++       }
+        rv           = null;
+        return doit;
+     }
+
+Added: sleep/tests/output/trylocal.sl
+===================================================================
+--- sleep/tests/output/trylocal.sl	2007-06-15 18:59:01 UTC (rev 280)
++++ sleep/tests/output/trylocal.sl	2007-06-15 22:35:06 UTC (rev 281)
+@@ -0,0 +1,3 @@
++hehehe....
++   trylocal.sl:16 &bar()
++   trylocal.sl:7 <origin of exception>
+
+Added: sleep/tests/trylocal.sl
+===================================================================
+--- sleep/tests/trylocal.sl	2007-06-15 18:59:01 UTC (rev 280)
++++ sleep/tests/trylocal.sl	2007-06-15 22:35:06 UTC (rev 281)
+@@ -0,0 +1,25 @@
++#
++#
++#
++
++sub bar
++{
++   throw "hehehe....";
++}
++
++sub foo
++{
++   local('$ex');
++
++   try
++   {
++      bar();
++   }
++   catch $ex
++   {
++      println("$ex");
++      printAll(getStackTrace());
++   }
++}
++
++foo();
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2007-06-15 18:59:01 UTC (rev 280)
++++ sleep/whatsnew.txt	2007-06-15 22:35:06 UTC (rev 281)
+@@ -27,6 +27,8 @@
+ - sleep console now shares one pool of imported packages for evaluations
+ - added newInstance(^Class|@, &closure) for creating a proxy instance
+   of a Java object backed by the specified interfaces
++- try/catch is no longer dependent on putting the caught value into
++  the global scope.
+ 
+ 2.1-beta 16  (11 Jun 07)
+ ===========
+
+
+
+From rsmudge at mail.berlios.de  Sat Jun 16 01:04:41 2007
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Sat, 16 Jun 2007 01:04:41 +0200
+Subject: [Sleep-svn] r282 - in sleep: . src/sleep/engine tests tests/output
+Message-ID: <200706152304.l5FN4fwq021981@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2007-06-16 01:04:33 +0200 (Sat, 16 Jun 2007)
+New Revision: 282
+
+Added:
+   sleep/tests/output/trybreaks.sl
+   sleep/tests/trybreaks.sl
+Modified:
+   sleep/src/sleep/engine/Block.java
+   sleep/whatsnew.txt
+Log:
+fixed a bug with try/catch
+
+
+
+Modified: sleep/src/sleep/engine/Block.java
+===================================================================
+--- sleep/src/sleep/engine/Block.java	2007-06-15 22:35:06 UTC (rev 281)
++++ sleep/src/sleep/engine/Block.java	2007-06-15 23:04:33 UTC (rev 282)
+@@ -187,6 +187,19 @@
+         }
+     }
+ 
++    /** clean up the environment */
++    private void cleanupEnvironment(ScriptEnvironment environment)
++    {
++        /* pop source information from the stack */
++        environment.popSource();
++
++        /* remove exception handlers associated with this block (we obviously returned within one */
++        if (environment.isResponsible(this))
++        {
++           environment.popExceptionContext();
++        }
++    }
++
+     /** evaluates this block of code.  please note that if the block has a return statement and the method clearReturn() is not 
+         called on the corresponding script environment chaos will ensue.  use SleepUtils.runCode() to safely execute a block of
+         code.  don't call this method yourself.  okay? */
+@@ -198,7 +211,7 @@
+            {
+               environment.pushSource(source); /* may not be necessary, but then again, maybe they are... used for stack traces */
+               handleException(environment);
+-              environment.popSource();
++              cleanupEnvironment(environment);
+            }
+ 
+            return environment.getReturnValue();
+@@ -241,7 +254,7 @@
+                  ex.printStackTrace(System.out);
+               }
+ 
+-              environment.popSource();
++              cleanupEnvironment(environment);
+               return SleepUtils.getEmptyScalar();
+            } 
+ 
+@@ -282,7 +295,7 @@
+                     handleException(environment);
+                  }
+ 
+-                 environment.popSource();
++                 cleanupEnvironment(environment);
+                  return environment.getReturnValue(); /* we do this because the exception will get cleared and after that
+                                                          there may be a return value */
+               }
+@@ -293,7 +306,7 @@
+               }
+               else
+               {
+-                 environment.popSource();
++                 cleanupEnvironment(environment);
+                  return environment.getReturnValue();
+               }
+            }
+@@ -301,7 +314,7 @@
+            temp = temp.next;
+         }
+ 
+-        environment.popSource();
++        cleanupEnvironment(environment);
+         return SleepUtils.getEmptyScalar(); 
+     }
+ }
+
+Added: sleep/tests/output/trybreaks.sl
+===================================================================
+--- sleep/tests/output/trybreaks.sl	2007-06-15 22:35:06 UTC (rev 281)
++++ sleep/tests/output/trybreaks.sl	2007-06-15 23:04:33 UTC (rev 282)
+@@ -0,0 +1,3 @@
++...
++foo!
++outside: test!
+
+Added: sleep/tests/trybreaks.sl
+===================================================================
+--- sleep/tests/trybreaks.sl	2007-06-15 22:35:06 UTC (rev 281)
++++ sleep/tests/trybreaks.sl	2007-06-15 23:04:33 UTC (rev 282)
+@@ -0,0 +1,30 @@
++sub foo
++{
++   try
++   {
++      println("...");
++      try
++      {
++         println("foo!");
++         return;
++      }
++      catch $ex
++      {
++         println("foo: $ex");
++      }
++   }
++   catch $ex3
++   {
++      println("foo o: $ex3");
++   }
++}
++
++try
++{
++   foo();
++   throw "test!";
++}
++catch $ex2
++{
++   println("outside: $ex2");
++}
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2007-06-15 22:35:06 UTC (rev 281)
++++ sleep/whatsnew.txt	2007-06-15 23:04:33 UTC (rev 282)
+@@ -29,6 +29,8 @@
+   of a Java object backed by the specified interfaces
+ - try/catch is no longer dependent on putting the caught value into
+   the global scope.
++- returning within a try block no longer breaks Sleep's exception
++  mechanism.
+ 
+ 2.1-beta 16  (11 Jun 07)
+ ===========
+
+
+
+From rsmudge at mail.berlios.de  Sat Jun 16 01:09:01 2007
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Sat, 16 Jun 2007 01:09:01 +0200
+Subject: [Sleep-svn] r283 - in sleep/tests: . output
+Message-ID: <200706152309.l5FN91PN025261@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2007-06-16 01:08:54 +0200 (Sat, 16 Jun 2007)
+New Revision: 283
+
+Added:
+   sleep/tests/output/trybreaks2.sl
+   sleep/tests/trybreaks2.sl
+Log:
+..
+
+
+Added: sleep/tests/output/trybreaks2.sl
+===================================================================
+--- sleep/tests/output/trybreaks2.sl	2007-06-15 23:04:33 UTC (rev 282)
++++ sleep/tests/output/trybreaks2.sl	2007-06-15 23:08:54 UTC (rev 283)
+@@ -0,0 +1,6 @@
++...
++foo!
++foo: !!!! 1
++foo o: !!!! 2
++caught: !!! 3
++outside: test!
+
+Added: sleep/tests/trybreaks2.sl
+===================================================================
+--- sleep/tests/trybreaks2.sl	2007-06-15 23:04:33 UTC (rev 282)
++++ sleep/tests/trybreaks2.sl	2007-06-15 23:08:54 UTC (rev 283)
+@@ -0,0 +1,42 @@
++sub foo
++{
++   try
++   {
++      println("...");
++      try
++      {
++         println("foo!");
++         yield "blah";
++         throw "!!!! 1";
++      }
++      catch $ex
++      {
++         println("foo: $ex");
++      }
++ 
++      throw "!!!! 2";
++   }
++   catch $ex3
++   {
++      println("foo o: $ex3");
++      throw "!!! 3";
++   }
++}
++
++try
++{
++   foo();
++   try
++   {
++      foo();
++   }
++   catch $ex4
++   {
++      println("caught: $ex4");
++      throw "test!";
++   }
++}
++catch $ex2
++{
++   println("outside: $ex2");
++}
+
+
+
+From rsmudge at mail.berlios.de  Sat Jun 16 01:20:29 2007
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Sat, 16 Jun 2007 01:20:29 +0200
+Subject: [Sleep-svn] r284 - in sleep: . src/sleep/engine src/sleep/parser
+	tests tests/output
+Message-ID: <200706152320.l5FNKT81008523@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2007-06-16 01:20:27 +0200 (Sat, 16 Jun 2007)
+New Revision: 284
+
+Added:
+   sleep/tests/output/tcatchex.sl
+   sleep/tests/tcatchex.sl
+Modified:
+   sleep/src/sleep/engine/Block.java
+   sleep/src/sleep/parser/ImportManager.java
+   sleep/tests/output/convertds3.sl
+   sleep/tests/output/forker.sl
+   sleep/tests/output/trace.sl
+   sleep/tests/output/wrong.sl
+   sleep/whatsnew.txt
+Log:
+fixed more bugs... wheee...
+
+
+Modified: sleep/src/sleep/engine/Block.java
+===================================================================
+--- sleep/src/sleep/engine/Block.java	2007-06-15 23:08:54 UTC (rev 283)
++++ sleep/src/sleep/engine/Block.java	2007-06-15 23:20:27 UTC (rev 284)
+@@ -292,7 +292,10 @@
+                  }
+                  else
+                  {
+-                    handleException(environment);
++                    if (!SleepUtils.isEmptyScalar(environment.getReturnValue())) /* an empty return value means we're exiting */
++                    {
++                       handleException(environment);
++                    }
+                  }
+ 
+                  cleanupEnvironment(environment);
+
+Modified: sleep/src/sleep/parser/ImportManager.java
+===================================================================
+--- sleep/src/sleep/parser/ImportManager.java	2007-06-15 23:08:54 UTC (rev 283)
++++ sleep/src/sleep/parser/ImportManager.java	2007-06-15 23:20:27 UTC (rev 284)
+@@ -104,11 +104,12 @@
+              }
+           }
+ 
+-          if (rv == null)
++          // some friendly (really) debugging
++/*          if (rv == null)
+           {
+              System.err.println("Argh: " + name + " is not an imported class");
+              Thread.dumpStack();
+-          }
++          } */
+ 
+           classes.put(name, rv);
+        }
+
+Modified: sleep/tests/output/convertds3.sl
+===================================================================
+--- sleep/tests/output/convertds3.sl	2007-06-15 23:08:54 UTC (rev 283)
++++ sleep/tests/output/convertds3.sl	2007-06-15 23:20:27 UTC (rev 284)
+@@ -32,9 +32,9 @@
+ int[] a
+ Collection a
+ Collection a
+-Warning: there is no method that matches mar([Z at e78c96) in sleep.ArrayTest1 at convertds3.sl:36
+-Warning: there is no method that matches mar([F at bf053f) in sleep.ArrayTest1 at convertds3.sl:37
+-Warning: there is no method that matches mar([Ljava.lang.Object;@f1916f) in sleep.ArrayTest1 at convertds3.sl:38
++Warning: there is no method that matches mar([Z at cf829d) in sleep.ArrayTest1 at convertds3.sl:36
++Warning: there is no method that matches mar([F at 884a40) in sleep.ArrayTest1 at convertds3.sl:37
++Warning: there is no method that matches mar([Ljava.lang.Object;@c2ee15) in sleep.ArrayTest1 at convertds3.sl:38
+ int[] a
+ Collection a
+ Collection a
+
+Modified: sleep/tests/output/forker.sl
+===================================================================
+--- sleep/tests/output/forker.sl	2007-06-15 23:08:54 UTC (rev 283)
++++ sleep/tests/output/forker.sl	2007-06-15 23:20:27 UTC (rev 284)
+@@ -1,4 +1,4 @@
+ Trace: &check('within fork') at forker.sl:9
+-Trace: &fork(&closure[forker.sl:9]#2) = sleep.bridges.io.IOObject at 7ec9f7 at forker.sl:8
++Trace: &fork(&closure[forker.sl:9]#2) = sleep.bridges.io.IOObject at b33a0e at forker.sl:8
+ Trace: &sleep(1000) at forker.sl:12
+ Trace: &check('outside of fork') at forker.sl:14
+
+Added: sleep/tests/output/tcatchex.sl
+===================================================================
+--- sleep/tests/output/tcatchex.sl	2007-06-15 23:08:54 UTC (rev 283)
++++ sleep/tests/output/tcatchex.sl	2007-06-15 23:20:27 UTC (rev 284)
+@@ -0,0 +1 @@
++Warning: Time to leave: -1 at tcatchex.sl:5
+
+Modified: sleep/tests/output/trace.sl
+===================================================================
+--- sleep/tests/output/trace.sl	2007-06-15 23:08:54 UTC (rev 283)
++++ sleep/tests/output/trace.sl	2007-06-15 23:20:27 UTC (rev 284)
+@@ -1,13 +1,13 @@
+ this is a test
+-Trace: [java.io.PrintStream at 2c3327 println: 'this is a test'] at trace.sl:6
++Trace: [java.io.PrintStream at f01771 println: 'this is a test'] at trace.sl:6
+ Trace: [java.lang.Math pow: 3, 4] = 81.0 at trace.sl:7
+ 81.0
+-Trace: [java.io.PrintStream at 2c3327 println: 81.0] at trace.sl:7
++Trace: [java.io.PrintStream at f01771 println: 81.0] at trace.sl:7
+ Trace: [java.lang.Math pow: 3, 5] = 243.0 at trace.sl:8
+ 243.0
+ Trace: &println(243.0) at trace.sl:8
+ testing again...
+-Trace: [java.io.PrintStream at 2c3327 println: 'testing again...'] at trace.sl:10
++Trace: [java.io.PrintStream at f01771 println: 'testing again...'] at trace.sl:10
+ Trace: [sleep.runtime.SleepUtils getListFromArray: @('a', 'b', 'c')] = [a, b, c] at trace.sl:12
+ Trace: [new java.util.LinkedList: [a, b, c]] = [a, b, c] at trace.sl:12
+ Warning: variable '$list' not declared at trace.sl:12
+
+Modified: sleep/tests/output/wrong.sl
+===================================================================
+--- sleep/tests/output/wrong.sl	2007-06-15 23:08:54 UTC (rev 283)
++++ sleep/tests/output/wrong.sl	2007-06-15 23:20:27 UTC (rev 284)
+@@ -1,32 +1,32 @@
+ Trace: [java.lang.Math pow: 3, 4] = 81.0 at wrong.sl:6
+ 81.0
+-Trace: [java.io.PrintStream at 4ac216 println: 81.0] at wrong.sl:6
++Trace: [java.io.PrintStream at 16ef71 println: 81.0] at wrong.sl:6
+ Trace: &casti(1, 'z') = true at wrong.sl:9
+ true
+-Trace: [java.io.PrintStream at 4ac216 println: true] at wrong.sl:9
++Trace: [java.io.PrintStream at 16ef71 println: true] at wrong.sl:9
+ Trace: &casti(0, 'z') = false at wrong.sl:10
+ false
+-Trace: [java.io.PrintStream at 4ac216 println: false] at wrong.sl:10
++Trace: [java.io.PrintStream at 16ef71 println: false] at wrong.sl:10
+ Trace: &casti(1, 'd') = 1.0 at wrong.sl:13
+ 1.0
+-Trace: [java.io.PrintStream at 4ac216 println: 1.0] at wrong.sl:13
++Trace: [java.io.PrintStream at 16ef71 println: 1.0] at wrong.sl:13
+ Trace: &casti(1, 'b') = 1 at wrong.sl:16
+ 1
+-Trace: [java.io.PrintStream at 4ac216 println: 1] at wrong.sl:16
++Trace: [java.io.PrintStream at 16ef71 println: 1] at wrong.sl:16
+ Trace: &casti(100, 'f') = 100.0 at wrong.sl:19
+ 100.0
+-Trace: [java.io.PrintStream at 4ac216 println: 100.0] at wrong.sl:19
++Trace: [java.io.PrintStream at 16ef71 println: 100.0] at wrong.sl:19
+ Trace: &casti('b', 'c') = b at wrong.sl:22
+ b
+-Trace: [java.io.PrintStream at 4ac216 println: b] at wrong.sl:22
++Trace: [java.io.PrintStream at 16ef71 println: b] at wrong.sl:22
+ Trace: &casti(63, 'i') = 63 at wrong.sl:25
+ 63
+-Trace: [java.io.PrintStream at 4ac216 println: 63] at wrong.sl:25
++Trace: [java.io.PrintStream at 16ef71 println: 63] at wrong.sl:25
+ this is a string y0
+-Trace: [java.io.PrintStream at 4ac216 println: 'this is a string y0'] at wrong.sl:28
++Trace: [java.io.PrintStream at 16ef71 println: 'this is a string y0'] at wrong.sl:28
+ Trace: [new java.lang.StringBuilder: 'test'] = test at wrong.sl:31
+ test
+-Trace: [java.io.PrintStream at 4ac216 println: test] at wrong.sl:31
+-Trace: &cast(@('a', 'b', 'c', 'd'), 'c') = [C at 9c2715 at wrong.sl:34
++Trace: [java.io.PrintStream at 16ef71 println: test] at wrong.sl:31
++Trace: &cast(@('a', 'b', 'c', 'd'), 'c') = [C at 24c4a3 at wrong.sl:34
+ abcd
+-Trace: [java.io.PrintStream at 4ac216 println: [C at 9c2715] at wrong.sl:34
++Trace: [java.io.PrintStream at 16ef71 println: [C at 24c4a3] at wrong.sl:34
+
+Added: sleep/tests/tcatchex.sl
+===================================================================
+--- sleep/tests/tcatchex.sl	2007-06-15 23:08:54 UTC (rev 283)
++++ sleep/tests/tcatchex.sl	2007-06-15 23:20:27 UTC (rev 284)
+@@ -0,0 +1,20 @@
++sub foo
++{
++   if ($1 < 0)
++   {
++      exit("Time to leave: $1");
++   }
++
++   return foo($1 - 1);
++}
++
++try
++{
++   foo(5);
++}
++catch $end
++{
++   println("err... $end");
++}
++
++println("We're done now, whee...");
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2007-06-15 23:08:54 UTC (rev 283)
++++ sleep/whatsnew.txt	2007-06-15 23:20:27 UTC (rev 284)
+@@ -31,6 +31,7 @@
+   the global scope.
+ - returning within a try block no longer breaks Sleep's exception
+   mechanism.
++- &exit can now be used within a try/catch block
+ 
+ 2.1-beta 16  (11 Jun 07)
+ ===========
+
+
+
+From rsmudge at mail.berlios.de  Sat Jun 16 04:40:21 2007
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Sat, 16 Jun 2007 04:40:21 +0200
+Subject: [Sleep-svn] r285 - in sleep: . docs
+Message-ID: <200706160240.l5G2eLaY011718@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2007-06-16 04:40:19 +0200 (Sat, 16 Jun 2007)
+New Revision: 285
+
+Modified:
+   sleep/build.xml
+   sleep/docs/sleeplang.html
+   sleep/readme.txt
+Log:
+updated the docs for the latest changes.
+
+
+Modified: sleep/build.xml
+===================================================================
+--- sleep/build.xml	2007-06-15 23:20:27 UTC (rev 284)
++++ sleep/build.xml	2007-06-16 02:40:19 UTC (rev 285)
+@@ -16,7 +16,7 @@
+            destdir="${project.build}"
+            nowarn="yes"
+            depend="yes"
+-           debug="true"
++           debug="false"
+            source="1.4"
+            target="1.4"
+            optimize="yes"
+
+Modified: sleep/docs/sleeplang.html
+===================================================================
+--- sleep/docs/sleeplang.html	2007-06-15 23:20:27 UTC (rev 284)
++++ sleep/docs/sleeplang.html	2007-06-16 02:40:19 UTC (rev 285)
+@@ -321,6 +321,10 @@
+   <td>is</td>
+   <td>true if scalar object reference v1 equals object reference v2</td>
+  </tr>
++ <tr>  
++  <td>isa</td>
++  <td>true if scalar object reference v1 is an instance of the Class referenced by scalar v2</td>
++ </tr>
+ </table>
+ 
+ <p>One example use of the <code>is</code> comparison is to check if a function really returned
+@@ -348,6 +352,8 @@
+    # the string "test" is not contained in the string "walrus"
+ }</pre>
+ 
++<p>The <code>isa</code> predicate is covered later in the <i>Class Literals</i> subsection of this document.</p>
++
+ <h3>Combining Comparisons</h3>
+ 
+ <p>Comparisons can be combined using the logical operators && for AND and || for OR.  For example:</p>
+@@ -442,6 +448,10 @@
+ 
+ <pre>assert <b>comparison</b>;</pre>
+ 
++<p>Assertions also allow a message to be attached.  The attached message is echoed whenever an assertion fails.</p>
++
++<pre>assert <b>comparison</b> : <b>message</b>;</pre>
++
+ <p>Assertions are great for doing a last minute sanity check of some condition.  Can you tell what is wrong with this code snippet?</P>
+ 
+ <pre>sub fact
+@@ -453,7 +463,7 @@
+ 
+ <pre>sub fact
+ {
+-   assert $1 >= 0;
++   assert $1 >= 0 : "invalid arg for fact: $1";
+    return iff($1 == 0, 1, $1 * fact($1 - 1));
+ }</pre>
+ 
+@@ -1604,6 +1614,29 @@
+ 
+ <p>If the jar filename includes spaces, you can surround it with single or double quotes.</p>
+ 
++<h4>Class Literals</h4>
++
++<p>Sleep has a special literal form for specifying Java classes within scripts.  The hat symbol followed by a string is 
++expanded into the appropriate class using the current list of imports at script compile time.  As an example <code>^String</code>
++expands to the result of <code>[Class forName: "java.lang.String"]</code>.  Class literals can be used to compare scalar types
++against eachother, to specify a desired class in a casting function, and more.</p>
++
++<p>Inner classes are referenced with a dollar sign between the parent class and the inner class name i.e.:
++<code>^Map$Entry</code> references the Entry class that belongs to the Map class.</p>
++
++<p>For example to check if an exception is an IOException before acting on it:</p>
++
++<pre>import java.io.IOException;
++
++$handle = openf("fjosfjs");
++if (checkError($error) && $error isa ^IOException)
++{
++   println("Could not open file: " . [$error getCause]);
++}</pre>
++
++<p>The <code>isa</code> predicate is used to check if the value on the left hand side is an instance of the class on the 
++right hand side.  It is analagous to Java's instanceof predicate.</p>
++
+ <h3><a name="interfaces"></a>Sleep Interfaces</h3>
+ 
+ <p>A neat feature of HOES is how interfaces can be quickly and easily created and passed to Java objects.  A Java interface
+@@ -1646,6 +1679,8 @@
+ only message passed to ActionListener interfaces is the actionPerformed message.  The button_pressed subroutine is passed as a 
+ closure parameter in this line: <code>[$button addActionListener:&button_pressed];</code>.</p>
+ 
++<p>Sleep backed instantiations of Java interfaces can also be created with the <code>&amp;newInstance</code> function.</p>
++
+ <p>Any uncaught exceptions originating from a Sleep script will bubble up to the Java caller of the Sleep interface.</p>
+ 
+ <h3>Scalar Conversions</h3>
+@@ -1893,6 +1928,9 @@
+ 
+ <p>Parameters specified as <code>@|&</code> represent that either an @array can be passed or a &generator function.  A generator function is a closure that iterates over a sequence with the yield keyword and returns $null when no values are left to iterate over.</p>
+ 
++<p>A <code>^</code> indicates a literal Class value i.e. <code>^String</code>.  This is used to indicate that a function expects
++a class literal as an argument (or offers one as a return value).</p>
++
+ <p>Note, the $ is not part of the function name.  It is solely shorthand for specifying the return type of the function.</p>
+ 
+ <h3>Array Functions</h3>
+@@ -1920,10 +1958,11 @@
+  </tr>
+  <tr>
+   <td>$</td>
+-  <td>cast(@array, 't', ...)</td>
+-  <td>casts @array into an object scalar representing a native java array of type t where t can be b = byte, c = char, d = 
+-double, f = float, h = short, i = int, l = long, o = java.lang.Object, z = boolean, * = any object type.  Arguments ... are optional and used 
+-to represent the dimensions of the array.</td>
++  <td>cast(@array, 't'|^Class, ...)</td>
++  <td>casts @array into an object scalar representing a native java array of type t where t can be b = byte, c = char, d =
++double, f = float, h = short, i = int, l = long, o = java.lang.Object, z = boolean, * = any object type.  Optionally a
++^Class literal can be specified and Sleep will create an array of that type.  Arguments ... are optional and used to
++represent the dimensions of the array.</td>
+  </tr>
+  <tr>
+   <td></td>
+@@ -2656,6 +2695,11 @@
+  </tr>
+  <tr>
+   <td>$</td>
++  <td>lindexOf("string", "substr", [start])</td>
++  <td>returns the last index of "substr" inside of "string" looking backwards from the specified start index.</td>
++ </tr>
++ <tr>
++  <td>$</td>
+   <td>join("string", @|&amp;)</td>
+   <td>joins the elements of @array or &amp;generator with "string"</td>
+  </tr>
+@@ -2761,9 +2805,10 @@
+  </tr>
+  <tr>
+   <td>$</td>
+-  <td>casti($scalar, 't')</td>
++  <td>casti($scalar, 't'|^Class)</td>
+   <td>casts $scalar into an object scalar representing a native java value of type t where t can be b = byte, c = char, d = 
+-      double, f = float, h = short, i = int, l = long, o = java.lang.Object, z = boolean.</td>
++      double, f = float, h = short, i = int, l = long, o = java.lang.Object, z = boolean.  Optionally a ^Class literal can be
++      specified in place of a type string.</td>
+  </tr>
+  <tr>
+   <td>$</td>
+@@ -2837,6 +2882,11 @@
+   <td>parses the specified string and declares all variables in the string as local variables.</td>
+  </tr>
+  <tr>
++  <td>$</td>
++  <td>newInstance(@|^Interface, &closure)</td>
++  <td>Creates a sleep closure backed instance of the specified java interface class (or classes if an array is used).</td>
++ </tr>
++ <tr>
+   <td>@</td>
+   <td>profile()</td>
+   <td>returns the profiler statistics for the current script environment.  Profile statistics will only be collected if DEBUG_TRACE_CALLS (8) or DEBUG_TRACE_PROFILE_ONLY (24) is set.</td>
+@@ -2853,7 +2903,7 @@
+  </tr>
+  <tr>
+   <td></td>
+-  <td>setField(class|$object, field => value, ...)</td>
++  <td>setField(^class|$object, field => value, ...)</td>
+   <td>sets any number of public/protected fields of the specified class or instance of $object to a corresponding value.</td>
+  </tr>
+  <tr>
+@@ -2878,8 +2928,8 @@
+  </tr>
+  <tr>
+   <td></td>
+-  <td>use("Loadable class")</td>
+-  <td>loads the specified class into the current script environment.  Classes specified as package.Name are loaded from the Java classpath.  Classes can also be specified as filenames without the .class extension.  The specified class must be a Loadable bridge (i.e. it implements sleep.interfaces.Loadable).</td>
++  <td>use("Loadable"|^Loadable)</td>
++  <td>loads the specified class into the current script environment.  Classes specified as package.Name are loaded from the Java classpath.  Classes can also be specified as filenames without the .class extension.  The specified class must be a Loadable bridge (i.e. it implements sleep.interfaces.Loadable).  Optionally a class literal can be specified as an argument and Sleep will instantiate an instance of that class and install it as a bridge into the current script environment.  This is a safer way to use this function as the class name can be checked at script compile time.</td>
+  </tr>
+  <tr>
+   <td></td>
+
+Modified: sleep/readme.txt
+===================================================================
+--- sleep/readme.txt	2007-06-15 23:20:27 UTC (rev 284)
++++ sleep/readme.txt	2007-06-16 02:40:19 UTC (rev 285)
+@@ -98,7 +98,8 @@
+ [raffi at beardsley ~/sleep/bin]$ java -jar sleep.jar filename.sl
+ 
+ When sleep scripts are run directly on the command line, arguments are
+-placed into the @ARGV variable.
++placed into the @ARGV variable.  Also the executed script name is
++stored in the $__SCRIPT__ variable.
+ 
+ To launch a sleep script from the command line (without -jar):
+ 
+
+
+
+From rsmudge at mail.berlios.de  Sun Jun 17 22:29:13 2007
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Sun, 17 Jun 2007 22:29:13 +0200
+Subject: [Sleep-svn] r286 - in sleep: . src/sleep/runtime
+Message-ID: <200706172029.l5HKTDur030996@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2007-06-17 22:29:11 +0200 (Sun, 17 Jun 2007)
+New Revision: 286
+
+Modified:
+   sleep/readme.txt
+   sleep/src/sleep/runtime/SleepUtils.java
+   sleep/whatsnew.txt
+Log:
+Sleep 2.1-b17
+
+
+Modified: sleep/readme.txt
+===================================================================
+--- sleep/readme.txt	2007-06-16 02:40:19 UTC (rev 285)
++++ sleep/readme.txt	2007-06-17 20:29:11 UTC (rev 286)
+@@ -1,5 +1,5 @@
+  ------- -------------------- ---------   ---------------  ------- ---------
+-Sleep - 2.1 beta 16 - README   
++Sleep - 2.1 beta 17 - README   
+ -  ------------- -------- -   ---------------- --       -    -     -     - - -
+ 
+ "You got the language, all you need now is the O'Reilly book".  That is
+@@ -105,9 +105,6 @@
+ 
+ [raffi at beardsley ~/sleep/bin]$ java -classpath sleep.jar sleep.console.TextConsole filename.sl
+ 
+-When sleep scripts are run directly on the command line, arguments are
+-placed into the @ARGV variable.
+-
+  ------- -------------------- ---------   ---------------  ------- ---------
+ Feedback
+ -  ------------- -------- -   ---------------- --       -    -     -     - - -
+
+Modified: sleep/src/sleep/runtime/SleepUtils.java
+===================================================================
+--- sleep/src/sleep/runtime/SleepUtils.java	2007-06-16 02:40:19 UTC (rev 285)
++++ sleep/src/sleep/runtime/SleepUtils.java	2007-06-17 20:29:11 UTC (rev 286)
+@@ -26,7 +26,7 @@
+ public class SleepUtils
+ {
+    /** A date stamp of this Sleep release in YYYYMMDD format */
+-   public static final int    SLEEP_RELEASE = 20070611;
++   public static final int    SLEEP_RELEASE = 20070617;
+ 
+    /** A string description of this Sleep release */
+    public static final String SLEEP_VERSION = "Sleep 2.1";
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2007-06-16 02:40:19 UTC (rev 285)
++++ sleep/whatsnew.txt	2007-06-17 20:29:11 UTC (rev 286)
+@@ -1,4 +1,4 @@
+-2.1-beta 17
++2.1-beta 17  (17 Jun 07)
+ ===========
+ - reduced number of Class.forName calls made when parsing scripts...
+   should help those using Sleep in Java applets ;) 
+
+
+
+From rsmudge at mail.berlios.de  Wed Jun 27 06:00:49 2007
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Wed, 27 Jun 2007 06:00:49 +0200
+Subject: [Sleep-svn] r287 - in sleep: . src/sleep/parser tests tests/output
+Message-ID: <200706270400.l5R40n8v014163@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2007-06-27 06:00:48 +0200 (Wed, 27 Jun 2007)
+New Revision: 287
+
+Added:
+   sleep/tests/output/scalref.sl
+   sleep/tests/scalref.sl
+Modified:
+   sleep/build.xml
+   sleep/src/sleep/parser/Checkers.java
+   sleep/src/sleep/parser/CodeGenerator.java
+   sleep/src/sleep/parser/ParserConstants.java
+   sleep/src/sleep/parser/TokenParser.java
+   sleep/whatsnew.txt
+Log:
+Added scalar references (*pHEAR*)
+
+
+
+Modified: sleep/build.xml
+===================================================================
+--- sleep/build.xml	2007-06-17 20:29:11 UTC (rev 286)
++++ sleep/build.xml	2007-06-27 04:00:48 UTC (rev 287)
+@@ -16,7 +16,7 @@
+            destdir="${project.build}"
+            nowarn="yes"
+            depend="yes"
+-           debug="false"
++           debug="true"
+            source="1.4"
+            target="1.4"
+            optimize="yes"
+
+Modified: sleep/src/sleep/parser/Checkers.java
+===================================================================
+--- sleep/src/sleep/parser/Checkers.java	2007-06-17 20:29:11 UTC (rev 286)
++++ sleep/src/sleep/parser/Checkers.java	2007-06-27 04:00:48 UTC (rev 287)
+@@ -159,6 +159,11 @@
+       return (a.charAt(0) == '&' && a.length() > 1 && !a.equals("&&"));
+    }
+ 
++   public static final boolean isVariableReference (String temp)
++   {
++      return temp.length() >= 3 && temp.charAt(0) == '\\' && !temp.equals("\\$null") && isVariable(temp.substring(1));
++   }
++
+    public static final boolean isVariable (String temp)
+    {
+       return (isScalar(temp) || isHash(temp) || isArray(temp));
+
+Modified: sleep/src/sleep/parser/CodeGenerator.java
+===================================================================
+--- sleep/src/sleep/parser/CodeGenerator.java	2007-06-17 20:29:11 UTC (rev 286)
++++ sleep/src/sleep/parser/CodeGenerator.java	2007-06-27 04:00:48 UTC (rev 287)
+@@ -352,6 +352,20 @@
+ 
+        switch (datum.getType())
+        {
++         case VALUE_SCALAR_REFERENCE:
++           atom = GeneratedSteps.CreateFrame();
++           add(atom, tokens[0]);
++
++           atom = GeneratedSteps.Get(strings[0].substring(1)); /* generate rhs with scalar value */
++           add(atom, tokens[0]);
++
++           ascalar = SleepUtils.getScalar(strings[0].substring(1)); /* generate lhs string scalar with var name */
++           atom    = GeneratedSteps.SValue(ascalar);
++           add(atom, tokens[0]);
++
++           atom = GeneratedSteps.Operate("=>");
++           add(atom, tokens[0]);
++           break;
+          case IDEA_HASH_PAIR:
+            //
+            // parsing A => B
+
+Modified: sleep/src/sleep/parser/ParserConstants.java
+===================================================================
+--- sleep/src/sleep/parser/ParserConstants.java	2007-06-17 20:29:11 UTC (rev 286)
++++ sleep/src/sleep/parser/ParserConstants.java	2007-06-27 04:00:48 UTC (rev 287)
+@@ -45,8 +45,9 @@
+    public static final int OBJECT_IMPORT   = 444;
+    public static final int OBJECT_CL_CALL  = 446; // a object closure call [$closure:parm1, parm2, parm3] or [$closure] 
+ 
+-   public static final int VALUE_SCALAR    = 701;
+-   public static final int VALUE_INDEXED   = 710;
++   public static final int VALUE_SCALAR           = 701;
++   public static final int VALUE_SCALAR_REFERENCE = 705;
++   public static final int VALUE_INDEXED          = 710;
+ 
+ 
+    public static final int PRED_BI         = 801;
+
+Modified: sleep/src/sleep/parser/TokenParser.java
+===================================================================
+--- sleep/src/sleep/parser/TokenParser.java	2007-06-17 20:29:11 UTC (rev 286)
++++ sleep/src/sleep/parser/TokenParser.java	2007-06-27 04:00:48 UTC (rev 287)
+@@ -414,6 +414,11 @@
+             myToken.setType(HACK_DEC);
+             myToken.add(tokens[x]);
+          }
++         else if (Checkers.isVariableReference(strings[x]))
++         {
++            myToken.setType(VALUE_SCALAR_REFERENCE);
++            myToken.add(tokens[x]);
++         }
+          // a normal block
+          else if (Checkers.isVariable(strings[x]))
+          {
+
+Added: sleep/tests/output/scalref.sl
+===================================================================
+--- sleep/tests/output/scalref.sl	2007-06-17 20:29:11 UTC (rev 286)
++++ sleep/tests/output/scalref.sl	2007-06-27 04:00:48 UTC (rev 287)
+@@ -0,0 +1,10 @@
++%($x => 3, $z => 1200174232L, $y => 'a string')
++@('a', 'b', 'c')
++%(z => 45L, y => 123, x => 'xxx')
++ and 
++&closure[scalref.sl:32-33]#4
++xx in closure c and yy in closure c
++&closure[scalref.sl:28]#3
++$c=&closure[scalref.sl:28]#3
++$x=3$y=a string$z=1200174232
++YourCodeSucksException: 1 error(s): Unknown expression at 0
+
+Added: sleep/tests/scalref.sl
+===================================================================
+--- sleep/tests/scalref.sl	2007-06-17 20:29:11 UTC (rev 286)
++++ sleep/tests/scalref.sl	2007-06-27 04:00:48 UTC (rev 287)
+@@ -0,0 +1,43 @@
++#
++# a test of the scalar references... pHEAR
++#
++
++sub atest
++{
++   local('@array %hash');
++   @array = @("a", "b", "c");
++   %hash  = %(x => "xxx", y => 123, z => 45L);
++   foo(\@array, \%hash); # pass these values directly into &foo
++}
++
++sub foo
++{
++   local('@array %hash'); # passed as named params hopefully.
++
++   println(@array);
++   println(%hash);
++}
++
++$x = 3;
++$y = "a string";
++$z = 0x47893498L;
++
++println(%(\$x, \$y, \$z));
++atest();
++
++$c = let({ invoke(&blah, \$this); }, $xx => "xx in closure c", $yy => "yy in closure c");
++
++sub blah
++{
++   println("$xx and $yy");   
++   println($this);
++}
++
++blah();
++[$c];
++
++println(\$c);
++println(\$x . \$y . \$z);
++
++eval('println(\$null);');
++println(checkError());
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2007-06-17 20:29:11 UTC (rev 286)
++++ sleep/whatsnew.txt	2007-06-27 04:00:48 UTC (rev 287)
+@@ -1,3 +1,9 @@
++2.1-beta 18  (26 Jun 07)
++===========
++- added scalar references: \$x is equivalent to $x => $x.  this sugar
++  was added for the common case of passing a key/value pair to copy a
++  scalar into the local/this environment of a function.
++
+ 2.1-beta 17  (17 Jun 07)
+ ===========
+ - reduced number of Class.forName calls made when parsing scripts...
+
+
+

@@ -1,0 +1,269 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r182 - in sleep: . src/sleep/bridges tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2006-November/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r182%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20tests/output&In-Reply-To=%3C200611210230.kAL2UrZc002172%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000163.html">
+   <LINK REL="Next"  HREF="000165.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r182 - in sleep: . src/sleep/bridges tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r182%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20tests/output&In-Reply-To=%3C200611210230.kAL2UrZc002172%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r182 - in sleep: . src/sleep/bridges tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Tue Nov 21 03:30:53 CET 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000163.html">[Sleep-svn] r181 - in sleep/tests: . output
+</A></li>
+        <LI>Next message: <A HREF="000165.html">[Sleep-svn] r183 - in sleep: . docs src/sleep/runtime
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#164">[ date ]</a>
+              <a href="thread.html#164">[ thread ]</a>
+              <a href="subject.html#164">[ subject ]</a>
+              <a href="author.html#164">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2006-11-21 03:30:52 +0100 (Tue, 21 Nov 2006)
+New Revision: 182
+
+Modified:
+   sleep/src/sleep/bridges/BasicIO.java
+   sleep/tests/output/forker.sl
+   sleep/tests/output/trace.sl
+   sleep/tests/output/wrong.sl
+   sleep/whatsnew.txt
+Log:
+fixed consume.
+
+
+
+Modified: sleep/src/sleep/bridges/BasicIO.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicIO.java	2006-11-21 02:17:02 UTC (rev 181)
++++ sleep/src/sleep/bridges/BasicIO.java	2006-11-21 02:30:52 UTC (rev 182)
+@@ -74,7 +74,7 @@
+ 
+         // binary i/o functions :)
+         temp.put(&quot;&amp;readb&quot;,      new readb());
+-        temp.put(&quot;&amp;consume&quot;,    temp.get(&quot;&amp;readb&quot;));
++        temp.put(&quot;&amp;consume&quot;,    new consume());
+         temp.put(&quot;&amp;writeb&quot;,     new writeb());
+ 
+         temp.put(&quot;&amp;bread&quot;,      new bread());
+@@ -1228,12 +1228,52 @@
+ 
+           if (read &gt; 0)
+           {
+-             return n.equals(&quot;&amp;consume&quot;) ? SleepUtils.getScalar(read) : SleepUtils.getScalar(temp);
++             return SleepUtils.getScalar(temp);
+           }
+           return SleepUtils.getEmptyScalar();
+        }
+     }
+ 
++    private static class consume implements Function
++    {
++       public Scalar evaluate(String n, ScriptInstance i, Stack l)
++       {
++          IOObject         a = chooseSource(l, 2, i);
++          int             to = BridgeUtilities.getInt(l, 1);
++          int           size = BridgeUtilities.getInt(l, 1024 * 32); /* 32K buffer anyone */
++
++          byte[] temp = a.getBuffer(size);
++
++          int read = 0;
++
++          try
++          {
++             while (read &lt; to)
++             {
++                if ((to - read) &lt; size)
++                {
++                   read += a.getReader().read(temp, read, to - read);
++                }
++                else
++                {
++                   read += a.getReader().read(temp, read, size);
++                }
++             }
++          }
++          catch (Exception ex)
++          {
++             a.close();
++             i.getScriptEnvironment().flagError(ex.toString());
++          }
++
++          if (read &gt; 0)
++          {
++             return SleepUtils.getScalar(read);
++          }
++          return SleepUtils.getEmptyScalar();
++       }
++    }
++
+     private static class read implements Function
+     {
+        public Scalar evaluate(String n, ScriptInstance i, Stack l)
+
+Modified: sleep/tests/output/forker.sl
+===================================================================
+--- sleep/tests/output/forker.sl	2006-11-21 02:17:02 UTC (rev 181)
++++ sleep/tests/output/forker.sl	2006-11-21 02:30:52 UTC (rev 182)
+@@ -1,3 +1,3 @@
+ Trace: &amp;check('within fork') at line 9
+-Trace: &amp;fork(&amp;closure2:9) = <A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">sleep.bridges.io.IOObject at a19458</A> at line 8
++Trace: &amp;fork(&amp;closure2:9) = <A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">sleep.bridges.io.IOObject at 97d026</A> at line 8
+ Trace: &amp;check('outside of fork') at line 12
+
+Modified: sleep/tests/output/trace.sl
+===================================================================
+--- sleep/tests/output/trace.sl	2006-11-21 02:17:02 UTC (rev 181)
++++ sleep/tests/output/trace.sl	2006-11-21 02:30:52 UTC (rev 182)
+@@ -1,13 +1,13 @@
+ this is a test
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 7eb6e2</A> println: 'this is a test'] at line 6
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at e78c96</A> println: 'this is a test'] at line 6
+ Trace: [java.lang.Math pow: 3, 4] = 81.0 at line 7
+ 81.0
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 7eb6e2</A> println: 81.0] at line 7
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at e78c96</A> println: 81.0] at line 7
+ Trace: [java.lang.Math pow: 3, 5] = 243.0 at line 8
+ 243.0
+ Trace: &amp;println(243.0) at line 8
+ testing again...
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 7eb6e2</A> println: 'testing again...'] at line 10
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at e78c96</A> println: 'testing again...'] at line 10
+ Trace: [sleep.runtime.SleepUtils getListFromArray: @('a', 'b', 'c')] = [a, b, c] at line 12
+ Trace: [new java.util.LinkedList: [a, b, c]] = [a, b, c] at line 12
+ Warning: variable '$list' not declared at line 12
+
+Modified: sleep/tests/output/wrong.sl
+===================================================================
+--- sleep/tests/output/wrong.sl	2006-11-21 02:17:02 UTC (rev 181)
++++ sleep/tests/output/wrong.sl	2006-11-21 02:30:52 UTC (rev 182)
+@@ -1,32 +1,32 @@
+ Trace: [java.lang.Math pow: 3, 4] = 81.0 at line 6
+ 81.0
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 6917ee</A> println: 81.0] at line 6
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 49105b</A> println: 81.0] at line 6
+ Trace: &amp;casti(1, 'z') = true at line 9
+ true
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 6917ee</A> println: true] at line 9
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 49105b</A> println: true] at line 9
+ Trace: &amp;casti(0, 'z') = false at line 10
+ false
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 6917ee</A> println: false] at line 10
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 49105b</A> println: false] at line 10
+ Trace: &amp;casti(1, 'd') = 1.0 at line 13
+ 1.0
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 6917ee</A> println: 1.0] at line 13
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 49105b</A> println: 1.0] at line 13
+ Trace: &amp;casti(1, 'b') = 1 at line 16
+ 1
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 6917ee</A> println: 1] at line 16
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 49105b</A> println: 1] at line 16
+ Trace: &amp;casti(100, 'f') = 100.0 at line 19
+ 100.0
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 6917ee</A> println: 100.0] at line 19
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 49105b</A> println: 100.0] at line 19
+ Trace: &amp;casti('b', 'c') = b at line 22
+ b
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 6917ee</A> println: b] at line 22
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 49105b</A> println: b] at line 22
+ Trace: &amp;casti(63, 'i') = 63 at line 25
+ 63
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 6917ee</A> println: 63] at line 25
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 49105b</A> println: 63] at line 25
+ this is a string y0
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 6917ee</A> println: 'this is a string y0'] at line 28
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 49105b</A> println: 'this is a string y0'] at line 28
+ Trace: [new java.lang.StringBuilder: 'test'] = test at line 31
+ test
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 6917ee</A> println: test] at line 31
+-Trace: &amp;cast(@('a', 'b', 'c', 'd'), 'c') = [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">C at d0d45b</A> at line 34
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 49105b</A> println: test] at line 31
++Trace: &amp;cast(@('a', 'b', 'c', 'd'), 'c') = [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">C at 608760</A> at line 34
+ abcd
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 6917ee</A> println: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">C at d0d45b</A>] at line 34
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 49105b</A> println: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">C at 608760</A>] at line 34
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-11-21 02:17:02 UTC (rev 181)
++++ sleep/whatsnew.txt	2006-11-21 02:30:52 UTC (rev 182)
+@@ -1,4 +1,4 @@
+-2.1-beta 10
++2.1-beta 10 (20 Nov 06)
+ ===========
+ - added sizeof(&quot;data format&quot;) to return the size (in bytes) of the
+   data structure represented by the specified format string. 
+@@ -12,23 +12,24 @@
+ - added &amp;setEncoding($handle, &quot;charset name&quot;) to set the encoding to use
+   with the specified handle.
+ - added &amp;readc($handle) for reading a single character from an I/O handle.
+-- oops, parser no longer assumes a bareword in a expression is a function
++- parser no longer assumes a bareword in a expression is a function handle
+   reference.  should stop some frustrating errors :)
+ - fixed a silly bug with tuple assignment where hash right hand side was
+-  being converted to a string before being assinged to the individual
++  being converted to a string before being assigned to the individual
+   elements.
+ - added assignment ops i.e. +=, -=, *=, /=, &amp;=, |=, ^=, &lt;&lt;=, &gt;&gt;=, and .=
+   using these ops will assign the result of the op applied to the assignment 
+   value and the right hand side.  this works as expected with normal
+   and tuple assignment.
+-- using a tuple assignment op has a special case called expand array: 
++- using a tuple assignment op has a special case: expand array
+   a single array value specified within a tuple will be expanded as if each 
+   of its elements were specified within the expression i.e.:
+-  (@a) += @(3, 4); will be equivalent to: (@a[0], @a[1]) += @(3, 4)
++  (@a) += @(3, 4, 5); is equivalent to: (@a[0], @a[1], @[2]) += @(3, 4, 5)
++- fixed &amp;consume($handle, n, [size]) to now consume up to n bytes with a 
++  buffer of the specified size.  this will consume a handle without 
++  keeping the whole thing in memory (useful for calculating md5 digests
++  of files and other fun things).
+ 
+-  this does not apply to normal tuple assignment. the same effect can be
+-  achieved with the &amp;copy function.
+-
+ 2.1-beta 9  (6 Nov 06)
+ ===========
+ - made sleep data structures and sleepclosure all serializable.
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000163.html">[Sleep-svn] r181 - in sleep/tests: . output
+</A></li>
+	<LI>Next message: <A HREF="000165.html">[Sleep-svn] r183 - in sleep: . docs src/sleep/runtime
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#164">[ date ]</a>
+              <a href="thread.html#164">[ thread ]</a>
+              <a href="subject.html#164">[ subject ]</a>
+              <a href="author.html#164">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

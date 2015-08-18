@@ -1,0 +1,376 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r165 - in sleep: . src/sleep/console src/sleep/engine	src/sleep/engine/atoms src/sleep/parser tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2006-November/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r165%20-%20in%20sleep%3A%20.%20src/sleep/console%20src/sleep/engine%0A%09src/sleep/engine/atoms%20src/sleep/parser%20tests%20tests/output&In-Reply-To=%3C200611060154.kA61s73i018942%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000146.html">
+   <LINK REL="Next"  HREF="000148.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r165 - in sleep: . src/sleep/console src/sleep/engine	src/sleep/engine/atoms src/sleep/parser tests tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r165%20-%20in%20sleep%3A%20.%20src/sleep/console%20src/sleep/engine%0A%09src/sleep/engine/atoms%20src/sleep/parser%20tests%20tests/output&In-Reply-To=%3C200611060154.kA61s73i018942%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r165 - in sleep: . src/sleep/console src/sleep/engine	src/sleep/engine/atoms src/sleep/parser tests tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Mon Nov  6 02:54:07 CET 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000146.html">[Sleep-svn] r164 - in sleep: . src/sleep/engine tests tests/output
+</A></li>
+        <LI>Next message: <A HREF="000148.html">[Sleep-svn] r166 - in sleep: . src/sleep/runtime tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#147">[ date ]</a>
+              <a href="thread.html#147">[ thread ]</a>
+              <a href="subject.html#147">[ subject ]</a>
+              <a href="author.html#147">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2006-11-06 02:54:06 +0100 (Mon, 06 Nov 2006)
+New Revision: 165
+
+Added:
+   sleep/tests/arraysneg.sl
+   sleep/tests/nmesgs.sl
+   sleep/tests/output/arraysneg.sl
+   sleep/tests/output/nmesgs.sl
+Modified:
+   sleep/src/sleep/console/ConsoleImplementation.java
+   sleep/src/sleep/engine/Block.java
+   sleep/src/sleep/engine/atoms/Index.java
+   sleep/src/sleep/parser/Checkers.java
+   sleep/tests/output/trace.sl
+   sleep/tests/output/wrong.sl
+   sleep/whatsnew.txt
+Log:
+more fixes
+
+
+
+Modified: sleep/src/sleep/console/ConsoleImplementation.java
+===================================================================
+--- sleep/src/sleep/console/ConsoleImplementation.java	2006-11-06 00:54:54 UTC (rev 164)
++++ sleep/src/sleep/console/ConsoleImplementation.java	2006-11-06 01:54:06 UTC (rev 165)
+@@ -140,7 +140,7 @@
+              }
+              else if (input.equals(&quot;.&quot;))
+              { 
+-                eval(code.toString());
++                eval(code.toString(), code.toString());
+                 code = new StringBuffer();                                
+              }
+              else
+@@ -226,7 +226,7 @@
+              }
+              else if (command.equals(&quot;x&quot;) &amp;&amp; args != null)
+              {
+-                Scalar value = eval(&quot;return &quot; + args + &quot;;&quot;);
++                Scalar value = eval(&quot;return &quot; + args + &quot;;&quot;, args);
+                 if (value != null) { getProxy().consolePrintln(value + &quot;&quot;); }
+              }
+              else if (command.equals(&quot;quit&quot;) || command.equals(&quot;exit&quot;) || command.equals(&quot;done&quot;))
+@@ -493,7 +493,7 @@
+        getProxy().consolePrintln(&quot;Type Ctrl+D or 'done' on a line by itself to leave interactive mode.&quot;);
+    }
+ 
+-   private Scalar eval (String expression)
++   private Scalar eval (String expression, String original)
+    {
+        try
+        {
+@@ -513,8 +513,8 @@
+        }
+        catch (Exception ex)
+        {
+-          getProxy().consolePrintln(&quot;Oops, an error occured with &quot; + expression + &quot;: &quot; + ex.toString());
+-       }
++          getProxy().consolePrintln(&quot;error with &quot; + original + &quot;: &quot; + ex.toString());
++       } 
+ 
+        return null;
+    }
+
+Modified: sleep/src/sleep/engine/Block.java
+===================================================================
+--- sleep/src/sleep/engine/Block.java	2006-11-06 00:54:54 UTC (rev 164)
++++ sleep/src/sleep/engine/Block.java	2006-11-06 01:54:06 UTC (rev 165)
+@@ -149,6 +149,16 @@
+               environment.getScriptInstance().fireWarning(aex.getMessage(), temp.getLineNumber());
+               return SleepUtils.getEmptyScalar();
+            }
++           catch (ArrayIndexOutOfBoundsException aix)
++           {
++              environment.getScriptInstance().fireWarning(&quot;attempted an invalid index&quot;, temp.getLineNumber());
++              return SleepUtils.getEmptyScalar();
++           }
++           catch (NullPointerException nex)
++           {
++              environment.getScriptInstance().fireWarning(&quot;null value error&quot;, temp.getLineNumber());
++              return SleepUtils.getEmptyScalar();
++           }
+            catch (RuntimeException rex)
+            {
+               environment.getScriptInstance().fireWarning(rex.getMessage(), temp.getLineNumber());
+
+Modified: sleep/src/sleep/engine/atoms/Index.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/Index.java	2006-11-06 00:54:54 UTC (rev 164)
++++ sleep/src/sleep/engine/atoms/Index.java	2006-11-06 01:54:06 UTC (rev 165)
+@@ -89,7 +89,21 @@
+          pos = (Scalar)(e.getCurrentFrame().pop());
+       e.KillFrame();
+ 
+-      if (structure.getArray() != null) { rv = structure.getArray().getAt(pos.getValue().intValue()); }
++      if (structure.getArray() != null) 
++      { 
++          int posv = pos.getValue().intValue();
++
++          if (posv &lt; 0)
++          {
++             int size = structure.getArray().size();
++             while (posv &lt; 0)
++             {
++                posv += size;
++             }
++          }
++          
++          rv = structure.getArray().getAt(posv); 
++      }
+       else if (structure.getHash() != null) { rv = structure.getHash().getAt(pos); }
+       else if (structure.objectValue() != null &amp;&amp; structure.objectValue() instanceof SleepClosure)
+       {
+
+Modified: sleep/src/sleep/parser/Checkers.java
+===================================================================
+--- sleep/src/sleep/parser/Checkers.java	2006-11-06 00:54:54 UTC (rev 164)
++++ sleep/src/sleep/parser/Checkers.java	2006-11-06 01:54:06 UTC (rev 165)
+@@ -260,14 +260,17 @@
+ 
+    public static final boolean isNumber (String temp)
+    {
+-      if (temp.endsWith(&quot;L&quot;))
+-      {
+-         temp = temp.substring(0, temp.length() - 1);
+-      }
+-
+       try
+       {
+-         Long.decode(temp);
++         if (temp.endsWith(&quot;L&quot;))
++         {
++            temp = temp.substring(0, temp.length() - 1);
++            Long.decode(temp);
++         }
++         else
++         {
++            Integer.decode(temp);
++         }
+       }
+       catch (Exception hex) 
+       {
+
+Added: sleep/tests/arraysneg.sl
+===================================================================
+--- sleep/tests/arraysneg.sl	2006-11-06 00:54:54 UTC (rev 164)
++++ sleep/tests/arraysneg.sl	2006-11-06 01:54:06 UTC (rev 165)
+@@ -0,0 +1,23 @@
++#
++# Test some stuff with arrays
++#
++
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">+ at test</A>[0] = &quot;Hello&quot;;
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">+ at test</A>[1] = &quot;Ice cream&quot;;
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">+ at test</A>[2] = &quot;You&quot;;
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">+ at test</A>[3] = &quot;Rock&quot;;
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">+ at test</A>[4] = &quot;my&quot;;
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">+ at test</A>[5] = &quot;world&quot;;
++
++for ($x = 1; $x &lt;= 10; $x++)
++{
++   $y = $x * -1;
++   printf(&quot;@test[ $+ $y $+ ]: &quot; . @test[$y]);
++}
++
++println(&quot;- &quot; x 20);
++
++for ($x = -1; $x &gt;= (0 - size(@test)); $x--)
++{
++   println(&quot;@test[ $+ $x $+ ]: &quot; . @test[$x]);
++}
+
+Added: sleep/tests/nmesgs.sl
+===================================================================
+--- sleep/tests/nmesgs.sl	2006-11-06 00:54:54 UTC (rev 164)
++++ sleep/tests/nmesgs.sl	2006-11-06 01:54:06 UTC (rev 165)
+@@ -0,0 +1,17 @@
++#
++# test of new messages...
++#
++
++eval('
++println($null, &quot;this is a test&quot;);
++');
++#
++#
++
++
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">+ at array</A> = @(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;, &quot;d&quot;);
++add(@array, &quot;this is another test&quot;, -10);
++println(@array);
++
++#
++#
+
+Added: sleep/tests/output/arraysneg.sl
+===================================================================
+--- sleep/tests/output/arraysneg.sl	2006-11-06 00:54:54 UTC (rev 164)
++++ sleep/tests/output/arraysneg.sl	2006-11-06 01:54:06 UTC (rev 165)
+@@ -0,0 +1,17 @@
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">+ at test</A>[-1]: world
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">+ at test</A>[-2]: my
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">+ at test</A>[-3]: Rock
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">+ at test</A>[-4]: You
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">+ at test</A>[-5]: Ice cream
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">+ at test</A>[-6]: Hello
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">+ at test</A>[-7]: world
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">+ at test</A>[-8]: my
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">+ at test</A>[-9]: Rock
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">+ at test</A>[-10]: You
++- - - - - - - - - - - - - - - - - - - - 
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">+ at test</A>[-1]: world
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">+ at test</A>[-2]: my
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">+ at test</A>[-3]: Rock
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">+ at test</A>[-4]: You
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">+ at test</A>[-5]: Ice cream
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">+ at test</A>[-6]: Hello
+
+Added: sleep/tests/output/nmesgs.sl
+===================================================================
+--- sleep/tests/output/nmesgs.sl	2006-11-06 00:54:54 UTC (rev 164)
++++ sleep/tests/output/nmesgs.sl	2006-11-06 01:54:06 UTC (rev 165)
+@@ -0,0 +1,2 @@
++Warning: null value error at line 1
++Warning: attempted an invalid index at line 13
+
+Modified: sleep/tests/output/trace.sl
+===================================================================
+--- sleep/tests/output/trace.sl	2006-11-06 00:54:54 UTC (rev 164)
++++ sleep/tests/output/trace.sl	2006-11-06 01:54:06 UTC (rev 165)
+@@ -1,13 +1,13 @@
+ this is a test
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 383118</A> println: 'this is a test'] at line 6
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 97d026</A> println: 'this is a test'] at line 6
+ Trace: [java.lang.Math pow: 3, 4] = 81.0 at line 7
+ 81.0
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 383118</A> println: 81.0] at line 7
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 97d026</A> println: 81.0] at line 7
+ Trace: [java.lang.Math pow: 3, 5] = 243.0 at line 8
+ 243.0
+ Trace: &amp;println(243.0) at line 8
+ testing again...
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 383118</A> println: 'testing again...'] at line 10
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 97d026</A> println: 'testing again...'] at line 10
+ Trace: [sleep.runtime.SleepUtils getListFromArray: @('a', 'b', 'c')] = [a, b, c] at line 12
+ Trace: [new java.util.LinkedList: [a, b, c]] = [a, b, c] at line 12
+ Warning: variable '$list' not declared at line 12
+
+Modified: sleep/tests/output/wrong.sl
+===================================================================
+--- sleep/tests/output/wrong.sl	2006-11-06 00:54:54 UTC (rev 164)
++++ sleep/tests/output/wrong.sl	2006-11-06 01:54:06 UTC (rev 165)
+@@ -1,32 +1,32 @@
+ Trace: [java.lang.Math pow: 3, 4] = 81.0 at line 6
+ 81.0
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at a61172</A> println: 81.0] at line 6
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at bf053f</A> println: 81.0] at line 6
+ Trace: &amp;casti(1, 'z') = true at line 9
+ true
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at a61172</A> println: true] at line 9
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at bf053f</A> println: true] at line 9
+ Trace: &amp;casti(0, 'z') = false at line 10
+ false
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at a61172</A> println: false] at line 10
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at bf053f</A> println: false] at line 10
+ Trace: &amp;casti(1, 'd') = 1.0 at line 13
+ 1.0
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at a61172</A> println: 1.0] at line 13
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at bf053f</A> println: 1.0] at line 13
+ Trace: &amp;casti(1, 'b') = 1 at line 16
+ 1
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at a61172</A> println: 1] at line 16
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at bf053f</A> println: 1] at line 16
+ Trace: &amp;casti(100, 'f') = 100.0 at line 19
+ 100.0
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at a61172</A> println: 100.0] at line 19
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at bf053f</A> println: 100.0] at line 19
+ Trace: &amp;casti('b', 'c') = b at line 22
+ b
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at a61172</A> println: b] at line 22
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at bf053f</A> println: b] at line 22
+ Trace: &amp;casti(63, 'i') = 63 at line 25
+ 63
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at a61172</A> println: 63] at line 25
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at bf053f</A> println: 63] at line 25
+ this is a string y0
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at a61172</A> println: 'this is a string y0'] at line 28
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at bf053f</A> println: 'this is a string y0'] at line 28
+ Trace: [new java.lang.StringBuilder: 'test'] = test at line 31
+ test
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at a61172</A> println: test] at line 31
+-Trace: &amp;cast(@('a', 'b', 'c', 'd'), 'c') = [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">C at f54c5f</A> at line 34
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at bf053f</A> println: test] at line 31
++Trace: &amp;cast(@('a', 'b', 'c', 'd'), 'c') = [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">C at 9cd75a</A> at line 34
+ abcd
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at a61172</A> println: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">C at f54c5f</A>] at line 34
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at bf053f</A> println: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">C at 9cd75a</A>] at line 34
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-11-06 00:54:54 UTC (rev 164)
++++ sleep/whatsnew.txt	2006-11-06 01:54:06 UTC (rev 165)
+@@ -27,6 +27,10 @@
+   is added to the beginning of the array (and not the end as in push).
+ - HOES method resolution now matches 1 character sleep strings as Java 
+   characters.
++- the index operator now normalizes negative array indices i.e. @array[-1]
++  will return the last element of @array.
++- added more descriptive error messages for out of bounds exceptions and
++  null pointer exceptions.
+ 
+ 2.1-beta 8  (29 Oct 06)
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000146.html">[Sleep-svn] r164 - in sleep: . src/sleep/engine tests tests/output
+</A></li>
+	<LI>Next message: <A HREF="000148.html">[Sleep-svn] r166 - in sleep: . src/sleep/runtime tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#147">[ date ]</a>
+              <a href="thread.html#147">[ thread ]</a>
+              <a href="subject.html#147">[ subject ]</a>
+              <a href="author.html#147">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,317 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r208 - in sleep: . src/sleep/bridges tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2007-March/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r208%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20tests%20tests/output&In-Reply-To=%3C200703100144.l2A1ihpf015908%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000188.html">
+   <LINK REL="Next"  HREF="000190.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r208 - in sleep: . src/sleep/bridges tests tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r208%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20tests%20tests/output&In-Reply-To=%3C200703100144.l2A1ihpf015908%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r208 - in sleep: . src/sleep/bridges tests tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Sat Mar 10 02:44:43 CET 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000188.html">[Sleep-svn] r207 - in sleep: . src/sleep/console
+</A></li>
+        <LI>Next message: <A HREF="000190.html">[Sleep-svn] r209 - in sleep: . src/sleep/bridges tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#189">[ date ]</a>
+              <a href="thread.html#189">[ thread ]</a>
+              <a href="subject.html#189">[ subject ]</a>
+              <a href="author.html#189">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2007-03-10 02:44:42 +0100 (Sat, 10 Mar 2007)
+New Revision: 208
+
+Added:
+   sleep/tests/output/strmods.sl
+   sleep/tests/strmods.sl
+Modified:
+   sleep/src/sleep/bridges/BasicStrings.java
+   sleep/tests/output/include.sl
+   sleep/whatsnew.txt
+Log:
+updated numerous string functions to accept parameters with a negative index
+
+
+
+Modified: sleep/src/sleep/bridges/BasicStrings.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicStrings.java	2007-03-10 00:36:35 UTC (rev 207)
++++ sleep/src/sleep/bridges/BasicStrings.java	2007-03-10 01:44:42 UTC (rev 208)
+@@ -289,9 +289,7 @@
+            String temp  = l.pop().toString();
+            int    value = ((Scalar)l.pop()).intValue();
+ 
+-           if (value &gt;= temp.length()) { return SleepUtils.getScalar(temp); }
+-
+-           return SleepUtils.getScalar(temp.substring(0, value));
++           return SleepUtils.getScalar(substring(n, temp, 0, value));
+         }
+     }
+ 
+@@ -323,9 +321,7 @@
+            String temp  = l.pop().toString();
+            int    value = ((Scalar)l.pop()).intValue();
+ 
+-           if (value &gt;= temp.length()) { return SleepUtils.getScalar(temp); }
+-
+-           return SleepUtils.getScalar(temp.substring(temp.length() - value, temp.length()));
++           return SleepUtils.getScalar(substring(n, temp, 0 - value, temp.length()));
+         }
+     }
+ 
+@@ -333,7 +329,7 @@
+     {
+         public Scalar evaluate(String n, ScriptInstance i, Stack l)
+         {
+-           return SleepUtils.getScalar((int)l.pop().toString().charAt(0));
++           return SleepUtils.getScalar((int)(BridgeUtilities.getString(l, &quot;\u0000&quot;).charAt(0)));
+         }
+     }
+ 
+@@ -404,7 +400,7 @@
+         {
+            StringBuffer work    = new StringBuffer(BridgeUtilities.getString(l, &quot;&quot;));
+            String       nstr    = BridgeUtilities.getString(l, &quot;&quot;);
+-           int          index   = BridgeUtilities.getInt(l, 0);
++           int          index   = normalize(BridgeUtilities.getInt(l, 0), work.length());
+            int          nchar   = BridgeUtilities.getInt(l, nstr.length());
+ 
+            work.delete(index, index + nchar);
+@@ -432,7 +428,7 @@
+               stop  = BridgeUtilities.getInt(l, value.length());
+            }
+                     
+-           return SleepUtils.getScalar(value.substring(start, stop));
++           return SleepUtils.getScalar(substring(n, value, start, stop));
+         }
+     }
+ 
+@@ -442,8 +438,9 @@
+         {
+            String value = l.pop().toString();
+            String item  = l.pop().toString();
+-          
+-           return SleepUtils.getScalar(value.indexOf(item));
++           int    start = normalize(BridgeUtilities.getInt(l, 0), value.length());
++                  
++           return SleepUtils.getScalar(value.indexOf(item, start));
+         }
+     }
+ 
+@@ -454,7 +451,7 @@
+            String value = l.pop().toString();
+            int    start = BridgeUtilities.getInt(l);
+           
+-           return SleepUtils.getScalar(value.charAt(start) + &quot;&quot;);
++           return SleepUtils.getScalar(charAt(value, start) + &quot;&quot;);
+         }
+     }
+ 
+@@ -632,4 +629,38 @@
+         }
+     }
+ 
++   /** Normalizes the start/end parameters based on the length of the string and returns a substring.  Strings normalized
++       in this way will be able to accept negative indices for their parameters. */
++   private static final String substring(String func, String str, int _start, int _end)
++   {
++      int length = str.length();
++      int start, end;
++
++
++      start = (_start &lt; 0 ? _start + length : _start) % length;
++      end   = (_end &lt; 0 ? _end + length : _end) % (length + 1);
++
++      if (start &gt;= end)
++      {
++         throw new IllegalArgumentException(func + &quot;: illegal substring('&quot; + str + &quot;', &quot; + _start + &quot; -&gt; &quot; + start + &quot;, &quot; + _end + &quot; -&gt; &quot; + end + &quot;) indices&quot;);
++      }
++
++      return str.substring(start, end);
++   }
++
++   /** normalizes the value based on the string length */
++   private static final int normalize(int value, int length)
++   {
++      return (value &lt; 0 ? value + length : value) % length;
++   }
++
++   /** Normalizes the start parameter based on the length of the string and returns a character.  Functions with
++       parameters normalized in this way will be able to accept nagative indices for their parameters */
++   private static final char charAt(String str, int start)
++   {
++      int length = str.length();
++
++      start = (start &lt; 0 ? start + length : start) % length;
++      return str.charAt(start);
++   }
+ }
+
+Modified: sleep/tests/output/include.sl
+===================================================================
+--- sleep/tests/output/include.sl	2007-03-10 00:36:35 UTC (rev 207)
++++ sleep/tests/output/include.sl	2007-03-10 01:44:42 UTC (rev 208)
+@@ -7,7 +7,7 @@
+ Done with injar.sl -- Harf... bish
+ Trace: &amp;println('Done with injar.sl -- Harf... bish') at injar.sl:12
+ Trace: &amp;substr('test', 8, 20) - FAILED! at injar.sl:17
+-Warning: String index out of range: 20 at injar.sl:17
++Warning: &amp;substr: illegal substring('test', 8 -&gt; 0, 20 -&gt; 0) indices at injar.sl:17
+ Trace: &amp;debug(7) = 7 at include.sl:19
+ Eh?!? Hello from injar.sl
+ Warning: scripts/errors1.sl: 3 error(s): Mismatched Parentheses - missing close paren at 9; Mismatched Braces - missing close brace at 6; Runaway string at 9 at include.sl:24
+
+Added: sleep/tests/output/strmods.sl
+===================================================================
+--- sleep/tests/output/strmods.sl	2007-03-10 00:36:35 UTC (rev 207)
++++ sleep/tests/output/strmods.sl	2007-03-10 01:44:42 UTC (rev 208)
+@@ -0,0 +1,37 @@
++test
++this
++is a test
++this is a
++this is uNF test
++a
++this is a testthis is a testthis is a testthis is a testthis is a testthis is a 
++t a si sihttset a si sihttset a si sihttset a si sihttset a si sihttset a si siht
++--): gnirts elbisrever a si siht++
++string
++string
++Warning: &amp;mid: illegal substring('++this is a reversible string :)--', -11 -&gt; 23, 89 -&gt; 19) indices at strmods.sl:42
++2
++2
++2
++5
++5
++5
++-1
++-1
++-1
++-1
++-1
++-1
++-1
++-1
++2
++2
++2
++5
++5
++5
++-1
++-1
++-1
++-1
++-1
+
+Added: sleep/tests/strmods.sl
+===================================================================
+--- sleep/tests/strmods.sl	2007-03-10 00:36:35 UTC (rev 207)
++++ sleep/tests/strmods.sl	2007-03-10 01:44:42 UTC (rev 208)
+@@ -0,0 +1,47 @@
++#
++# test of string functions...
++#
++
++println(right(&quot;this is a test&quot;, 4));  # the right most 4 chars
++println(left(&quot;this is a test&quot;, 4));   # the left most 4 chars
++
++println(right(&quot;this is a test&quot;, -5)); # all right chars except the left 5
++println(left(&quot;this is a test&quot;, -5));  # all left chars except the right 5
++
++println(replaceAt(&quot;this is a test&quot;, &quot;uNF&quot;, -6, 1));
++
++println(charAt(&quot;this is a test&quot;, -6));
++
++for ($x = 0; $x &lt; 80; $x++)
++{
++   print(charAt(&quot;this is a test&quot;, $x));
++}
++
++println();
++
++for ($x = 80; $x &gt;= 0; $x--)
++{
++   print(charAt(&quot;this is a test&quot;, $x));
++}
++
++println();
++
++# reverse a string quickly with the negative indice bits...
++$str = &quot;++this is a reversible string :)--&quot;;
++for ($x = strlen($str) - 1; $x &gt;= 0; $x--)
++{
++   print(charAt($str, $x));
++}
++
++println();
++
++println(substr($str, -11, -5));
++
++println(mid($str, -11, 6));
++
++[{ println(mid($str, -11, 100)); }];
++
++for ($x = 0; $x &lt; 25; $x++)
++{
++   println(indexOf(&quot;this is a test&quot;, &quot;i&quot;, $x));
++}
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2007-03-10 00:36:35 UTC (rev 207)
++++ sleep/whatsnew.txt	2007-03-10 01:44:42 UTC (rev 208)
+@@ -18,6 +18,10 @@
+ - Added a -e|--eval and -x|--expr command line options to sleep.jar; these
+   options allow whole scripts/expressions to be specified on the command 
+   line for evaluation.
++- Updated &amp;indexOf to accept an optional start parameter.
++- Updated numerous string functions to allow negative indice parameters.
++  &amp;left, &amp;right, &amp;mid, &amp;replaceAt, &amp;strrep, &amp;charAt, &amp;substr, &amp;indexOf
++  
+ 
+ 2.1-beta 11  (3 Dec 06)
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000188.html">[Sleep-svn] r207 - in sleep: . src/sleep/console
+</A></li>
+	<LI>Next message: <A HREF="000190.html">[Sleep-svn] r209 - in sleep: . src/sleep/bridges tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#189">[ date ]</a>
+              <a href="thread.html#189">[ thread ]</a>
+              <a href="subject.html#189">[ subject ]</a>
+              <a href="author.html#189">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,662 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r26 - in sleep: . docs src/sleep/bridges src/sleep/engine src/sleep/engine/atoms src/sleep/interfaces src/sleep/runtime tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2005-June/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r26%20-%20in%20sleep%3A%20.%20docs%20src/sleep/bridges%20src/sleep/engine%20src/sleep/engine/atoms%20src/sleep/interfaces%20src/sleep/runtime%20tests%20tests/output&In-Reply-To=%3C200506180036.j5I0a38F013024%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000013.html">
+   <LINK REL="Next"  HREF="000015.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r26 - in sleep: . docs src/sleep/bridges src/sleep/engine src/sleep/engine/atoms src/sleep/interfaces src/sleep/runtime tests tests/output</H1>
+    <B>Raphael Mudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r26%20-%20in%20sleep%3A%20.%20docs%20src/sleep/bridges%20src/sleep/engine%20src/sleep/engine/atoms%20src/sleep/interfaces%20src/sleep/runtime%20tests%20tests/output&In-Reply-To=%3C200506180036.j5I0a38F013024%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r26 - in sleep: . docs src/sleep/bridges src/sleep/engine src/sleep/engine/atoms src/sleep/interfaces src/sleep/runtime tests tests/output">rsmudge at sheep.berlios.de
+       </A><BR>
+    <I>Sat Jun 18 02:36:03 CEST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000013.html">[Sleep-svn] r25 - sleep/src/sleep/runtime
+</A></li>
+        <LI>Next message: <A HREF="000015.html">[Sleep-svn] r27 - sleep/src/sleep/runtime
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#14">[ date ]</a>
+              <a href="thread.html#14">[ thread ]</a>
+              <a href="subject.html#14">[ subject ]</a>
+              <a href="author.html#14">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2005-06-18 02:35:47 +0200 (Sat, 18 Jun 2005)
+New Revision: 26
+
+Added:
+   sleep/tests/fork.sl
+   sleep/tests/innertroubles.sl
+   sleep/tests/output/fork.sl
+   sleep/tests/output/innertroubles.sl
+Modified:
+   sleep/docs/sleepguide.pdf
+   sleep/docs/sleeplang.pdf
+   sleep/readme.txt
+   sleep/src/sleep/bridges/BasicIO.java
+   sleep/src/sleep/bridges/BasicUtilities.java
+   sleep/src/sleep/bridges/SleepClosure.java
+   sleep/src/sleep/engine/ObjectUtilities.java
+   sleep/src/sleep/engine/atoms/ObjectAccess.java
+   sleep/src/sleep/engine/atoms/ObjectNew.java
+   sleep/src/sleep/interfaces/Variable.java
+   sleep/src/sleep/runtime/ScriptInstance.java
+   sleep/src/sleep/runtime/ScriptVariables.java
+   sleep/whatsnew.txt
+Log:
+Sleep 2.0-b9 release :)
+
+
+Modified: sleep/docs/sleepguide.pdf
+===================================================================
+(Binary files differ)
+
+Modified: sleep/docs/sleeplang.pdf
+===================================================================
+(Binary files differ)
+
+Modified: sleep/readme.txt
+===================================================================
+--- sleep/readme.txt	2005-06-17 14:45:11 UTC (rev 25)
++++ sleep/readme.txt	2005-06-18 00:35:47 UTC (rev 26)
+@@ -1,5 +1,5 @@
+  ------- -------------------- ---------   ---------------  ------- ---------
+-Sleep - 2.0-stable - README   
++Sleep - 2.0-b9 - README   
+ -  ------------- -------- -   ---------------- --       -    -     -     - - -
+ 
+ &quot;You got the language, all you need now is the O'Reilly book&quot;.  That is
+
+Modified: sleep/src/sleep/bridges/BasicIO.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicIO.java	2005-06-17 14:45:11 UTC (rev 25)
++++ sleep/src/sleep/bridges/BasicIO.java	2005-06-18 00:35:47 UTC (rev 26)
+@@ -56,6 +56,8 @@
+         temp.put(&quot;&amp;connect&quot;,    f);
+         temp.put(&quot;&amp;listen&quot;,     f);
+         temp.put(&quot;&amp;exec&quot;,       new exec());
++        temp.put(&quot;&amp;fork&quot;,       new fork());
++        temp.put(&quot;&amp;sleep&quot;,      new sleep());
+ 
+         temp.put(&quot;&amp;closef&quot;,     new closef());
+ 
+@@ -115,6 +117,63 @@
+        }
+     }
+ 
++    private static class sleep implements Function
++    {
++       public Scalar evaluate(String n, ScriptInstance i, Stack l)
++       {
++          try
++          {
++             Thread.currentThread().sleep(BridgeUtilities.getLong(l, 0));
++          }
++          catch (Exception ex) { }
++
++          return SleepUtils.getEmptyScalar();
++       }
++    }
++
++    private static class fork implements Function
++    {
++       public Scalar evaluate(String n, ScriptInstance i, Stack l)
++       {
++          SleepClosure   param = BridgeUtilities.getFunction(l, i);        
++
++          // create our fork...
++          ScriptInstance child = i.fork();
++          child.installBlock(param.getRunnableCode());
++
++          // create a pipe between these two items...
++          IOObject parent_io = new IOObject();
++          IOObject child_io  = new IOObject();
++
++          try
++          {
++             PipedInputStream  parent_in  = new PipedInputStream();
++             PipedOutputStream parent_out = new PipedOutputStream();
++             parent_in.connect(parent_out);
++
++             PipedInputStream  child_in   = new PipedInputStream();
++             PipedOutputStream child_out  = new PipedOutputStream();
++             child_in.connect(child_out);
++
++             parent_io.openRead(child_in);
++             parent_io.openWrite(parent_out);
++
++             child_io.openRead(parent_in);
++             child_io.openWrite(child_out);
++          
++             child.getScriptVariables().putScalar(&quot;$source&quot;, SleepUtils.getScalar(child_io));
++
++             new Thread(child, child.getName()).start();
++          }
++          catch (Exception ex)
++          {
++             i.getScriptEnvironment().flagError(ex.toString());
++          }
++
++          return SleepUtils.getScalar(parent_io);
++       }
++    }
++
+     private static class SocketFuncs implements Function
+     {
+        public Scalar evaluate(String n, ScriptInstance i, Stack l)
+
+Modified: sleep/src/sleep/bridges/BasicUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicUtilities.java	2005-06-17 14:45:11 UTC (rev 25)
++++ sleep/src/sleep/bridges/BasicUtilities.java	2005-06-18 00:35:47 UTC (rev 26)
+@@ -72,7 +72,6 @@
+ 
+         temp.put(&quot;&amp;local&quot;,    scopeFunctions);
+         temp.put(&quot;&amp;this&quot;,     scopeFunctions);
+-        temp.put(&quot;&amp;module&quot;,   scopeFunctions);
+ 
+         temp.put(&quot;&amp;reverse&quot;,  new reverse());      // @array2 = &amp;reverse(@array) 
+         temp.put(&quot;&amp;removeAt&quot;, new removeAt());   // not safe within foreach loops yada yada yada...
+@@ -262,7 +261,7 @@
+           while (!l.isEmpty())
+           {
+              KeyValuePair kvp = BridgeUtilities.getKeyValuePair(l);
+-              vars.putScalar(kvp.getKey().toString(), kvp.getValue());
++             vars.putScalar(kvp.getKey().toString(), kvp.getValue());
+           }
+ 
+           return SleepUtils.getScalar(value);
+@@ -351,7 +350,6 @@
+ 
+           if (n.equals(&quot;&amp;local&quot;)) { level = i.getScriptVariables().getLocalVariables(); }
+           else if (n.equals(&quot;&amp;this&quot;)) { level = i.getScriptVariables().getClosureVariables(); }
+-          else if (n.equals(&quot;&amp;module&quot;)) { level = i.getScriptVariables().getInternalVariables(i); }
+ 
+           String temp = l.pop().toString();
+ 
+
+Modified: sleep/src/sleep/bridges/SleepClosure.java
+===================================================================
+--- sleep/src/sleep/bridges/SleepClosure.java	2005-06-17 14:45:11 UTC (rev 25)
++++ sleep/src/sleep/bridges/SleepClosure.java	2005-06-18 00:35:47 UTC (rev 26)
+@@ -48,9 +48,6 @@
+     /** the owning script associated with this sleep closure */
+     ScriptInstance      owner; 
+ 
+-    /** a set of variables specific to this sleep closure */
+-    Variable        variables;
+-
+     /** Creates a new Sleep Closure, with a brand new set of internal variables.  Don't be afraid, you can call this constructor from your code. */
+     public SleepClosure(ScriptInstance si, Block _code)
+     {
+@@ -62,9 +59,9 @@
+     {
+        code     = _code;
+        owner    = si;
+-       variables = _var;
+ 
+-       variables.putScalar(&quot;$this&quot;, SleepUtils.getScalar(this));
++       _var.putScalar(&quot;$this&quot;, SleepUtils.getScalar(this));
++       setVariables(_var);
+     }
+ 
+     /** Returns the owning script instance */
+@@ -82,13 +79,13 @@
+     /** Returns the variable container for this closures */
+     public Variable getVariables()
+     {
+-       return variables;
++       return getOwner().getScriptVariables().getClosureVariables(this);
+     }
+ 
+     /** Sets the variable environment for this closure */
+     public void setVariables(Variable _variables)
+     {
+-       variables = _variables;
++       getOwner().getScriptVariables().setClosureVariables(this, _variables);
+     }
+ 
+     /** &quot;Safely&quot; calls this closure.  Use this if you are evaluating this closure from your own code. 
+@@ -115,14 +112,14 @@
+     /** Evaluates the closure, use callClosure instead. */
+     public Scalar evaluate(String message, ScriptInstance si, Stack locals)
+     {
+-       ScriptVariables   vars = getOwner().getScriptVariables();
+-       ScriptEnvironment env  = getOwner().getScriptEnvironment();
++       ScriptVariables   vars = si.getScriptVariables();
++       ScriptEnvironment env  = si.getScriptEnvironment();
+ 
+        Scalar temp; // return value of subroutine.
+ 
+        synchronized (vars)
+        {
+-          vars.pushClosureLevel(variables);
++          vars.pushClosureLevel(this);
+           vars.pushLocalLevel();
+ 
+           Variable localLevel = vars.getLocalVariables();
+@@ -147,11 +144,13 @@
+           //
+           temp = code.evaluate(env);
+ 
+-          if (getOwner() != si &amp;&amp; env.isReturn())
++/*          if (getOwner() != si &amp;&amp; env.isReturn())
+           {
+              env.clearReturn();
+              si.getScriptEnvironment().flagReturn(temp);
+-          }
++          } 
++          
++          This commented out block is no longer needed if the environment of the calling script is always used... */
+ 
+           vars.popLocalLevel();
+           vars.popClosureLevel();
+
+Modified: sleep/src/sleep/engine/ObjectUtilities.java
+===================================================================
+--- sleep/src/sleep/engine/ObjectUtilities.java	2005-06-17 14:45:11 UTC (rev 25)
++++ sleep/src/sleep/engine/ObjectUtilities.java	2005-06-18 00:35:47 UTC (rev 26)
+@@ -55,11 +55,11 @@
+       catch (Exception ex) { }
+    }
+ 
+-   private static final int ARG_MATCH_YES   = 1;
+-   private static final int ARG_MATCH_NO    = 2;
+-   private static final int ARG_MATCH_MAYBE = 3;
++   public static final int ARG_MATCH_YES   = 1;
++   public static final int ARG_MATCH_NO    = 2;
++   public static final int ARG_MATCH_MAYBE = 3;
+ 
+-   private static int isArgMatch(Class[] check, Stack arguments)
++   public static int isArgMatch(Class[] check, Stack arguments)
+    {
+       int value = ARG_MATCH_YES;
+ 
+
+Modified: sleep/src/sleep/engine/atoms/ObjectAccess.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/ObjectAccess.java	2005-06-17 14:45:11 UTC (rev 25)
++++ sleep/src/sleep/engine/atoms/ObjectAccess.java	2005-06-18 00:35:47 UTC (rev 26)
+@@ -111,6 +111,12 @@
+ 
+          if (theMethod != null &amp;&amp; (classRef == null || (theMethod.getModifiers() &amp; Modifier.STATIC) == Modifier.STATIC))
+          {  
++            try
++            {
++               theMethod.setAccessible(true);
++            }
++            catch (Exception ex) { }
++
+             parameters = ObjectUtilities.buildArgumentArray(theMethod.getParameterTypes(), e.getCurrentFrame(), e.getScriptInstance());
+             result = ObjectUtilities.BuildScalar(true, theMethod.invoke(accessMe, parameters));
+          }
+@@ -118,7 +124,20 @@
+          {
+             Field aField = theClass.getField(name);
+ 
+-            result = ObjectUtilities.BuildScalar(true, aField.get(accessMe));
++            if (aField != null)
++            {
++               try
++               {
++                  aField.setAccessible(true);
++               }
++               catch (Exception ex) { }
++
++               result = ObjectUtilities.BuildScalar(true, aField.get(accessMe));
++            }
++            else
++            {
++               result = SleepUtils.getEmptyScalar();
++            }
+          }
+       }
+       catch (InvocationTargetException ite)
+
+Modified: sleep/src/sleep/engine/atoms/ObjectNew.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/ObjectNew.java	2005-06-17 14:45:11 UTC (rev 25)
++++ sleep/src/sleep/engine/atoms/ObjectNew.java	2005-06-18 00:35:47 UTC (rev 26)
+@@ -57,6 +57,12 @@
+ 
+          if (theConstructor != null)
+          {  
++            try
++            {
++               theConstructor.setAccessible(true);
++            }
++            catch (Exception ex) { }
++
+             parameters = ObjectUtilities.buildArgumentArray(theConstructor.getParameterTypes(), e.getCurrentFrame(), e.getScriptInstance());
+             result = ObjectUtilities.BuildScalar(false, theConstructor.newInstance(parameters));
+          }
+
+Modified: sleep/src/sleep/interfaces/Variable.java
+===================================================================
+--- sleep/src/sleep/interfaces/Variable.java	2005-06-17 14:45:11 UTC (rev 25)
++++ sleep/src/sleep/interfaces/Variable.java	2005-06-18 00:35:47 UTC (rev 26)
+@@ -58,6 +58,6 @@
+     /** returns which variable environment is used to temporarily store local variables.  */
+     public Variable createLocalVariableContainer();
+ 
+-    /** returns which variable environment is used to store non-global / non-local variables.  */
++    /** returns which variable environment is used to store non-global / non-local variables.  this is also used to create the global scope for a forked script environment. */
+     public Variable createInternalVariableContainer();
+ }
+
+Modified: sleep/src/sleep/runtime/ScriptInstance.java
+===================================================================
+--- sleep/src/sleep/runtime/ScriptInstance.java	2005-06-17 14:45:11 UTC (rev 25)
++++ sleep/src/sleep/runtime/ScriptInstance.java	2005-06-18 00:35:47 UTC (rev 26)
+@@ -50,7 +50,7 @@
+ /** Every piece of information related to a loaded script.  This includes the scripts runtime environment, code in compiled 
+   * form, variable information, and listeners for runtime issues.
+   */
+-public class ScriptInstance implements Serializable
++public class ScriptInstance implements Serializable, Runnable
+ {
+     /** the name of this script */
+     protected String  name  = &quot;Script&quot;;
+@@ -149,6 +149,22 @@
+         getScriptEnvironment().clearReturn();
+     }
+  
++    /** Creates a forked script instance.  This does not work like fork in an operating system.  Variables are not copied, period.
++        The idea is to create a fork that shares the same environment as this script instance. */
++    public ScriptInstance fork()
++    {
++        ScriptInstance si = new ScriptInstance(variables.getGlobalVariables().createInternalVariableContainer(), environment.getEnvironment());
++        si.setName(&quot;fork of &quot; + getName());
++
++        return si;
++    }
++
++    /** Executes this script, same as runScript() just here for Runnable compatability */
++    public void run()
++    {
++        runScript();
++    }
++
+     /** Returns the compiled form of this script */
+     public Block getRunnableBlock()
+     {
+
+Modified: sleep/src/sleep/runtime/ScriptVariables.java
+===================================================================
+--- sleep/src/sleep/runtime/ScriptVariables.java	2005-06-17 14:45:11 UTC (rev 25)
++++ sleep/src/sleep/runtime/ScriptVariables.java	2005-06-18 00:35:47 UTC (rev 26)
+@@ -35,6 +35,7 @@
+ import java.util.Hashtable;
+ import java.util.Stack;
+ import java.util.LinkedList;
++import java.util.WeakHashMap;
+ 
+ /** Maintains variables and variable scopes for a script instance.  If you want to change the way variables are handled do not 
+   * override this class.  This class handles all accessing of variables through an object that implements the Variable 
+@@ -56,7 +57,6 @@
+   * &lt;p&gt;Sleep has 4 levels of scope.  They are (in order of precedence):&lt;/p&gt;
+   * &lt;li&gt;Local   - discarded after use&lt;/li&gt;
+   * &lt;li&gt;Closure - specific to the currently executing closure&lt;/li&gt;
+-  * &lt;li&gt;Script  - global to the current script&lt;/li&gt;
+   * &lt;li&gt;Global  - global to all scripts sharing this script variables instance&lt;/li&gt;
+   * 
+   * @see sleep.runtime.Scalar
+@@ -65,10 +65,10 @@
+   */
+ public class ScriptVariables implements Serializable
+ {
+-    Variable   global;   /* global variables */
+-    Hashtable  internal; /* internal, scriptinstance specific variables */
+-    LinkedList closure;  /* closure specific variables :) */
+-    LinkedList locals;   /* local variables */
++    Variable    global;   /* global variables */
++    LinkedList  closure;  /* closure specific variables :) */
++    LinkedList  locals;   /* local variables */
++    WeakHashMap cscopes;  /* closure scope storage */
+ 
+     /** Initializes this ScriptVariables container using a DefaultVariable object for default variable storage */
+     public ScriptVariables()
+@@ -80,9 +80,9 @@
+     public ScriptVariables(Variable aVariableClass)
+     {
+        global   = aVariableClass;
+-       internal = new Hashtable();
+        closure  = new LinkedList();
+        locals   = new LinkedList();
++       cscopes  = new WeakHashMap();
+ 
+        pushLocalLevel();
+     }
+@@ -124,18 +124,6 @@
+        }
+ 
+        //
+-       // check internal variables for an occurence of our variable
+-       //
+-       if (i != null)
+-       {
+-          temp = getInternalVariables(i);
+-          if (temp != null &amp;&amp; temp.scalarExists(key))
+-          {
+-             return temp;
+-          }
+-       }
+-
+-       //
+        // check the global variables
+        //
+        temp = getGlobalVariables();
+@@ -173,16 +161,6 @@
+        return (Variable)locals.getFirst();
+     }
+ 
+-    /** returns the script specific variable scope */
+-    public Variable getInternalVariables(ScriptInstance script)
+-    {
+-       if (internal.get(script) == null)
+-       {
+-          internal.put(script, global.createInternalVariableContainer());
+-       }
+-       return (Variable)internal.get(script);
+-    }
+-
+     /** returns the current closure variable scope */
+     public Variable getClosureVariables()
+     {
+@@ -198,12 +176,31 @@
+        return global;
+     }
+ 
+-    /** makes the current closure variable scope active, once the closure has executed this should be popped */
+-    public void pushClosureLevel(Variable var)
++    /** returns the closure level variables for this specific script environment */
++    public Variable getClosureVariables(SleepClosure closure)
+     {
+-       closure.addFirst(var);
++       Object temp = cscopes.get(closure);
++       if (temp == null)
++       {
++          temp = global.createInternalVariableContainer();
++          cscopes.put(closure, temp);
++       }
++
++       return (Variable)temp;       
+     }
+ 
++    /** returns the closure level variables for this specific script environment */
++    public void setClosureVariables(SleepClosure closure, Variable variables)
++    {
++       cscopes.put(closure, variables);
++    }
++
++    /** makes the specified closure variable scope active, once the closure has executed this should be popped */
++    public void pushClosureLevel(SleepClosure level)
++    {
++       closure.addFirst(getClosureVariables(level));
++    }
++
+     /** discards the current closure variable scope */
+     public void popClosureLevel()
+     {
+
+Added: sleep/tests/fork.sl
+===================================================================
+--- sleep/tests/fork.sl	2005-06-17 14:45:11 UTC (rev 25)
++++ sleep/tests/fork.sl	2005-06-18 00:35:47 UTC (rev 26)
+@@ -0,0 +1,48 @@
++#
++# Test of fork isolation...
++#
++
++#
++# check the isolation of the global scope...
++#
++$global = &quot;this is a global variable in the main script&quot;;
++
++sub fork_me
++{
++   $global = &quot;this is a global variable in the closure script&quot;;
++   println(&quot;From fork_me: $global&quot;);
++}
++  
++println(&quot;Main script: $global&quot;);
++
++fork(&amp;fork_me);
++
++sleep(1000); # for sure let the first closure run...
++
++println(&quot;Main script: $global&quot;);
++	
++#
++# check the isolation of the this scope
++#
++sub closure
++{
++   this('$x');
++   $x++;
++
++   return $x;
++}
++
++closure();
++closure();
++closure();
++
++println(&quot;Main script: &quot; . closure());
++
++fork({
++   println(&quot;Forked: &quot; . closure());
++});
++
++sleep(1000);
++
++println(&quot;Main script: &quot; . closure());
++
+
+Added: sleep/tests/innertroubles.sl
+===================================================================
+--- sleep/tests/innertroubles.sl	2005-06-17 14:45:11 UTC (rev 25)
++++ sleep/tests/innertroubles.sl	2005-06-18 00:35:47 UTC (rev 26)
+@@ -0,0 +1,15 @@
++#
++# Trouble calling methods on inner classes, should be fixed...
++# 
++
++$list = [new LinkedList];
++[$list add: &quot;item 1&quot;];
++[$list add: &quot;item 2&quot;];
++[$list add: &quot;item 3&quot;];
++
++$iter = [$list iterator];
++
++while ([$iter hasNext] eq &quot;true&quot;)
++{
++   println(&quot;Testing: &quot; . [$iter next]);
++}
+
+Added: sleep/tests/output/fork.sl
+===================================================================
+--- sleep/tests/output/fork.sl	2005-06-17 14:45:11 UTC (rev 25)
++++ sleep/tests/output/fork.sl	2005-06-18 00:35:47 UTC (rev 26)
+@@ -0,0 +1,6 @@
++Main script: this is a global variable in the main script
++From fork_me: this is a global variable in the closure script
++Main script: this is a global variable in the main script
++Main script: 4
++Forked: 1
++Main script: 5
+
+Added: sleep/tests/output/innertroubles.sl
+===================================================================
+--- sleep/tests/output/innertroubles.sl	2005-06-17 14:45:11 UTC (rev 25)
++++ sleep/tests/output/innertroubles.sl	2005-06-18 00:35:47 UTC (rev 26)
+@@ -0,0 +1,3 @@
++Testing: item 1
++Testing: item 2
++Testing: item 3
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2005-06-17 14:45:11 UTC (rev 25)
++++ sleep/whatsnew.txt	2005-06-18 00:35:47 UTC (rev 26)
+@@ -1,4 +1,4 @@
+-2.0-stable
++2.0-b9 
+ ======
+ - foreach loops now automatically convert hash parameters into their keyset.
+ - added a new foreach syntax:
+@@ -22,6 +22,14 @@
+   either of these functions.
+ - fixed a deadlock condition caused by calling closef() on a socket from 
+   a thread other than the read thread. 
++- added fork(&amp;closure) to spin &amp;closure off in its own thread.  &amp;closure 
++  is run in an isolated environment.  communication between the main environment
++  and the &amp;closure environment is facilitated by a IO pipe returned by fork()
++  and available as $source within &amp;closure().
++- added sleep(n) to cause the current thread to sleep for n milliseconds
++- removed the &quot;script&quot; variable scope.  this was necessary to make the 
++  forked isolated script environments a reality.  
++- HOES now sets all fields accessible property to true before invocation
+ 
+ 2.0-b8
+ ======
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000013.html">[Sleep-svn] r25 - sleep/src/sleep/runtime
+</A></li>
+	<LI>Next message: <A HREF="000015.html">[Sleep-svn] r27 - sleep/src/sleep/runtime
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#14">[ date ]</a>
+              <a href="thread.html#14">[ thread ]</a>
+              <a href="subject.html#14">[ subject ]</a>
+              <a href="author.html#14">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

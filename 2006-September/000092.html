@@ -1,0 +1,538 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r110 - in sleep: . src/sleep/bridges src/sleep/parser	src/sleep/runtime tests tests/data tests/data/src/org/hick	tests/data/src/org/hick/blah tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2006-September/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r110%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20src/sleep/parser%0A%09src/sleep/runtime%20tests%20tests/data%20tests/data/src/org/hick%0A%09tests/data/src/org/hick/blah%20tests/output&In-Reply-To=%3C200609110108.k8B18ciQ008109%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000091.html">
+   <LINK REL="Next"  HREF="000093.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r110 - in sleep: . src/sleep/bridges src/sleep/parser	src/sleep/runtime tests tests/data tests/data/src/org/hick	tests/data/src/org/hick/blah tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r110%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20src/sleep/parser%0A%09src/sleep/runtime%20tests%20tests/data%20tests/data/src/org/hick%0A%09tests/data/src/org/hick/blah%20tests/output&In-Reply-To=%3C200609110108.k8B18ciQ008109%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r110 - in sleep: . src/sleep/bridges src/sleep/parser	src/sleep/runtime tests tests/data tests/data/src/org/hick	tests/data/src/org/hick/blah tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Mon Sep 11 03:08:38 CEST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000091.html">[Sleep-svn] r109 - in sleep: . src/sleep/runtime tests tests/output
+</A></li>
+        <LI>Next message: <A HREF="000093.html">[Sleep-svn] r111 - in sleep: . src/sleep/bridges src/sleep/runtime	tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#92">[ date ]</a>
+              <a href="thread.html#92">[ thread ]</a>
+              <a href="subject.html#92">[ subject ]</a>
+              <a href="author.html#92">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2006-09-11 03:08:36 +0200 (Mon, 11 Sep 2006)
+New Revision: 110
+
+Added:
+   sleep/tests/data/src/org/hick/blah/
+   sleep/tests/data/src/org/hick/blah/SqueezeBox.java
+   sleep/tests/impfrom.sl
+   sleep/tests/output/impfrom.sl
+Modified:
+   sleep/build.xml
+   sleep/src/sleep/bridges/BasicUtilities.java
+   sleep/src/sleep/parser/CodeGenerator.java
+   sleep/src/sleep/parser/Parser.java
+   sleep/src/sleep/parser/ParserConfig.java
+   sleep/src/sleep/parser/TokenParser.java
+   sleep/src/sleep/runtime/ScriptLoader.java
+   sleep/tests/data/test.jar
+   sleep/tests/output/fe_generatordb.sl
+   sleep/tests/output/trace.sl
+   sleep/tests/trace.sl
+   sleep/whatsnew.txt
+Log:
+Added the ability to import 3rd party jar files... oooh.
+
+
+
+Modified: sleep/build.xml
+===================================================================
+--- sleep/build.xml	2006-09-10 19:08:55 UTC (rev 109)
++++ sleep/build.xml	2006-09-11 01:08:36 UTC (rev 110)
+@@ -16,7 +16,7 @@
+            destdir=&quot;${project.build}&quot;
+            nowarn=&quot;yes&quot;
+            depend=&quot;yes&quot;
+-           debug=&quot;false&quot;
++           debug=&quot;true&quot;
+            source=&quot;1.4&quot;
+            target=&quot;1.4&quot;
+            optimize=&quot;yes&quot;
+
+Modified: sleep/src/sleep/bridges/BasicUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicUtilities.java	2006-09-10 19:08:55 UTC (rev 109)
++++ sleep/src/sleep/bridges/BasicUtilities.java	2006-09-11 01:08:36 UTC (rev 110)
+@@ -182,12 +182,12 @@
+ 
+           if (l.size() == 2)
+           {
+-             parent    = BridgeUtilities.getFile(l);
++             parent    = sleep.parser.ParserConfig.findJarFile(l.pop().toString());
+              className = BridgeUtilities.getString(l, &quot;&quot;);
+           }
+           else
+           {
+-             File a    = BridgeUtilities.getFile(l);
++             File a    = sleep.parser.ParserConfig.findJarFile(l.pop().toString());
+              parent    = a.getParentFile();
+              className = a.getName();
+           }
+
+Modified: sleep/src/sleep/parser/CodeGenerator.java
+===================================================================
+--- sleep/src/sleep/parser/CodeGenerator.java	2006-09-10 19:08:55 UTC (rev 109)
++++ sleep/src/sleep/parser/CodeGenerator.java	2006-09-11 01:08:36 UTC (rev 110)
+@@ -1014,7 +1014,14 @@
+            add(atom, tokens[1]);
+            break;
+          case OBJECT_IMPORT:
+-           parser.importPackage(strings[0]);
++           if (strings.length == 1)
++           {
++              parser.importPackage(strings[0], null);
++           }
++           else
++           {
++              parser.importPackage(strings[0], strings[1]);
++           }
+            break;           
+          case EXPR_RETURN:                     // implemented
+            atom = GeneratedSteps.CreateFrame();
+
+Modified: sleep/src/sleep/parser/Parser.java
+===================================================================
+--- sleep/src/sleep/parser/Parser.java	2006-09-10 19:08:55 UTC (rev 109)
++++ sleep/src/sleep/parser/Parser.java	2006-09-11 01:08:36 UTC (rev 110)
+@@ -48,6 +48,7 @@
+ import sleep.engine.Block;
+ 
+ import java.io.*;
++import java.net.*;
+ 
+ public class Parser
+ {
+@@ -69,53 +70,90 @@
+ 
+    public    char       EndOfTerm  = ';';
+ 
+-   protected LinkedList imports   = new LinkedList();
++   protected Map        imports   = new LinkedHashMap();
+    protected HashMap    classes   = new HashMap();
+ 
++   protected HashMap    jars      = new HashMap(); /* resolved jar files, key=jar name value=ClassLoader */
++
+    /** Used by hoes to import package names... */
+-   public void importPackage(String packagez)
++   public void importPackage(String packagez, String from)
+    {
+-       if (packagez.endsWith(&quot;.*&quot;))
++       String pack, clas;
++       clas = packagez.substring(packagez.lastIndexOf(&quot;.&quot;) + 1, packagez.length());
++       pack = packagez.substring(0, packagez.lastIndexOf(&quot;.&quot;));
++
++       /* resolve and setup our class loader for the specified jar file */
++
++       if (from != null &amp;&amp; !jars.containsKey(from))
+        {
+-          imports.add(packagez.substring(0, packagez.length() - 2));
++          try
++          {
++             URLClassLoader loader = new URLClassLoader(new URL[] { ParserConfig.findJarFile(from).toURL() }, Thread.currentThread().getContextClassLoader());
++             jars.put(from, loader);
++          }
++          catch (Exception ex) { }
+        }
++
++       /* handle importing our package */
++
++ 
++       if (clas.equals(&quot;*&quot;))
++       {
++          imports.put(pack, from);
++       }
+        else
+        {
+-          try
++          Class found = findImportedClass(packagez);
++          classes.put(clas, found);
++       }
++   }
++
++   private Class resolveClass(String pack, String clas, String jar)
++   {
++//       System.out.println(&quot;Attempting to resolve: '&quot; + pack + &quot;' + '&quot; + clas + &quot;' + '&quot; + jar + &quot;'&quot;);
++
++       try
++       {
++          if (jar != null)
+           {
+-             Class temp = Class.forName(packagez);
+-             classes.put(packagez.substring(packagez.lastIndexOf(&quot;.&quot;) + 1, packagez.length()), temp);
++             ClassLoader cl = (ClassLoader)jars.get(jar);
++             return Class.forName(pack + &quot;.&quot; + clas, true, cl);
+           }
+-          catch (Exception ex) { }
++          else
++          {
++             return Class.forName(pack + &quot;.&quot; + clas);
++          }
+        }
++       catch (Exception ex) { }
++
++       return null;
+    }
+ 
+    public Class findImportedClass(String name)
+    {
+        if (classes.get(name) == null)
+        {
+-          Class temp;
+-          try
++          Class rv = null;
++          String clas, pack;
++
++          if (name.indexOf(&quot;.&quot;) &gt; -1)
+           {
+-             temp = Class.forName(name);
+-             classes.put(name, temp);
+-             return temp;
++             clas = name.substring(name.lastIndexOf(&quot;.&quot;) + 1, name.length());
++             pack = name.substring(0, name.lastIndexOf(&quot;.&quot;));
++
++	     rv   = resolveClass(pack, clas, null);
+           }
+-          catch (Exception ex) { }
+-          
+-
+-          Iterator i = imports.iterator();
+-          while (i.hasNext())
++          else
+           {
+-             try
++             Iterator i = imports.entrySet().iterator();
++             while (i.hasNext() &amp;&amp; rv == null)
+              {
+-                temp = Class.forName(i.next().toString() + &quot;.&quot; + name);
+-                classes.put(name, temp);
+-           
+-                return temp;
++                Map.Entry en = (Map.Entry)i.next();
++                rv = resolveClass((String)en.getKey(), name, (String)en.getValue());
+              }
+-             catch (Exception ex) { }
+           }
++
++          classes.put(name, rv);
+        }
+      
+        return (Class)classes.get(name);
+@@ -129,8 +167,9 @@
+    /** initialize the parser with the code you want me to work with */
+    public Parser(String _code)
+    {
+-      imports.add(&quot;java.lang&quot;);
+-      imports.add(&quot;java.util&quot;);
++      importPackage(&quot;java.lang.*&quot;, null);
++      importPackage(&quot;java.util.*&quot;, null);
++      importPackage(&quot;sleep.runtime.*&quot;, null);
+ 
+       code = _code;
+    }
+
+Modified: sleep/src/sleep/parser/ParserConfig.java
+===================================================================
+--- sleep/src/sleep/parser/ParserConfig.java	2006-09-10 19:08:55 UTC (rev 109)
++++ sleep/src/sleep/parser/ParserConfig.java	2006-09-11 01:08:36 UTC (rev 110)
+@@ -23,6 +23,8 @@
+  * @see sleep.interfaces.PredicateEnvironment
+  * 
+  */
++import java.io.*;
++
+ public class ParserConfig
+ {
+    /** Installs an escape constant into the sleep parser.  Any time the escape constant escape is encountered inside of a 
+@@ -37,4 +39,41 @@
+    {
+       Checkers.addKeyword(keyword);
+    }
++
++   /** Query the Sleep classpath.  This is a semi-colon separated list of paths where sleep
++       should search for jar files that scripts attempt to import */
++   public static String getSleepClasspath()
++   {
++      return System.getProperty(&quot;sleep.classpath&quot;, &quot;.&quot;);
++   }
++
++   /** Set the Sleep classpath.  A semi-colon separated list of paths where sleep should search for
++       jar files that scripts attempt to import */
++   public static void setSleepClasspath(String path)
++   {
++      System.setProperty(&quot;sleep.classpath&quot;, path);
++   }
++
++   /** Search the sleep classpath for the specified file.  Returns a File object reflecting where the
++       file was found.  This method does not return null.  If the file does not exist then a File object
++       constructed with just the passed in name is returned */
++   public static File findJarFile(String name)
++   {
++       File cp = new File(name);
++
++       if (cp.exists()) { return cp; }
++
++       String[] paths = System.getProperty(&quot;sleep.classpath&quot;, &quot;.&quot;).split(&quot;;&quot;);
++
++       for (int x = 0; x &lt; paths.length; x++)
++       {
++          File temp = new File(paths[x], name);
++          if (temp.exists())
++          {
++             return temp;
++          }
++       }
++
++       return cp;
++   }
+ }
+
+Modified: sleep/src/sleep/parser/TokenParser.java
+===================================================================
+--- sleep/src/sleep/parser/TokenParser.java	2006-09-10 19:08:55 UTC (rev 109)
++++ sleep/src/sleep/parser/TokenParser.java	2006-09-11 01:08:36 UTC (rev 110)
+@@ -586,16 +586,27 @@
+ 
+             StringBuffer newExpr = new StringBuffer();
+ 
+-            if (x == tokens.length) // if return is the only token, that means we have no EOT, ergo an error
+-            {
+-               parser.reportError(&quot;Missing terminator&quot;, new Token(newExpr.toString(), tokens[x - 1].getHint(), newExpr.toString().length()));
+-               return null;
+-            }
+-           
+             /* keep looping until we reach an end of term clause */
+             while (x &lt; strings.length &amp;&amp; !strings[x].equals(&quot;EOT&quot;))
+             {
+-               newExpr.append(strings[x]);
++               if (strings[x].equals(&quot;from:&quot;))
++               {
++                  if (newExpr.length() == 0)
++                  {
++                     parser.reportError(&quot;Attempted to import '' from:&quot;, new Token(&quot;import from:&quot;, tokens[x].getHint(), &quot;import from:&quot;.length()));
++                     return null;
++                  }
++                  else
++                  {
++                     myToken.add(new Token(newExpr.toString(), tokens[x].getHint()));
++                     newExpr = new StringBuffer();
++                  }
++               }
++               else
++               {
++                  newExpr.append(strings[x]);
++               }
++
+                x++;
+ 
+                if (x &gt;= tokens.length)
+
+Modified: sleep/src/sleep/runtime/ScriptLoader.java
+===================================================================
+--- sleep/src/sleep/runtime/ScriptLoader.java	2006-09-10 19:08:55 UTC (rev 109)
++++ sleep/src/sleep/runtime/ScriptLoader.java	2006-09-11 01:08:36 UTC (rev 110)
+@@ -100,6 +100,11 @@
+     protected LinkedList bridgess;
+ 
+     /**
++     * path to search for jar files imported using [import * from: *] syntax
++     */
++    protected LinkedList paths;
++
++    /**
+      * initializes the script loader
+      */
+     public ScriptLoader()
+
+Added: sleep/tests/data/src/org/hick/blah/SqueezeBox.java
+===================================================================
+--- sleep/tests/data/src/org/hick/blah/SqueezeBox.java	2006-09-10 19:08:55 UTC (rev 109)
++++ sleep/tests/data/src/org/hick/blah/SqueezeBox.java	2006-09-11 01:08:36 UTC (rev 110)
+@@ -0,0 +1,12 @@
++package org.hick.blah;
++
++public class SqueezeBox
++{
++   protected int sq = 33;
++
++   public int squeeze()
++   { 
++      sq++;
++      return sq;
++   }
++}
+
+Modified: sleep/tests/data/test.jar
+===================================================================
+(Binary files differ)
+
+Added: sleep/tests/impfrom.sl
+===================================================================
+--- sleep/tests/impfrom.sl	2006-09-10 19:08:55 UTC (rev 109)
++++ sleep/tests/impfrom.sl	2006-09-11 01:08:36 UTC (rev 110)
+@@ -0,0 +1,13 @@
++#
++# a test of import from...
++
++import org.hick.blah.* from: data/test.jar;
++
++$sq = [new SqueezeBox];
++
++for ($x = 0; $x &lt; 10; $x++)
++{
++   println(&quot;Test: &quot; . [$sq squeeze]);
++}
++
++
+
+Modified: sleep/tests/output/fe_generatordb.sl
+===================================================================
+--- sleep/tests/output/fe_generatordb.sl	2006-09-10 19:08:55 UTC (rev 109)
++++ sleep/tests/output/fe_generatordb.sl	2006-09-11 01:08:36 UTC (rev 110)
+@@ -19,7 +19,7 @@
+ Trace: &amp;println('8 =&gt; val: 8') at line 8
+ 9 =&gt; val: 9
+ Trace: &amp;println('9 =&gt; val: 9') at line 8
+-Trace: &amp;lambda(&amp;closure16668447, $start =&gt; 50, $stop =&gt; 60) = &amp;closure649878 at line 22
++Trace: &amp;lambda(&amp;closure5761610, $start =&gt; 50, $stop =&gt; 60) = &amp;closure14069849 at line 22
+ Testing out range stuff: 0 =&gt; 50
+ Trace: &amp;println('Testing out range stuff: 0 =&gt; 50') at line 24
+ Testing out range stuff: 1 =&gt; 51
+@@ -41,7 +41,7 @@
+ Testing out range stuff: 9 =&gt; 59
+ Trace: &amp;println('Testing out range stuff: 9 =&gt; 59') at line 24
+ Trace: &amp;this('$start $stop') at line 29
+-Trace: &amp;_range2(70, 80) = &amp;closure539419 at line 42
++Trace: &amp;_range2(70, 80) = &amp;closure13878877 at line 42
+ My third test: 0 =&gt; 70
+ Trace: &amp;println('My third test: 0 =&gt; 70') at line 44
+ My third test: 1 =&gt; 71
+
+Added: sleep/tests/output/impfrom.sl
+===================================================================
+--- sleep/tests/output/impfrom.sl	2006-09-10 19:08:55 UTC (rev 109)
++++ sleep/tests/output/impfrom.sl	2006-09-11 01:08:36 UTC (rev 110)
+@@ -0,0 +1,10 @@
++Test: 34
++Test: 35
++Test: 36
++Test: 37
++Test: 38
++Test: 39
++Test: 40
++Test: 41
++Test: 42
++Test: 43
+
+Modified: sleep/tests/output/trace.sl
+===================================================================
+--- sleep/tests/output/trace.sl	2006-09-10 19:08:55 UTC (rev 109)
++++ sleep/tests/output/trace.sl	2006-09-11 01:08:36 UTC (rev 110)
+@@ -1,15 +1,15 @@
+ this is a test
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at d4d66b</A> println: 'this is a test'] at line 6
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at fe8ce8</A> println: 'this is a test'] at line 6
+ Trace: [java.lang.Math pow: 3, 4] = 81.0 at line 7
+ 81.0
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at d4d66b</A> println: 81.0] at line 7
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at fe8ce8</A> println: 81.0] at line 7
+ Trace: [java.lang.Math pow: 3, 5] = 243.0 at line 8
+ 243.0
+ Trace: &amp;println(243.0) at line 8
+ testing again...
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at d4d66b</A> println: 'testing again...'] at line 9
+-Trace: [sleep.runtime.SleepUtils getListFromArray: @('a', 'b', 'c')] = [a, b, c] at line 11
+-Trace: [new java.util.LinkedList: [a, b, c]] = [a, b, c] at line 11
+-Warning: variable '$list' not declared at line 11
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at fe8ce8</A> println: 'testing again...'] at line 10
++Trace: [sleep.runtime.SleepUtils getListFromArray: @('a', 'b', 'c')] = [a, b, c] at line 12
++Trace: [new java.util.LinkedList: [a, b, c]] = [a, b, c] at line 12
++Warning: variable '$list' not declared at line 12
+ [a, b, c]
+-Trace: &amp;println([a, b, c]) at line 13
++Trace: &amp;println([a, b, c]) at line 14
+
+Modified: sleep/tests/trace.sl
+===================================================================
+--- sleep/tests/trace.sl	2006-09-10 19:08:55 UTC (rev 109)
++++ sleep/tests/trace.sl	2006-09-11 01:08:36 UTC (rev 110)
+@@ -6,6 +6,7 @@
+ [[System out] println: &quot;this is a test&quot; ];
+ [[System out] println: [Math pow:3, 4]];
+ println([Math pow: 3, 5]);
++
+ [[java.lang.System out] println: &quot;testing again...&quot;];
+ 
+ $list = [new LinkedList: [sleep.runtime.SleepUtils getListFromArray: @(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;)]];
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-09-10 19:08:55 UTC (rev 109)
++++ sleep/whatsnew.txt	2006-09-11 01:08:36 UTC (rev 110)
+@@ -15,7 +15,15 @@
+   as java.util.List and java.util.Map data structures (via an expensive
+   conversion process).  This conversion only applies one way i.e. a Java List
+   or Java Map can not be used as a Sleep array or hash.
++- added the ability to import classes from external jar files into sleep:
++  import org.jdom.* from: jdom.jar;
++  
++  Sleep also has a concept of a Sleep classpath, definable with sleep.classpath
++  or through the static methods in sleep.parser.ParserConfig.
++- updated the use() function to use the sleep classpath to search for the
++  specified jar file.
+ 
++
+ 2.1-beta 3
+ ===========
+ - added an optional timeout parameter for the socket connect function i.e.:
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000091.html">[Sleep-svn] r109 - in sleep: . src/sleep/runtime tests tests/output
+</A></li>
+	<LI>Next message: <A HREF="000093.html">[Sleep-svn] r111 - in sleep: . src/sleep/bridges src/sleep/runtime	tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#92">[ date ]</a>
+              <a href="thread.html#92">[ thread ]</a>
+              <a href="subject.html#92">[ subject ]</a>
+              <a href="author.html#92">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

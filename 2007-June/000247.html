@@ -1,0 +1,167 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r268 - in sleep: . src/sleep/parser tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2007-June/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r268%20-%20in%20sleep%3A%20.%20src/sleep/parser%20tests/output&In-Reply-To=%3C200706120201.l5C21bGF027165%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000246.html">
+   <LINK REL="Next"  HREF="000248.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r268 - in sleep: . src/sleep/parser tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r268%20-%20in%20sleep%3A%20.%20src/sleep/parser%20tests/output&In-Reply-To=%3C200706120201.l5C21bGF027165%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r268 - in sleep: . src/sleep/parser tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Tue Jun 12 04:01:37 CEST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000246.html">[Sleep-svn] r267 - sleep/tests/output
+</A></li>
+        <LI>Next message: <A HREF="000248.html">[Sleep-svn] r269 - in sleep: . src/sleep/parser tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#247">[ date ]</a>
+              <a href="thread.html#247">[ thread ]</a>
+              <a href="subject.html#247">[ subject ]</a>
+              <a href="author.html#247">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2007-06-12 04:01:35 +0200 (Tue, 12 Jun 2007)
+New Revision: 268
+
+Modified:
+   sleep/build.xml
+   sleep/src/sleep/parser/Checkers.java
+   sleep/src/sleep/parser/Parser.java
+   sleep/tests/output/convertds3.sl
+   sleep/whatsnew.txt
+Log:
+reduce Class.forName usage (half way... sorta semi, whatever... blah)
+
+
+Modified: sleep/build.xml
+===================================================================
+--- sleep/build.xml	2007-06-11 02:53:35 UTC (rev 267)
++++ sleep/build.xml	2007-06-12 02:01:35 UTC (rev 268)
+@@ -16,7 +16,7 @@
+            destdir=&quot;${project.build}&quot;
+            nowarn=&quot;yes&quot;
+            depend=&quot;yes&quot;
+-           debug=&quot;false&quot;
++           debug=&quot;true&quot;
+            source=&quot;1.4&quot;
+            target=&quot;1.4&quot;
+            optimize=&quot;yes&quot;
+
+Modified: sleep/src/sleep/parser/Checkers.java
+===================================================================
+--- sleep/src/sleep/parser/Checkers.java	2007-06-11 02:53:35 UTC (rev 267)
++++ sleep/src/sleep/parser/Checkers.java	2007-06-12 02:01:35 UTC (rev 268)
+@@ -105,7 +105,20 @@
+ 
+    public static final boolean isClassIdentifier(Parser parser, String a)
+    {
+-       return !isIndex(a) &amp;&amp; parser.findImportedClass(a) != null;
++       if (a.length() &gt;= 1 &amp;&amp; !isVariable(a) &amp;&amp; Character.isJavaIdentifierStart(a.charAt(0)))
++       {
++          for (int x = 1; x &lt; a.length(); x++)
++          {
++             if (!Character.isJavaIdentifierPart(a.charAt(x)) &amp;&amp; a.charAt(x) != '.')
++             {
++                return false;
++             }
++          }
++
++          return parser.findImportedClass(a) != null;
++       }
++
++       return false;
+    }
+ 
+    public static final boolean isBindFilter(String a, String b, String c, String d)
+
+Modified: sleep/src/sleep/parser/Parser.java
+===================================================================
+--- sleep/src/sleep/parser/Parser.java	2007-06-11 02:53:35 UTC (rev 267)
++++ sleep/src/sleep/parser/Parser.java	2007-06-12 02:01:35 UTC (rev 268)
+@@ -162,6 +162,12 @@
+              }
+           }
+ 
++          if (rv == null)
++          {
++             System.err.println(&quot;Argh: &quot; + name + &quot; is not an imported class&quot;);
++             Thread.dumpStack();
++          }
++
+           classes.put(name, rv);
+        }
+      
+
+Modified: sleep/tests/output/convertds3.sl
+===================================================================
+--- sleep/tests/output/convertds3.sl	2007-06-11 02:53:35 UTC (rev 267)
++++ sleep/tests/output/convertds3.sl	2007-06-12 02:01:35 UTC (rev 268)
+@@ -32,9 +32,9 @@
+ int[] a
+ Collection a
+ Collection a
+-Warning: there is no method that matches mar([<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">Z at ee3aa7</A>) in sleep.ArrayTest1 at convertds3.sl:36
+-Warning: there is no method that matches mar([<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">F at 4cd580</A>) in sleep.ArrayTest1 at convertds3.sl:37
+-Warning: there is no method that matches mar([Ljava.lang.Object;@54f9f1) in sleep.ArrayTest1 at convertds3.sl:38
++Warning: there is no method that matches mar([<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">Z at 969c29</A>) in sleep.ArrayTest1 at convertds3.sl:36
++Warning: there is no method that matches mar([<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">F at e67e6a</A>) in sleep.ArrayTest1 at convertds3.sl:37
++Warning: there is no method that matches mar([Ljava.lang.Object;@758500) in sleep.ArrayTest1 at convertds3.sl:38
+ int[] a
+ Collection a
+ Collection a
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2007-06-11 02:53:35 UTC (rev 267)
++++ sleep/whatsnew.txt	2007-06-12 02:01:35 UTC (rev 268)
+@@ -1,3 +1,9 @@
++2.1-beta 17
++===========
++- reduced number of Class.forName calls made when parsing scripts...
++  should help those using Sleep in Java applets ;) 
++  [p.s. sorry I wasn't able to take care of this sooner]
++
+ 2.1-beta 16  (11 Jun 07)
+ ===========
+ - passing a value that can not be used as a key/value pair when a kvp 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000246.html">[Sleep-svn] r267 - sleep/tests/output
+</A></li>
+	<LI>Next message: <A HREF="000248.html">[Sleep-svn] r269 - in sleep: . src/sleep/parser tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#247">[ date ]</a>
+              <a href="thread.html#247">[ thread ]</a>
+              <a href="subject.html#247">[ subject ]</a>
+              <a href="author.html#247">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

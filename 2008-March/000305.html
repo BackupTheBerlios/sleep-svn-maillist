@@ -1,0 +1,102 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r327 - in sleep: . src/sleep/engine/atoms
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2008-March/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r327%20-%20in%20sleep%3A%20.%20src/sleep/engine/atoms&In-Reply-To=%3C200803262029.m2QKTQkD020621%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000304.html">
+   <LINK REL="Next"  HREF="000306.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r327 - in sleep: . src/sleep/engine/atoms</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r327%20-%20in%20sleep%3A%20.%20src/sleep/engine/atoms&In-Reply-To=%3C200803262029.m2QKTQkD020621%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r327 - in sleep: . src/sleep/engine/atoms">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Wed Mar 26 21:29:27 CET 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000304.html">[Sleep-svn] r326 - in sleep: docs src/sleep/bridges	src/sleep/runtime
+</A></li>
+        <LI>Next message: <A HREF="000306.html">[Sleep-svn] r328 - in sleep: src/sleep/bridges src/sleep/engine	src/sleep/runtime tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#305">[ date ]</a>
+              <a href="thread.html#305">[ thread ]</a>
+              <a href="subject.html#305">[ subject ]</a>
+              <a href="author.html#305">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2008-03-26 21:29:26 +0100 (Wed, 26 Mar 2008)
+New Revision: 327
+
+Modified:
+   sleep/src/sleep/engine/atoms/Goto.java
+   sleep/whatsnew.txt
+Log:
+fixed a memory leak... 
+
+
+Modified: sleep/src/sleep/engine/atoms/Goto.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/Goto.java	2008-03-22 00:02:45 UTC (rev 326)
++++ sleep/src/sleep/engine/atoms/Goto.java	2008-03-26 20:29:26 UTC (rev 327)
+@@ -95,6 +95,11 @@
+                                       the increment has to be executed separately so it is included */
+             }
+          }
++
++         if (e.markFrame() &gt;= 0)
++         {
++            e.getCurrentFrame().clear(); /* prevent some memory leakage action */
++         }
+       }
+ 
+       if (e.getFlowControlRequest() == ScriptEnvironment.FLOW_CONTROL_BREAK)
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2008-03-22 00:02:45 UTC (rev 326)
++++ sleep/whatsnew.txt	2008-03-26 20:29:26 UTC (rev 327)
+@@ -33,6 +33,7 @@
+   passed.  Use $var =&gt; ... to pass a named value.
+ - toplevel sleep scripts are now executed as a closure... this
+   allows callcc to work from the top level.
++- fixed a memory leak caused by stack pollution within loops.  
+ 
+ 2.1-beta 20  (12 Nov 07)
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000304.html">[Sleep-svn] r326 - in sleep: docs src/sleep/bridges	src/sleep/runtime
+</A></li>
+	<LI>Next message: <A HREF="000306.html">[Sleep-svn] r328 - in sleep: src/sleep/bridges src/sleep/engine	src/sleep/runtime tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#305">[ date ]</a>
+              <a href="thread.html#305">[ thread ]</a>
+              <a href="subject.html#305">[ subject ]</a>
+              <a href="author.html#305">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

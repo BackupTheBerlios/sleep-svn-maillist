@@ -1,0 +1,232 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r270 - in sleep: . src/sleep/bridges src/sleep/engine	tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2007-June/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r270%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20src/sleep/engine%0A%09tests%20tests/output&In-Reply-To=%3C200706120347.l5C3ldJD000181%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000248.html">
+   <LINK REL="Next"  HREF="000250.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r270 - in sleep: . src/sleep/bridges src/sleep/engine	tests tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r270%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20src/sleep/engine%0A%09tests%20tests/output&In-Reply-To=%3C200706120347.l5C3ldJD000181%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r270 - in sleep: . src/sleep/bridges src/sleep/engine	tests tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Tue Jun 12 05:47:39 CEST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000248.html">[Sleep-svn] r269 - in sleep: . src/sleep/parser tests tests/output
+</A></li>
+        <LI>Next message: <A HREF="000250.html">[Sleep-svn] r271 - in sleep: . src/sleep/console src/sleep/parser
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#249">[ date ]</a>
+              <a href="thread.html#249">[ thread ]</a>
+              <a href="subject.html#249">[ subject ]</a>
+              <a href="author.html#249">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2007-06-12 05:47:38 +0200 (Tue, 12 Jun 2007)
+New Revision: 270
+
+Added:
+   sleep/tests/isa.sl
+   sleep/tests/output/isa.sl
+Modified:
+   sleep/src/sleep/bridges/BasicUtilities.java
+   sleep/src/sleep/bridges/BridgeUtilities.java
+   sleep/src/sleep/engine/Block.java
+   sleep/tests/output/convertds3.sl
+   sleep/whatsnew.txt
+Log:
+added an isa predicate
+
+
+
+Modified: sleep/src/sleep/bridges/BasicUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicUtilities.java	2007-06-12 03:17:46 UTC (rev 269)
++++ sleep/src/sleep/bridges/BasicUtilities.java	2007-06-12 03:47:38 UTC (rev 270)
+@@ -34,12 +34,17 @@
+ 
+ import java.lang.reflect.*; // for array casting stuff
+ 
+-import sleep.parser.Parser;
++import sleep.parser.*;
+ import sleep.error.YourCodeSucksException;
+ 
+ /** implementation of basic utility functions */
+ public class BasicUtilities implements Function, Loadable, Predicate
+ {
++    static
++    {
++       ParserConfig.addKeyword(&quot;isa&quot;);
++    }
++
+     public boolean scriptUnloaded (ScriptInstance i)
+     {
+         return true;
+@@ -95,6 +100,7 @@
+         temp.put(&quot;-isarray&quot;, this);   
+         temp.put(&quot;-ishash&quot;,  this); 
+         temp.put(&quot;-isfunction&quot;, this);
++        temp.put(&quot;isa&quot;, this);
+         temp.put(&quot;&amp;setField&quot;, this);
+ 
+         temp.put(&quot;&amp;exit&quot;, this);
+@@ -181,6 +187,14 @@
+ 
+     public boolean decide(String predName, ScriptInstance anInstance, Stack terms)
+     {
++
++       if (predName.equals(&quot;isa&quot;))
++       {
++          Class  blah = BridgeUtilities.getClass(terms, null);
++          Object bleh = BridgeUtilities.getObject(terms);
++          return blah != null &amp;&amp; blah.isInstance(bleh);          
++       }
++ 
+        Scalar value = (Scalar)terms.pop();
+  
+        // Times when a scalar is considered true:
+
+Modified: sleep/src/sleep/bridges/BridgeUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BridgeUtilities.java	2007-06-12 03:17:46 UTC (rev 269)
++++ sleep/src/sleep/bridges/BridgeUtilities.java	2007-06-12 03:47:38 UTC (rev 270)
+@@ -67,6 +67,14 @@
+       return ((Scalar)arguments.pop()).intValue();
+    }
+ 
++   /** grab a class, if the stack is empty the default value will be returned */
++   public static Class getClass(Stack arguments, Class defaultValue)
++   {
++      Object obj = getObject(arguments);
++      if (obj == null) { return defaultValue; }
++      return (Class)obj;
++   }
++
+    /** grab a long.  if the stack is empty 0 will be returned. */
+    public static long getLong(Stack arguments)
+    {
+
+Modified: sleep/src/sleep/engine/Block.java
+===================================================================
+--- sleep/src/sleep/engine/Block.java	2007-06-12 03:17:46 UTC (rev 269)
++++ sleep/src/sleep/engine/Block.java	2007-06-12 03:47:38 UTC (rev 270)
+@@ -223,6 +223,10 @@
+               {
+                  environment.getScriptInstance().fireWarning(&quot;attempted an invalid index&quot;, temp.getLineNumber());
+               }
++              else if (ex instanceof ClassCastException)
++              {
++                 environment.getScriptInstance().fireWarning(&quot;attempted an invalid cast: &quot; + ex.getMessage(), temp.getLineNumber());
++              }
+               else if (ex instanceof NullPointerException)
+               {
+                  environment.getScriptInstance().fireWarning(&quot;null value error&quot;, temp.getLineNumber());
+
+Added: sleep/tests/isa.sl
+===================================================================
+--- sleep/tests/isa.sl	2007-06-12 03:17:46 UTC (rev 269)
++++ sleep/tests/isa.sl	2007-06-12 03:47:38 UTC (rev 270)
+@@ -0,0 +1,15 @@
++#
++# test of the new isa op
++#
++
++debug(7 | 64);
++
++assert &quot;blah&quot; isa ^String;
++assert [new LinkedList] isa ^List;
++assert 3 isa ^Integer;
++assert 3 isa ^Number;
++assert 3.0 isa ^Number;
++assert 3.0 isa ^Double;
++assert 3.0 !isa ^Integer;
++assert 5 isa (^Integer);
++assert &quot;blah&quot; isa &quot;bleh&quot;;
+
+Modified: sleep/tests/output/convertds3.sl
+===================================================================
+--- sleep/tests/output/convertds3.sl	2007-06-12 03:17:46 UTC (rev 269)
++++ sleep/tests/output/convertds3.sl	2007-06-12 03:47:38 UTC (rev 270)
+@@ -32,9 +32,9 @@
+ int[] a
+ Collection a
+ Collection a
+-Warning: there is no method that matches mar([<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">Z at 969c29</A>) in sleep.ArrayTest1 at convertds3.sl:36
+-Warning: there is no method that matches mar([<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">F at e67e6a</A>) in sleep.ArrayTest1 at convertds3.sl:37
+-Warning: there is no method that matches mar([Ljava.lang.Object;@758500) in sleep.ArrayTest1 at convertds3.sl:38
++Warning: there is no method that matches mar([<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">Z at e78c96</A>) in sleep.ArrayTest1 at convertds3.sl:36
++Warning: there is no method that matches mar([<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">F at bf053f</A>) in sleep.ArrayTest1 at convertds3.sl:37
++Warning: there is no method that matches mar([Ljava.lang.Object;@f1916f) in sleep.ArrayTest1 at convertds3.sl:38
+ int[] a
+ Collection a
+ Collection a
+
+Added: sleep/tests/output/isa.sl
+===================================================================
+--- sleep/tests/output/isa.sl	2007-06-12 03:17:46 UTC (rev 269)
++++ sleep/tests/output/isa.sl	2007-06-12 03:47:38 UTC (rev 270)
+@@ -0,0 +1,9 @@
++Trace: 'blah' isa class java.lang.String ? TRUE at isa.sl:7
++Trace: [] isa interface java.util.List ? TRUE at isa.sl:8
++Trace: 3 isa class java.lang.Integer ? TRUE at isa.sl:9
++Trace: 3 isa class java.lang.Number ? TRUE at isa.sl:10
++Trace: 3.0 isa class java.lang.Number ? TRUE at isa.sl:11
++Trace: 3.0 isa class java.lang.Double ? TRUE at isa.sl:12
++Trace: 3.0 !isa class java.lang.Integer ? TRUE at isa.sl:13
++Trace: 5 isa class java.lang.Integer ? TRUE at isa.sl:14
++Warning: attempted an invalid cast: java.lang.String at isa.sl:15
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2007-06-12 03:17:46 UTC (rev 269)
++++ sleep/whatsnew.txt	2007-06-12 03:47:38 UTC (rev 270)
+@@ -6,6 +6,10 @@
+ - added a new type of literal for resolving a Java class i.e.:
+   ^java.util.LinkedList resolves to java.util.LinkedList.class
+   ^Map$Entry would resolve to java.util.Map$Entry.class  etc..
++- added a new predicate 'isa' for determining if an object is a 
++  instance of a specific class i.e.:  &quot;string&quot; isa ^String
++- added a better error message for class cast exceptions caught w/i
++  the interpreter.
+ 
+ 2.1-beta 16  (11 Jun 07)
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000248.html">[Sleep-svn] r269 - in sleep: . src/sleep/parser tests tests/output
+</A></li>
+	<LI>Next message: <A HREF="000250.html">[Sleep-svn] r271 - in sleep: . src/sleep/console src/sleep/parser
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#249">[ date ]</a>
+              <a href="thread.html#249">[ thread ]</a>
+              <a href="subject.html#249">[ subject ]</a>
+              <a href="author.html#249">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

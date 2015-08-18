@@ -1,0 +1,339 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r380 - in sleep: . src/sleep/bridges	src/sleep/interfaces src/sleep/runtime tests
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2008-May/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r380%20-%20in%20sleep%3A%20.%20src/sleep/bridges%0A%09src/sleep/interfaces%20src/sleep/runtime%20tests&In-Reply-To=%3C200805152256.m4FMuxlC022026%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000355.html">
+   <LINK REL="Next"  HREF="000357.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r380 - in sleep: . src/sleep/bridges	src/sleep/interfaces src/sleep/runtime tests</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r380%20-%20in%20sleep%3A%20.%20src/sleep/bridges%0A%09src/sleep/interfaces%20src/sleep/runtime%20tests&In-Reply-To=%3C200805152256.m4FMuxlC022026%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r380 - in sleep: . src/sleep/bridges	src/sleep/interfaces src/sleep/runtime tests">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Fri May 16 00:56:59 CEST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000355.html">[Sleep-svn] r379 - in sleep: . src/sleep/runtime src/sleep/taint
+</A></li>
+        <LI>Next message: <A HREF="000357.html">[Sleep-svn] r381 - in sleep: . src/sleep/runtime
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#356">[ date ]</a>
+              <a href="thread.html#356">[ thread ]</a>
+              <a href="subject.html#356">[ subject ]</a>
+              <a href="author.html#356">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2008-05-16 00:56:58 +0200 (Fri, 16 May 2008)
+New Revision: 380
+
+Removed:
+   sleep/src/sleep/interfaces/Evaluation.java
+Modified:
+   sleep/src/sleep/bridges/BasicUtilities.java
+   sleep/src/sleep/runtime/ScriptInstance.java
+   sleep/src/sleep/runtime/ScriptLoader.java
+   sleep/tests/matcher.sl
+   sleep/whatsnew.txt
+Log:
+some changes to script loader cache
+
+
+Modified: sleep/src/sleep/bridges/BasicUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicUtilities.java	2008-05-15 21:36:00 UTC (rev 379)
++++ sleep/src/sleep/bridges/BasicUtilities.java	2008-05-15 22:56:58 UTC (rev 380)
+@@ -350,8 +350,11 @@
+          
+                 if (parent != null)
+                 {
++                   File theFile = parent.isDirectory() ? new File(parent, className) : parent;
++
+                    URLClassLoader loader = new URLClassLoader(new URL[] { parent.toURL() });
+-                   sloader.touch(className, parent.isDirectory() ? new File(parent, className).lastModified() : parent.lastModified());
++                   sloader.touch(className, theFile.lastModified());
++                   si.associateFile(theFile); /* associate this included script with the current script instance */
+ 
+                    istream = loader.getResourceAsStream(className);
+                 }
+@@ -359,6 +362,7 @@
+                 {
+                    File tempf = BridgeUtilities.toSleepFile(className, si);
+                    sloader.touch(className, tempf.lastModified());
++                   si.associateFile(tempf); /* associate this included script with the current script instance */
+ 
+                    istream = new FileInputStream(tempf);
+                 }
+
+Deleted: sleep/src/sleep/interfaces/Evaluation.java
+===================================================================
+--- sleep/src/sleep/interfaces/Evaluation.java	2008-05-15 21:36:00 UTC (rev 379)
++++ sleep/src/sleep/interfaces/Evaluation.java	2008-05-15 22:56:58 UTC (rev 380)
+@@ -1,96 +0,0 @@
+-/*
+-   SLEEP - Simple Language for Environment Extension Purposes
+- .----------------------------.
+- | sleep.interfaces.Evalation |_______________________________________________
+- |                                                                            |
+-   Author: Raphael Mudge (<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">rsmudge at mtu.edu</A>)
+-           <A HREF="http://www.csl.mtu.edu/~rsmudge/">http://www.csl.mtu.edu/~rsmudge/</A>
+- 
+-   Description: An interface for a class that defines a environment for user
+-     defined functions.   
+-
+-   Documentation: 
+- 
+-   * This software is distributed under the artistic license, see license.txt
+-     for more information. *
+- 
+- |____________________________________________________________________________|
+- */
+-
+-package sleep.interfaces;
+- 
+-import sleep.runtime.ScriptInstance;
+-import sleep.runtime.Scalar;
+-
+-/**
+- * &lt;p&gt;A Sleep evaluation is a way to define how a `back quoted` string should work.  In Perl any text inside of `back quotes` is
+- * fevaluated for embedded $scalar values and then executed as a shell command.  The output of the executed command is collected 
+- * into a perl array and returned as the resulting value of the `back quote` expression.&lt;/p&gt;
+- *
+- * &lt;p&gt;While executing commands in this way might be a useful abstraction, it seems more fun to allow you, the application
+- * developer to define what this syntax should do.&lt;/p&gt;
+- *
+- * &lt;p&gt;The following is an implementation of perl-like backquote behavior for Sleep:&lt;/p&gt;
+- * 
+- * &lt;pre&gt; import sleep.interfaces.Evaluation;
+- *
+- * import sleep.runtime.Scalar;
+- * import sleep.runtime.ScriptInstance;
+- * import sleep.runtime.SleepUtils;
+- *
+- * import java.io.*;
+- *
+- * public class PerlLike implements Evaluation
+- * {
+- *    public Scalar evaluateString(ScriptInstance script, String value)
+- *    {
+- *       Scalar rv = SleepUtils.getArrayScalar();
+- *
+- *       try
+- *       {
+- *          // execute our process and setup a reader for it 
+- * 
+- *          Process proc  = Runtime.getRuntime().exec(value);
+- *          BufferedReader reader = new BufferedReader(new InputStreamReader(proc.getInputStream()));
+- *
+- *          // read each line from the process output, stuff it into our scalar array rv
+- *
+- *          String text = null;
+- *          while ((text = reader.readLine()) != null)
+- *          {
+- *             rv.getArray().push(SleepUtils.getScalar(text));
+- *          }
+- *       }
+- *       catch (IOException ex)
+- *       {
+- *          script.getScriptEnvironment().flagError(ex.toString());
+- *       }
+- *
+- *       return rv;
+- *    }
+- * }&lt;/pre&gt;
+- *
+- * &lt;p&gt;To install the perl-like backquote evaluator into the script environment:&lt;/p&gt;
+- * &lt;pre&gt;
+- * public boolean scriptLoaded(ScriptInstance script)
+- * {
+- *    Evaluation perlStuff = new PerlLike();
+- * 
+- *    Hashtable environment = script.getScriptEnvironment().getEnvironment();
+- *    environment.put(&quot;%BACKQUOTE%&quot;, perlStuff);
+- *
+- *    return true;
+- * }
+- * &lt;/pre&gt;
+- */
+-public interface Evaluation
+-{
+-   /**
+-    * Evaluate the specified string value.
+-    *
+-    * @param typeKeyword the keyword for the function. (i.e. sub)
+-    * @param functionName the function name (i.e. add)
+-    * @param functionBody the compiled body of the function (i.e. code to add 2 numbers)
+-    */
+-   public abstract Scalar evaluateString(ScriptInstance si, String value);
+-}
+
+Modified: sleep/src/sleep/runtime/ScriptInstance.java
+===================================================================
+--- sleep/src/sleep/runtime/ScriptInstance.java	2008-05-15 21:36:00 UTC (rev 379)
++++ sleep/src/sleep/runtime/ScriptInstance.java	2008-05-15 22:56:58 UTC (rev 380)
+@@ -104,7 +104,37 @@
+     /** track all of the flagged debug options for this script (set to DEBUG_SHOW_ERRORS by default) */
+     protected int debug = DEBUG_SHOW_ERRORS;
+ 
++    /** track the time this script was loaded */
++    protected long loadTime = System.currentTimeMillis();
+ 
++    /** list of source files associated with this script (to account for &amp;include) */
++    protected List sourceFiles = new LinkedList();
++
++    /** associates the specified source file with this script */
++    public void associateFile(File f)
++    {
++       if (f.exists())
++       {
++          sourceFiles.add(f);
++       }
++    }
++
++    /** this script instance checks if (to the best of its knowledge) any of its source files have changed */
++    public boolean hasChanged()
++    {
++       Iterator i = sourceFiles.iterator();
++       while (i.hasNext())
++       {
++          File temp = (File)i.next();
++          if (temp.lastModified() &gt; loadTime)
++          {
++             return true;
++          }
++       }
++   
++       return false;
++    }
++
+     /** set the debug flags for this script */
+     public void setDebugFlags(int options)
+     {
+
+Modified: sleep/src/sleep/runtime/ScriptLoader.java
+===================================================================
+--- sleep/src/sleep/runtime/ScriptLoader.java	2008-05-15 21:36:00 UTC (rev 379)
++++ sleep/src/sleep/runtime/ScriptLoader.java	2008-05-15 22:56:58 UTC (rev 380)
+@@ -78,14 +78,27 @@
+  * the script.&lt;/p&gt;
+  *
+  * &lt;p&gt;To compile a script means to produce a runnable Block of code.  On its own a Block is not really runnable as a script 
+- * environment is needed.  For functions like eval(), include(), etc.. it makes sense to compile a script as one may want to run
++ * environment is needed.  For functions eval(), include(), etc.. it makes sense to compile a script as you may want to run
+  * the block of code within the environment of the calling script.  Using the compile method saves on the overhead of unnecessary
+  * script environment creation and bridge registration.&lt;/p&gt;
+  *
++ * &lt;h3&gt;Management of Script Reloading&lt;/h3&gt;
++ *
++ * &lt;p&gt;The ScriptInstance class has a an associateFile method to associate a source File object with a script.  The &amp;include function 
++ * calls this method when a file is included into the current script context.  To check if any of the associated files has changed call 
++ * hasChanged on the appropriate ScriptInstance.&lt;/P&gt;
++ *
++ * &lt;p&gt;The ScriptLoader will automatically associate a source file with a ScriptInstance when a File object is passed to loadScript.  If
++ * you choose to do some voodoo compiling scripts and managing your own cache (not necessary btw) then you will have to call associateFile
++ * against any ScriptInstance you construct&lt;/p&gt;
++ *
++ * &lt;h3&gt;Script Cache&lt;/h3&gt;
++ *
++ * &lt;p&gt;The ScriptLoader mantains a cache of Blocks.  These are indexed by name and a timestamp of when they were created.  You may call the
++ * touch method with the name and a timestamp to allow the ScriptLoader to invalidate the cache entry.  If you just load scripts from files
++ * then the script cache will just work.  To disable the cache use &lt;code&gt;loader.setGlobalCache(false)&lt;/code&gt;.&lt;/p&gt;
++ *
+  * &lt;p&gt;Hopefully this helped to clarify things. :)&lt;/p&gt;
+- *
+- * @see sleep.interfaces.Loadable
+- * @see ScriptInstance
+  */
+ public class ScriptLoader
+ {
+@@ -99,6 +112,7 @@
+        if (BLOCK_CACHE != null &amp;&amp; BLOCK_CACHE.containsKey(name))
+        {
+           Object[] temp = (Object[])BLOCK_CACHE.get(name);
++
+           return (Block)temp[0];
+        }
+ 
+@@ -452,7 +466,9 @@
+      */
+     public ScriptInstance loadScript(File file, Hashtable env) throws IOException, YourCodeSucksException
+     {
+-        return loadScript(file.getAbsolutePath(), new FileInputStream(file), env);
++        ScriptInstance script = loadScript(file.getAbsolutePath(), new FileInputStream(file), env);
++        script.associateFile(file);
++        return script;
+     }
+ 
+     /**
+@@ -460,7 +476,7 @@
+      */
+     public ScriptInstance loadScript(File file) throws IOException, YourCodeSucksException
+     {
+-        return loadScript(file.getAbsolutePath(), new FileInputStream(file), null);
++        return loadScript(file, null);
+     }
+ 
+     /**
+
+Modified: sleep/tests/matcher.sl
+===================================================================
+--- sleep/tests/matcher.sl	2008-05-15 21:36:00 UTC (rev 379)
++++ sleep/tests/matcher.sl	2008-05-15 22:56:58 UTC (rev 380)
+@@ -17,4 +17,4 @@
+   fork($my_th, $iter =&gt; &quot;$ii&quot;);
+ }
+ 
+-
++sleep(3000);
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2008-05-15 21:36:00 UTC (rev 379)
++++ sleep/whatsnew.txt	2008-05-15 22:56:58 UTC (rev 380)
+@@ -51,6 +51,9 @@
+   scripts.  Now &amp;include validates its last modified timestamp
+   with the ScriptLoader prior to (re)loading.  
+ - fixed bug in SleepUtils.getArgumentStack(Map)
++- added a hasChanged() method to ScriptInstance to help apps
++  determine if a script (or any script it has included) has
++  changed.
+    
+ 2.1-beta 25  (8 May 08) [will this beta process ever end?]
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000355.html">[Sleep-svn] r379 - in sleep: . src/sleep/runtime src/sleep/taint
+</A></li>
+	<LI>Next message: <A HREF="000357.html">[Sleep-svn] r381 - in sleep: . src/sleep/runtime
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#356">[ date ]</a>
+              <a href="thread.html#356">[ thread ]</a>
+              <a href="subject.html#356">[ subject ]</a>
+              <a href="author.html#356">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,262 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r263 - in sleep: . src/sleep/engine/atoms	src/sleep/runtime tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2007-June/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r263%20-%20in%20sleep%3A%20.%20src/sleep/engine/atoms%0A%09src/sleep/runtime%20tests%20tests/output&In-Reply-To=%3C200706102336.l5ANaM3f012165%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000241.html">
+   <LINK REL="Next"  HREF="000243.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r263 - in sleep: . src/sleep/engine/atoms	src/sleep/runtime tests tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r263%20-%20in%20sleep%3A%20.%20src/sleep/engine/atoms%0A%09src/sleep/runtime%20tests%20tests/output&In-Reply-To=%3C200706102336.l5ANaM3f012165%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r263 - in sleep: . src/sleep/engine/atoms	src/sleep/runtime tests tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Mon Jun 11 01:36:22 CEST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000241.html">[Sleep-svn] r262 - in sleep: . src/sleep/bridges tests
+</A></li>
+        <LI>Next message: <A HREF="000243.html">[Sleep-svn] r264 - in sleep: . src/sleep/bridges src/sleep/engine	src/sleep/engine/types src/sleep/runtime tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#242">[ date ]</a>
+              <a href="thread.html#242">[ thread ]</a>
+              <a href="subject.html#242">[ subject ]</a>
+              <a href="author.html#242">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2007-06-11 01:36:22 +0200 (Mon, 11 Jun 2007)
+New Revision: 263
+
+Added:
+   sleep/tests/ifand2.sl
+   sleep/tests/output/ifand2.sl
+   sleep/tests/output/readobj.sl
+Modified:
+   sleep/src/sleep/engine/atoms/Check.java
+   sleep/src/sleep/runtime/ScriptInstance.java
+   sleep/whatsnew.txt
+Log:
+added a new debug flag for tracing logic stuff...
+
+
+
+Modified: sleep/src/sleep/engine/atoms/Check.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/Check.java	2007-06-10 23:08:26 UTC (rev 262)
++++ sleep/src/sleep/engine/atoms/Check.java	2007-06-10 23:36:22 UTC (rev 263)
+@@ -169,7 +169,47 @@
+       }
+       else
+       {
+-         temp = choice.decide(name, env.getScriptInstance(), env.getCurrentFrame());
++         if ((env.getScriptInstance().getDebugFlags() &amp; ScriptInstance.DEBUG_TRACE_LOGIC) == ScriptInstance.DEBUG_TRACE_LOGIC)
++         {
++            StringBuffer message = new StringBuffer(64);
++            if (env.getCurrentFrame().size() &gt;= 2)
++            {
++               message.append(SleepUtils.describe((Scalar)env.getCurrentFrame().get(0)));
++               message.append(&quot; &quot;); 
++               if (negate) { message.append(&quot;!&quot;); }
++               message.append(name);
++               message.append(&quot; &quot;);
++               message.append(SleepUtils.describe((Scalar)env.getCurrentFrame().get(1)));
++            }
++            else if (env.getCurrentFrame().size() == 1)
++            {
++               if (negate) { message.append(&quot;!&quot;); }
++               message.append(name);
++               message.append(&quot; &quot;);
++               message.append(SleepUtils.describe((Scalar)env.getCurrentFrame().get(0)));
++            }
++            else
++            {
++               message.append(&quot;corrupted stack frame: &quot; + name);
++            }
++            temp = choice.decide(name, env.getScriptInstance(), env.getCurrentFrame());
++            message.append(&quot; ? &quot;);
++
++            if (negate)
++            {
++               message.append((!temp + &quot;&quot;).toUpperCase());
++            }
++            else
++            {
++               message.append((temp + &quot;&quot;).toUpperCase());
++            }
++
++            env.getScriptInstance().fireWarning(message.toString(), hint, true);
++         }
++         else
++         {
++            temp = choice.decide(name, env.getScriptInstance(), env.getCurrentFrame());
++         }
+       }
+ 
+       env.KillFrame();
+
+Modified: sleep/src/sleep/runtime/ScriptInstance.java
+===================================================================
+--- sleep/src/sleep/runtime/ScriptInstance.java	2007-06-10 23:08:26 UTC (rev 262)
++++ sleep/src/sleep/runtime/ScriptInstance.java	2007-06-10 23:36:22 UTC (rev 263)
+@@ -93,6 +93,9 @@
+     /** throw exceptions for anything flagged for retrieval with checkError() */
+     public static final int DEBUG_THROW_WARNINGS = 2 | 32;
+ 
++    /** fire a runtime warning describing each predicate decision made */
++    public static final int DEBUG_TRACE_LOGIC = 64;
++
+     /** track all of the flagged debug options for this script (set to DEBUG_SHOW_ERRORS by default) */
+     protected int debug = DEBUG_SHOW_ERRORS;
+ 
+
+Added: sleep/tests/ifand2.sl
+===================================================================
+--- sleep/tests/ifand2.sl	2007-06-10 23:08:26 UTC (rev 262)
++++ sleep/tests/ifand2.sl	2007-06-10 23:36:22 UTC (rev 263)
+@@ -0,0 +1,56 @@
++#
++# Another test of &quot;if&quot; statements... lets make sure I didn't break anything, eh?
++#
++
++debug(64);
++
++if (3 == 1 &amp;&amp; 3 == 2)
++{
++   printf(&quot;Never true 1&quot;);
++}
++
++if (3 == 3 &amp;&amp; 4 == 4)
++{
++   printf(&quot;Always True 2&quot;);
++}
++
++if ((3 == 1) &amp;&amp; (3 == 2))
++{
++   printf(&quot;Never true 3&quot;);
++}
++
++if (3 == 3 &amp;&amp; (4 == 4))
++{
++   printf(&quot;Always True 4&quot;);
++}
++
++if ((3 == 3) &amp;&amp; 4 == 4)
++{
++   printf(&quot;Always True 5&quot;);
++}
++
++if (-isnumber 5 &amp;&amp; 6 == 6)
++{
++   printf(&quot;Test?&quot;);
++}
++
++if (-isnumber 5 &amp;&amp; -isnumber 7)
++{
++   printf(&quot;I should be true as well&quot;);
++}
++
++if (-inumber 5 &amp;&amp; -isnumber 6 &amp;&amp; -isnumber 7 &amp;&amp; -isnumber 8 &amp;&amp; -isnumber 9 &amp;&amp; -isnumber 385839)
++{
++   printf(&quot;Testing, this is true&quot;);
++}
++
++if (3 == 4 || 
++       
++
++     (5 == 5 &amp;&amp; 
++
++
++-isnumber 10))
++{
++   printf(&quot;Definetly true&quot;);
++}
+
+Added: sleep/tests/output/ifand2.sl
+===================================================================
+--- sleep/tests/output/ifand2.sl	2007-06-10 23:08:26 UTC (rev 262)
++++ sleep/tests/output/ifand2.sl	2007-06-10 23:36:22 UTC (rev 263)
+@@ -0,0 +1,22 @@
++Trace: 3 == 1 ? FALSE at ifand2.sl:7
++Trace: 3 == 3 ? TRUE at ifand2.sl:12
++Trace: 4 == 4 ? TRUE at ifand2.sl:12
++Always True 2
++Trace: 3 == 1 ? FALSE at ifand2.sl:17
++Trace: 3 == 3 ? TRUE at ifand2.sl:22
++Trace: 4 == 4 ? TRUE at ifand2.sl:22
++Always True 4
++Trace: 3 == 3 ? TRUE at ifand2.sl:27
++Trace: 4 == 4 ? TRUE at ifand2.sl:27
++Always True 5
++Trace: -isnumber 5 ? TRUE at ifand2.sl:32
++Trace: 6 == 6 ? TRUE at ifand2.sl:32
++Test?
++Trace: -isnumber 5 ? TRUE at ifand2.sl:37
++Trace: -isnumber 7 ? TRUE at ifand2.sl:37
++I should be true as well
++Warning: Attempted to use non-existent predicate: -inumber at ifand2.sl:42
++Trace: 3 == 4 ? FALSE at ifand2.sl:47
++Trace: 5 == 5 ? TRUE at ifand2.sl:50
++Trace: -isnumber 10 ? TRUE at ifand2.sl:53
++Definetly true
+
+Added: sleep/tests/output/readobj.sl
+===================================================================
+--- sleep/tests/output/readobj.sl	2007-06-10 23:08:26 UTC (rev 262)
++++ sleep/tests/output/readobj.sl	2007-06-10 23:36:22 UTC (rev 263)
+@@ -0,0 +1,5 @@
++Read: this is a test
++Read: 1
++Read: @('a', 'b', @('c', 'd', 'e'))
++Read: &amp;closure[readobj.sl:9]#1 (function, will invoke!)
++Hello World!
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2007-06-10 23:08:26 UTC (rev 262)
++++ sleep/whatsnew.txt	2007-06-10 23:36:22 UTC (rev 263)
+@@ -18,6 +18,8 @@
+ - &amp;join, &amp;flatten functions now accept either a sleep array or generator
+   function.
+ - &amp;readObject no longer throws an EOFException.
++- added another debug mode: DEBUG_TRACE_LOGIC (64); use this to trace
++  the results of all predicate evaluations
+ 
+ 2.1-beta 15  (25 Apr 07)
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000241.html">[Sleep-svn] r262 - in sleep: . src/sleep/bridges tests
+</A></li>
+	<LI>Next message: <A HREF="000243.html">[Sleep-svn] r264 - in sleep: . src/sleep/bridges src/sleep/engine	src/sleep/engine/types src/sleep/runtime tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#242">[ date ]</a>
+              <a href="thread.html#242">[ thread ]</a>
+              <a href="subject.html#242">[ subject ]</a>
+              <a href="author.html#242">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

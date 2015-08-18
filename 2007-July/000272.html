@@ -1,0 +1,97 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r293 - sleep/docs
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2007-July/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r293%20-%20sleep/docs&In-Reply-To=%3C200707050115.l651Fqki010605%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000271.html">
+   <LINK REL="Next"  HREF="000273.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r293 - sleep/docs</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r293%20-%20sleep/docs&In-Reply-To=%3C200707050115.l651Fqki010605%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r293 - sleep/docs">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Thu Jul  5 03:15:52 CEST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000271.html">[Sleep-svn] r292 - in sleep: . docs src/sleep/runtime
+</A></li>
+        <LI>Next message: <A HREF="000273.html">[Sleep-svn] r294 - in sleep: . src/sleep/engine/atoms	src/sleep/runtime tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#272">[ date ]</a>
+              <a href="thread.html#272">[ thread ]</a>
+              <a href="subject.html#272">[ subject ]</a>
+              <a href="author.html#272">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2007-07-05 03:15:51 +0200 (Thu, 05 Jul 2007)
+New Revision: 293
+
+Modified:
+   sleep/docs/sleeplang.html
+Log:
+..
+
+
+Modified: sleep/docs/sleeplang.html
+===================================================================
+--- sleep/docs/sleeplang.html	2007-07-05 01:11:42 UTC (rev 292)
++++ sleep/docs/sleeplang.html	2007-07-05 01:15:51 UTC (rev 293)
+@@ -1389,6 +1389,20 @@
+ &lt;p&gt;Calling closef on a process will kill the process.  The above program executes the UNIX command ls -al which lists all of the 
+ files in the current directory with some details.&lt;/p&gt;
+ 
++&lt;h4&gt;Quick Execution&lt;/h4&gt;
++
++&lt;p&gt;Similar to Perl, Sleep also supports quick execution of a process via a string enclosed in backticks.  Any string enclosed in
++backticks is evaluated (as if it was a parsed literal) and the contents is then executed.  The output of the executed command is
++returned as an array.&lt;/p&gt;  
++
++&lt;pre&gt;foreach $file (`ls -1`)
++{
++   # do something with the file...
++}&lt;/pre&gt;
++
++&lt;p&gt;Any errors from trying to execute the command are available via &lt;code&gt;&amp;checkError&lt;/code&gt;.  If the process returns a non-zero
++value, this will also be available with &lt;code&gt;&amp;checkError&lt;/code&gt;.&lt;/p&gt;
++
+ &lt;h3&gt;Buffers&lt;/h3&gt;
+ 
+ &lt;p&gt;For those times when speed is a necessity Sleep provides the loveable byte buffer.  A buffer is simply
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000271.html">[Sleep-svn] r292 - in sleep: . docs src/sleep/runtime
+</A></li>
+	<LI>Next message: <A HREF="000273.html">[Sleep-svn] r294 - in sleep: . src/sleep/engine/atoms	src/sleep/runtime tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#272">[ date ]</a>
+              <a href="thread.html#272">[ thread ]</a>
+              <a href="subject.html#272">[ subject ]</a>
+              <a href="author.html#272">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

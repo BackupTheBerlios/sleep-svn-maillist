@@ -1,0 +1,241 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r69 - in sleep/docs: . images
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2006-June/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r69%20-%20in%20sleep/docs%3A%20.%20images&In-Reply-To=%3C200606160150.k5G1o4EC029112%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000050.html">
+   <LINK REL="Next"  HREF="000052.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r69 - in sleep/docs: . images</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r69%20-%20in%20sleep/docs%3A%20.%20images&In-Reply-To=%3C200606160150.k5G1o4EC029112%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r69 - in sleep/docs: . images">rsmudge at berlios.de
+       </A><BR>
+    <I>Fri Jun 16 03:50:04 CEST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000050.html">[Sleep-svn] r67 - in sleep: . src/sleep/runtime
+</A></li>
+        <LI>Next message: <A HREF="000052.html">[Sleep-svn] r70 - in sleep: . src/sleep/runtime
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#51">[ date ]</a>
+              <a href="thread.html#51">[ thread ]</a>
+              <a href="subject.html#51">[ subject ]</a>
+              <a href="author.html#51">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2006-06-16 03:49:56 +0200 (Fri, 16 Jun 2006)
+New Revision: 69
+
+Added:
+   sleep/docs/images/
+   sleep/docs/images/IODiagram.png
+   sleep/docs/images/image001.png
+Modified:
+   sleep/docs/sleepguide.html
+   sleep/docs/sleeplang.html
+Log:
+Documentation update...
+
+
+
+Added: sleep/docs/images/IODiagram.png
+===================================================================
+(Binary files differ)
+
+
+Property changes on: sleep/docs/images/IODiagram.png
+___________________________________________________________________
+Name: svn:mime-type
+   + application/octet-stream
+
+Added: sleep/docs/images/image001.png
+===================================================================
+(Binary files differ)
+
+
+Property changes on: sleep/docs/images/image001.png
+___________________________________________________________________
+Name: svn:mime-type
+   + application/octet-stream
+
+Modified: sleep/docs/sleepguide.html
+===================================================================
+--- sleep/docs/sleepguide.html	2006-06-16 01:13:48 UTC (rev 68)
++++ sleep/docs/sleepguide.html	2006-06-16 01:49:56 UTC (rev 69)
+@@ -325,7 +325,7 @@
+ application bridge, the application bridge will call an API in the application, any values returned by the application will be 
+ sent back to the script.  Figure 1 highlights what the Sleep bridge architecture looks like.&lt;/p&gt;
+ 
+-&lt;center&gt;&lt;img src=&quot;image001.png&quot; align=&quot;center&quot;&gt;&lt;/center&gt;
++&lt;center&gt;&lt;img src=&quot;images/image001.png&quot; align=&quot;center&quot;&gt;&lt;/center&gt;
+  
+ &lt;center&gt;&lt;p&gt;Figure 1. Sleep Bridge Architecture&lt;/p&gt;&lt;/center&gt;
+ 
+@@ -818,6 +818,29 @@
+ &lt;p&gt;Sleep scripts can happily interact in a multithreaded context.  The trick is to force any blocking/waiting to occur within 
+ Java itself.   Once the blocking/waiting is done just call a preregisted block of sleep code to respond to the event.&lt;/p&gt;
+ 
++&lt;h3&gt;Saving Context Data&lt;/h3&gt;
++
++&lt;p&gt;State information for a bridge should not be stored in a bridge itself.  You may ask, why is this?  Typically bridges are
++shared among multiple scripts/script environments to save memory.  If scripts sharing some bridges are executing in a multi
++threaded environment it is possible that the saved instance data could get corrupted.&lt;/p&gt;
++
++&lt;p&gt;Until recently the hasMatch predicate kept track of the current matcher in an instance variable of the regex bridge.  One
++user noticed that when they used fork() that their regex matches kept failing when they shouldn't.&lt;/p&gt;
++
++&lt;p&gt;The correct way to save context data is to use the following functions from an instance of ScriptEnvironment:&lt;/p&gt;
++
++&lt;table&gt;
++ &lt;tr&gt;&lt;td colspan=&quot;2&quot;&gt;&lt;i&gt;public Object getContextMetaData(Object key)&lt;/i&gt;&lt;/td&gt;&lt;/tr&gt;
++ &lt;tr&gt;&lt;td width=&quot;25&quot;&gt;&lt;/td&gt;&lt;td&gt;retrieve a piece of data saved within the current executing context.&lt;/td&gt;&lt;/tr&gt;
++ &lt;tr&gt;&lt;td colspan=&quot;2&quot;&gt;&lt;/td&gt;&lt;/tr&gt;
++ &lt;tr&gt;&lt;td colspan=&quot;2&quot;&gt;&lt;i&gt;public void setContextMetaData(Object key, Object value)&lt;/i&gt;&lt;/td&gt;&lt;/tr&gt;
++ &lt;tr&gt;&lt;td width=&quot;25&quot;&gt;&lt;/td&gt;&lt;td&gt;store a piece of data into the context store for the current executing context.&lt;/td&gt;&lt;/tr&gt;
++&lt;/table&gt;
++
++&lt;p&gt;The set context meta data function will store the given value in the context meta data store for the current closure context.
++If no closure is currently active then the data will be stored into a default context meta data store.  This is the recommended
++way to save bridge state information.&lt;/p&gt;
++
+ &lt;h3&gt;Multithreading with Fork&lt;/h3&gt;
+ 
+ &lt;p&gt;The Sleep function &lt;code&gt;&amp;fork&lt;/code&gt; implementation creates a new script environment entirely separate from the currnet 
+@@ -847,7 +870,7 @@
+ piece is the IO Bridge itself.  The IO Bridge is just a normal set of Sleep bridges that implement functions, predicates, and operators that make the
+ functionality of the IO Source and the IOObject accessible to scripters.&lt;/p&gt;
+ 
+-&lt;p align=&quot;center&quot;&gt;&lt;img src=&quot;IODiagram.png&quot;&gt;&lt;br&gt;&lt;br&gt;Figure 2. Sleep IO Architecture&lt;/p&gt;
++&lt;p align=&quot;center&quot;&gt;&lt;img src=&quot;images/IODiagram.png&quot;&gt;&lt;br&gt;&lt;br&gt;Figure 2. Sleep IO Architecture&lt;/p&gt;
+ 
+ &lt;a name=&quot;3a.2&quot;&gt;&lt;h2&gt;The IOObject Class&lt;/h2&gt;&lt;/a&gt;
+ 
+
+Modified: sleep/docs/sleeplang.html
+===================================================================
+--- sleep/docs/sleeplang.html	2006-06-16 01:13:48 UTC (rev 68)
++++ sleep/docs/sleeplang.html	2006-06-16 01:49:56 UTC (rev 69)
+@@ -457,6 +457,27 @@
+ &lt;p&gt;The loop example above is setup to count to 100.  Once the count reaches 50 though the loop is broken out of.  The break 
+ statement is a way of saying &quot;this is the end of the loop, right here&quot;.&lt;/p&gt;
+ 
++&lt;h3&gt;The Continue Command&lt;/h3&gt;
++
++&lt;p&gt;Once in awhile it is useful to skip to the beginning of a loop ignoring the current element.  This is what the continue
++command is for.&lt;/p&gt;
++
++&lt;p&gt;Another example:&lt;/p&gt;
++
++&lt;pre&gt;for ($x = 0; $x &lt; 100; $x++)
++{
++   if ($x &gt; 10 &amp;&amp; $x &lt; 90)
++   {
++      continue;
++   }
++
++   println($x);
++}&lt;/pre&gt;
++
++&lt;p&gt;The loop above will print 0 .. 10, skip all values between 11 and 89, and then print 90 - 99.  The continue command
++just jumps to the beginning of the loop again ignoring the current item.  Within a for loop the incremeter ($x++
++in this example) is always executed even if continue is used.&lt;/p&gt;
++
+ &lt;a name=&quot;4&quot;&gt;&lt;h2&gt;Number Crunching&lt;/h2&gt;&lt;/a&gt;
+ 
+ &lt;p&gt;The Scalars -&gt; Expressions section introduced sleep's family of numerical scalars.&lt;/p&gt;
+@@ -637,10 +658,13 @@
+ &lt;p&gt;The foreach loop above will loop through the source (either an &lt;var&gt;@array&lt;/var&gt; or a &lt;var&gt;%hash&lt;/var&gt;).  The index of the 
+ source will be assigned to the scalar on the left.  The value of the source will be assigned to the scalar on the right.&lt;/p&gt;
+ 
+-&lt;p&gt;Within a foreach loop functions that modify the structure of &lt;var&gt;@array&lt;/var&gt; are not allowed.  This includes add(), 
++&lt;p&gt;Within a foreach loop most functions that modify the structure of &lt;var&gt;@array&lt;/var&gt; are not allowed.  This includes add(), 
+ remove(), removeAt(), push(), pop() etc.  An attempt to modify the structure of @array during a foreach loops execution will 
+ result in a script warning.&lt;/p&gt;
+ 
++&lt;p&gt;The current element of a foreach loop can be removed by calling &lt;code&gt;remove()&lt;/code&gt; with no parameters.  This only works 
++when iterating over an &lt;var&gt;@array&lt;/var&gt;.&lt;/p&gt;
++
+ &lt;h3&gt;Arrays as Stacks&lt;/h3&gt;
+ 
+ &lt;p&gt;A stack is a data structure that has a push and pop operation.  Push puts data on top of the stack.  Pop takes data off the 
+@@ -1462,7 +1486,7 @@
+ 
+ &lt;p&gt;When execution is restored local variables are not preserved.  If you want to preserve variables you will need to 
+ place variables into the &lt;b&gt;this&lt;/b&gt; scope for the current closure.  Arguments passed to each call on the closure
+-will be available as local variables during the call.&lt;/p&gt;
++will be available as local variables $1, $2, etc. during the current call.&lt;/p&gt;
+ 
+ &lt;p&gt;It is important to note that while coroutines can call other coroutines, a coroutine should not recursively call
+ itself.  A closure turns into a coroutine once the yield keyword has been utilized.  The reason coroutines should not
+@@ -1472,6 +1496,24 @@
+ 
+ &lt;p&gt;When the return command is used or the end of the closure is reached, the saved context will be discarded.&lt;/p&gt;
+ 
++&lt;h4&gt;Generators with Coroutines&lt;/h4&gt;
++
++&lt;p&gt;One usage of a coroutine is to easily generate a sequence of numbers i.e.:&lt;/p&gt;
++
++&lt;pre&gt;$generator = {
++   this('$counter');
++
++   for ($counter = 0; $counter &lt; 1000; $counter++)
++   {
++      yield $counter;
++   }
++
++   return $null;
++};&lt;/pre&gt;
++
++&lt;p&gt;The above stores a coroutine into $generator.  The first time $generator is called a 0 will be returned.  The second time $generator will
++return a 1.  So on and so forth until $null is finally returned.&lt;/p&gt;
++
+ &lt;a name=&quot;11&quot;&gt;&lt;h2&gt;Function Library&lt;/h2&gt;&lt;/a&gt;
+ 
+ &lt;p&gt;This appendix is a list of the application neutral built-in functions for sleep.  I expect this list to grow as time goes on.  
+@@ -1553,7 +1595,7 @@
+  &lt;tr&gt;
+   &lt;td&gt;&lt;/td&gt;
+   &lt;td&gt;remove(@array, $scalar, ...)&lt;/td&gt;
+-  &lt;td&gt;removes each specified $scalar from @array..&lt;/td&gt;
++  &lt;td&gt;removes each specified $scalar from @array.  if no parameters are passed the active element in the current foreach loop is removed.&lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td&gt;$&lt;/td&gt;
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000050.html">[Sleep-svn] r67 - in sleep: . src/sleep/runtime
+</A></li>
+	<LI>Next message: <A HREF="000052.html">[Sleep-svn] r70 - in sleep: . src/sleep/runtime
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#51">[ date ]</a>
+              <a href="thread.html#51">[ thread ]</a>
+              <a href="subject.html#51">[ subject ]</a>
+              <a href="author.html#51">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

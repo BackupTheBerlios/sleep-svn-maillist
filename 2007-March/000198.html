@@ -1,0 +1,427 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r219 - in sleep: . src/sleep/bridges src/sleep/engine	src/sleep/engine/atoms src/sleep/runtime tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2007-March/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r219%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20src/sleep/engine%0A%09src/sleep/engine/atoms%20src/sleep/runtime%20tests%20tests/output&In-Reply-To=%3C200703170440.l2H4e1CS014002%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000197.html">
+   <LINK REL="Next"  HREF="000199.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r219 - in sleep: . src/sleep/bridges src/sleep/engine	src/sleep/engine/atoms src/sleep/runtime tests tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r219%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20src/sleep/engine%0A%09src/sleep/engine/atoms%20src/sleep/runtime%20tests%20tests/output&In-Reply-To=%3C200703170440.l2H4e1CS014002%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r219 - in sleep: . src/sleep/bridges src/sleep/engine	src/sleep/engine/atoms src/sleep/runtime tests tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Sat Mar 17 05:40:01 CET 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000197.html">[Sleep-svn] r217 - in sleep: . src/sleep/bridges src/sleep/engine	src/sleep/engine/atoms src/sleep/parser src/sleep/runtime	tests tests/output
+</A></li>
+        <LI>Next message: <A HREF="000199.html">[Sleep-svn] r220 - in sleep/tests: . output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#198">[ date ]</a>
+              <a href="thread.html#198">[ thread ]</a>
+              <a href="subject.html#198">[ subject ]</a>
+              <a href="author.html#198">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2007-03-17 05:40:00 +0100 (Sat, 17 Mar 2007)
+New Revision: 219
+
+Modified:
+   sleep/src/sleep/bridges/BasicIO.java
+   sleep/src/sleep/bridges/BasicUtilities.java
+   sleep/src/sleep/engine/Block.java
+   sleep/src/sleep/engine/atoms/Return.java
+   sleep/src/sleep/runtime/ScriptEnvironment.java
+   sleep/src/sleep/runtime/ScriptInstance.java
+   sleep/src/sleep/runtime/SleepUtils.java
+   sleep/tests/output/tcatch2.sl
+   sleep/tests/tcatch2.sl
+   sleep/whatsnew.txt
+Log:
+its a hack but now the try/catch stuff should work with coroutines without a problem.
+
+
+
+Modified: sleep/src/sleep/bridges/BasicIO.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicIO.java	2007-03-17 03:00:59 UTC (rev 218)
++++ sleep/src/sleep/bridges/BasicIO.java	2007-03-17 04:40:00 UTC (rev 219)
+@@ -1224,7 +1224,7 @@
+           catch (Exception ex)
+           {
+              a.close();
+-             i.getScriptEnvironment().flagError(ex.toString());
++             i.getScriptEnvironment().flagError(ex);
+           }
+ 
+           return SleepUtils.getEmptyScalar();
+@@ -1258,7 +1258,7 @@
+              catch (Exception ex)
+              {
+                 a.close();
+-                i.getScriptEnvironment().flagError(ex.toString());
++                i.getScriptEnvironment().flagError(ex);
+ 
+                 ex.printStackTrace();
+              }
+@@ -1308,7 +1308,7 @@
+              catch (Exception ex)
+              {
+                 a.close();
+-                i.getScriptEnvironment().flagError(ex.toString());
++                i.getScriptEnvironment().flagError(ex);
+              }
+ 
+              if (read &gt; 0)
+@@ -1406,7 +1406,7 @@
+                 }
+ 
+                 source.close();
+-                script.getScriptEnvironment().flagError(ex.toString());
++                script.getScriptEnvironment().flagError(ex);
+              }
+           }
+        }
+
+Modified: sleep/src/sleep/bridges/BasicUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicUtilities.java	2007-03-17 03:00:59 UTC (rev 218)
++++ sleep/src/sleep/bridges/BasicUtilities.java	2007-03-17 04:40:00 UTC (rev 219)
+@@ -95,6 +95,8 @@
+         temp.put(&quot;-ishash&quot;,  this); 
+         temp.put(&quot;-isfunction&quot;, this);
+         temp.put(&quot;&amp;setField&quot;, this);
++
++        temp.put(&quot;&amp;exit&quot;, this);
+      
+         SetScope scopeFunctions = new SetScope();
+ 
+@@ -665,7 +667,7 @@
+           }
+           catch (YourCodeSucksException ex)
+           {
+-             i.getScriptEnvironment().flagError(ex.getMessage());
++             i.getScriptEnvironment().flagError(ex);
+              return SleepUtils.getEmptyScalar();
+           }
+        }
+@@ -694,7 +696,7 @@
+           }
+           catch (YourCodeSucksException ex)
+           {
+-             i.getScriptEnvironment().flagError(ex.getMessage());
++             i.getScriptEnvironment().flagError(ex);
+              return SleepUtils.getEmptyScalar();
+           }
+        }
+@@ -713,7 +715,7 @@
+           }
+           catch (YourCodeSucksException ex)
+           {
+-             i.getScriptEnvironment().flagError(ex.getMessage());
++             i.getScriptEnvironment().flagError(ex);
+              return SleepUtils.getEmptyScalar();
+           }
+        }
+@@ -1045,6 +1047,10 @@
+              return temp;
+           }
+        }
++       else if (n.equals(&quot;&amp;exit&quot;))
++       {
++          i.getScriptEnvironment().flagReturn(null, ScriptEnvironment.FLOW_CONTROL_THROW); /* a null throw will exit the interpreter */
++       }
+        else if (n.equals(&quot;&amp;setField&quot;))
+        {
+           // setField(class/object, &quot;field&quot;, &quot;value&quot;)
+
+Modified: sleep/src/sleep/engine/Block.java
+===================================================================
+--- sleep/src/sleep/engine/Block.java	2007-03-17 03:00:59 UTC (rev 218)
++++ sleep/src/sleep/engine/Block.java	2007-03-17 04:40:00 UTC (rev 219)
+@@ -270,9 +270,13 @@
+                     /* if no handler is installed we will fire a warning and then flag a return of $null so at least the
+                        current function fails for not installing a handler */
+ 
+-                    environment.getScriptInstance().fireWarning(&quot;Uncaught exception: &quot; + environment.getExceptionMessage(), temp.getLineNumber());
+-                    environment.getScriptInstance().clearStackTrace();
+-                    environment.flagReturn(null, ScriptEnvironment.FLOW_CONTROL_RETURN); 
++                    if (!SleepUtils.isEmptyScalar(environment.getReturnValue()))
++                    {
++                       environment.getScriptInstance().fireWarning(&quot;Uncaught exception: &quot; + environment.getExceptionMessage(), temp.getLineNumber());
++
++                       /* the empty throw will cause the current script environment to essentially &quot;exit&quot; */
++                       environment.flagReturn(null, ScriptEnvironment.FLOW_CONTROL_THROW);
++                    }
+                  }
+                  else
+                  {
+
+Modified: sleep/src/sleep/engine/atoms/Return.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/Return.java	2007-03-17 03:00:59 UTC (rev 218)
++++ sleep/src/sleep/engine/atoms/Return.java	2007-03-17 04:40:00 UTC (rev 219)
+@@ -46,8 +46,13 @@
+    {
+       if (return_type == ScriptEnvironment.FLOW_CONTROL_THROW)
+       {
+-         e.getScriptInstance().recordStackFrame(&quot;&lt;origin of exception&gt;&quot;, getLineNumber());
+-         e.flagReturn((Scalar)e.getCurrentFrame().pop(), ScriptEnvironment.FLOW_CONTROL_THROW);
++         Scalar temp = (Scalar)e.getCurrentFrame().pop();
++         if (!SleepUtils.isEmptyScalar(temp))
++         {
++            e.getScriptInstance().clearStackTrace();
++            e.getScriptInstance().recordStackFrame(&quot;&lt;origin of exception&gt;&quot;, getLineNumber());
++            e.flagReturn(temp, ScriptEnvironment.FLOW_CONTROL_THROW);
++         }
+       }
+       else if (return_type == ScriptEnvironment.FLOW_CONTROL_BREAK)
+       {
+
+Modified: sleep/src/sleep/runtime/ScriptEnvironment.java
+===================================================================
+--- sleep/src/sleep/runtime/ScriptEnvironment.java	2007-03-17 03:00:59 UTC (rev 218)
++++ sleep/src/sleep/runtime/ScriptEnvironment.java	2007-03-17 04:40:00 UTC (rev 219)
+@@ -226,6 +226,7 @@
+        public Block            block;
+        public Step             last;       
+        public ExceptionContext handler;
++       public boolean          moreHandlers;
+     }
+ 
+     protected Stack    context      = new Stack();
+@@ -285,7 +286,18 @@
+        if (isResponsible(b))
+        {
+           temp.handler = popExceptionContext();
++          Iterator i = context.iterator();
++          while (i.hasNext())
++          {  /* semi inefficient but there should be so few handlers per context this shouldn't be much of an issue */
++             Context c = (Context)i.next();
++             c.moreHandlers = true;
++          }
+        }
++       else
++       {
++          temp.moreHandlers = moreHandlers; /* if a context is already executing then it will know better than we do
++                                               wether there are more handlers in the current context or not */
++       }
+ 
+        context.add(temp);
+     }
+@@ -305,6 +317,8 @@
+           if (temp.handler != null)
+               installExceptionHandler(temp.handler);
+ 
++          moreHandlers = temp.moreHandlers;
++
+           rv = temp.block.evaluate(this, temp.last);
+ 
+           if (isReturn() &amp;&amp; getFlowControlRequest() == FLOW_CONTROL_YIELD)
+@@ -316,6 +330,7 @@
+           }
+        }
+ 
++       moreHandlers = false;
+        return rv;
+     }
+ 
+@@ -342,10 +357,11 @@
+ 
+     protected ExceptionContext currentHandler = null;
+     protected Stack            exhandlers     = new Stack(); /* exception handlers */
++    protected boolean          moreHandlers   = false;
+ 
+     public boolean isExceptionHandlerInstalled()
+     {
+-       return currentHandler != null;
++       return currentHandler != null || moreHandlers;
+     }
+ 
+     public boolean isResponsible(Block block)
+@@ -480,6 +496,16 @@
+        request = type_of_flow;
+     }
+ 
++    /** Resets the script environment to include clearing the return of all flags (including thrown exceptions) */
++    public void resetEnvironment()
++    {
++       errorMessage = null;
++       request = FLOW_CONTROL_NONE;
++       rv      = null;
++       getScriptInstance().clearStackTrace(); /* no one else is going to use it, right?!? */
++    }
++
++    /** Clears the return value from the last executed function. */
+     public void clearReturn()
+     {
+        request = FLOW_CONTROL_NONE | (request &amp; (FLOW_CONTROL_THROW | FLOW_CONTROL_DEBUG));
+
+Modified: sleep/src/sleep/runtime/ScriptInstance.java
+===================================================================
+--- sleep/src/sleep/runtime/ScriptInstance.java	2007-03-17 03:00:59 UTC (rev 218)
++++ sleep/src/sleep/runtime/ScriptInstance.java	2007-03-17 04:40:00 UTC (rev 219)
+@@ -235,10 +235,12 @@
+     }
+ 
+     /** Returns the last stack trace.  Each element of the list is a ScriptInstance.SleepStackElement object.  
+-        First element is the top of the trace, last element is the origin of the trace. */
++        First element is the top of the trace, last element is the origin of the trace.  This function also
++        clears the stack trace. */
+     public List getStackTrace()
+     {
+        List strace = (List)getScriptEnvironment().getEnvironment().get(&quot;%strace%&quot;);
++       clearStackTrace(); /* clear the old stack trace */
+        if (strace == null)
+        {
+           strace = new LinkedList();
+@@ -373,7 +375,7 @@
+         return script;
+     }
+ 
+-    /** Calls a subroutine/built-in function using this scripts */
++    /** Calls a subroutine/built-in function using this script. */
+     public Scalar callFunction(String funcName, Stack parameters)
+     {
+        Function myfunction = getScriptEnvironment().getFunction(funcName);
+@@ -384,7 +386,7 @@
+        }
+ 
+        Scalar evil = myfunction.evaluate(funcName, this, parameters);
+-       getScriptEnvironment().clearReturn();
++       getScriptEnvironment().resetEnvironment();
+ 
+        return evil;
+     }
+
+Modified: sleep/src/sleep/runtime/SleepUtils.java
+===================================================================
+--- sleep/src/sleep/runtime/SleepUtils.java	2007-03-17 03:00:59 UTC (rev 218)
++++ sleep/src/sleep/runtime/SleepUtils.java	2007-03-17 04:40:00 UTC (rev 219)
+@@ -1,26 +1,3 @@
+-/*
+-   SLEEP - Simple Language for Environment Extension Purposes
+- .----------------------------.
+- | sleep.runtime.SleepUtils   |_______________________________________________
+- |                                                                            |
+-   Author: Raphael Mudge (<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">rsmudge at mtu.edu</A>)
+-           <A HREF="http://www.csl.mtu.edu/~rsmudge/">http://www.csl.mtu.edu/~rsmudge/</A>
+-
+-   Description: 
+-     Provides utility functions for the following:
+-     1. loading a script and retreiving a ScriptInstance object
+-     2. calling a function on a given ScriptInstance object
+-     3. creating a sleep Scalar object based on a normal java object
+-
+-   Documentation:
+-
+-   Changelog:
+-
+-   * This software is distributed under the artistic license, see license.txt
+-     for more information. *
+-
+- |____________________________________________________________________________|
+- */
+ package sleep.runtime;
+  
+ import java.util.*;
+@@ -80,7 +57,7 @@
+    public static Scalar runCode(Block code, ScriptEnvironment env)
+    {
+        Scalar temp = code.evaluate(env);
+-       env.clearReturn();                 /* if we're going to call a function that returns
++       env.resetEnvironment();             /* if we're going to call a function that returns
+                                              something then we are obligated to clear its return
+                                              value when its done running... */
+        return temp;
+@@ -98,9 +75,9 @@
+    public static Scalar runCode(Function func, String name, ScriptInstance script, Stack locals)
+    {
+        Scalar temp = func.evaluate(name, script, locals);
+-       script.getScriptEnvironment().clearReturn();  /* if we're going to call a function that returns
+-                                                        something then we are obligated to clear its return
+-                                                        value when its done running... */
++       script.getScriptEnvironment().resetEnvironment(); /* if we're going to call a function that returns
++                                                            something then we are obligated to clear its return
++                                                            value when its done running... */
+        if (temp == null)
+           return SleepUtils.getEmptyScalar();
+ 
+
+Modified: sleep/tests/output/tcatch2.sl
+===================================================================
+--- sleep/tests/output/tcatch2.sl	2007-03-17 03:00:59 UTC (rev 218)
++++ sleep/tests/output/tcatch2.sl	2007-03-17 04:40:00 UTC (rev 219)
+@@ -16,3 +16,4 @@
+ --- e. pre throw :)
+ --- g. outermost catch block
+ 0. Caught: this is being thrown because I can!!!
++this outermost block isn't hosed, is it?
+
+Modified: sleep/tests/tcatch2.sl
+===================================================================
+--- sleep/tests/tcatch2.sl	2007-03-17 03:00:59 UTC (rev 218)
++++ sleep/tests/tcatch2.sl	2007-03-17 04:40:00 UTC (rev 219)
+@@ -109,6 +109,8 @@
+       yield &quot;g. outermost catch block&quot;;
+       println(&quot;0. Caught: $exception&quot;);
+    }
++
++   println(&quot;this outermost block isn't hosed, is it?&quot;);
+ }
+ 
+ while $test (bee())
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2007-03-17 03:00:59 UTC (rev 218)
++++ sleep/whatsnew.txt	2007-03-17 04:40:00 UTC (rev 219)
+@@ -28,8 +28,9 @@
+   compatability with older scripts that rely on the checkError() scheme. 
+   With this option scripters can choose to use try/catch blocks for all run
+   of the mill error handling.  (see how it all fits together now?)
++- added an &amp;exit() function to force Sleep to stop processing within the
++  current script environment.
+ 
+-
+ 2.1-beta 12  (11 Mar 07)
+ ===========
+ - fixed yet another flurry of line number skew issues.  argh, make it stop!
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000197.html">[Sleep-svn] r217 - in sleep: . src/sleep/bridges src/sleep/engine	src/sleep/engine/atoms src/sleep/parser src/sleep/runtime	tests tests/output
+</A></li>
+	<LI>Next message: <A HREF="000199.html">[Sleep-svn] r220 - in sleep/tests: . output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#198">[ date ]</a>
+              <a href="thread.html#198">[ thread ]</a>
+              <a href="subject.html#198">[ subject ]</a>
+              <a href="author.html#198">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

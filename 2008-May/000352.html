@@ -1,0 +1,124 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r376 - in sleep/jsr223: . src/org/dashnine/sleep
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2008-May/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r376%20-%20in%20sleep/jsr223%3A%20.%20src/org/dashnine/sleep&In-Reply-To=%3C200805150450.m4F4oUx5016945%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000348.html">
+   <LINK REL="Next"  HREF="000353.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r376 - in sleep/jsr223: . src/org/dashnine/sleep</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r376%20-%20in%20sleep/jsr223%3A%20.%20src/org/dashnine/sleep&In-Reply-To=%3C200805150450.m4F4oUx5016945%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r376 - in sleep/jsr223: . src/org/dashnine/sleep">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Thu May 15 06:50:30 CEST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000348.html">[Sleep-svn] r375 - sleep/jsr223
+</A></li>
+        <LI>Next message: <A HREF="000353.html">[Sleep-svn] r377 - in sleep: . src/sleep/bridges src/sleep/console	src/sleep/runtime
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#352">[ date ]</a>
+              <a href="thread.html#352">[ thread ]</a>
+              <a href="subject.html#352">[ subject ]</a>
+              <a href="author.html#352">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2008-05-15 06:50:24 +0200 (Thu, 15 May 2008)
+New Revision: 376
+
+Modified:
+   sleep/jsr223/sleep-engine.jar
+   sleep/jsr223/src/org/dashnine/sleep/SleepScriptEngineFactory.java
+Log:
+..
+
+
+Modified: sleep/jsr223/sleep-engine.jar
+===================================================================
+(Binary files differ)
+
+Modified: sleep/jsr223/src/org/dashnine/sleep/SleepScriptEngineFactory.java
+===================================================================
+--- sleep/jsr223/src/org/dashnine/sleep/SleepScriptEngineFactory.java	2008-05-15 01:44:11 UTC (rev 375)
++++ sleep/jsr223/src/org/dashnine/sleep/SleepScriptEngineFactory.java	2008-05-15 04:50:24 UTC (rev 376)
+@@ -32,6 +32,8 @@
+ import javax.script.*;
+ import java.util.*;
+ 
++import sleep.runtime.*;
++
+ public class SleepScriptEngineFactory implements ScriptEngineFactory 
+ {
+     public String getEngineName() 
+@@ -41,7 +43,7 @@
+ 
+     public String getEngineVersion() 
+     {
+-        return &quot;2.1&quot;;
++        return SleepUtils.SLEEP_RELEASE + &quot;&quot;;
+     }
+ 
+     public List&lt;String&gt; getExtensions() 
+@@ -51,7 +53,7 @@
+ 
+     public String getLanguageName() 
+     {
+-        return &quot;sleep&quot;;
++        return &quot;Sleep&quot;;
+     }
+ 
+     public String getLanguageVersion() 
+@@ -151,11 +153,13 @@
+     private static List&lt;String&gt; extensions;
+     private static List&lt;String&gt; mimeTypes;
+     static {
+-        names = new ArrayList&lt;String&gt;(1);
++        names = new ArrayList&lt;String&gt;(2);
+         names.add(&quot;sleep&quot;);
++        names.add(&quot;Sleep&quot;);
+         names = Collections.unmodifiableList(names);
+-        extensions = new ArrayList&lt;String&gt;(1);
++        extensions = new ArrayList&lt;String&gt;(2);
+         extensions.add(&quot;sl&quot;);
++        extensions.add(&quot;.sl&quot;);
+         extensions = Collections.unmodifiableList(extensions);
+         mimeTypes = new ArrayList&lt;String&gt;(0);
+         mimeTypes = Collections.unmodifiableList(mimeTypes);
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000348.html">[Sleep-svn] r375 - sleep/jsr223
+</A></li>
+	<LI>Next message: <A HREF="000353.html">[Sleep-svn] r377 - in sleep: . src/sleep/bridges src/sleep/console	src/sleep/runtime
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#352">[ date ]</a>
+              <a href="thread.html#352">[ thread ]</a>
+              <a href="subject.html#352">[ subject ]</a>
+              <a href="author.html#352">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,255 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r435 - in sleep: . src/sleep/bridges tests tests/data3	tests/data3/src tests/data3/src/com tests/data3/src/com/eric	tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2008-August/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r435%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20tests%20tests/data3%0A%09tests/data3/src%20tests/data3/src/com%20tests/data3/src/com/eric%0A%09tests/output&In-Reply-To=%3C200808072110.m77LA69s017190%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000410.html">
+   <LINK REL="Next"  HREF="000412.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r435 - in sleep: . src/sleep/bridges tests tests/data3	tests/data3/src tests/data3/src/com tests/data3/src/com/eric	tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r435%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20tests%20tests/data3%0A%09tests/data3/src%20tests/data3/src/com%20tests/data3/src/com/eric%0A%09tests/output&In-Reply-To=%3C200808072110.m77LA69s017190%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r435 - in sleep: . src/sleep/bridges tests tests/data3	tests/data3/src tests/data3/src/com tests/data3/src/com/eric	tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Thu Aug  7 23:10:06 CEST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000410.html">[Sleep-svn] r434 - sleep/tests
+</A></li>
+        <LI>Next message: <A HREF="000412.html">[Sleep-svn] r436 - in sleep: . src/sleep/engine/atoms tests	tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#411">[ date ]</a>
+              <a href="thread.html#411">[ thread ]</a>
+              <a href="subject.html#411">[ subject ]</a>
+              <a href="author.html#411">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2008-08-07 23:10:05 +0200 (Thu, 07 Aug 2008)
+New Revision: 435
+
+Added:
+   sleep/tests/data3/
+   sleep/tests/data3/build.xml
+   sleep/tests/data3/readme.txt
+   sleep/tests/data3/src/
+   sleep/tests/data3/src/com/
+   sleep/tests/data3/src/com/eric/
+   sleep/tests/data3/src/com/eric/Eric.java
+   sleep/tests/data3/src/com/eric/Person.java
+   sleep/tests/data3/test.jar
+   sleep/tests/output/setfield3.sl
+Modified:
+   sleep/runtests.sl
+   sleep/src/sleep/bridges/BasicUtilities.java
+   sleep/tests/megaio.sl
+   sleep/whatsnew.txt
+Log:
+setField now works on fields inherited from parent.
+
+
+Modified: sleep/runtests.sl
+===================================================================
+--- sleep/runtests.sl	2008-08-07 20:11:32 UTC (rev 434)
++++ sleep/runtests.sl	2008-08-07 21:10:05 UTC (rev 435)
+@@ -126,7 +126,8 @@
+    %special[&quot;convertds2.sl&quot;] = &quot;java -jar ../sleep.jar convertds2.sl&quot;; # calls System.out
+    %special[&quot;convertds3.sl&quot;] = &quot;java -jar ../sleep.jar convertds3.sl&quot;; # calls System.out
+    %special[&quot;convertds4.sl&quot;] = &quot;java -jar ../sleep.jar convertds4.sl&quot;; # calls System.out
+-   %special[&quot;setfield.sl&quot;]   = &quot;java -jar ../sleep.jar setfield.sl&quot;;   # calls System.out
++   %special[&quot;setfield.sl&quot;]    = &quot;java -jar ../sleep.jar setfield.sl&quot;;    # calls System.out
++   %special[&quot;setfield3.sl&quot;]   = &quot;java -jar ../sleep.jar setfield3.sl&quot;;   # calls System.out
+    %special[&quot;process.sl&quot;]    = &quot;java -jar ../sleep.jar process.sl&quot;;    # instantiates ScriptLoader which is immune to current working directory.
+ 
+    @scripts = filter({ return iff(&quot;*.sl&quot; iswm $1, getFileName($1)); }, ls());
+
+Modified: sleep/src/sleep/bridges/BasicUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicUtilities.java	2008-08-07 20:11:32 UTC (rev 434)
++++ sleep/src/sleep/bridges/BasicUtilities.java	2008-08-07 21:10:05 UTC (rev 435)
+@@ -1424,7 +1424,14 @@
+ 
+              try
+              {
+-                setMe = aClass.getDeclaredField(name);
++                try
++                {
++                   setMe = aClass.getDeclaredField(name);
++                }
++                catch (NoSuchFieldException nsfe)
++                {
++                   setMe = aClass.getField(name);
++                }
+ 
+                 if (ObjectUtilities.isArgMatch(setMe.getType(), arg) != 0)
+                 {
+
+Added: sleep/tests/data3/build.xml
+===================================================================
+--- sleep/tests/data3/build.xml	2008-08-07 20:11:32 UTC (rev 434)
++++ sleep/tests/data3/build.xml	2008-08-07 21:10:05 UTC (rev 435)
+@@ -0,0 +1,40 @@
++&lt;project name=&quot;sleep&quot; default=&quot;all&quot; basedir=&quot;.&quot;&gt;
++  &lt;property name=&quot;project.src&quot;   location=&quot;src&quot; /&gt;
++  &lt;property name=&quot;project.build&quot; location=&quot;bin&quot; /&gt;
++
++  &lt;property name=&quot;project.path&quot;  value=&quot;sleep&quot; /&gt;
++
++  &lt;target name=&quot;all&quot; depends=&quot;init, compile, jar&quot; /&gt;
++
++  &lt;target name=&quot;init&quot;&gt;
++    &lt;tstamp /&gt;
++    &lt;mkdir dir=&quot;${project.build}&quot; /&gt;
++  &lt;/target&gt;
++
++  &lt;target name=&quot;compile&quot; depends=&quot;init&quot; description=&quot;compile the source &quot; &gt;
++    &lt;javac srcdir=&quot;${project.src}/&quot;
++           destdir=&quot;${project.build}&quot;
++           classpath=&quot;../../sleep.jar&quot;
++           nowarn=&quot;yes&quot;
++           depend=&quot;yes&quot;
++           debug=&quot;no&quot;
++           optimize=&quot;yes&quot;
++    &gt;
++    &lt;/javac&gt;
++  &lt;/target&gt;
++
++  &lt;target name=&quot;jar&quot; depends=&quot;compile&quot;&gt;
++     &lt;jar destfile=&quot;test.jar&quot;
++          basedir=&quot;bin&quot;
++          includes=&quot;**/*.class&quot;&gt;
++         &lt;manifest&gt;
++           &lt;attribute name=&quot;Main-Class&quot; value=&quot;sleep.console.TextConsole&quot; /&gt;
++         &lt;/manifest&gt;
++      &lt;/jar&gt;
++  &lt;/target&gt;
++
++  &lt;target name=&quot;clean&quot; description=&quot;clean up&quot; &gt;
++    &lt;delete dir=&quot;${build}&quot;/&gt;
++  &lt;/target&gt;
++&lt;/project&gt;
++
+
+Added: sleep/tests/data3/readme.txt
+===================================================================
+--- sleep/tests/data3/readme.txt	2008-08-07 20:11:32 UTC (rev 434)
++++ sleep/tests/data3/readme.txt	2008-08-07 21:10:05 UTC (rev 435)
+@@ -0,0 +1,7 @@
++This directory just contains test data used by one or more of the unit test scripts.
++
++To build the data just type &quot;ant&quot; by itself.
++
++Source code is all included in the tests/data/src/ directory.
++
++				-- Raffi
+
+Added: sleep/tests/data3/src/com/eric/Eric.java
+===================================================================
+--- sleep/tests/data3/src/com/eric/Eric.java	2008-08-07 20:11:32 UTC (rev 434)
++++ sleep/tests/data3/src/com/eric/Eric.java	2008-08-07 21:10:05 UTC (rev 435)
+@@ -0,0 +1,8 @@
++package com.eric;
++class Eric extends Person{
++  
++  public Eric(String fname, String lname){
++    super(fname, lname);
++  }
++}
++
+
+Added: sleep/tests/data3/src/com/eric/Person.java
+===================================================================
+--- sleep/tests/data3/src/com/eric/Person.java	2008-08-07 20:11:32 UTC (rev 434)
++++ sleep/tests/data3/src/com/eric/Person.java	2008-08-07 21:10:05 UTC (rev 435)
+@@ -0,0 +1,11 @@
++package com.eric;
++class Person{
++  public String fname;
++  public String lname;
++ 
++ public Person(String fname, String lname){
++   this.fname = fname;
++   this.lname = lname;
++ }
++}
++
+
+Added: sleep/tests/data3/test.jar
+===================================================================
+(Binary files differ)
+
+
+Property changes on: sleep/tests/data3/test.jar
+___________________________________________________________________
+Name: svn:mime-type
+   + application/octet-stream
+
+Modified: sleep/tests/megaio.sl
+===================================================================
+--- sleep/tests/megaio.sl	2008-08-07 20:11:32 UTC (rev 434)
++++ sleep/tests/megaio.sl	2008-08-07 21:10:05 UTC (rev 435)
+@@ -49,4 +49,4 @@
+   println(&quot;Read in $z bytes&quot;);
+ 
+   closef($handle);
+-}, $handle =&gt; $src), 5000);
++}, $handle =&gt; $src), 10000);
+
+Added: sleep/tests/output/setfield3.sl
+===================================================================
+--- sleep/tests/output/setfield3.sl	2008-08-07 20:11:32 UTC (rev 434)
++++ sleep/tests/output/setfield3.sl	2008-08-07 21:10:05 UTC (rev 435)
+@@ -0,0 +1,3 @@
++Eric
++Smith
++Dave
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2008-08-07 20:11:32 UTC (rev 434)
++++ sleep/whatsnew.txt	2008-08-07 21:10:05 UTC (rev 435)
+@@ -1,3 +1,8 @@
++2.1-release
++===========
++- fixed a problem with setField not accessing fields declared in a parent
++  class for an object.
++
+ 2.1-release  (7 Aug 08) [update 2.5]
+ ===========
+ - made a sanity check with inline function execution to keep jIRCii
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000410.html">[Sleep-svn] r434 - sleep/tests
+</A></li>
+	<LI>Next message: <A HREF="000412.html">[Sleep-svn] r436 - in sleep: . src/sleep/engine/atoms tests	tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#411">[ date ]</a>
+              <a href="thread.html#411">[ thread ]</a>
+              <a href="subject.html#411">[ subject ]</a>
+              <a href="author.html#411">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

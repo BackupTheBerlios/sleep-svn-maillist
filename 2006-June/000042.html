@@ -1,0 +1,172 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r59 - in sleep: . src/sleep/runtime tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2006-June/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r59%20-%20in%20sleep%3A%20.%20src/sleep/runtime%20tests%20tests/output&In-Reply-To=%3C200606120106.k5C16O1B031440%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000041.html">
+   <LINK REL="Next"  HREF="000043.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r59 - in sleep: . src/sleep/runtime tests tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r59%20-%20in%20sleep%3A%20.%20src/sleep/runtime%20tests%20tests/output&In-Reply-To=%3C200606120106.k5C16O1B031440%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r59 - in sleep: . src/sleep/runtime tests tests/output">rsmudge at berlios.de
+       </A><BR>
+    <I>Mon Jun 12 03:06:24 CEST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000041.html">[Sleep-svn] r58 - sleep/src/sleep/engine/atoms
+</A></li>
+        <LI>Next message: <A HREF="000043.html">[Sleep-svn] r60 - sleep/docs
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#42">[ date ]</a>
+              <a href="thread.html#42">[ thread ]</a>
+              <a href="subject.html#42">[ subject ]</a>
+              <a href="author.html#42">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2006-06-12 03:06:20 +0200 (Mon, 12 Jun 2006)
+New Revision: 59
+
+Added:
+   sleep/tests/cor_foreach.sl
+   sleep/tests/output/cor_foreach.sl
+Modified:
+   sleep/src/sleep/runtime/ScriptEnvironment.java
+   sleep/whatsnew.txt
+Log:
+Coroutines are in.  :)  Yay.
+
+
+
+Modified: sleep/src/sleep/runtime/ScriptEnvironment.java
+===================================================================
+--- sleep/src/sleep/runtime/ScriptEnvironment.java	2006-06-12 00:53:42 UTC (rev 58)
++++ sleep/src/sleep/runtime/ScriptEnvironment.java	2006-06-12 01:06:20 UTC (rev 59)
+@@ -256,7 +256,7 @@
+        Context temp = new Context();
+        temp.block = b;
+        temp.last  = s;
+-       context.add(0, temp);
++       context.add(temp);
+     }
+ 
+     public Scalar evaluateOldContext()
+@@ -266,9 +266,10 @@
+        Stack cstack = context;
+        context      = new Stack();
+ 
+-       while (!cstack.isEmpty())
++       Iterator i = cstack.iterator();
++       while (i.hasNext())
+        {
+-          Context temp = (Context)cstack.pop();
++          Context temp = (Context)i.next();
+           rv = temp.block.evaluate(this, temp.last);
+        }
+ 
+
+Added: sleep/tests/cor_foreach.sl
+===================================================================
+--- sleep/tests/cor_foreach.sl	2006-06-12 00:53:42 UTC (rev 58)
++++ sleep/tests/cor_foreach.sl	2006-06-12 01:06:20 UTC (rev 59)
+@@ -0,0 +1,24 @@
++#
++# make sure coroutines play nicely with foreach loops.
++#
++sub a
++{
++   this('$var');
++
++   @array = split(&quot; &quot;, &quot;this is a long test string ok maybe it isn't that long oh well&quot;);
++ 
++   foreach $var (@array)
++   {
++      yield &quot;heh: $var&quot;;
++   }
++
++   return $null;
++}
++
++$a = a();
++while ($a !is $null)
++{
++   println($a);
++   $a = a();
++}
++
+
+Added: sleep/tests/output/cor_foreach.sl
+===================================================================
+--- sleep/tests/output/cor_foreach.sl	2006-06-12 00:53:42 UTC (rev 58)
++++ sleep/tests/output/cor_foreach.sl	2006-06-12 01:06:20 UTC (rev 59)
+@@ -0,0 +1,14 @@
++heh: this
++heh: is
++heh: a
++heh: long
++heh: test
++heh: string
++heh: ok
++heh: maybe
++heh: it
++heh: isn't
++heh: that
++heh: long
++heh: oh
++heh: well
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-06-12 00:53:42 UTC (rev 58)
++++ sleep/whatsnew.txt	2006-06-12 01:06:20 UTC (rev 59)
+@@ -8,6 +8,13 @@
+   create bugs and needs lots and lots of testing.
+ - fixed bug related to using a function call within an array/hash 
+   index
++- added coroutines to the sleep language, this consists of a yield
++  keyword (works like return that exits a closure at that point.  
++  Next time said closure is called execution resumes at the point
++  where you last yielded from.
++- did massive reworking of the sleep interpreter to allow for
++  coroutines (this had some benefits as well including the ability
++  for bridge writers to track bridge data by script context).
+ 
+ 2.0-release
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000041.html">[Sleep-svn] r58 - sleep/src/sleep/engine/atoms
+</A></li>
+	<LI>Next message: <A HREF="000043.html">[Sleep-svn] r60 - sleep/docs
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#42">[ date ]</a>
+              <a href="thread.html#42">[ thread ]</a>
+              <a href="subject.html#42">[ subject ]</a>
+              <a href="author.html#42">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

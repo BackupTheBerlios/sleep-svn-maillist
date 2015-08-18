@@ -1,0 +1,685 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r107 - in sleep: . src/sleep/bridges src/sleep/console	src/sleep/engine/atoms src/sleep/error src/sleep/parser	src/sleep/runtime tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2006-September/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r107%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20src/sleep/console%0A%09src/sleep/engine/atoms%20src/sleep/error%20src/sleep/parser%0A%09src/sleep/runtime%20tests%20tests/output&In-Reply-To=%3C200609080205.k8825XLF011935%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   
+   <LINK REL="Next"  HREF="000090.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r107 - in sleep: . src/sleep/bridges src/sleep/console	src/sleep/engine/atoms src/sleep/error src/sleep/parser	src/sleep/runtime tests tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r107%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20src/sleep/console%0A%09src/sleep/engine/atoms%20src/sleep/error%20src/sleep/parser%0A%09src/sleep/runtime%20tests%20tests/output&In-Reply-To=%3C200609080205.k8825XLF011935%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r107 - in sleep: . src/sleep/bridges src/sleep/console	src/sleep/engine/atoms src/sleep/error src/sleep/parser	src/sleep/runtime tests tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Fri Sep  8 04:05:33 CEST 2006</I>
+    <P><UL>
+        
+        <LI>Next message: <A HREF="000090.html">[Sleep-svn] r108 - in sleep: . src/sleep/engine tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#89">[ date ]</a>
+              <a href="thread.html#89">[ thread ]</a>
+              <a href="subject.html#89">[ subject ]</a>
+              <a href="author.html#89">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2006-09-08 04:05:32 +0200 (Fri, 08 Sep 2006)
+New Revision: 107
+
+Added:
+   sleep/tests/output/trace.sl
+   sleep/tests/trace.sl
+Modified:
+   sleep/src/sleep/bridges/SleepClosure.java
+   sleep/src/sleep/console/ConsoleImplementation.java
+   sleep/src/sleep/engine/atoms/Call.java
+   sleep/src/sleep/engine/atoms/ObjectAccess.java
+   sleep/src/sleep/engine/atoms/ObjectNew.java
+   sleep/src/sleep/error/ScriptWarning.java
+   sleep/src/sleep/parser/CodeGenerator.java
+   sleep/src/sleep/runtime/Scalar.java
+   sleep/src/sleep/runtime/ScriptInstance.java
+   sleep/src/sleep/runtime/SleepUtils.java
+   sleep/tests/output/args.sl
+   sleep/tests/output/foreach.sl
+   sleep/tests/output/native_arrays.sl
+   sleep/tests/output/passarrays.sl
+   sleep/whatsnew.txt
+Log:
+lots of useful changes.
+- new debug level
+- int/long literals generate an object scalar
+- scalar/hash string conversion now matches sleep literal form
+
+
+
+Modified: sleep/src/sleep/bridges/SleepClosure.java
+===================================================================
+--- sleep/src/sleep/bridges/SleepClosure.java	2006-08-19 17:45:38 UTC (rev 106)
++++ sleep/src/sleep/bridges/SleepClosure.java	2006-09-08 02:05:32 UTC (rev 107)
+@@ -80,6 +80,11 @@
+     /** the meta data for this closure context */
+     HashMap          metadata; 
+ 
++    public String toString()
++    {
++       return &quot;&amp;closure&quot; + hashCode();
++    }
++
+     /** Creates a new Sleep Closure, with a brand new set of internal variables.  Don't be afraid, you can call this constructor from your code. */
+     public SleepClosure(ScriptInstance si, Block _code)
+     {
+
+Modified: sleep/src/sleep/console/ConsoleImplementation.java
+===================================================================
+--- sleep/src/sleep/console/ConsoleImplementation.java	2006-08-19 17:45:38 UTC (rev 106)
++++ sleep/src/sleep/console/ConsoleImplementation.java	2006-09-08 02:05:32 UTC (rev 107)
+@@ -414,7 +414,14 @@
+ 
+    public void processScriptWarning(ScriptWarning warning)
+    {
+-      getProxy().consolePrintln(&quot;Warning: &quot; + warning.getMessage() + &quot; at line &quot; + warning.getLineNumber());
++      if (warning.isDebugTrace())
++      {
++         getProxy().consolePrintln(&quot;Trace: &quot; + warning.getMessage() + &quot; at line &quot; + warning.getLineNumber());
++      }
++      else
++      {
++         getProxy().consolePrintln(&quot;Warning: &quot; + warning.getMessage() + &quot; at line &quot; + warning.getLineNumber());
++      }
+    }     
+ 
+    public boolean scriptLoaded(ScriptInstance script)
+
+Modified: sleep/src/sleep/engine/atoms/Call.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/Call.java	2006-08-19 17:45:38 UTC (rev 106)
++++ sleep/src/sleep/engine/atoms/Call.java	2006-09-08 02:05:32 UTC (rev 107)
+@@ -25,6 +25,7 @@
+ import java.util.*;
+ import sleep.interfaces.*;
+ import sleep.engine.*;
++import sleep.engine.types.*;
+ import sleep.runtime.*;
+ 
+ public class Call extends Step
+@@ -55,13 +56,32 @@
+ 
+       if (callme != null)
+       {
+-          temp = callme.evaluate(function, e.getScriptInstance(), e.getCurrentFrame());
+-          e.clearReturn();
++         if ((e.getScriptInstance().getDebugFlags() &amp; ScriptInstance.DEBUG_TRACE_CALLS) == ScriptInstance.DEBUG_TRACE_CALLS &amp;&amp; !function.equals(&quot;&amp;@&quot;) &amp;&amp; !function.equals(&quot;&amp;%&quot;))
++         {
++             String args = SleepUtils.describe(e.getCurrentFrame());
++
++             temp = callme.evaluate(function, e.getScriptInstance(), e.getCurrentFrame());
++             e.clearReturn();
++             
++             if (SleepUtils.isEmptyScalar(temp))
++             {
++                e.getScriptInstance().fireWarning(function + &quot;(&quot; + args + &quot;)&quot;, getLineNumber(), true);
++             }
++             else
++             {
++                e.getScriptInstance().fireWarning(function + &quot;(&quot; + args + &quot;) = &quot; + SleepUtils.describe(temp), getLineNumber(), true);
++             }
++         }
++         else
++         {
++             temp = callme.evaluate(function, e.getScriptInstance(), e.getCurrentFrame());
++             e.clearReturn();
++         }
+       }
+       else
+       {
+-          e.getScriptInstance().fireWarning(&quot;Attempted to call non-existent function &quot; + function, getLineNumber());
+-          temp = SleepUtils.getEmptyScalar();
++         e.getScriptInstance().fireWarning(&quot;Attempted to call non-existent function &quot; + function, getLineNumber());
++         temp = SleepUtils.getEmptyScalar();
+       }
+ 
+       e.FrameResult(temp);
+
+Modified: sleep/src/sleep/engine/atoms/ObjectAccess.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/ObjectAccess.java	2006-08-19 17:45:38 UTC (rev 106)
++++ sleep/src/sleep/engine/atoms/ObjectAccess.java	2006-09-08 02:05:32 UTC (rev 107)
+@@ -57,6 +57,8 @@
+ 
+    public Scalar evaluate(ScriptEnvironment e)
+    {
++      boolean isTrace = (e.getScriptInstance().getDebugFlags() &amp; ScriptInstance.DEBUG_TRACE_CALLS) == ScriptInstance.DEBUG_TRACE_CALLS;
++
+       Scalar result = SleepUtils.getEmptyScalar();
+ 
+       Object accessMe = null;
+@@ -93,8 +95,42 @@
+       {
+          Function func = SleepUtils.getFunctionFromScalar(scalar, e.getScriptInstance());
+ 
+-         result = func.evaluate(name, e.getScriptInstance(), e.getCurrentFrame());
++         if (isTrace)
++         {
++            String args = SleepUtils.describe(e.getCurrentFrame());
+ 
++            result = func.evaluate(name, e.getScriptInstance(), e.getCurrentFrame());
++
++            /* construct the actual trace message */
++
++            StringBuffer trace = new StringBuffer(&quot;[&amp;closure&quot;);
++           
++            if (name != null &amp;&amp; name.length() &gt; 0)
++            {
++               trace.append(&quot; &quot; + name);
++            }
++
++            if (args.length() &gt; 0)
++            {
++               trace.append(&quot;: &quot; + args + &quot;]&quot;);
++            }
++            else
++            {
++               trace.append(&quot;]&quot;);
++            }
++
++            if (!SleepUtils.isEmptyScalar(result))
++            {
++               trace.append(&quot; = &quot; + SleepUtils.describe(result));
++            }
++
++            e.getScriptInstance().fireWarning(trace.toString(), getLineNumber(), true); 
++         }
++         else
++         {
++            result = func.evaluate(name, e.getScriptInstance(), e.getCurrentFrame());
++         }         
++
+          e.clearReturn(); // this has to be done or else bad things will happen when the closure returns stuff
+          // ^-- evaluate, is this really necessary or are closures smart enough to clear the return themselves? // RSM
+ 
+@@ -129,8 +165,40 @@
+             }
+             catch (Exception ex) { }
+ 
+-            parameters = ObjectUtilities.buildArgumentArray(theMethod.getParameterTypes(), e.getCurrentFrame(), e.getScriptInstance());
+-            result = ObjectUtilities.BuildScalar(true, theMethod.invoke(accessMe, parameters));
++            if (isTrace)
++            {
++               String args = SleepUtils.describe(e.getCurrentFrame());
++
++               if (args.length() &gt; 0) { args = &quot;: &quot; + args; }
++
++               parameters = ObjectUtilities.buildArgumentArray(theMethod.getParameterTypes(), e.getCurrentFrame(), e.getScriptInstance());
++               result = ObjectUtilities.BuildScalar(true, theMethod.invoke(accessMe, parameters));
++
++               /* construct the actual trace message */
++
++               StringBuffer trace = new StringBuffer(&quot;[&quot;);
++
++               if (scalar == null)
++               {
++                  trace.append(theClass.getName() + &quot; &quot; + name + args + &quot;]&quot;);
++               }
++               else
++               {
++                  trace.append(SleepUtils.describe(scalar) + &quot; &quot; + name + args + &quot;]&quot;);
++               }
++
++               if (!SleepUtils.isEmptyScalar(result))
++               {
++                  trace.append(&quot; = &quot; + SleepUtils.describe(result));
++               }
++
++               e.getScriptInstance().fireWarning(trace.toString(), getLineNumber(), true); 
++            }
++            else
++            {
++               parameters = ObjectUtilities.buildArgumentArray(theMethod.getParameterTypes(), e.getCurrentFrame(), e.getScriptInstance());
++               result = ObjectUtilities.BuildScalar(true, theMethod.invoke(accessMe, parameters));
++            }
+          }
+          else
+          {
+
+Modified: sleep/src/sleep/engine/atoms/ObjectNew.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/ObjectNew.java	2006-08-19 17:45:38 UTC (rev 106)
++++ sleep/src/sleep/engine/atoms/ObjectNew.java	2006-09-08 02:05:32 UTC (rev 107)
+@@ -53,6 +53,8 @@
+ 
+    public Scalar evaluate(ScriptEnvironment e)
+    {
++      boolean isTrace = (e.getScriptInstance().getDebugFlags() &amp; ScriptInstance.DEBUG_TRACE_CALLS) == ScriptInstance.DEBUG_TRACE_CALLS;
++
+       Scalar result = SleepUtils.getEmptyScalar();
+ 
+       Object[]    parameters     = null;
+@@ -70,8 +72,34 @@
+             }
+             catch (Exception ex) { }
+ 
+-            parameters = ObjectUtilities.buildArgumentArray(theConstructor.getParameterTypes(), e.getCurrentFrame(), e.getScriptInstance());
+-            result = ObjectUtilities.BuildScalar(false, theConstructor.newInstance(parameters));
++            if (isTrace)
++            {
++               String args = SleepUtils.describe(e.getCurrentFrame());
++
++               parameters = ObjectUtilities.buildArgumentArray(theConstructor.getParameterTypes(), e.getCurrentFrame(), e.getScriptInstance());
++               result = ObjectUtilities.BuildScalar(false, theConstructor.newInstance(parameters));
++
++               StringBuffer trace = new StringBuffer(&quot;[new &quot; + name.getName());
++
++               if (args.length() &gt; 0)
++               {
++                  trace.append(&quot;: &quot; + args);
++               }
++
++               trace.append(&quot;]&quot;);
++
++               if (!SleepUtils.isEmptyScalar(result))
++               {
++                  trace.append(&quot; = &quot; + SleepUtils.describe(result));
++               }
++
++               e.getScriptInstance().fireWarning(trace.toString(), getLineNumber(), true);
++            }
++            else
++            {
++               parameters = ObjectUtilities.buildArgumentArray(theConstructor.getParameterTypes(), e.getCurrentFrame(), e.getScriptInstance());
++               result = ObjectUtilities.BuildScalar(false, theConstructor.newInstance(parameters));
++            }
+          }
+          else
+          {
+
+Modified: sleep/src/sleep/error/ScriptWarning.java
+===================================================================
+--- sleep/src/sleep/error/ScriptWarning.java	2006-08-19 17:45:38 UTC (rev 106)
++++ sleep/src/sleep/error/ScriptWarning.java	2006-09-08 02:05:32 UTC (rev 107)
+@@ -14,14 +14,27 @@
+    protected ScriptInstance script;
+    protected String         message; 
+    protected int            line;
++   protected boolean        trace;
+ 
+    public ScriptWarning(ScriptInstance _script, String _message, int _line)
+    {
++      this(_script, _message, _line, false);
++   }
++
++   public ScriptWarning(ScriptInstance _script, String _message, int _line, boolean _trace)
++   {
+       script  = _script;
+       message = _message;
+       line    = _line;
++      trace   = _trace;
+    }
+ 
++   /** is this a trace message for one of the trace debug options */
++   public boolean isDebugTrace()
++   {
++      return trace;
++   }
++
+    /** returns the ScriptInstance object that was the source of this runtime error */
+    public ScriptInstance getSource()
+    {
+
+Modified: sleep/src/sleep/parser/CodeGenerator.java
+===================================================================
+--- sleep/src/sleep/parser/CodeGenerator.java	2006-08-19 17:45:38 UTC (rev 106)
++++ sleep/src/sleep/parser/CodeGenerator.java	2006-09-08 02:05:32 UTC (rev 107)
+@@ -426,11 +426,11 @@
+          case IDEA_NUMBER:                         // implemented
+            if (strings[0].endsWith(&quot;L&quot;))
+            {
+-              ascalar = SleepUtils.getScalar(Long.decode(strings[0].substring(0, strings[0].length() - 1)));
++              ascalar = SleepUtils.getScalar(Long.decode(strings[0].substring(0, strings[0].length() - 1)).longValue());
+            }
+            else
+            {
+-              ascalar = SleepUtils.getScalar(Integer.decode(strings[0]));
++              ascalar = SleepUtils.getScalar(Integer.decode(strings[0]).intValue());
+            }
+ 
+            atom    = GeneratedSteps.SValue(ascalar);
+
+Modified: sleep/src/sleep/runtime/Scalar.java
+===================================================================
+--- sleep/src/sleep/runtime/Scalar.java	2006-08-19 17:45:38 UTC (rev 106)
++++ sleep/src/sleep/runtime/Scalar.java	2006-09-08 02:05:32 UTC (rev 107)
+@@ -89,10 +89,10 @@
+       /* these are in case the scalar is being misused */
+ 
+       if (array != null)
+-         return SleepUtils.getScalar(array.toString()).getValue();
++         return SleepUtils.getScalar(SleepUtils.describe(this)).getValue();
+ 
+       if (hash != null)
+-         return SleepUtils.getScalar(hash.toString()).getValue();
++         return SleepUtils.getScalar(SleepUtils.describe(this)).getValue();
+ 
+       return null;
+    }
+
+Modified: sleep/src/sleep/runtime/ScriptInstance.java
+===================================================================
+--- sleep/src/sleep/runtime/ScriptInstance.java	2006-08-19 17:45:38 UTC (rev 106)
++++ sleep/src/sleep/runtime/ScriptInstance.java	2006-09-08 02:05:32 UTC (rev 107)
+@@ -83,6 +83,9 @@
+     /** fire runtime warning whenever an undeclared variable is fired */
+     public static final int DEBUG_REQUIRE_STRICT = 4;
+ 
++    /** fire a runtime warning describing each function call */
++    public static final int DEBUG_TRACE_CALLS    = 8;
++
+     /** track all of the flagged debug options for this script (set to DEBUG_SHOW_ERRORS by default) */
+     protected int debug = DEBUG_SHOW_ERRORS;
+ 
+@@ -259,10 +262,16 @@
+     /** Fire a runtime script warning */
+     public void fireWarning(String message, int line)
+     {
++       fireWarning(message, line, false);
++    }
++
++    /** Fire a runtime script warning */
++    public void fireWarning(String message, int line, boolean isTrace)
++    {
+        if (debug != DEBUG_NONE)
+        {
+-          ScriptWarning temp = new ScriptWarning(this, message, line);
+- 
++          ScriptWarning temp = new ScriptWarning(this, message, line, isTrace);
++
+           Iterator i = watchers.iterator();
+           while (i.hasNext())
+           {
+
+Modified: sleep/src/sleep/runtime/SleepUtils.java
+===================================================================
+--- sleep/src/sleep/runtime/SleepUtils.java	2006-08-19 17:45:38 UTC (rev 106)
++++ sleep/src/sleep/runtime/SleepUtils.java	2006-09-08 02:05:32 UTC (rev 107)
+@@ -334,6 +334,102 @@
+       return SleepUtils.getScalar(handle);
+    }
+ 
++   /** returns a comma separated list of descriptions of the scalars in the specified argument
++       stack.  This is used by the debugging mechanism to format arguments to strings based on
++       their scalar type. */
++   public static String describe(Stack arguments)
++   {
++      StringBuffer values = new StringBuffer();
++
++      Iterator i = arguments.iterator();
++      while (i.hasNext())
++      {
++         Scalar tempz = (Scalar)i.next();
++
++         values.insert(0, SleepUtils.describe(tempz));
++
++         if (i.hasNext()) { values.insert(0, &quot;, &quot;); }
++      }
++
++      return values.toString();
++   }
++
++   /** returns a string description of the specified scalar. Used by debugging mechanism to
++       format scalars based on their value type, i.e. strings are enclosed in single quotes,
++       objects in brackets, $null is displayed as $null, etc. */
++   public static String describe(Scalar scalar)
++   {
++      if (scalar.getArray() != null)
++      {
++         StringBuffer buffer = new StringBuffer(&quot;@(&quot;);
++         Iterator i = scalar.getArray().scalarIterator();
++         while (i.hasNext())
++         {
++            Scalar next = (Scalar)i.next();
++            buffer.append(describe(next));
++
++            if (i.hasNext())
++            {
++               buffer.append(&quot;, &quot;);
++            }
++         }
++        
++         buffer.append(&quot;)&quot;);
++         return buffer.toString();
++      }
++      if (scalar.getHash() != null)
++      {
++         StringBuffer buffer = new StringBuffer(&quot;%(&quot;);
++         Iterator i = scalar.getHash().keys().scalarIterator();
++         while (i.hasNext())
++         {
++            Scalar next = (Scalar)i.next();
++            buffer.append(next.toString());
++
++            buffer.append(&quot; =&gt; &quot;);
++
++            Scalar nval = scalar.getHash().getAt(next);
++
++            buffer.append(describe(nval));
++
++            if (i.hasNext())
++            {
++               buffer.append(&quot;, &quot;);
++            }
++         }
++        
++         buffer.append(&quot;)&quot;);
++         return buffer.toString();
++      }
++      else
++      {
++         if (scalar.getValue() instanceof NullValue)
++         {
++            return &quot;$null&quot;;
++         }
++         else if (scalar.getValue() instanceof StringValue)
++         {
++            return &quot;'&quot; + scalar.toString() + &quot;'&quot;;
++         }
++         else if (isFunctionScalar(scalar))
++         {
++            return scalar.toString();
++         }
++         else if (scalar.getValue() instanceof ObjectValue)
++         {
++            return &quot;[&quot; + scalar.toString() + &quot;]&quot;;
++         }
++         else if (scalar.getValue() instanceof LongValue)
++         {
++            return scalar.toString() + &quot;L&quot;;
++         }
++         else
++         {
++            return scalar.toString();
++         }
++      }
++   }
++
+    /** returns an empty hashmap scalar */
+    public static Scalar getHashScalar()
+    {
+
+Modified: sleep/tests/output/args.sl
+===================================================================
+--- sleep/tests/output/args.sl	2006-08-19 17:45:38 UTC (rev 106)
++++ sleep/tests/output/args.sl	2006-09-08 02:05:32 UTC (rev 107)
+@@ -2,7 +2,7 @@
+ Arg2: b 
+ Arg3: c
+ Total Args: 10 and now...
+-Test: [a, b, c, d, e, f, g, h, i, j]
++Test: @('a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j')
+ Argument: a
+ Argument: b
+ Argument: c
+@@ -17,7 +17,7 @@
+ Arg2: 2 
+ Arg3: 3
+ Total Args: 5 and now...
+-Test: [1, 2, 3, 4, 5]
++Test: @(1, 2, 3, 4, 5)
+ Argument: 1
+ Argument: 2
+ Argument: 3
+@@ -27,7 +27,7 @@
+ Arg2:  
+ Arg3: 
+ Total Args: 0 and now...
+-Test: []
++Test: @()
+ Arg1: 1 
+ Arg2: 2 
+ Arg3: 3
+
+Modified: sleep/tests/output/foreach.sl
+===================================================================
+--- sleep/tests/output/foreach.sl	2006-08-19 17:45:38 UTC (rev 106)
++++ sleep/tests/output/foreach.sl	2006-09-08 02:05:32 UTC (rev 107)
+@@ -8,8 +8,8 @@
+ This is a test of 10
+ This is a test of blah
+ Aftermath: blah
+-Pre print: [blah, bleh, sluts]
+-Array [blarg, bleh, sluts] and blarg
+-Array [blarg, blarg, sluts] and blarg
+-Array [blarg, blarg, blarg] and blarg
+-Test: [blarg, blarg, blarg]
++Pre print: @('blah', 'bleh', 'sluts')
++Array @('blarg', 'bleh', 'sluts') and blarg
++Array @('blarg', 'blarg', 'sluts') and blarg
++Array @('blarg', 'blarg', 'blarg') and blarg
++Test: @('blarg', 'blarg', 'blarg')
+
+Modified: sleep/tests/output/native_arrays.sl
+===================================================================
+--- sleep/tests/output/native_arrays.sl	2006-08-19 17:45:38 UTC (rev 106)
++++ sleep/tests/output/native_arrays.sl	2006-09-08 02:05:32 UTC (rev 107)
+@@ -18,14 +18,14 @@
+ $temp[1][1][1] = 11
+ $temp[1][1][2] = 12
+ &lt;---------------------------------------------------&gt;
+-We have [1, 2, 3, 4, 5, 6] and class sleep.engine.types.ArrayContainer
++We have @(1, 2, 3, 4, 5, 6) and class sleep.engine.types.ArrayContainer
+ $temp[0][0] = 1
+ $temp[0][1] = 2
+ $temp[0][2] = 3
+ $temp[0][3] = 4
+ $temp[0][4] = 5
+ $temp[0][5] = 6
+-We have [7, 8, 9, 10, 11, 12] and class sleep.engine.types.ArrayContainer
++We have @(7, 8, 9, 10, 11, 12) and class sleep.engine.types.ArrayContainer
+ $temp[1][0] = 7
+ $temp[1][1] = 8
+ $temp[1][2] = 9
+
+Modified: sleep/tests/output/passarrays.sl
+===================================================================
+--- sleep/tests/output/passarrays.sl	2006-08-19 17:45:38 UTC (rev 106)
++++ sleep/tests/output/passarrays.sl	2006-09-08 02:05:32 UTC (rev 107)
+@@ -5,4 +5,4 @@
+ Hrm.. value is : with
+ Hrm.. value is : 7
+ Hrm.. value is : words
+-This should be empty: []
++This should be empty: @()
+
+Added: sleep/tests/output/trace.sl
+===================================================================
+--- sleep/tests/output/trace.sl	2006-08-19 17:45:38 UTC (rev 106)
++++ sleep/tests/output/trace.sl	2006-09-08 02:05:32 UTC (rev 107)
+@@ -0,0 +1,15 @@
++this is a test
++Trace: [[<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 884a40</A>] println: 'this is a test'] at line 6
++Trace: [java.lang.Math pow: 3, 4] = 81.0 at line 7
++81.0
++Trace: [[<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 884a40</A>] println: 81.0] at line 7
++Trace: [java.lang.Math pow: 3, 5] = 243.0 at line 8
++243.0
++Trace: &amp;println(243.0) at line 8
++testing again...
++Trace: [[<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 884a40</A>] println: 'testing again...'] at line 9
++Trace: [sleep.runtime.SleepUtils getListFromArray: @('a', 'b', 'c')] = [[a, b, c]] at line 11
++Trace: [new java.util.LinkedList: [[a, b, c]]] = [[a, b, c]] at line 11
++Warning: variable '$list' not declared at line 11
++[a, b, c]
++Trace: &amp;println([[a, b, c]]) at line 13
+
+Added: sleep/tests/trace.sl
+===================================================================
+--- sleep/tests/trace.sl	2006-08-19 17:45:38 UTC (rev 106)
++++ sleep/tests/trace.sl	2006-09-08 02:05:32 UTC (rev 107)
+@@ -0,0 +1,13 @@
++#
++# test out the function call traceing stuff...
++#
++debug(15);
++
++[[System out] println: &quot;this is a test&quot; ];
++[[System out] println: [Math pow:3, 4]];
++println([Math pow: 3, 5]);
++[[java.lang.System out] println: &quot;testing again...&quot;];
++
++$list = [new LinkedList: [sleep.runtime.SleepUtils getListFromArray: @(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;)]];
++
++println($list);
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-08-19 17:45:38 UTC (rev 106)
++++ sleep/whatsnew.txt	2006-09-08 02:05:32 UTC (rev 107)
+@@ -3,6 +3,13 @@
+ - added a literal form for arrays and hashes:
+   @(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;, &quot;d&quot;, &quot;e&quot;, @(&quot;f&quot;, &quot;g&quot;, &quot;h&quot;, &quot;i&quot;), &quot;j&quot;, &quot;k&quot;)
+   %(a =&gt; &quot;apple&quot;, b =&gt; &quot;batman&quot;, c =&gt; &quot;cow&quot;)
++- fixed a bug in the Sleep parser transforming long/int literals
++  into ObjectValues rather than LongValue/IntValue.
++- string form of arrays and hashes (when converted to a string) is now 
++  consistent with the sleep literal form
++- added another debug level (8) for function call tracing.  while this
++  flag is set all function calls with their arguments and return value
++  will be displayed to the user as a runtime warning.  
+ 
+ 2.1-beta 3
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	
+	<LI>Next message: <A HREF="000090.html">[Sleep-svn] r108 - in sleep: . src/sleep/engine tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#89">[ date ]</a>
+              <a href="thread.html#89">[ thread ]</a>
+              <a href="subject.html#89">[ subject ]</a>
+              <a href="author.html#89">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

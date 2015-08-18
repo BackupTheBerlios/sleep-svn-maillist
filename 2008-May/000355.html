@@ -1,0 +1,129 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r379 - in sleep: . src/sleep/runtime src/sleep/taint
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2008-May/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r379%20-%20in%20sleep%3A%20.%20src/sleep/runtime%20src/sleep/taint&In-Reply-To=%3C200805152136.m4FLa1dg009784%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000354.html">
+   <LINK REL="Next"  HREF="000356.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r379 - in sleep: . src/sleep/runtime src/sleep/taint</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r379%20-%20in%20sleep%3A%20.%20src/sleep/runtime%20src/sleep/taint&In-Reply-To=%3C200805152136.m4FLa1dg009784%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r379 - in sleep: . src/sleep/runtime src/sleep/taint">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Thu May 15 23:36:01 CEST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000354.html">[Sleep-svn] r378 - in sleep: . src/sleep/bridges tests
+</A></li>
+        <LI>Next message: <A HREF="000356.html">[Sleep-svn] r380 - in sleep: . src/sleep/bridges	src/sleep/interfaces src/sleep/runtime tests
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#355">[ date ]</a>
+              <a href="thread.html#355">[ thread ]</a>
+              <a href="subject.html#355">[ subject ]</a>
+              <a href="author.html#355">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2008-05-15 23:36:00 +0200 (Thu, 15 May 2008)
+New Revision: 379
+
+Modified:
+   sleep/src/sleep/runtime/SleepUtils.java
+   sleep/src/sleep/taint/TaintUtils.java
+   sleep/whatsnew.txt
+Log:
+..
+
+
+Modified: sleep/src/sleep/runtime/SleepUtils.java
+===================================================================
+--- sleep/src/sleep/runtime/SleepUtils.java	2008-05-15 17:49:25 UTC (rev 378)
++++ sleep/src/sleep/runtime/SleepUtils.java	2008-05-15 21:36:00 UTC (rev 379)
+@@ -271,7 +271,7 @@
+           while (i.hasNext())
+           {
+              Map.Entry value = (Map.Entry)i.next();
+-             locals.push(new KeyValuePair(SleepUtils.getScalar(value.getKey().toString()), (Scalar)value.getValue()));
++             locals.push(SleepUtils.getScalar(new KeyValuePair(SleepUtils.getScalar(value.getKey().toString()), (Scalar)value.getValue())));
+           }
+        }
+ 
+
+Modified: sleep/src/sleep/taint/TaintUtils.java
+===================================================================
+--- sleep/src/sleep/taint/TaintUtils.java	2008-05-15 17:49:25 UTC (rev 378)
++++ sleep/src/sleep/taint/TaintUtils.java	2008-05-15 21:36:00 UTC (rev 379)
+@@ -74,14 +74,18 @@
+        return value;
+     }
+ 
+-    /** taints all of the Scalar values in the specified stack.  More fun that a barrel full of monkeys */
+-    public static void taint(Stack values)
++    /** taints all of the Scalar values in the specified stack.  More fun that a barrel full of monkeys.  this function acts on the passed in stack */
++    public static Stack taint(Stack values)
+     {
+-       Iterator i = values.iterator();
+-       while (i.hasNext())
++       if (isTaintMode())
+        {
+-          taintAll((Scalar)i.next());
++          Iterator i = values.iterator();
++          while (i.hasNext())
++          {
++             taintAll((Scalar)i.next());
++          }
+        }
++       return values;
+     }
+ 
+     /** taints the specified scalar (bridge writers should call this on their scalars).  recurses on hashes and arrays.  returns the original container.  If tainting is disabled the original bridge is returned. not safe for circular data structures. */
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2008-05-15 17:49:25 UTC (rev 378)
++++ sleep/whatsnew.txt	2008-05-15 21:36:00 UTC (rev 379)
+@@ -50,6 +50,7 @@
+   entire cache.  This was put in place to account for &amp;include'd
+   scripts.  Now &amp;include validates its last modified timestamp
+   with the ScriptLoader prior to (re)loading.  
++- fixed bug in SleepUtils.getArgumentStack(Map)
+    
+ 2.1-beta 25  (8 May 08) [will this beta process ever end?]
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000354.html">[Sleep-svn] r378 - in sleep: . src/sleep/bridges tests
+</A></li>
+	<LI>Next message: <A HREF="000356.html">[Sleep-svn] r380 - in sleep: . src/sleep/bridges	src/sleep/interfaces src/sleep/runtime tests
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#355">[ date ]</a>
+              <a href="thread.html#355">[ thread ]</a>
+              <a href="subject.html#355">[ subject ]</a>
+              <a href="author.html#355">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

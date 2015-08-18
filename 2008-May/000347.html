@@ -1,0 +1,745 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r371 - in sleep: . jsr223 jsr223/src jsr223/src/com	jsr223/src/com/sun jsr223/src/com/sun/script	jsr223/src/com/sun/script/sleep jsr223/src/services
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2008-May/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r371%20-%20in%20sleep%3A%20.%20jsr223%20jsr223/src%20jsr223/src/com%0A%09jsr223/src/com/sun%20jsr223/src/com/sun/script%0A%09jsr223/src/com/sun/script/sleep%20jsr223/src/services&In-Reply-To=%3C200805142256.m4EMultH011939%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000346.html">
+   <LINK REL="Next"  HREF="000351.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r371 - in sleep: . jsr223 jsr223/src jsr223/src/com	jsr223/src/com/sun jsr223/src/com/sun/script	jsr223/src/com/sun/script/sleep jsr223/src/services</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r371%20-%20in%20sleep%3A%20.%20jsr223%20jsr223/src%20jsr223/src/com%0A%09jsr223/src/com/sun%20jsr223/src/com/sun/script%0A%09jsr223/src/com/sun/script/sleep%20jsr223/src/services&In-Reply-To=%3C200805142256.m4EMultH011939%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r371 - in sleep: . jsr223 jsr223/src jsr223/src/com	jsr223/src/com/sun jsr223/src/com/sun/script	jsr223/src/com/sun/script/sleep jsr223/src/services">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Thu May 15 00:56:47 CEST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000346.html">[Sleep-svn] r370 - sleep
+</A></li>
+        <LI>Next message: <A HREF="000351.html">[Sleep-svn] r372 - in sleep/jsr223: . src src/org src/org/dashnine	src/org/dashnine/sleep src/services
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#347">[ date ]</a>
+              <a href="thread.html#347">[ thread ]</a>
+              <a href="subject.html#347">[ subject ]</a>
+              <a href="author.html#347">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2008-05-15 00:56:45 +0200 (Thu, 15 May 2008)
+New Revision: 371
+
+Added:
+   sleep/jsr223/
+   sleep/jsr223/build.xml
+   sleep/jsr223/license-jsr223.txt
+   sleep/jsr223/readme-jsr223.txt
+   sleep/jsr223/sleep-engine.jar
+   sleep/jsr223/src/
+   sleep/jsr223/src/com/
+   sleep/jsr223/src/com/sun/
+   sleep/jsr223/src/com/sun/script/
+   sleep/jsr223/src/com/sun/script/sleep/
+   sleep/jsr223/src/com/sun/script/sleep/SleepScriptEngine.java
+   sleep/jsr223/src/com/sun/script/sleep/SleepScriptEngineFactory.java
+   sleep/jsr223/src/services/
+   sleep/jsr223/src/services/javax.script.ScriptEngineFactory
+Modified:
+   sleep/build.xml
+Log:
+initial JSR223 support... it doesn't work quite yet though.
+
+
+
+Modified: sleep/build.xml
+===================================================================
+--- sleep/build.xml	2008-05-14 21:35:26 UTC (rev 370)
++++ sleep/build.xml	2008-05-14 22:56:45 UTC (rev 371)
+@@ -27,7 +27,7 @@
+   &lt;target name=&quot;docs&quot; description=&quot;build java documentation&quot;&gt;
+      &lt;javadoc packagenames=&quot;sleep.*&quot;
+               destdir=&quot;docs/api&quot;
+-              windowtitle=&quot;Sleep API&quot; 
++              windowtitle=&quot;Sleep 2.1 API&quot; 
+               overview=&quot;src/overview.html&quot;&gt;
+         &lt;fileset dir=&quot;src&quot; defaultexcludes=&quot;yes&quot;&gt;
+            &lt;include name=&quot;sleep/bridges/BridgeUtilities.java&quot; /&gt;
+@@ -62,14 +62,17 @@
+   &lt;/target&gt;
+ 
+   &lt;target name=&quot;jar&quot; depends=&quot;compile&quot;&gt;
++     &lt;!-- copy the JSR223 stuff into the Sleep directory --&gt;
++     &lt;unzip src=&quot;jsr223/sleep-engine.jar&quot; dest=&quot;bin&quot; /&gt;
+      &lt;jar destfile=&quot;sleep.jar&quot;
+           basedir=&quot;bin&quot;
+-          includes=&quot;**/*.class&quot;&gt;
+-&lt;!--         &lt;service type=&quot;javax.script.ScriptEngineFactory&quot; provider=&quot;org.dashnine.sleep.SleepFactory&quot; /&gt; --&gt;
+-         &lt;manifest&gt;
+-           &lt;attribute name=&quot;Main-Class&quot; value=&quot;sleep.console.TextConsole&quot; /&gt;
+-         &lt;/manifest&gt;
+-      &lt;/jar&gt;
++          includes=&quot;**/*&quot; filesetmanifest=&quot;mergewithoutmain&quot;&gt;
++
++        &lt;!-- wow talk about jumping through hoops, whatever happened to Make? --&gt;
++        &lt;metainf dir=&quot;jsr223/src&quot;&gt;
++           &lt;include name=&quot;services/**&quot; /&gt;
++        &lt;/metainf&gt;
++     &lt;/jar&gt;
+   &lt;/target&gt;
+ 
+   &lt;target name=&quot;clean&quot; description=&quot;clean up&quot; &gt;
+
+Added: sleep/jsr223/build.xml
+===================================================================
+--- sleep/jsr223/build.xml	2008-05-14 21:35:26 UTC (rev 370)
++++ sleep/jsr223/build.xml	2008-05-14 22:56:45 UTC (rev 371)
+@@ -0,0 +1,38 @@
++
++&lt;project name=&quot;sleep&quot; default=&quot;all&quot; basedir=&quot;.&quot;&gt;
++  &lt;property name=&quot;project.src&quot;   location=&quot;src/&quot; /&gt;
++  &lt;property name=&quot;project.build&quot; location=&quot;bin&quot; /&gt;
++
++  &lt;target name=&quot;all&quot; depends=&quot;init, compile, jar&quot; /&gt;
++
++  &lt;target name=&quot;init&quot;&gt;
++    &lt;tstamp /&gt;
++    &lt;mkdir dir=&quot;${project.build}&quot; /&gt;
++  &lt;/target&gt;
++
++  &lt;target name=&quot;compile&quot; depends=&quot;init&quot; description=&quot;compile the source &quot; &gt;
++    &lt;javac srcdir=&quot;${project.src}/&quot;
++           destdir=&quot;${project.build}&quot;
++           nowarn=&quot;yes&quot;
++           depend=&quot;yes&quot;
++           debug=&quot;false&quot;
++           optimize=&quot;yes&quot;
++    &gt;
++    &lt;!-- what came first, the chicken or the egg? --&gt;
++    &lt;classpath path=&quot;../sleep.jar&quot; /&gt;
++    &lt;/javac&gt;
++  &lt;/target&gt;
++
++  &lt;target name=&quot;jar&quot; depends=&quot;compile&quot;&gt;
++     &lt;jar destfile=&quot;sleep-engine.jar&quot;
++          basedir=&quot;bin&quot;
++          includes=&quot;**/*.class&quot;&gt;
++        &lt;!-- Ant 1.7.0 service tag is broken, it creates a &quot;service&quot; directory not &quot;services&quot; --&gt;
++&lt;!--        &lt;service type=&quot;javax.script.ScriptEngineFactory&quot; provider=&quot;com.sun.script.sleep.SleepScriptEngineFactory&quot; /&gt;  --&gt;
++      &lt;/jar&gt;
++  &lt;/target&gt;
++
++  &lt;target name=&quot;clean&quot; description=&quot;clean up&quot; &gt;
++    &lt;delete dir=&quot;${project.build}&quot;/&gt;
++  &lt;/target&gt;
++&lt;/project&gt;
+
+Added: sleep/jsr223/license-jsr223.txt
+===================================================================
+--- sleep/jsr223/license-jsr223.txt	2008-05-14 21:35:26 UTC (rev 370)
++++ sleep/jsr223/license-jsr223.txt	2008-05-14 22:56:45 UTC (rev 371)
+@@ -0,0 +1,32 @@
++Copyright (c) 2006, Sun Microsystems, Inc.
++All rights reserved.
++
++Redistribution and use in source and binary forms, with or without 
++modification, are permitted provided that the following conditions are met:
++
++ - Redistributions of source code must retain the above copyright notice, this 
++   list of conditions and the following disclaimer.
++
++ - Redistributions in binary form must reproduce the above copyright notice, 
++   this list of conditions and the following disclaimer in the documentation 
++   and/or other materials provided with the distribution.
++
++ - Neither the name of the Sun Microsystems, Inc. nor the names of 
++   contributors may be used to endorse or promote products derived from this 
++   software without specific prior written permission.
++
++THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND 
++CONTRIBUTORS &quot;AS IS&quot; AND ANY EXPRESS OR IMPLIED 
++WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED 
++WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A 
++PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE 
++COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY 
++DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR 
++CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, 
++PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF 
++USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER 
++CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN 
++CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE 
++OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS 
++SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH 
++DAMAGE.
+
+Added: sleep/jsr223/readme-jsr223.txt
+===================================================================
+--- sleep/jsr223/readme-jsr223.txt	2008-05-14 21:35:26 UTC (rev 370)
++++ sleep/jsr223/readme-jsr223.txt	2008-05-14 22:56:45 UTC (rev 371)
+@@ -0,0 +1,25 @@
++The source code for Sleep JSR 223 support is separate to allow the primary codebase to develop
++without a dependence on Java 1.6.  To satisfy several requests this support is included in the
++main Sleep distribution.
++
++This JSR223 codebase requires Java 1.6 and Apache Ant 1.7.0 (<A HREF="http://ant.apache.org/">http://ant.apache.org/</A>)
++
++To (re)compile this code use:
++
++[<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">raffi at beardsley</A> ~/sleep]$ cd jsr223
++[<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">raffi at beardsley</A> ~/sleep/jsr223]$ ant
++
++That's it.  This will produce a sleep-engine.jar file.  Go ahead and execute the normal compilation
++of Sleep in the toplevel directory.  The contents of jsr223/sleep-engine.jar will automatically
++be included in the Sleep distribution.
++
++I'm not a consumer of the JSR223 API so there may be unintentional bugs in this factory.  Even
++though I am not a consumer I still want to deliver the best product I can to you.  If you find
++something that seems broken do not hesitate to contact me and I will work with you to resolve it.
++
++-- Raphael (<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">rsmudge at gmail.com</A>)
++
++
++Special thanks to A. Sundararajan (<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">sundararajana at dev.java.net</A>) at Sun for the development of the
++Sleep 2.0 script engine.  This code is mostly his.  I've modified it a little to support Sleep 2.1.
++
+
+Added: sleep/jsr223/sleep-engine.jar
+===================================================================
+(Binary files differ)
+
+
+Property changes on: sleep/jsr223/sleep-engine.jar
+___________________________________________________________________
+Name: svn:mime-type
+   + application/octet-stream
+
+Added: sleep/jsr223/src/com/sun/script/sleep/SleepScriptEngine.java
+===================================================================
+--- sleep/jsr223/src/com/sun/script/sleep/SleepScriptEngine.java	2008-05-14 21:35:26 UTC (rev 370)
++++ sleep/jsr223/src/com/sun/script/sleep/SleepScriptEngine.java	2008-05-14 22:56:45 UTC (rev 371)
+@@ -0,0 +1,327 @@
++/*
++ * Copyright 2006 Sun Microsystems, Inc. All rights reserved. 
++ * Use is subject to license terms.
++ *
++ * Redistribution and use in source and binary forms, with or without modification, are 
++ * permitted provided that the following conditions are met: Redistributions of source code 
++ * must retain the above copyright notice, this list of conditions and the following disclaimer.
++ * Redistributions in binary form must reproduce the above copyright notice, this list of 
++ * conditions and the following disclaimer in the documentation and/or other materials 
++ * provided with the distribution. Neither the name of the Sun Microsystems nor the names of 
++ * is contributors may be used to endorse or promote products derived from this software 
++ * without specific prior written permission. 
++
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS &quot;AS IS&quot; AND ANY EXPRESS
++ * OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY 
++ * AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER 
++ * OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR 
++ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR 
++ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON 
++ * ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
++ * OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
++ * POSSIBILITY OF SUCH DAMAGE.
++ */
++
++/*
++ * SleepScriptEngine.java
++ * @author A. Sundararajan
++ */
++
++package com.sun.script.sleep;
++
++import javax.script.*;
++import java.lang.reflect.*;
++import java.io.*;
++import java.util.*;
++
++import sleep.bridges.*;
++import sleep.engine.*;
++import sleep.interfaces.*;
++import sleep.runtime.*;
++
++public class SleepScriptEngine extends AbstractScriptEngine 
++        implements Compilable, Invocable { 
++
++    // my factory, may be null
++    private ScriptEngineFactory factory;
++    // my ScriptLoader
++    private ScriptLoader loader;
++    // my env shared by all ScriptInstances created by me
++    private Hashtable scriptEnv;
++
++    public SleepScriptEngine() {
++        loader = new ScriptLoader();
++        scriptEnv = new Hashtable();
++    }
++
++    // my implementation for CompiledScript
++    private class SleepCompiledScript extends CompiledScript {
++        // my compiled code
++        private ScriptInstance script;
++
++        SleepCompiledScript (ScriptInstance script) {
++            this.script = script;
++        }
++
++        public ScriptEngine getEngine() {
++            return SleepScriptEngine.this;
++        }
++       
++        public synchronized Object eval(ScriptContext ctx) throws ScriptException {
++            return evalScript(script, ctx);
++        }
++    }
++
++    // Compilable methods
++    public CompiledScript compile(String code) 
++                                  throws ScriptException {  
++        ScriptInstance script = compileScript(code, context);
++        return new SleepCompiledScript(script);
++    }
++
++    public CompiledScript compile (Reader reader) 
++                                  throws ScriptException {  
++        return compile(readFully(reader));
++    }
++
++    // Invocable methods
++    public Object invokeFunction(String name, Object... args) 
++                         throws ScriptException, NoSuchMethodException {       
++        return invokeImpl(null, name, args, Object.class);
++    }
++
++    public Object invokeMethod(Object obj, String name, Object... args) 
++                         throws ScriptException, NoSuchMethodException {       
++        if (obj == null) {
++            throw new IllegalArgumentException(&quot;script object is null&quot;);
++        }
++        return invokeImpl(obj, name, args, Object.class);
++    }
++
++    public &lt;T&gt; T getInterface(Object obj, Class&lt;T&gt; clazz) {
++        if (obj == null) {
++            throw new IllegalArgumentException(&quot;script object is null&quot;);
++        }
++        return makeInterface(obj, clazz);
++    }
++
++    public &lt;T&gt; T getInterface(Class&lt;T&gt; clazz) {
++        return makeInterface(null, clazz);
++    }
++
++    public &lt;T&gt; T makeInterface(Object obj, Class&lt;T&gt; clazz) {
++        if (clazz == null || !clazz.isInterface()) {
++            throw new IllegalArgumentException(&quot;interface Class expected&quot;);
++        }
++
++        final Object thiz = obj;         
++        return (T) Proxy.newProxyInstance(
++              clazz.getClassLoader(),
++              new Class[] { clazz },
++              new InvocationHandler() {
++                  public Object invoke(Object proxy, Method m, Object[] args)
++                                       throws Throwable {
++                      return invokeImpl(thiz, m.getName(), args, m.getReturnType());
++                  }
++              });
++    }
++
++    // ScriptEngine methods
++    public Object eval(String str, ScriptContext ctx) 
++                       throws ScriptException {	
++        ScriptInstance script = compileScript(str, ctx);
++        return evalScript(script, ctx);
++    }
++
++    public Object eval(Reader reader, ScriptContext ctx)
++                       throws ScriptException { 
++        ScriptInstance script = compileScript(reader, ctx);
++        return evalScript(script, ctx);
++    }
++
++    public ScriptEngineFactory getFactory() {
++	synchronized (this) {
++	    if (factory == null) {
++	    	factory = new SleepScriptEngineFactory();
++	    }
++        }
++	return factory;
++    }
++
++    public Bindings createBindings() {
++        return new SimpleBindings();
++    }
++
++    // package-private methods
++    void setFactory(ScriptEngineFactory factory) {
++        this.factory = factory;
++    }
++
++    // internals only below this point    
++    private Object sleepToJava(Object value, ScriptInstance script) {
++        return sleepToJava(value, Object.class, script);
++    }
++
++    private Object sleepToJava(Object value, Class type, ScriptInstance script) {
++        if (value instanceof Scalar) {
++            return ObjectUtilities.buildArgument(type, (Scalar)value, script);
++        } else {
++            return value;
++        }            
++    }
++
++    private Scalar javaToSleep(Object value) {
++        if (value instanceof Scalar) {
++            return (Scalar) value;
++        }
++        // seems like a bug in Sleep interpreter - not handling
++        // Short type 
++        if (value.getClass() == Short.class) {
++            return SleepUtils.getScalar((int)(((Short)value).shortValue()));
++        } else {            
++            return ObjectUtilities.BuildScalar(true, value);
++        }
++    }       
++
++    private ScriptInstance compileScript(String code, ScriptContext ctx) 
++                                 throws ScriptException {    
++        String fileName = (String) ctx.getAttribute(ScriptEngine.FILENAME);
++        if (fileName == null) {
++            fileName = &quot;&lt;unknown&gt;&quot;;
++        }
++        // Compile step is nothing by loading script and saving
++        // ScriptInstance from that...
++        return loader.loadScript(fileName, code, scriptEnv);    
++    }
++
++    private ScriptInstance compileScript(Reader reader, ScriptContext ctx) 
++                                 throws ScriptException {
++        return compileScript(readFully(reader), ctx);
++    }
++    
++    private Object evalScript(final ScriptInstance script, final ScriptContext ctx) 
++                            throws ScriptException {
++       ctx.setAttribute(&quot;$context&quot;, ctx, ScriptContext.ENGINE_SCOPE);
++       // We create a Variable bridge that will resolve variables from
++       // our ScriptContext
++       ScriptVariables variables = new ScriptVariables(new DefaultVariable() {
++                        public synchronized boolean scalarExists(String key) {
++                            synchronized (ctx) {
++                                return ctx.getAttributesScope(key) != -1;
++                            }
++                        }
++
++                        public synchronized Scalar getScalar(String key) {
++                            synchronized (ctx) {
++                                int scope = ctx.getAttributesScope(key);  
++                                Object value = null;
++                                if (scope != -1) {           
++                                    value = ctx.getAttribute(key, scope);                                
++                                }
++                                Scalar scalar = javaToSleep(value);
++                                // not to store Scalar in the ScriptContext or else
++                                // we'll loose modifications to it. Note that Scalar
++                                // has one further level of indirection via ScalarType.
++                                ctx.setAttribute(key, scalar, scope);
++                                return scalar;
++                            }
++                        }
++
++                        public synchronized Scalar putScalar(String key, Scalar value) {
++                            synchronized (ctx) {
++                                int scope = ctx.getAttributesScope(key);
++                                Scalar oldValue = null;
++                                if (scope == -1) {
++                                    scope = ScriptContext.ENGINE_SCOPE;  
++                                } else {
++                                    oldValue = javaToSleep(ctx.getAttribute(key));
++                                } 
++                                ctx.setAttribute(key, value, scope);
++                                return oldValue;
++                            }
++                        }
++
++                        public synchronized void removeScalar(String key) {
++                            synchronized (ctx) {
++                                int scope = ctx.getAttributesScope(key);
++                                if (scope != -1) {
++                                    ctx.removeAttribute(key, scope);
++                                }
++                            }
++                        }
++ 
++                    });
++        
++        script.setScriptVariables(variables);
++        try {
++            // run the script and convert return value
++            return sleepToJava(script.runScript(), script);
++        } catch (Exception e) {
++            throw new ScriptException(e);
++        }
++    }    
++
++    private Object invokeImpl(Object thiz, String name, 
++                      Object[] args, Class returnType) 
++                      throws ScriptException, NoSuchMethodException {
++        if (name == null) {
++            throw new NullPointerException(&quot;method name is null&quot;);
++        }
++        // Sleep routine names start with a '&amp;'
++        if (!name.startsWith(&quot;&amp;&quot;)) {
++            name = &quot;&amp;&quot; + name;
++        }
++        ScriptInstance script = new ScriptInstance(scriptEnv);
++        Object func = null;
++        try {
++            // Object orientation by Closures - Sleep's &quot;objects&quot; are
++            // Closures with first parameter being the name of the message.
++            if (thiz != null) { 
++                // do we have a Function Scalar as 'thiz' script object?
++                if (thiz instanceof Scalar &amp;&amp; 
++                    SleepUtils.isFunctionScalar((Scalar)thiz)) {
++                    thiz = SleepUtils.getFunctionFromScalar((Scalar)thiz, script);
++                }
++                if (thiz instanceof Function) {
++                    func = thiz;
++                } 
++            } else {
++                // no thiz. Look for global subroutine using environment
++                func = scriptEnv.get(name);
++            }
++        } catch (Exception e) {
++            throw new ScriptException(e);
++        }
++  
++        if (func instanceof Function) {
++            Stack sArgs = new Stack();
++            // Sleep arguments have to be pushed in reverse order
++            for (int i = args.length - 1; i &gt;= 0; i--) {
++                sArgs.push(javaToSleep(args[i]));
++            }
++            try {
++                // run script function
++                return SleepUtils.runCode((Function)func, name.substring(1), 
++                                 script, sArgs);
++            } catch (Exception e) {
++                throw new ScriptException(e);
++            }
++        } else {
++            throw new NoSuchMethodException(name.substring(1));
++        }
++    }
++
++    private String readFully(Reader reader) throws ScriptException { 
++        char[] arr = new char[8*1024]; // 8K at a time
++        StringBuilder buf = new StringBuilder();
++        int numChars;
++        try {
++            while ((numChars = reader.read(arr, 0, arr.length)) &gt; 0) {
++                buf.append(arr, 0, numChars);
++            }
++        } catch (IOException exp) {
++            throw new ScriptException(exp);
++        }
++        return buf.toString();
++    }
++}
+
+Added: sleep/jsr223/src/com/sun/script/sleep/SleepScriptEngineFactory.java
+===================================================================
+--- sleep/jsr223/src/com/sun/script/sleep/SleepScriptEngineFactory.java	2008-05-14 21:35:26 UTC (rev 370)
++++ sleep/jsr223/src/com/sun/script/sleep/SleepScriptEngineFactory.java	2008-05-14 22:56:45 UTC (rev 371)
+@@ -0,0 +1,151 @@
++/*
++ * Copyright 2006 Sun Microsystems, Inc. All rights reserved. 
++ * Use is subject to license terms.
++ *
++ * Redistribution and use in source and binary forms, with or without modification, are 
++ * permitted provided that the following conditions are met: Redistributions of source code 
++ * must retain the above copyright notice, this list of conditions and the following disclaimer.
++ * Redistributions in binary form must reproduce the above copyright notice, this list of 
++ * conditions and the following disclaimer in the documentation and/or other materials 
++ * provided with the distribution. Neither the name of the Sun Microsystems nor the names of 
++ * is contributors may be used to endorse or promote products derived from this software 
++ * without specific prior written permission. 
++
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS &quot;AS IS&quot; AND ANY EXPRESS
++ * OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY 
++ * AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER 
++ * OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR 
++ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR 
++ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON 
++ * ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
++ * OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
++ * POSSIBILITY OF SUCH DAMAGE.
++ */
++
++/*
++ * SleepScriptEngineFactory.java
++ * @author A. Sundararajan
++ */
++
++package com.sun.script.sleep;
++
++import javax.script.*;
++import java.util.*;
++
++public class SleepScriptEngineFactory implements ScriptEngineFactory {
++    public String getEngineName() { 
++        return &quot;sleep&quot;;
++    }
++
++    public String getEngineVersion() {
++        return &quot;2.0&quot;;
++    }
++
++    public List&lt;String&gt; getExtensions() {
++        return extensions;
++    }
++
++    public String getLanguageName() {
++        return &quot;sleep&quot;;
++    }
++
++    public String getLanguageVersion() {
++        return &quot;2.0&quot;;
++    }
++
++    public String getMethodCallSyntax(String obj, String m, String... args) {
++        StringBuilder buf = new StringBuilder();
++        buf.append('[');
++        buf.append(obj);
++        buf.append(' ');
++        buf.append(m);
++        buf.append(':');
++        if (args.length != 0) {
++            int i = 0;
++            for (; i &lt; args.length - 1; i++) {
++                buf.append(args[i] + &quot;, &quot;);
++            }
++            buf.append(args[i]);
++        }        
++        buf.append(&quot;)&quot;);
++        buf.append(']');
++        return buf.toString();
++    }
++
++    public List&lt;String&gt; getMimeTypes() {
++        return mimeTypes;
++    }
++
++    public List&lt;String&gt; getNames() {
++        return names;
++    }
++
++    public String getOutputStatement(String toDisplay) {
++        StringBuilder buf = new StringBuilder();
++        buf.append(&quot;print(\&quot;&quot;);
++        int len = toDisplay.length();
++        for (int i = 0; i &lt; len; i++) {
++            char ch = toDisplay.charAt(i);
++            switch (ch) {
++            case '&quot;':
++                buf.append(&quot;\\\&quot;&quot;);
++                break;
++            case '\\':
++                buf.append(&quot;\\\\&quot;);
++                break;
++            default:
++                buf.append(ch);
++                break;
++            }
++        }
++        buf.append(&quot;\&quot;)&quot;);
++        return buf.toString();
++    }
++
++    public String getParameter(String key) {
++        if (key.equals(ScriptEngine.ENGINE)) {
++            return getEngineName();
++        } else if (key.equals(ScriptEngine.ENGINE_VERSION)) {
++            return getEngineVersion();
++        } else if (key.equals(ScriptEngine.NAME)) {
++            return getEngineName();
++        } else if (key.equals(ScriptEngine.LANGUAGE)) {
++            return getLanguageName();
++        } else if (key.equals(ScriptEngine.LANGUAGE_VERSION)) {
++            return getLanguageVersion();
++        } else if (key.equals(&quot;THREADING&quot;)) {
++            return &quot;MULTITHREADED&quot;;
++        } else {
++            return null;
++        }
++    } 
++
++    public String getProgram(String... statements) {
++        StringBuilder buf = new StringBuilder();
++        for (int i = 0; i &lt; statements.length; i++) {
++            buf.append(statements[i]);
++            buf.append(&quot;;\n&quot;);
++        }
++        return buf.toString();
++    }
++
++    public ScriptEngine getScriptEngine() {
++        SleepScriptEngine engine = new SleepScriptEngine();
++   	  engine.setFactory(this);
++        return engine;
++    }
++
++    private static List&lt;String&gt; names;
++    private static List&lt;String&gt; extensions;
++    private static List&lt;String&gt; mimeTypes;
++    static {
++        names = new ArrayList&lt;String&gt;(1);
++        names.add(&quot;sleep&quot;);
++        names = Collections.unmodifiableList(names);
++        extensions = new ArrayList&lt;String&gt;(1);
++        extensions.add(&quot;sl&quot;);
++        extensions = Collections.unmodifiableList(extensions);
++        mimeTypes = new ArrayList&lt;String&gt;(0);
++        mimeTypes = Collections.unmodifiableList(mimeTypes);
++    }
++}
+
+Added: sleep/jsr223/src/services/javax.script.ScriptEngineFactory
+===================================================================
+--- sleep/jsr223/src/services/javax.script.ScriptEngineFactory	2008-05-14 21:35:26 UTC (rev 370)
++++ sleep/jsr223/src/services/javax.script.ScriptEngineFactory	2008-05-14 22:56:45 UTC (rev 371)
+@@ -0,0 +1 @@
++com.sun.script.sleep.SleepScriptEngineFactory
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000346.html">[Sleep-svn] r370 - sleep
+</A></li>
+	<LI>Next message: <A HREF="000351.html">[Sleep-svn] r372 - in sleep/jsr223: . src src/org src/org/dashnine	src/org/dashnine/sleep src/services
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#347">[ date ]</a>
+              <a href="thread.html#347">[ thread ]</a>
+              <a href="subject.html#347">[ subject ]</a>
+              <a href="author.html#347">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,372 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r396 - in sleep: . src/sleep/engine/types tests	tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2008-May/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r396%20-%20in%20sleep%3A%20.%20src/sleep/engine/types%20tests%0A%09tests/output&In-Reply-To=%3C200805301715.m4UHF349017045%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000371.html">
+   <LINK REL="Next"  HREF="000373.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r396 - in sleep: . src/sleep/engine/types tests	tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r396%20-%20in%20sleep%3A%20.%20src/sleep/engine/types%20tests%0A%09tests/output&In-Reply-To=%3C200805301715.m4UHF349017045%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r396 - in sleep: . src/sleep/engine/types tests	tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Fri May 30 19:15:03 CEST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000371.html">[Sleep-svn] r395 - in sleep/tests: . output
+</A></li>
+        <LI>Next message: <A HREF="000373.html">[Sleep-svn] r397 - in sleep: . src/sleep/bridges src/sleep/engine	src/sleep/parser tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#372">[ date ]</a>
+              <a href="thread.html#372">[ thread ]</a>
+              <a href="subject.html#372">[ subject ]</a>
+              <a href="author.html#372">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2008-05-30 19:15:02 +0200 (Fri, 30 May 2008)
+New Revision: 396
+
+Added:
+   sleep/tests/output/feremove.sl
+   sleep/tests/output/sertest.sl
+   sleep/tests/sertest.sl
+Modified:
+   sleep/src/sleep/engine/types/MyLinkedList.java
+   sleep/whatsnew.txt
+Log:
+linkedlist crap is done.
+
+
+Modified: sleep/src/sleep/engine/types/MyLinkedList.java
+===================================================================
+--- sleep/src/sleep/engine/types/MyLinkedList.java	2008-05-30 16:45:09 UTC (rev 395)
++++ sleep/src/sleep/engine/types/MyLinkedList.java	2008-05-30 17:15:02 UTC (rev 396)
+@@ -106,11 +106,11 @@
+       }
+    }
+ 
+-   int size = 0;
+-   private ListEntry header;
++   private transient int size = 0;
++   private transient ListEntry header;
+ 
+    /* fields used by sublists */
+-   private MyLinkedList parentList;
++   private transient MyLinkedList parentList;
+ 
+    public int size()
+    {
+@@ -165,6 +165,13 @@
+       return true;
+    }
+ 
++   /** add an object to the list at the specified index */
++   public void add(int index, Object element)
++   {
++      ListEntry entry = getAt(index);
++      entry.addAfter(element); 
++   }
++
+    /** get an object from the linked list */
+    public Object get(int index)
+    {
+@@ -549,4 +556,42 @@
+          return buffer.toString();
+       }
+    }
++
++    /* save this list to the stream */
++    private synchronized void writeObject(java.io.ObjectOutputStream out) throws java.io.IOException 
++    {
++        /* grab any fields I missed */
++	out.defaultWriteObject();
++      
++        /* write out the size */
++        out.writeInt(size);
++
++        /* blah blah blah */
++        Iterator i = iterator();
++        while (i.hasNext())
++        {
++           out.writeObject(i.next());
++        }
++    }
++
++    /* reconstitute this list from the stream */
++    private synchronized void readObject(java.io.ObjectInputStream in) throws java.io.IOException, ClassNotFoundException 
++    {
++        /* read any fields I missed */
++	in.defaultReadObject();
++      
++        /* read in the size */
++        int size = in.readInt();
++
++        /* create the header */
++        header = new NormalListEntry(SleepUtils.getScalar(&quot;[:HEADER:]&quot;), null, null);
++        header.setNext(header);
++        header.setPrevious(header);
++
++        /* populate the list */
++        for (int x = 0; x &lt; size; x++)
++        {
++           add(in.readObject());
++        }
++    }
+ }
+
+Added: sleep/tests/output/feremove.sl
+===================================================================
+--- sleep/tests/output/feremove.sl	2008-05-30 16:45:09 UTC (rev 395)
++++ sleep/tests/output/feremove.sl	2008-05-30 17:15:02 UTC (rev 396)
+@@ -0,0 +1,140 @@
++sublist(@a, 0, 1) = @('a')
++   Foreach Remove 0:
++     @('b', 'c', 'd', 'e')
++     @()
++sublist(@a, 0, 2) = @('a', 'b')
++   Foreach Remove 0:
++     @('b', 'c', 'd', 'e')
++     @('b')
++sublist(@a, 0, 2) = @('a', 'b')
++   Foreach Remove 1:
++     @('a', 'c', 'd', 'e')
++     @('a')
++sublist(@a, 0, 3) = @('a', 'b', 'c')
++   Foreach Remove 0:
++     @('b', 'c', 'd', 'e')
++     @('b', 'c')
++sublist(@a, 0, 3) = @('a', 'b', 'c')
++   Foreach Remove 1:
++     @('a', 'c', 'd', 'e')
++     @('a', 'c')
++sublist(@a, 0, 3) = @('a', 'b', 'c')
++   Foreach Remove 2:
++     @('a', 'b', 'd', 'e')
++     @('a', 'b')
++sublist(@a, 0, 4) = @('a', 'b', 'c', 'd')
++   Foreach Remove 0:
++     @('b', 'c', 'd', 'e')
++     @('b', 'c', 'd')
++sublist(@a, 0, 4) = @('a', 'b', 'c', 'd')
++   Foreach Remove 1:
++     @('a', 'c', 'd', 'e')
++     @('a', 'c', 'd')
++sublist(@a, 0, 4) = @('a', 'b', 'c', 'd')
++   Foreach Remove 2:
++     @('a', 'b', 'd', 'e')
++     @('a', 'b', 'd')
++sublist(@a, 0, 4) = @('a', 'b', 'c', 'd')
++   Foreach Remove 3:
++     @('a', 'b', 'c', 'e')
++     @('a', 'b', 'c')
++sublist(@a, 0, 5) = @('a', 'b', 'c', 'd', 'e')
++   Foreach Remove 0:
++     @('b', 'c', 'd', 'e')
++     @('b', 'c', 'd', 'e')
++sublist(@a, 0, 5) = @('a', 'b', 'c', 'd', 'e')
++   Foreach Remove 1:
++     @('a', 'c', 'd', 'e')
++     @('a', 'c', 'd', 'e')
++sublist(@a, 0, 5) = @('a', 'b', 'c', 'd', 'e')
++   Foreach Remove 2:
++     @('a', 'b', 'd', 'e')
++     @('a', 'b', 'd', 'e')
++sublist(@a, 0, 5) = @('a', 'b', 'c', 'd', 'e')
++   Foreach Remove 3:
++     @('a', 'b', 'c', 'e')
++     @('a', 'b', 'c', 'e')
++sublist(@a, 0, 5) = @('a', 'b', 'c', 'd', 'e')
++   Foreach Remove 4:
++     @('a', 'b', 'c', 'd')
++     @('a', 'b', 'c', 'd')
++sublist(@a, 1, 2) = @('b')
++   Foreach Remove 0:
++     @('a', 'c', 'd', 'e')
++     @()
++sublist(@a, 1, 3) = @('b', 'c')
++   Foreach Remove 0:
++     @('a', 'c', 'd', 'e')
++     @('c')
++sublist(@a, 1, 3) = @('b', 'c')
++   Foreach Remove 1:
++     @('a', 'b', 'd', 'e')
++     @('b')
++sublist(@a, 1, 4) = @('b', 'c', 'd')
++   Foreach Remove 0:
++     @('a', 'c', 'd', 'e')
++     @('c', 'd')
++sublist(@a, 1, 4) = @('b', 'c', 'd')
++   Foreach Remove 1:
++     @('a', 'b', 'd', 'e')
++     @('b', 'd')
++sublist(@a, 1, 4) = @('b', 'c', 'd')
++   Foreach Remove 2:
++     @('a', 'b', 'c', 'e')
++     @('b', 'c')
++sublist(@a, 1, 5) = @('b', 'c', 'd', 'e')
++   Foreach Remove 0:
++     @('a', 'c', 'd', 'e')
++     @('c', 'd', 'e')
++sublist(@a, 1, 5) = @('b', 'c', 'd', 'e')
++   Foreach Remove 1:
++     @('a', 'b', 'd', 'e')
++     @('b', 'd', 'e')
++sublist(@a, 1, 5) = @('b', 'c', 'd', 'e')
++   Foreach Remove 2:
++     @('a', 'b', 'c', 'e')
++     @('b', 'c', 'e')
++sublist(@a, 1, 5) = @('b', 'c', 'd', 'e')
++   Foreach Remove 3:
++     @('a', 'b', 'c', 'd')
++     @('b', 'c', 'd')
++sublist(@a, 2, 3) = @('c')
++   Foreach Remove 0:
++     @('a', 'b', 'd', 'e')
++     @()
++sublist(@a, 2, 4) = @('c', 'd')
++   Foreach Remove 0:
++     @('a', 'b', 'd', 'e')
++     @('d')
++sublist(@a, 2, 4) = @('c', 'd')
++   Foreach Remove 1:
++     @('a', 'b', 'c', 'e')
++     @('c')
++sublist(@a, 2, 5) = @('c', 'd', 'e')
++   Foreach Remove 0:
++     @('a', 'b', 'd', 'e')
++     @('d', 'e')
++sublist(@a, 2, 5) = @('c', 'd', 'e')
++   Foreach Remove 1:
++     @('a', 'b', 'c', 'e')
++     @('c', 'e')
++sublist(@a, 2, 5) = @('c', 'd', 'e')
++   Foreach Remove 2:
++     @('a', 'b', 'c', 'd')
++     @('c', 'd')
++sublist(@a, 3, 4) = @('d')
++   Foreach Remove 0:
++     @('a', 'b', 'c', 'e')
++     @()
++sublist(@a, 3, 5) = @('d', 'e')
++   Foreach Remove 0:
++     @('a', 'b', 'c', 'e')
++     @('e')
++sublist(@a, 3, 5) = @('d', 'e')
++   Foreach Remove 1:
++     @('a', 'b', 'c', 'd')
++     @('d')
++sublist(@a, 4, 5) = @('e')
++   Foreach Remove 0:
++     @('a', 'b', 'c', 'd')
++     @()
+
+Added: sleep/tests/output/sertest.sl
+===================================================================
+--- sleep/tests/output/sertest.sl	2008-05-30 16:45:09 UTC (rev 395)
++++ sleep/tests/output/sertest.sl	2008-05-30 17:15:02 UTC (rev 396)
+@@ -0,0 +1,12 @@
++Prior to serialization:
++@('a', 'b', 'c', 'd', 'e')
++@('c', 'd')
++Post serialization
++@('a', 'b', 'c', 'd', 'e')
++@('c', 'd')
++The push!
++@('a', 'b', 'c', 'd', 'e')
++@('c', 'd', 'hello world!')
++And for the originals
++@('a', 'b', 'c', 'd', 'e')
++@('c', 'd')
+
+Added: sleep/tests/sertest.sl
+===================================================================
+--- sleep/tests/sertest.sl	2008-05-30 16:45:09 UTC (rev 395)
++++ sleep/tests/sertest.sl	2008-05-30 17:15:02 UTC (rev 396)
+@@ -0,0 +1,35 @@
++#
++# test serialization of the arrays.
++#
++
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">+ at a</A> = @(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;, &quot;d&quot;, &quot;e&quot;);
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">+ at b</A> = sublist(@a, 2, 4);
++
++println(&quot;Prior to serialization:&quot;);
++println(@a);
++println(@b);
++
++$handle = allocate();
++writeObject($handle, @a);
++writeObject($handle, @b);
++closef($handle);
++
++#println(&quot;Buffer size: &quot; . available($handle));
++
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">+ at aa</A> = readObject($handle);
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">+ at bb</A> = readObject($handle);
++
++println(&quot;Post serialization&quot;);
++println(@aa);
++println(@bb);
++
++push(@bb, &quot;hello world!&quot;);
++
++println(&quot;The push!&quot;);
++
++println(@aa);
++println(@bb);
++
++println(&quot;And for the originals&quot;);
++println(@a);
++println(@b);
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2008-05-30 16:45:09 UTC (rev 395)
++++ sleep/whatsnew.txt	2008-05-30 17:15:02 UTC (rev 396)
+@@ -23,6 +23,8 @@
+   hasmatch from eating all of the memory.
+ - bad index errors (IndexOutOfBoundsException) are now more
+   descriptive in some cases.
++- sublists are now serializable--when serialized only the 
++  sublist itself is serialized.
+ 
+ 2.1-beta 26  (15 May 08)
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000371.html">[Sleep-svn] r395 - in sleep/tests: . output
+</A></li>
+	<LI>Next message: <A HREF="000373.html">[Sleep-svn] r397 - in sleep: . src/sleep/bridges src/sleep/engine	src/sleep/parser tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#372">[ date ]</a>
+              <a href="thread.html#372">[ thread ]</a>
+              <a href="subject.html#372">[ subject ]</a>
+              <a href="author.html#372">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

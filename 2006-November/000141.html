@@ -1,0 +1,232 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r159 - in sleep: . src/sleep/bridges	src/sleep/bridges/io
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2006-November/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r159%20-%20in%20sleep%3A%20.%20src/sleep/bridges%0A%09src/sleep/bridges/io&In-Reply-To=%3C200611052358.kA5Nw2hd015267%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000140.html">
+   <LINK REL="Next"  HREF="000142.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r159 - in sleep: . src/sleep/bridges	src/sleep/bridges/io</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r159%20-%20in%20sleep%3A%20.%20src/sleep/bridges%0A%09src/sleep/bridges/io&In-Reply-To=%3C200611052358.kA5Nw2hd015267%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r159 - in sleep: . src/sleep/bridges	src/sleep/bridges/io">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Mon Nov  6 00:58:02 CET 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000140.html">[Sleep-svn] r158 - in sleep/tests: . output
+</A></li>
+        <LI>Next message: <A HREF="000142.html">[Sleep-svn] r160 - in sleep: . src/sleep/bridges tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#141">[ date ]</a>
+              <a href="thread.html#141">[ thread ]</a>
+              <a href="subject.html#141">[ subject ]</a>
+              <a href="author.html#141">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2006-11-06 00:58:00 +0100 (Mon, 06 Nov 2006)
+New Revision: 159
+
+Modified:
+   sleep/build.xml
+   sleep/src/sleep/bridges/BasicIO.java
+   sleep/src/sleep/bridges/FileSystemBridge.java
+   sleep/src/sleep/bridges/io/IOObject.java
+   sleep/whatsnew.txt
+Log:
+blah..
+
+
+
+Modified: sleep/build.xml
+===================================================================
+--- sleep/build.xml	2006-11-05 23:39:16 UTC (rev 158)
++++ sleep/build.xml	2006-11-05 23:58:00 UTC (rev 159)
+@@ -16,7 +16,7 @@
+            destdir=&quot;${project.build}&quot;
+            nowarn=&quot;yes&quot;
+            depend=&quot;yes&quot;
+-           debug=&quot;true&quot;
++           debug=&quot;false&quot;
+            source=&quot;1.4&quot;
+            target=&quot;1.4&quot;
+            optimize=&quot;yes&quot;
+
+Modified: sleep/src/sleep/bridges/BasicIO.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicIO.java	2006-11-05 23:39:16 UTC (rev 158)
++++ sleep/src/sleep/bridges/BasicIO.java	2006-11-05 23:58:00 UTC (rev 159)
+@@ -152,6 +152,7 @@
+              catch (Exception ex)
+              {
+                 i.getScriptEnvironment().flagError(&quot;&amp;writeObject(&quot; + SleepUtils.describe(SleepUtils.getScalar(a)) + &quot;, &quot; + SleepUtils.describe(b) + &quot;): &quot; + ex.toString());
++                a.close();
+              }
+           }
+        }
+@@ -167,6 +168,7 @@
+           catch (Exception ex)
+           {
+              i.getScriptEnvironment().flagError(&quot;&amp;readObject: &quot; + ex.toString());
++             a.close();
+           }
+        }
+        else if (n.equals(&quot;&amp;digest&quot;))
+
+Modified: sleep/src/sleep/bridges/FileSystemBridge.java
+===================================================================
+--- sleep/src/sleep/bridges/FileSystemBridge.java	2006-11-05 23:39:16 UTC (rev 158)
++++ sleep/src/sleep/bridges/FileSystemBridge.java	2006-11-05 23:58:00 UTC (rev 159)
+@@ -38,11 +38,10 @@
+         temp.put(&quot;&amp;getFileName&quot;,     new getFileName());
+         temp.put(&quot;&amp;getFileProper&quot;,   new getFileProper());
+         temp.put(&quot;&amp;getFileParent&quot;,   new getFileParent());
+-        temp.put(&quot;&amp;getFilePath&quot;,     new getFilePath());
+         temp.put(&quot;&amp;lastModified&quot;,    new lastModified());
+         temp.put(&quot;&amp;lof&quot;,             new lof());
+         temp.put(&quot;&amp;ls&quot;,              new listFiles());
+-        temp.put(&quot;&amp;listRoots&quot;,       new listRoots());
++        temp.put(&quot;&amp;listRoots&quot;,       temp.get(&quot;&amp;ls&quot;));
+         temp.put(&quot;&amp;mkdir&quot;,           new mkdir());
+         temp.put(&quot;&amp;rename&quot;,          new rename());
+         temp.put(&quot;&amp;setLastModified&quot;, new setLastModified());
+@@ -180,15 +179,6 @@
+        }
+     }
+ 
+-    private static class getFilePath implements Function
+-    {
+-       public Scalar evaluate(String n, ScriptInstance i, Stack l)
+-       {
+-           File a = BridgeUtilities.getFile(l);
+-           return SleepUtils.getScalar(a.getPath());
+-       }
+-    }
+-
+     private static class lastModified implements Function
+     {
+        public Scalar evaluate(String n, ScriptInstance i, Stack l)
+@@ -211,9 +201,17 @@
+     {
+        public Scalar evaluate(String n, ScriptInstance i, Stack l)
+        {
+-           File a = BridgeUtilities.getFile(l);
+-
+-           File[] files = a.listFiles();
++           File[] files;
++ 
++           if (l.isEmpty())
++           {
++              files = File.listRoots();
++           }
++           else
++           {
++              File a = BridgeUtilities.getFile(l);
++              files = a.listFiles();
++           }
+            LinkedList temp = new LinkedList();
+ 
+            if (files != null)
+@@ -228,22 +226,6 @@
+        }
+     }
+ 
+-    private static class listRoots implements Function
+-    {
+-       public Scalar evaluate(String n, ScriptInstance i, Stack l)
+-       {
+-           File[] files = File.listRoots();
+-
+-           LinkedList temp = new LinkedList();
+-           for (int x = 0; x &lt; files.length; x++)
+-           {
+-              temp.add(files[x].getAbsolutePath());
+-           }
+-
+-           return SleepUtils.getArrayWrapper(temp);
+-       }
+-    }
+-
+     private static class _canread implements Predicate
+     {
+        public boolean decide(String n, ScriptInstance i, Stack l)
+
+Modified: sleep/src/sleep/bridges/io/IOObject.java
+===================================================================
+--- sleep/src/sleep/bridges/io/IOObject.java	2006-11-05 23:39:16 UTC (rev 158)
++++ sleep/src/sleep/bridges/io/IOObject.java	2006-11-05 23:58:00 UTC (rev 159)
+@@ -218,8 +218,7 @@
+       }
+       catch (Exception ex) 
+       { 
+-         readerb = null;
+-         reader  = null;
++         close();
+       }
+ 
+       return null;
+@@ -287,7 +286,7 @@
+          }
+          catch (Exception ex)
+          {
+-            writerb = null;
++            close();
+          }
+       }
+    }
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-11-05 23:39:16 UTC (rev 158)
++++ sleep/whatsnew.txt	2006-11-05 23:58:00 UTC (rev 159)
+@@ -12,6 +12,13 @@
+ - added &amp;consume($handle, n bytes) to read and discard up to n bytes from the 
+   specified handle.  (differs from skip which just seeks ahead and discards
+   n bytes).
++- IO errors in read/write functions now uniformly close the read/write 
++  portions of the IO handle.
++- remove &amp;getFilePath as the function essentially did nothing but return
++  the value passed to it (I was a little over-ambitious when bridging
++  java.io.File awhile back).
++- ls() with no parameters now returns the file system roots (same as 
++  listRoots()).
+ 
+ 2.1-beta 8  (29 Oct 06)
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000140.html">[Sleep-svn] r158 - in sleep/tests: . output
+</A></li>
+	<LI>Next message: <A HREF="000142.html">[Sleep-svn] r160 - in sleep: . src/sleep/bridges tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#141">[ date ]</a>
+              <a href="thread.html#141">[ thread ]</a>
+              <a href="subject.html#141">[ subject ]</a>
+              <a href="author.html#141">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

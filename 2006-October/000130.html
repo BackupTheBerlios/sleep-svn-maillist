@@ -1,0 +1,336 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r148 - in sleep: . src/sleep/bridges tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2006-October/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r148%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20tests%20tests/output&In-Reply-To=%3C200610292338.k9TNcvsx010917%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000129.html">
+   <LINK REL="Next"  HREF="000131.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r148 - in sleep: . src/sleep/bridges tests tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r148%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20tests%20tests/output&In-Reply-To=%3C200610292338.k9TNcvsx010917%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r148 - in sleep: . src/sleep/bridges tests tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Mon Oct 30 00:38:57 CET 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000129.html">[Sleep-svn] r147 - in sleep: . src/sleep/console
+</A></li>
+        <LI>Next message: <A HREF="000131.html">[Sleep-svn] r149 - in sleep: . src/sleep/bridges tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#130">[ date ]</a>
+              <a href="thread.html#130">[ thread ]</a>
+              <a href="subject.html#130">[ subject ]</a>
+              <a href="author.html#130">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2006-10-30 00:38:48 +0100 (Mon, 30 Oct 2006)
+New Revision: 148
+
+Added:
+   sleep/tests/lambdacs.sl
+   sleep/tests/output/lambdacs.sl
+   sleep/tests/output/sleepoo2.sl
+   sleep/tests/sleepoo2.sl
+Modified:
+   sleep/src/sleep/bridges/BasicUtilities.java
+   sleep/tests/invoke2.sl
+   sleep/whatsnew.txt
+Log:
+Updated &amp;lambda to accept $this =&gt; &amp;closure to allow the newly created closure to shared a &quot;this&quot; scope
+with the specified closure.  kind of kooky and probably not for every day use but it is better to open things
+up rather than restrict folks.
+
+
+
+Modified: sleep/src/sleep/bridges/BasicUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicUtilities.java	2006-10-29 22:53:54 UTC (rev 147)
++++ sleep/src/sleep/bridges/BasicUtilities.java	2006-10-29 23:38:48 UTC (rev 148)
+@@ -473,7 +473,16 @@
+           while (!l.isEmpty())
+           {
+              KeyValuePair kvp = BridgeUtilities.getKeyValuePair(l);
+-             vars.putScalar(kvp.getKey().toString(), SleepUtils.getScalar(kvp.getValue()));
++
++             if (kvp.getKey().toString().equals(&quot;$this&quot;))
++             {
++                SleepClosure c = (SleepClosure)kvp.getValue().objectValue();
++                value.setVariables(c.getVariables());
++             }
++             else
++             {
++                vars.putScalar(kvp.getKey().toString(), SleepUtils.getScalar(kvp.getValue()));
++             }
+           }
+ 
+           return SleepUtils.getScalar(value);
+@@ -726,9 +735,9 @@
+           Variable old = c.getVariables();
+ 
+           /* environment option */
+-          if (params.containsKey(&quot;environment&quot;))
++          if (params.containsKey(&quot;$this&quot;))
+           {
+-             SleepClosure t = (SleepClosure)((Scalar)params.get(&quot;environment&quot;)).objectValue();
++             SleepClosure t = (SleepClosure)((Scalar)params.get(&quot;$this&quot;)).objectValue();
+              c.setVariables(t.getVariables());
+           }
+ 
+
+Modified: sleep/tests/invoke2.sl
+===================================================================
+--- sleep/tests/invoke2.sl	2006-10-29 22:53:54 UTC (rev 147)
++++ sleep/tests/invoke2.sl	2006-10-29 23:38:48 UTC (rev 148)
+@@ -24,9 +24,9 @@
+ bar();
+ bar();
+ 
+-invoke(&amp;foo, @(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;), &quot;test&quot;, environment =&gt; &amp;bar, 
++invoke(&amp;foo, @(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;), &quot;test&quot;, $this =&gt; &amp;bar, 
+                   message =&gt; &quot;blah&quot;, parameters =&gt; %($foo =&gt; &quot;foo!&quot;, $bar =&gt; &quot;bar!&quot;));
+-invoke(&amp;foo, @(&quot;x&quot;, &quot;y&quot;, &quot;z&quot;), &quot;test&quot;, environment =&gt; &amp;bar, 
++invoke(&amp;foo, @(&quot;x&quot;, &quot;y&quot;, &quot;z&quot;), &quot;test&quot;, $this =&gt; &amp;bar, 
+                   parameters =&gt; %($foo =&gt; &quot;fool!&quot;, $bar =&gt; &quot;barl!&quot;));
+ 
+ bar();
+
+Added: sleep/tests/lambdacs.sl
+===================================================================
+--- sleep/tests/lambdacs.sl	2006-10-29 22:53:54 UTC (rev 147)
++++ sleep/tests/lambdacs.sl	2006-10-29 23:38:48 UTC (rev 148)
+@@ -0,0 +1,50 @@
++#
++# show lambda creating shared environments...
++#
++
++sub foo
++{
++   this('$count');
++   $count++;
++
++   println(&quot;I am foo! $count&quot;);
++}
++
++sub bar
++{
++   this('$count');
++   $count++;
++
++   println(&quot;I am bar! $count&quot;);
++}
++
++$far = lambda(&amp;foo, $this =&gt; &amp;bar);
++
++foo();
++foo();
++
++bar();
++bar();
++
++println(&quot;&lt;far&gt;&quot;);
++[$far];
++[$far];
++println(&quot;&lt;/far&gt;&quot;);
++
++foo();
++foo();
++
++bar();
++bar();
++
++println(&quot;&lt;far&gt;&quot;);
++[$far];
++[$far];
++println(&quot;&lt;/far&gt;&quot;);
++
++foo();
++foo();
++
++bar();
++bar();
++
+
+Added: sleep/tests/output/lambdacs.sl
+===================================================================
+--- sleep/tests/output/lambdacs.sl	2006-10-29 22:53:54 UTC (rev 147)
++++ sleep/tests/output/lambdacs.sl	2006-10-29 23:38:48 UTC (rev 148)
+@@ -0,0 +1,20 @@
++I am foo! 1
++I am foo! 2
++I am bar! 1
++I am bar! 2
++&lt;far&gt;
++I am foo! 3
++I am foo! 4
++&lt;/far&gt;
++I am foo! 3
++I am foo! 4
++I am bar! 5
++I am bar! 6
++&lt;far&gt;
++I am foo! 7
++I am foo! 8
++&lt;/far&gt;
++I am foo! 5
++I am foo! 6
++I am bar! 9
++I am bar! 10
+
+Added: sleep/tests/output/sleepoo2.sl
+===================================================================
+--- sleep/tests/output/sleepoo2.sl	2006-10-29 22:53:54 UTC (rev 147)
++++ sleep/tests/output/sleepoo2.sl	2006-10-29 23:38:48 UTC (rev 148)
+@@ -0,0 +1,8 @@
++&lt;foo&gt; my name is: foo default
++&lt;foo&gt; my name is: foo default
++&lt;bar&gt; my name is: bar default
++&lt;bar&gt; my name is: bar default
++&lt;foo&gt; my name is: ++ 1 ++ 
++&lt;foo&gt; my name is: foo default
++&lt;bar&gt; my name is: == y_bar! ==
++&lt;bar&gt; my name is: bar default
+
+Added: sleep/tests/sleepoo2.sl
+===================================================================
+--- sleep/tests/sleepoo2.sl	2006-10-29 22:53:54 UTC (rev 147)
++++ sleep/tests/sleepoo2.sl	2006-10-29 23:38:48 UTC (rev 148)
+@@ -0,0 +1,79 @@
++#
++# object oriented sleep part 2...  oooh...  
++# with some creativity multiple inheritance should be possible
++#
++
++sub object
++{
++   if ($0 !is $null)
++   {
++      if ($this[$0] is $null &amp;&amp; $parent !is $null)
++      {
++         if (-isfunction $parent[$0])
++         {
++            invoke($parent[$0], @_, $0, $this =&gt; $this);
++         }
++         else
++         {
++            return $parent[$0];
++         }
++      }
++      else if (-isfunction $this[$0])
++      {
++         return invoke($this[$0], @_, $this =&gt; $this);
++      }
++      else
++      {
++         return $this[$0];
++      }
++   }  
++}
++
++#
++# setup our two &quot;classes&quot;
++# 
++
++sub class_foo 
++{ 
++   $this['name'] = &quot;foo default&quot;;
++}
++
++sub class_bar 
++{ 
++   $this['name'] = &quot;bar default&quot;;
++}
++
++class_foo();
++class_bar();
++
++# add a printme method to class_foo and class_bar
++&amp;class_foo[&quot;printme&quot;] = { println(&quot;&lt;foo&gt; my name is: &quot; . [$this name]); };
++&amp;class_bar[&quot;printme&quot;] = { println(&quot;&lt;bar&gt; my name is: &quot; . [$this name]); };
++
++# add a setName method to class_foo and class_bar...
++&amp;class_foo[&quot;setName&quot;] = { $this['name'] = &quot;++ 1 ++ &quot;; };
++&amp;class_bar[&quot;setName&quot;] = { $this['name'] = &quot;== $1 ==&quot;; };
++
++#
++# test it all out
++#
++$x_foo = lambda(&amp;object, $parent =&gt; &amp;class_foo);
++$x_bar = lambda(&amp;object, $parent =&gt; &amp;class_bar);
++
++$y_foo = lambda(&amp;object, $parent =&gt; &amp;class_foo);
++$y_bar = lambda(&amp;object, $parent =&gt; &amp;class_bar);
++
++[$x_foo printme];
++[$y_foo printme];
++
++[$x_bar printme];
++[$y_bar printme];
++
++[$x_foo setName: &quot;x_foo!&quot;];
++[$x_foo printme];
++[$y_foo printme];
++
++[$x_bar setName: &quot;y_bar!&quot;];
++[$x_bar printme];
++[$y_bar printme];
++
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-10-29 22:53:54 UTC (rev 147)
++++ sleep/whatsnew.txt	2006-10-29 23:38:48 UTC (rev 148)
+@@ -16,11 +16,14 @@
+   and N-M represents the line range where the closure was declared
+ - updated &amp;invoke to accept the following named parameters:
+   parameter =&gt; %() - accepts a hashmap of $scalars to send as named parameters
+-  environment =&gt; &amp;closure - accepts a closure whose this scope is to be used
+-     in lieu of the closures normal environment.  
++  $this =&gt; &amp;closure - accepts a closure to use as $this when executing the
++     function.  essentially forces the called function to share environments
++     with &amp;closure for the duration of the execution.
+   message =&gt; &quot;some string&quot; - the message value to send to the called function
+ - updated the sleep console with an ehanced 'help' command and a command 'debug'
+   to set the debug level of a script.
++- one can now specify a $this =&gt; &amp;closure with &amp;lambda to force the new closure
++  to use the closure scope/environment of the specified &amp;closure
+ 
+ 2.1-beta 7  (15 Oct 06)
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000129.html">[Sleep-svn] r147 - in sleep: . src/sleep/console
+</A></li>
+	<LI>Next message: <A HREF="000131.html">[Sleep-svn] r149 - in sleep: . src/sleep/bridges tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#130">[ date ]</a>
+              <a href="thread.html#130">[ thread ]</a>
+              <a href="subject.html#130">[ subject ]</a>
+              <a href="author.html#130">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

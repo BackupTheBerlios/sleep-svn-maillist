@@ -1,0 +1,271 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r109 - in sleep: . src/sleep/runtime tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2006-September/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r109%20-%20in%20sleep%3A%20.%20src/sleep/runtime%20tests%20tests/output&In-Reply-To=%3C200609101908.k8AJ8ujS028246%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000090.html">
+   <LINK REL="Next"  HREF="000092.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r109 - in sleep: . src/sleep/runtime tests tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r109%20-%20in%20sleep%3A%20.%20src/sleep/runtime%20tests%20tests/output&In-Reply-To=%3C200609101908.k8AJ8ujS028246%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r109 - in sleep: . src/sleep/runtime tests tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Sun Sep 10 21:08:56 CEST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000090.html">[Sleep-svn] r108 - in sleep: . src/sleep/engine tests tests/output
+</A></li>
+        <LI>Next message: <A HREF="000092.html">[Sleep-svn] r110 - in sleep: . src/sleep/bridges src/sleep/parser	src/sleep/runtime tests tests/data tests/data/src/org/hick	tests/data/src/org/hick/blah tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#91">[ date ]</a>
+              <a href="thread.html#91">[ thread ]</a>
+              <a href="subject.html#91">[ subject ]</a>
+              <a href="author.html#91">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2006-09-10 21:08:55 +0200 (Sun, 10 Sep 2006)
+New Revision: 109
+
+Added:
+   sleep/tests/fe_generatordb.sl
+   sleep/tests/output/fe_generatordb.sl
+Modified:
+   sleep/src/sleep/runtime/SleepUtils.java
+   sleep/tests/output/trace.sl
+   sleep/whatsnew.txt
+Log:
+Altered the debugging output stuff and made it handle key/value pair args w/o a problem.
+
+
+
+Modified: sleep/src/sleep/runtime/SleepUtils.java
+===================================================================
+--- sleep/src/sleep/runtime/SleepUtils.java	2006-09-10 18:32:33 UTC (rev 108)
++++ sleep/src/sleep/runtime/SleepUtils.java	2006-09-10 19:08:55 UTC (rev 109)
+@@ -34,8 +34,7 @@
+ 
+ import java.io.*;
+ 
+-import sleep.bridges.BridgeUtilities;
+-import sleep.bridges.SleepClosure;
++import sleep.bridges.*;
+ 
+ /** This class contains generalized utilities for instantiating/wrapping data into the sleep Scalar type. 
+   * Included for free are methods for executing sleep blocks as well. 
+@@ -415,9 +414,14 @@
+          {
+             return scalar.toString();
+          }
++         else if (scalar.objectValue() instanceof KeyValuePair)
++         {
++            KeyValuePair kvp = (KeyValuePair)scalar.objectValue();
++            return kvp.getKey().toString() + &quot; =&gt; &quot; + describe(kvp.getValue());
++         }
+          else if (scalar.getValue() instanceof ObjectValue)
+          {
+-            return &quot;[&quot; + scalar.toString() + &quot;]&quot;;
++            return scalar.toString();
+          }
+          else if (scalar.getValue() instanceof LongValue)
+          {
+
+Added: sleep/tests/fe_generatordb.sl
+===================================================================
+--- sleep/tests/fe_generatordb.sl	2006-09-10 18:32:33 UTC (rev 108)
++++ sleep/tests/fe_generatordb.sl	2006-09-10 19:08:55 UTC (rev 109)
+@@ -0,0 +1,45 @@
++#
++# test out foreach with closures...
++#
++debug(15);
++
++foreach $index =&gt; $value ({ this('$x'); for ($x = 0; $x &lt; 10; $x++) { yield &quot;val: $x&quot;; } return $null; })
++{
++   println(&quot;$index =&gt; $value&quot;);
++}
++
++sub _range
++{
++   while ($start &lt; $stop)
++   {
++      yield $start;
++      $start++;
++   }
++
++   return $null;
++}
++
++foreach $index =&gt; $value (lambda(&amp;_range, $start =&gt; 50, $stop =&gt; 60))
++{
++   println(&quot;Testing out range stuff: $index =&gt; $value&quot;);
++}
++
++sub _range2
++{
++   this('$start $stop');
++   ($start, $stop) = @_;
++   yield $this;
++
++   while ($start &lt; $stop)
++   {
++      yield $start;
++      $start++;
++   }
++
++   return $null;
++}
++
++foreach $index =&gt; $value (_range2(70, 80))
++{
++   println(&quot;My third test: $index =&gt; $value&quot;);
++}
+
+Added: sleep/tests/output/fe_generatordb.sl
+===================================================================
+--- sleep/tests/output/fe_generatordb.sl	2006-09-10 18:32:33 UTC (rev 108)
++++ sleep/tests/output/fe_generatordb.sl	2006-09-10 19:08:55 UTC (rev 109)
+@@ -0,0 +1,64 @@
++Trace: &amp;this('$x') at line 6
++0 =&gt; val: 0
++Trace: &amp;println('0 =&gt; val: 0') at line 8
++1 =&gt; val: 1
++Trace: &amp;println('1 =&gt; val: 1') at line 8
++2 =&gt; val: 2
++Trace: &amp;println('2 =&gt; val: 2') at line 8
++3 =&gt; val: 3
++Trace: &amp;println('3 =&gt; val: 3') at line 8
++4 =&gt; val: 4
++Trace: &amp;println('4 =&gt; val: 4') at line 8
++5 =&gt; val: 5
++Trace: &amp;println('5 =&gt; val: 5') at line 8
++6 =&gt; val: 6
++Trace: &amp;println('6 =&gt; val: 6') at line 8
++7 =&gt; val: 7
++Trace: &amp;println('7 =&gt; val: 7') at line 8
++8 =&gt; val: 8
++Trace: &amp;println('8 =&gt; val: 8') at line 8
++9 =&gt; val: 9
++Trace: &amp;println('9 =&gt; val: 9') at line 8
++Trace: &amp;lambda(&amp;closure16668447, $start =&gt; 50, $stop =&gt; 60) = &amp;closure649878 at line 22
++Testing out range stuff: 0 =&gt; 50
++Trace: &amp;println('Testing out range stuff: 0 =&gt; 50') at line 24
++Testing out range stuff: 1 =&gt; 51
++Trace: &amp;println('Testing out range stuff: 1 =&gt; 51') at line 24
++Testing out range stuff: 2 =&gt; 52
++Trace: &amp;println('Testing out range stuff: 2 =&gt; 52') at line 24
++Testing out range stuff: 3 =&gt; 53
++Trace: &amp;println('Testing out range stuff: 3 =&gt; 53') at line 24
++Testing out range stuff: 4 =&gt; 54
++Trace: &amp;println('Testing out range stuff: 4 =&gt; 54') at line 24
++Testing out range stuff: 5 =&gt; 55
++Trace: &amp;println('Testing out range stuff: 5 =&gt; 55') at line 24
++Testing out range stuff: 6 =&gt; 56
++Trace: &amp;println('Testing out range stuff: 6 =&gt; 56') at line 24
++Testing out range stuff: 7 =&gt; 57
++Trace: &amp;println('Testing out range stuff: 7 =&gt; 57') at line 24
++Testing out range stuff: 8 =&gt; 58
++Trace: &amp;println('Testing out range stuff: 8 =&gt; 58') at line 24
++Testing out range stuff: 9 =&gt; 59
++Trace: &amp;println('Testing out range stuff: 9 =&gt; 59') at line 24
++Trace: &amp;this('$start $stop') at line 29
++Trace: &amp;_range2(70, 80) = &amp;closure539419 at line 42
++My third test: 0 =&gt; 70
++Trace: &amp;println('My third test: 0 =&gt; 70') at line 44
++My third test: 1 =&gt; 71
++Trace: &amp;println('My third test: 1 =&gt; 71') at line 44
++My third test: 2 =&gt; 72
++Trace: &amp;println('My third test: 2 =&gt; 72') at line 44
++My third test: 3 =&gt; 73
++Trace: &amp;println('My third test: 3 =&gt; 73') at line 44
++My third test: 4 =&gt; 74
++Trace: &amp;println('My third test: 4 =&gt; 74') at line 44
++My third test: 5 =&gt; 75
++Trace: &amp;println('My third test: 5 =&gt; 75') at line 44
++My third test: 6 =&gt; 76
++Trace: &amp;println('My third test: 6 =&gt; 76') at line 44
++My third test: 7 =&gt; 77
++Trace: &amp;println('My third test: 7 =&gt; 77') at line 44
++My third test: 8 =&gt; 78
++Trace: &amp;println('My third test: 8 =&gt; 78') at line 44
++My third test: 9 =&gt; 79
++Trace: &amp;println('My third test: 9 =&gt; 79') at line 44
+
+Modified: sleep/tests/output/trace.sl
+===================================================================
+--- sleep/tests/output/trace.sl	2006-09-10 18:32:33 UTC (rev 108)
++++ sleep/tests/output/trace.sl	2006-09-10 19:08:55 UTC (rev 109)
+@@ -1,15 +1,15 @@
+ this is a test
+-Trace: [[<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at d4d66b</A>] println: 'this is a test'] at line 6
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at d4d66b</A> println: 'this is a test'] at line 6
+ Trace: [java.lang.Math pow: 3, 4] = 81.0 at line 7
+ 81.0
+-Trace: [[<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at d4d66b</A>] println: 81.0] at line 7
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at d4d66b</A> println: 81.0] at line 7
+ Trace: [java.lang.Math pow: 3, 5] = 243.0 at line 8
+ 243.0
+ Trace: &amp;println(243.0) at line 8
+ testing again...
+-Trace: [[<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at d4d66b</A>] println: 'testing again...'] at line 9
+-Trace: [sleep.runtime.SleepUtils getListFromArray: @('a', 'b', 'c')] = [[a, b, c]] at line 11
+-Trace: [new java.util.LinkedList: [[a, b, c]]] = [[a, b, c]] at line 11
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at d4d66b</A> println: 'testing again...'] at line 9
++Trace: [sleep.runtime.SleepUtils getListFromArray: @('a', 'b', 'c')] = [a, b, c] at line 11
++Trace: [new java.util.LinkedList: [a, b, c]] = [a, b, c] at line 11
+ Warning: variable '$list' not declared at line 11
+ [a, b, c]
+-Trace: &amp;println([[a, b, c]]) at line 13
++Trace: &amp;println([a, b, c]) at line 13
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-09-10 18:32:33 UTC (rev 108)
++++ sleep/whatsnew.txt	2006-09-10 19:08:55 UTC (rev 109)
+@@ -9,7 +9,8 @@
+   consistent with the sleep literal form
+ - added another debug level (8) for function call tracing.  while this
+   flag is set all function calls with their arguments and return value
+-  will be displayed to the user as a runtime warning.  
++  will be displayed to the user as a runtime warning.  Enable with:
++  debug(debug() &amp; 8);
+ - HOES will now allow sleep data structures (arrays and hashes) to be passed
+   as java.util.List and java.util.Map data structures (via an expensive
+   conversion process).  This conversion only applies one way i.e. a Java List
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000090.html">[Sleep-svn] r108 - in sleep: . src/sleep/engine tests tests/output
+</A></li>
+	<LI>Next message: <A HREF="000092.html">[Sleep-svn] r110 - in sleep: . src/sleep/bridges src/sleep/parser	src/sleep/runtime tests tests/data tests/data/src/org/hick	tests/data/src/org/hick/blah tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#91">[ date ]</a>
+              <a href="thread.html#91">[ thread ]</a>
+              <a href="subject.html#91">[ subject ]</a>
+              <a href="author.html#91">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

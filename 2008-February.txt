@@ -1,0 +1,324 @@
+From rsmudge at mail.berlios.de  Sat Feb 16 17:03:16 2008
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Sat, 16 Feb 2008 17:03:16 +0100
+Subject: [Sleep-svn] r318 - in sleep: . src/sleep/bridges tests/output
+Message-ID: <200802161603.m1GG3G9A018265@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2008-02-16 17:03:15 +0100 (Sat, 16 Feb 2008)
+New Revision: 318
+
+Modified:
+   sleep/src/sleep/bridges/BasicIO.java
+   sleep/src/sleep/bridges/BasicUtilities.java
+   sleep/tests/output/cast.sl
+   sleep/tests/output/convertds3.sl
+   sleep/tests/output/forker.sl
+   sleep/tests/output/trace.sl
+   sleep/tests/output/wrong.sl
+   sleep/whatsnew.txt
+Log:
+..
+
+
+Modified: sleep/src/sleep/bridges/BasicIO.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicIO.java	2007-12-21 03:46:58 UTC (rev 317)
++++ sleep/src/sleep/bridges/BasicIO.java	2008-02-16 16:03:15 UTC (rev 318)
+@@ -115,6 +115,8 @@
+         // object io functions
+         temp.put("&readObject",      this);
+         temp.put("&writeObject",     this);
++        temp.put("&readAsObject",      this);
++        temp.put("&writeAsObject",     this);
+         temp.put("&sizeof", this);
+ 
+         temp.put("&pack",       new pack());
+@@ -122,7 +124,7 @@
+ 
+         temp.put("&available",  new available());
+         temp.put("&mark",       new mark());
+-        temp.put("&skip",       new skip());
++        temp.put("&skip",       temp.get("&consume"));
+         temp.put("&reset",      new reset());
+         temp.put("&wait",       this);
+ 
+@@ -162,7 +164,7 @@
+ 
+           return a.wait(i.getScriptEnvironment(), to);
+        }
+-       else if (n.equals("&writeObject"))
++       else if (n.equals("&writeObject") || n.equals("&writeAsObject"))
+        {
+           IOObject a = chooseSource(l, 2, i);
+           while (!l.isEmpty())
+@@ -171,7 +173,15 @@
+              try
+              {
+                 ObjectOutputStream ois = new ObjectOutputStream(a.getWriter());
+-                ois.writeObject(b);
++
++                if (n.equals("&writeAsObject"))
++                {
++                   ois.writeObject(b.objectValue());
++                }
++                else
++                {
++                   ois.writeObject(b);
++                }
+              }
+              catch (Exception ex)
+              {
+@@ -180,14 +190,22 @@
+              }
+           }
+        }
+-       else if (n.equals("&readObject"))
++       else if (n.equals("&readObject") || n.equals("&readAsObject"))
+        {
+           IOObject a = chooseSource(l, 1, i);
+           try
+           {
+              ObjectInputStream ois = new ObjectInputStream(a.getReader());
+-             Scalar value = (Scalar)ois.readObject();
+-             return value;
++
++             if (n.equals("&readAsObject"))
++             {
++                return SleepUtils.getScalar(ois.readObject());
++             }
++             else
++             {
++                Scalar value = (Scalar)ois.readObject();
++                return value;
++             }
+           }
+           catch (EOFException eofex)
+           {
+@@ -1173,19 +1191,6 @@
+        }
+     }
+ 
+-    private static class skip implements Function
+-    {
+-       public Scalar evaluate(String n, ScriptInstance i, Stack l)
+-       {
+-          try {
+-          IOObject        a = chooseSource(l, 2, i);
+-          a.getInputBuffer().skip(BridgeUtilities.getLong(l, 0));
+-          } catch (Exception ex) { }
+-
+-          return SleepUtils.getEmptyScalar();
+-       }
+-    }
+-
+     private static class reset implements Function
+     {
+        public Scalar evaluate(String n, ScriptInstance i, Stack l)
+
+Modified: sleep/src/sleep/bridges/BasicUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicUtilities.java	2007-12-21 03:46:58 UTC (rev 317)
++++ sleep/src/sleep/bridges/BasicUtilities.java	2008-02-16 16:03:15 UTC (rev 318)
+@@ -79,7 +79,6 @@
+         temp.put("&splice", this);
+         temp.put("&subarray", this);
+         temp.put("&copy",  new copy());
+-        temp.put("&value", this);
+  
+         map map_f = new map();
+ 
+@@ -628,15 +627,37 @@
+     {
+        public Scalar evaluate(String n, ScriptInstance si, Stack l)
+        {
+-          Scalar      value = SleepUtils.getArrayScalar();
+-          Iterator    i     = BridgeUtilities.getIterator(l, si);
++          Scalar doit = BridgeUtilities.getScalar(l);
+ 
+-          while (i.hasNext())
++          if (doit.getArray() != null || SleepUtils.isFunctionScalar(doit))
+           {
+-             value.getArray().push(SleepUtils.getScalar((Scalar)i.next()));
++             Scalar      value = SleepUtils.getArrayScalar();
++             Iterator    i     = doit.getArray() == null ? SleepUtils.getFunctionFromScalar(doit, si).scalarIterator() : doit.getArray().scalarIterator();
++
++             while (i.hasNext())
++             {
++                value.getArray().push(SleepUtils.getScalar((Scalar)i.next()));
++             }
++
++             return value;
+           }
++          else if (doit.getHash() != null)
++          {
++              Scalar value = SleepUtils.getHashScalar();
++              Iterator i = doit.getHash().keys().scalarIterator();
++              while (i.hasNext())
++              {
++                 Scalar key = (Scalar)i.next();
++                 Scalar temp = value.getHash().getAt(key);
++                 temp.setValue(doit.getHash().getAt(key));
++              }
+ 
+-          return value;
++              return value;
++          }
++          else
++          {
++              return SleepUtils.getScalar(doit);
++          }
+        }
+     }
+ 
+@@ -1109,10 +1130,6 @@
+ 
+           return a;
+        }
+-       else if (n.equals("&value"))
+-       {
+-          return SleepUtils.getScalar(value);
+-       }
+        else if (n.equals("&subarray"))
+        {
+           return subarray(value, BridgeUtilities.getInt(l, 0), BridgeUtilities.getInt(l, value.getArray().size()));
+
+Modified: sleep/tests/output/cast.sl
+===================================================================
+--- sleep/tests/output/cast.sl	2007-12-21 03:46:58 UTC (rev 317)
++++ sleep/tests/output/cast.sl	2008-02-16 16:03:15 UTC (rev 318)
+@@ -1,2 +1,2 @@
+-[Ljava.lang.CharSequence;@1f23e5 class [Ljava.lang.CharSequence;
+-[Ljava.util.List;@884a40 class [Ljava.util.List;
++[Ljava.lang.CharSequence;@7e845a class [Ljava.lang.CharSequence;
++[Ljava.util.List;@e78c96 class [Ljava.util.List;
+
+Modified: sleep/tests/output/convertds3.sl
+===================================================================
+--- sleep/tests/output/convertds3.sl	2007-12-21 03:46:58 UTC (rev 317)
++++ sleep/tests/output/convertds3.sl	2008-02-16 16:03:15 UTC (rev 318)
+@@ -32,9 +32,9 @@
+ int[] a
+ Collection a
+ Collection a
+-Warning: there is no method that matches mar([Z at a0864f) in sleep.ArrayTest1 at convertds3.sl:36
+-Warning: there is no method that matches mar([F at d1e233) in sleep.ArrayTest1 at convertds3.sl:37
+-Warning: there is no method that matches mar([Ljava.lang.Object;@5983b7) in sleep.ArrayTest1 at convertds3.sl:38
++Warning: there is no method that matches mar([Z at 9a9b65) in sleep.ArrayTest1 at convertds3.sl:36
++Warning: there is no method that matches mar([F at 502819) in sleep.ArrayTest1 at convertds3.sl:37
++Warning: there is no method that matches mar([Ljava.lang.Object;@78aa80) in sleep.ArrayTest1 at convertds3.sl:38
+ int[] a
+ Collection a
+ Collection a
+
+Modified: sleep/tests/output/forker.sl
+===================================================================
+--- sleep/tests/output/forker.sl	2007-12-21 03:46:58 UTC (rev 317)
++++ sleep/tests/output/forker.sl	2008-02-16 16:03:15 UTC (rev 318)
+@@ -1,4 +1,4 @@
+ Trace: &check('within fork') at forker.sl:9
+-Trace: &fork(&closure[forker.sl:9]#2) = sleep.bridges.io.IOObject at 9c2715 at forker.sl:8
++Trace: &fork(&closure[forker.sl:9]#2) = sleep.bridges.io.IOObject at c5e9c at forker.sl:8
+ Trace: &sleep(1000) at forker.sl:12
+ Trace: &check('outside of fork') at forker.sl:14
+
+Modified: sleep/tests/output/trace.sl
+===================================================================
+--- sleep/tests/output/trace.sl	2007-12-21 03:46:58 UTC (rev 317)
++++ sleep/tests/output/trace.sl	2008-02-16 16:03:15 UTC (rev 318)
+@@ -1,13 +1,13 @@
+ this is a test
+-Trace: [java.io.PrintStream at 1f23e5 println: 'this is a test'] at trace.sl:6
++Trace: [java.io.PrintStream at 7e845a println: 'this is a test'] at trace.sl:6
+ Trace: [java.lang.Math pow: 3, 4] = 81.0 at trace.sl:7
+ 81.0
+-Trace: [java.io.PrintStream at 1f23e5 println: 81.0] at trace.sl:7
++Trace: [java.io.PrintStream at 7e845a println: 81.0] at trace.sl:7
+ Trace: [java.lang.Math pow: 3, 5] = 243.0 at trace.sl:8
+ 243.0
+ Trace: &println(243.0) at trace.sl:8
+ testing again...
+-Trace: [java.io.PrintStream at 1f23e5 println: 'testing again...'] at trace.sl:10
++Trace: [java.io.PrintStream at 7e845a println: 'testing again...'] at trace.sl:10
+ Trace: [sleep.runtime.SleepUtils getListFromArray: @('a', 'b', 'c')] = [a, b, c] at trace.sl:12
+ Trace: [new java.util.LinkedList: [a, b, c]] = [a, b, c] at trace.sl:12
+ Warning: variable '$list' not declared at trace.sl:12
+
+Modified: sleep/tests/output/wrong.sl
+===================================================================
+--- sleep/tests/output/wrong.sl	2007-12-21 03:46:58 UTC (rev 317)
++++ sleep/tests/output/wrong.sl	2008-02-16 16:03:15 UTC (rev 318)
+@@ -1,32 +1,32 @@
+ Trace: [java.lang.Math pow: 3, 4] = 81.0 at wrong.sl:6
+ 81.0
+-Trace: [java.io.PrintStream at c391c3 println: 81.0] at wrong.sl:6
++Trace: [java.io.PrintStream at 81a197 println: 81.0] at wrong.sl:6
+ Trace: &casti(1, 'z') = true at wrong.sl:9
+ true
+-Trace: [java.io.PrintStream at c391c3 println: true] at wrong.sl:9
++Trace: [java.io.PrintStream at 81a197 println: true] at wrong.sl:9
+ Trace: &casti(0, 'z') = false at wrong.sl:10
+ false
+-Trace: [java.io.PrintStream at c391c3 println: false] at wrong.sl:10
++Trace: [java.io.PrintStream at 81a197 println: false] at wrong.sl:10
+ Trace: &casti(1, 'd') = 1.0 at wrong.sl:13
+ 1.0
+-Trace: [java.io.PrintStream at c391c3 println: 1.0] at wrong.sl:13
++Trace: [java.io.PrintStream at 81a197 println: 1.0] at wrong.sl:13
+ Trace: &casti(1, 'b') = 1 at wrong.sl:16
+ 1
+-Trace: [java.io.PrintStream at c391c3 println: 1] at wrong.sl:16
++Trace: [java.io.PrintStream at 81a197 println: 1] at wrong.sl:16
+ Trace: &casti(100, 'f') = 100.0 at wrong.sl:19
+ 100.0
+-Trace: [java.io.PrintStream at c391c3 println: 100.0] at wrong.sl:19
++Trace: [java.io.PrintStream at 81a197 println: 100.0] at wrong.sl:19
+ Trace: &casti('b', 'c') = b at wrong.sl:22
+ b
+-Trace: [java.io.PrintStream at c391c3 println: b] at wrong.sl:22
++Trace: [java.io.PrintStream at 81a197 println: b] at wrong.sl:22
+ Trace: &casti(63, 'i') = 63 at wrong.sl:25
+ 63
+-Trace: [java.io.PrintStream at c391c3 println: 63] at wrong.sl:25
++Trace: [java.io.PrintStream at 81a197 println: 63] at wrong.sl:25
+ this is a string y0
+-Trace: [java.io.PrintStream at c391c3 println: 'this is a string y0'] at wrong.sl:28
++Trace: [java.io.PrintStream at 81a197 println: 'this is a string y0'] at wrong.sl:28
+ Trace: [new java.lang.StringBuilder: 'test'] = test at wrong.sl:31
+ test
+-Trace: [java.io.PrintStream at c391c3 println: test] at wrong.sl:31
+-Trace: &cast(@('a', 'b', 'c', 'd'), 'c') = [C at 9ba640 at wrong.sl:34
++Trace: [java.io.PrintStream at 81a197 println: test] at wrong.sl:31
++Trace: &cast(@('a', 'b', 'c', 'd'), 'c') = [C at cf829d at wrong.sl:34
+ abcd
+-Trace: [java.io.PrintStream at c391c3 println: [C at 9ba640] at wrong.sl:34
++Trace: [java.io.PrintStream at 81a197 println: [C at cf829d] at wrong.sl:34
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2007-12-21 03:46:58 UTC (rev 317)
++++ sleep/whatsnew.txt	2008-02-16 16:03:15 UTC (rev 318)
+@@ -1,14 +1,15 @@
+ 2.1-beta 21 
+ ===========
+-- added &value function to return a new scalar container with the
+-  same value as its argument.  This should be used when one does 
+-  not want to pass a reference of a scalar that can be affected:
+-  
+-  function arguments, lambda, let, and fork all pass by reference.
+ - assignment loops now record proper line number information for
+   error reporting purposes.
+ - added a ? command to evaluate predicates in the Sleep console.
+ - index operator can now be applied to backtick expressions
++- collapsed implementation of &skip and &consume; they now refer 
++  to the same function.
++- added &readAsObject and &writeAsObject to read/write serialized
++  Java objects (in lieu of sleep.runtime.Scalar objects)
++- updated &copy to accept either a singular scalar or a hash 
++  argument.
+ 
+ 2.1-beta 20  (12 Nov 07)
+ ===========
+
+
+

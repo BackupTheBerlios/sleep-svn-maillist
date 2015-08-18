@@ -1,0 +1,383 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r36 - in sleep: src/sleep/bridges src/sleep/parser tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2005-July/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r36%20-%20in%20sleep%3A%20src/sleep/bridges%20src/sleep/parser%20tests%20tests/output&In-Reply-To=%3C200507110951.j6B9pGOM022006%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000023.html">
+   <LINK REL="Next"  HREF="000025.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r36 - in sleep: src/sleep/bridges src/sleep/parser tests tests/output</H1>
+    <B>Raphael Mudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r36%20-%20in%20sleep%3A%20src/sleep/bridges%20src/sleep/parser%20tests%20tests/output&In-Reply-To=%3C200507110951.j6B9pGOM022006%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r36 - in sleep: src/sleep/bridges src/sleep/parser tests tests/output">rsmudge at berlios.de
+       </A><BR>
+    <I>Mon Jul 11 11:51:16 CEST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000023.html">[Sleep-svn] r35 - sleep/docs
+</A></li>
+        <LI>Next message: <A HREF="000025.html">[Sleep-svn] r37 - in sleep: . src/sleep/bridges
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#24">[ date ]</a>
+              <a href="thread.html#24">[ thread ]</a>
+              <a href="subject.html#24">[ subject ]</a>
+              <a href="author.html#24">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2005-07-11 11:51:16 +0200 (Mon, 11 Jul 2005)
+New Revision: 36
+
+Added:
+   sleep/tests/binarysz.sl
+   sleep/tests/concat2.sl
+   sleep/tests/output/binarysz.sl
+   sleep/tests/output/concat2.sl
+   sleep/tests/output/squote.sl
+   sleep/tests/squote.sl
+Modified:
+   sleep/src/sleep/bridges/BasicIO.java
+   sleep/src/sleep/bridges/RegexBridge.java
+   sleep/src/sleep/parser/CodeGenerator.java
+   sleep/src/sleep/parser/LexicalAnalyzer.java
+Log:
+- fixed a fringe case with the Z unpack character
+- cleaned up definitions of pack for z/Z/u/U
+- made backslash in single quoted strings behave properly:
+  \' is a single quotes; \\ is a \; \ otherwise has no meaning
+
+  I hate changes that break compatability with old scripts (especially
+  ones I wrote) but the old behavior was a bug, not a feature...
+- fixed $1.$2 not working correctly.  the . operator is the only
+  built-in operator that can do without white space...
+- replace() function now takes a 4th parameter for the max number of
+  occurences to replace...
+
+- added several unit tests as well...
+
+
+
+Modified: sleep/src/sleep/bridges/BasicIO.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicIO.java	2005-07-07 03:05:54 UTC (rev 35)
++++ sleep/src/sleep/bridges/BasicIO.java	2005-07-11 09:51:16 UTC (rev 36)
+@@ -388,7 +388,7 @@
+                    if (tempval == -1) throw new EOFException();
+                 }
+              
+-                int z = 0;
++                int z = 1;
+ 
+                 for (; tempval != 0 &amp;&amp; z != pattern.count; z++)
+                 {
+@@ -407,9 +407,15 @@
+                    }
+                 } 
+ 
++                if (tempval != 0)
++                {
++                   temps.append((char)tempval); 
++                }
++
+                 if ((pattern.value == 'Z' || pattern.value == 'U') &amp;&amp; z &lt; pattern.count)
+                 {
+-                   in.skip((pattern.count - z) - 1);
++                   int skipby = (pattern.count - z) * (pattern.value == 'U' ? 2 : 1);
++                   in.skip(skipby);
+                 }
+              }
+              catch (Exception fex) 
+@@ -575,18 +581,33 @@
+                    }
+                 }
+ 
+-                if (pattern.value == 'U') { out.write(0); out.write(0); }
+-                else { out.write(0); } // in the case of Z, keep padding the field length with nulls.
+-   
+-                if (pattern.value == 'Z' || pattern.value == 'U')
++                // handle padding... 
++
++                for (int z = tempchars.length; z &lt; pattern.count; z++)
+                 {
+-                   // the +1 for the start of this loop is to account for the outputted null character
+-                   for (int z = tempchars.length + 1; z &lt; pattern.count; z++)
++                   switch (pattern.value)
+                    {
+-                      if (pattern.value == 'U') { out.write(0); out.write(0); }
+-                      else { out.write(0); } // in the case of Z, keep padding the field length with nulls.
++                      case 'U':
++                         out.write(0); 
++                         out.write(0);
++                         break;
++                      case 'Z':
++                         out.write(0);
++                         break;
+                    }
+                 }
++
++                // write out our terminating null byte please...
++
++                if (pattern.value == 'z' || (pattern.value == 'Z' &amp;&amp; pattern.count == -1))
++                {
++                   out.write(0);
++                }
++                else if (pattern.value == 'u' || (pattern.value == 'U' &amp;&amp; pattern.count == -1))
++                {
++                   out.write(0);
++                   out.write(0);
++                }
+              }
+              catch (Exception ex)
+              {
+
+Modified: sleep/src/sleep/bridges/RegexBridge.java
+===================================================================
+--- sleep/src/sleep/bridges/RegexBridge.java	2005-07-07 03:05:54 UTC (rev 35)
++++ sleep/src/sleep/bridges/RegexBridge.java	2005-07-11 09:51:16 UTC (rev 36)
+@@ -187,14 +187,27 @@
+     {
+        public Scalar evaluate(String n, ScriptInstance script, Stack l)
+        {
+-          String a = ((Scalar)l.pop()).toString();
+-          String b = ((Scalar)l.pop()).toString();
+-          String c = ((Scalar)l.pop()).toString();
++          String a = ((Scalar)l.pop()).toString(); // current
++          String b = ((Scalar)l.pop()).toString(); // old
++          String c = ((Scalar)l.pop()).toString(); // new
++          int    d = BridgeUtilities.getInt(l, -1);
+ 
++          StringBuffer rv = new StringBuffer();
++
+           Pattern pattern = RegexBridge.getPattern(b);
+           Matcher matcher = pattern.matcher(a);
++       
++          int matches = 0;
+ 
+-          return SleepUtils.getScalar(matcher.replaceAll(c));
++          while (matcher.find() &amp;&amp; matches != d)
++          {
++             matcher.appendReplacement(rv, c);
++             matches++;
++          }
++
++          matcher.appendTail(rv);
++
++          return SleepUtils.getScalar(rv.toString());
+        }
+     }
+ }
+
+Modified: sleep/src/sleep/parser/CodeGenerator.java
+===================================================================
+--- sleep/src/sleep/parser/CodeGenerator.java	2005-07-07 03:05:54 UTC (rev 35)
++++ sleep/src/sleep/parser/CodeGenerator.java	2005-07-11 09:51:16 UTC (rev 36)
+@@ -365,6 +365,7 @@
+ 
+        Iterator i;
+        String   mutilate; // mutilate this string as I see fit...
++       StringBuffer sb;  
+ 
+        String[] strings = datum.getStrings(); // was &quot;temp&quot;
+        Token[]  tokens  = datum.getTokens();
+@@ -430,7 +431,22 @@
+            parseObject(ParserUtilities.extract(tokens[0]));
+            break;
+          case IDEA_LITERAL: // implemented                   
+-           ascalar = SleepUtils.getScalar(ParserUtilities.extract(strings[0]));
++           sb = new StringBuffer(ParserUtilities.extract(strings[0]));
++
++           for (int x = 0; x &lt; sb.length(); x++)
++           {
++              if (sb.charAt(x) == '\\' &amp;&amp; (x + 1) &lt; sb.length())
++              {
++                 char tempc = sb.charAt(x + 1);
++
++                 if (tempc == '\'' || tempc == '\\')
++                 {
++                    sb.deleteCharAt(x);
++                 }
++              }
++           }
++
++           ascalar = SleepUtils.getScalar(sb.toString());
+            atom    = GeneratedSteps.SValue(ascalar);
+            add(atom, tokens[0]);
+            break;
+@@ -488,7 +504,7 @@
+          case EXPR_EVAL_STRING:
+          case IDEA_STRING: // implemented -- parsed literals, one of my favorite features in sleep
+            int startz = 0; 
+-           String c   = ParserUtilities.extract(strings[0]);
++           String c = ParserUtilities.extract(strings[0]);
+             
+            Stack vals, blocks, aligns;
+            vals   = new Stack();
+
+Modified: sleep/src/sleep/parser/LexicalAnalyzer.java
+===================================================================
+--- sleep/src/sleep/parser/LexicalAnalyzer.java	2005-07-07 03:05:54 UTC (rev 35)
++++ sleep/src/sleep/parser/LexicalAnalyzer.java	2005-07-11 09:51:16 UTC (rev 36)
+@@ -62,7 +62,7 @@
+    // using this effectively removes the white space requirement for said built in operator.  
+    private static boolean isBuiltInOperator(char f, StringBuffer aTerm, StringIterator iter)
+    {
+-      if (f == '.' &amp;&amp; (aTerm.length() &lt;= 0 || !Character.isDigit(aTerm.charAt(aTerm.length() - 1))))
++      if (f == '.' &amp;&amp; (aTerm.length() &lt;= 0 || !(Character.isDigit(aTerm.charAt(aTerm.length() - 1)) &amp;&amp; aTerm.charAt(0) != '$')))
+       {
+          return true;
+       }
+@@ -191,11 +191,11 @@
+              {
+                 report.reportError(&quot;Escape is end of string&quot;, new Token(value.toString(), iterator.getLineNumber(), iterator.getLineMarker()));
+              }
+-             else
++             else 
+              {
+                 value.append(temp);
+                 value.append(iterator.next());
+-             }
++             } 
+          }        
+          else if (term.isRight(temp) || term.isMatch(temp))
+          {
+
+Added: sleep/tests/binarysz.sl
+===================================================================
+--- sleep/tests/binarysz.sl	2005-07-07 03:05:54 UTC (rev 35)
++++ sleep/tests/binarysz.sl	2005-07-11 09:51:16 UTC (rev 36)
+@@ -0,0 +1,25 @@
++#
++# test of some pack/unpack fringe cases...
++#
++
++# looking for the following
++# when we write a Z10 string and we happen to hit the 10 char length, no \0 should be written
++# I just want to make sure said string is read in correctly as well...
++#
++
++$temp = pack('Z10 I', &quot;0123456789&quot;, 33);
++
++println(&quot;Strlen: &quot; . strlen($temp)); # should be 14
++
++($string, $int) = unpack('Z10 I', $temp);
++
++println(&quot;Test: $string and $int&quot;);
++
++$temp2 = pack('Z10 I', &quot;abcde&quot;, 45);
++
++println(&quot;Strlen: &quot; . strlen($temp2)); # should be 14
++
++($string2, $int2) = unpack('Z10 I', $temp2);
++
++println(&quot;Test: $string2 and $int2&quot;);
++
+
+Added: sleep/tests/concat2.sl
+===================================================================
+--- sleep/tests/concat2.sl	2005-07-07 03:05:54 UTC (rev 35)
++++ sleep/tests/concat2.sl	2005-07-11 09:51:16 UTC (rev 36)
+@@ -0,0 +1,10 @@
++#
++# Test the work done on the concatenation operator...
++#
++
++sub test
++{
++  println($1.$2);
++}
++
++test(&quot;X&quot;, &quot;Y&quot;);
+
+Added: sleep/tests/output/binarysz.sl
+===================================================================
+--- sleep/tests/output/binarysz.sl	2005-07-07 03:05:54 UTC (rev 35)
++++ sleep/tests/output/binarysz.sl	2005-07-11 09:51:16 UTC (rev 36)
+@@ -0,0 +1,4 @@
++Strlen: 14
++Test: 0123456789 and 33
++Strlen: 14
++Test: abcde and 45
+
+Added: sleep/tests/output/concat2.sl
+===================================================================
+--- sleep/tests/output/concat2.sl	2005-07-07 03:05:54 UTC (rev 35)
++++ sleep/tests/output/concat2.sl	2005-07-11 09:51:16 UTC (rev 36)
+@@ -0,0 +1 @@
++XY
+
+Added: sleep/tests/output/squote.sl
+===================================================================
+--- sleep/tests/output/squote.sl	2005-07-07 03:05:54 UTC (rev 35)
++++ sleep/tests/output/squote.sl	2005-07-11 09:51:16 UTC (rev 36)
+@@ -0,0 +1,6 @@
++'
++\
++\'\
++\\\\\\\\
++\a\b\c\d\e\f\g\h\i\j\k\l\m\n\o\p\q\r\s\t\u\v\w\x\y\z
++Error running eval'd code: 2 error(s): Mismatched Parentheses - missing close paren at 1; Runaway string at 1
+
+Added: sleep/tests/squote.sl
+===================================================================
+--- sleep/tests/squote.sl	2005-07-07 03:05:54 UTC (rev 35)
++++ sleep/tests/squote.sl	2005-07-11 09:51:16 UTC (rev 36)
+@@ -0,0 +1,23 @@
++#
++# Single Quote Behavior...
++#
++
++
++println('\''); # single quoted single quote '
++
++println('\\'); # a double backslash... plz... :) for regex sakes \\
++
++println('\\\'\\'); 
++
++println('\\\\\\\\\\\\\\\\');
++
++println('\a\b\c\d\e\f\g\h\i\j\k\l\m\n\o\p\q\r\s\t\u\v\w\x\y\z');
++
++eval(&quot;
++    println('\\\\'');
++&quot;);
++
++if (checkError($error))
++{
++   println(&quot;Error running eval'd code: $error&quot;);
++}
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000023.html">[Sleep-svn] r35 - sleep/docs
+</A></li>
+	<LI>Next message: <A HREF="000025.html">[Sleep-svn] r37 - in sleep: . src/sleep/bridges
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#24">[ date ]</a>
+              <a href="thread.html#24">[ thread ]</a>
+              <a href="subject.html#24">[ subject ]</a>
+              <a href="author.html#24">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

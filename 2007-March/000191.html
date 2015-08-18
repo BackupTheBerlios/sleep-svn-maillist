@@ -1,0 +1,360 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r210 - in sleep: . src/sleep/bridges src/sleep/runtime	tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2007-March/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r210%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20src/sleep/runtime%0A%09tests%20tests/output&In-Reply-To=%3C200703102210.l2AMA77S017539%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000190.html">
+   <LINK REL="Next"  HREF="000192.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r210 - in sleep: . src/sleep/bridges src/sleep/runtime	tests tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r210%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20src/sleep/runtime%0A%09tests%20tests/output&In-Reply-To=%3C200703102210.l2AMA77S017539%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r210 - in sleep: . src/sleep/bridges src/sleep/runtime	tests tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Sat Mar 10 23:10:07 CET 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000190.html">[Sleep-svn] r209 - in sleep: . src/sleep/bridges tests tests/output
+</A></li>
+        <LI>Next message: <A HREF="000192.html">[Sleep-svn] r211 - in sleep: . src/sleep/bridges	src/sleep/bridges/io tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#191">[ date ]</a>
+              <a href="thread.html#191">[ thread ]</a>
+              <a href="subject.html#191">[ subject ]</a>
+              <a href="author.html#191">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2007-03-10 23:10:06 +0100 (Sat, 10 Mar 2007)
+New Revision: 210
+
+Added:
+   sleep/tests/dataio.sl
+   sleep/tests/output/dataio.sl
+Modified:
+   sleep/build.xml
+   sleep/src/sleep/bridges/BasicIO.java
+   sleep/src/sleep/runtime/SleepUtils.java
+   sleep/whatsnew.txt
+Log:
+Fixes to I/O... oooh
+
+
+
+Modified: sleep/build.xml
+===================================================================
+--- sleep/build.xml	2007-03-10 01:59:42 UTC (rev 209)
++++ sleep/build.xml	2007-03-10 22:10:06 UTC (rev 210)
+@@ -16,7 +16,7 @@
+            destdir=&quot;${project.build}&quot;
+            nowarn=&quot;yes&quot;
+            depend=&quot;yes&quot;
+-           debug=&quot;false&quot;
++           debug=&quot;true&quot;
+            source=&quot;1.4&quot;
+            target=&quot;1.4&quot;
+            optimize=&quot;yes&quot;
+
+Modified: sleep/src/sleep/bridges/BasicIO.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicIO.java	2007-03-10 01:59:42 UTC (rev 209)
++++ sleep/src/sleep/bridges/BasicIO.java	2007-03-10 22:10:06 UTC (rev 210)
+@@ -1042,7 +1042,7 @@
+           IOObject        a = chooseSource(l, 2, i);
+           String    pattern = BridgeUtilities.getString(l, &quot;&quot;);
+ 
+-          return ReadFormatted(pattern, a.getReader(), i.getScriptEnvironment(), a);
++          return a.getReader() != null ? ReadFormatted(pattern, a.getReader(), i.getScriptEnvironment(), a) : SleepUtils.getEmptyScalar();
+        }
+     }
+ 
+@@ -1165,15 +1165,7 @@
+          
+           WriteFormatted(pattern, new DataOutputStream(temp), l, null);
+ 
+-          StringBuffer value = new StringBuffer();
+-          byte[] data = temp.toByteArray();
+-
+-          for (int x = 0; x &lt; data.length; x++)
+-          {
+-             value.append((char)(data[x] &amp; 0x00FF));
+-          }
+-
+-          return SleepUtils.getScalar(value.toString());
++          return SleepUtils.getScalar(temp.toByteArray(), temp.size());
+        }
+     }
+ 
+@@ -1208,27 +1200,36 @@
+        {
+           IOObject         a = chooseSource(l, 2, i);
+           int             to = BridgeUtilities.getInt(l, 1);
++          int           last = 0;
+ 
+-          byte[] temp = a.getBuffer(to);
++          if (a.getReader() != null)
++          {
++             byte[] temp = a.getBuffer(to);
++   
++             int read = 0;
+ 
+-          int read = 0;
++             try
++             {
++                while (read &lt; to)
++                {
++                   last = a.getReader().read(temp, read, to - read);
+ 
+-          try
+-          {
+-             while (read &lt; to)
++                   if (last == -1) { break; }
++                   read += last;
++                } 
++             }
++             catch (Exception ex)
+              {
+-                read += a.getReader().read(temp, read, to - read);
++                a.close();
++                i.getScriptEnvironment().flagError(ex.toString());
++
++                ex.printStackTrace();
+              }
+-          }
+-          catch (Exception ex)
+-          {
+-             a.close();
+-             i.getScriptEnvironment().flagError(ex.toString());
+-          }
+ 
+-          if (read &gt; 0)
+-          {
+-             return SleepUtils.getScalar(temp);
++             if (read &gt; 0)
++             {
++                return SleepUtils.getScalar(temp, read);
++             }
+           }
+           return SleepUtils.getEmptyScalar();
+        }
+@@ -1241,34 +1242,42 @@
+           IOObject         a = chooseSource(l, 2, i);
+           int             to = BridgeUtilities.getInt(l, 1);
+           int           size = BridgeUtilities.getInt(l, 1024 * 32); /* 32K buffer anyone */
++          int           last = 0;
+ 
+-          byte[] temp = a.getBuffer(size);
+-
+-          int read = 0;
+-
+-          try
++          if (a.getReader() != null)
+           {
+-             while (read &lt; to)
++             byte[] temp = a.getBuffer(size);
++  
++             int read = 0;
++ 
++             try
+              {
+-                if ((to - read) &lt; size)
++                while (read &lt; to)
+                 {
+-                   read += a.getReader().read(temp, 0, to - read);
++                   if ((to - read) &lt; size)
++                   {
++                      last = a.getReader().read(temp, 0, to - read);
++                   }
++                   else
++                   {
++                      last = a.getReader().read(temp, 0, size);
++                   }
++
++                   if (last == -1) { break; }
++
++                   read += last;
+                 }
+-                else
+-                {
+-                   read += a.getReader().read(temp, 0, size);
+-                }
+              }
+-          }
+-          catch (Exception ex)
+-          {
+-             a.close();
+-             i.getScriptEnvironment().flagError(ex.toString());
+-          }
++             catch (Exception ex)
++             {
++                a.close();
++                i.getScriptEnvironment().flagError(ex.toString());
++             }
+ 
+-          if (read &gt; 0)
+-          {
+-             return SleepUtils.getScalar(read);
++             if (read &gt; 0)
++             {
++                return SleepUtils.getScalar(read);
++             }
+           }
+           return SleepUtils.getEmptyScalar();
+        }
+
+Modified: sleep/src/sleep/runtime/SleepUtils.java
+===================================================================
+--- sleep/src/sleep/runtime/SleepUtils.java	2007-03-10 01:59:42 UTC (rev 209)
++++ sleep/src/sleep/runtime/SleepUtils.java	2007-03-10 22:10:06 UTC (rev 210)
+@@ -503,9 +503,15 @@
+    /** constructs a string scalar with value x interpreted as an array of unsigned bytes */
+    public static Scalar getScalar(byte[] x)
+    {
++      return getScalar(x, x.length);
++   }
++
++   /** constructs a string scalar with value x interpreted as an array of unsigned bytes */
++   public static Scalar getScalar(byte[] x, int length)
++   {
+       Scalar temp = new Scalar();
+-      StringBuffer buff = new StringBuffer(x.length);
+-      for (int y = 0; y &lt; x.length; y++)
++      StringBuffer buff = new StringBuffer(length);
++      for (int y = 0; y &lt; length; y++)
+       {
+          char append = (char)(x[y] &amp; 0xFF);
+          buff.append(append);
+
+Added: sleep/tests/dataio.sl
+===================================================================
+--- sleep/tests/dataio.sl	2007-03-10 01:59:42 UTC (rev 209)
++++ sleep/tests/dataio.sl	2007-03-10 22:10:06 UTC (rev 210)
+@@ -0,0 +1,49 @@
++#
++# test doing a generic read with an assignment loop to suck down byte data
++#
++
++debug(7);
++
++global('$src');
++
++$src = fork({
++  local('$str $server $x');
++
++#  $server = listen(8888, 0);
++  $server = $source;
++
++  for ($x = 0; $x &lt; (1024 * 10); $x++)
++  {
++     $str .= chr(rand(0, 255));
++
++     if (($x % 1024) == 0)
++     {
++        print(&quot;.&quot;);
++     }
++  }
++
++  println();
++  println(&quot;Writing a massive amount of crap&quot;);
++
++  print($server, $str);
++  closef($server);
++});
++
++sleep(2000);
++
++fork({
++  local('$data $z');
++
++#  $handle = connect(&quot;127.0.0.1&quot;, 8888);
++#  $handle = $source; 
++  
++  while $data (readb($handle, 603))
++  {
++     println(&quot;Read: &quot; . strlen($data) . &quot; bytes&quot;);
++     $z += strlen($data);
++  }
++
++  println(&quot;Read in $z bytes&quot;);
++
++  closef($handle);
++}, $handle =&gt; $src);
+
+Added: sleep/tests/output/dataio.sl
+===================================================================
+--- sleep/tests/output/dataio.sl	2007-03-10 01:59:42 UTC (rev 209)
++++ sleep/tests/output/dataio.sl	2007-03-10 22:10:06 UTC (rev 210)
+@@ -0,0 +1,20 @@
++..........
++Writing a massive amount of crap
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 592 bytes
++Read in 10240 bytes
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2007-03-10 01:59:42 UTC (rev 209)
++++ sleep/whatsnew.txt	2007-03-10 22:10:06 UTC (rev 210)
+@@ -20,7 +20,10 @@
+ - Updated &amp;indexOf to accept an optional start parameter.
+ - Updated numerous string functions to allow negative indice parameters.
+   &amp;left, &amp;right, &amp;mid, &amp;replaceAt, &amp;strrep, &amp;charAt, &amp;substr, &amp;indexOf
+-  
++- added a check to &amp;readb to see if the handle is closed prior to attempting
++  a read.  If the handle is closed $null is returned.
++- fixed bugs in &amp;readb that come about when reading in the last chunk of 
++  data that is usually smaller than the total buffer size.  
+ 
+ 2.1-beta 11  (3 Dec 06)
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000190.html">[Sleep-svn] r209 - in sleep: . src/sleep/bridges tests tests/output
+</A></li>
+	<LI>Next message: <A HREF="000192.html">[Sleep-svn] r211 - in sleep: . src/sleep/bridges	src/sleep/bridges/io tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#191">[ date ]</a>
+              <a href="thread.html#191">[ thread ]</a>
+              <a href="subject.html#191">[ subject ]</a>
+              <a href="author.html#191">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

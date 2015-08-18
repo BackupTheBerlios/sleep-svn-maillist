@@ -1,0 +1,297 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r173 - in sleep: . src/sleep/parser tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2006-November/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r173%20-%20in%20sleep%3A%20.%20src/sleep/parser%20tests%20tests/output&In-Reply-To=%3C200611080103.kA813V48017343%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000154.html">
+   <LINK REL="Next"  HREF="000156.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r173 - in sleep: . src/sleep/parser tests tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r173%20-%20in%20sleep%3A%20.%20src/sleep/parser%20tests%20tests/output&In-Reply-To=%3C200611080103.kA813V48017343%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r173 - in sleep: . src/sleep/parser tests tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Wed Nov  8 02:03:31 CET 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000154.html">[Sleep-svn] r172 - in sleep: . src/sleep/engine/atoms tests	tests/output
+</A></li>
+        <LI>Next message: <A HREF="000156.html">[Sleep-svn] r174 - sleep/src/sleep/parser
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#155">[ date ]</a>
+              <a href="thread.html#155">[ thread ]</a>
+              <a href="subject.html#155">[ subject ]</a>
+              <a href="author.html#155">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2006-11-08 02:03:17 +0100 (Wed, 08 Nov 2006)
+New Revision: 173
+
+Added:
+   sleep/tests/output/unicodeseq.sl
+   sleep/tests/unicodeseq.sl
+Modified:
+   sleep/src/sleep/parser/CodeGenerator.java
+   sleep/tests/output/forker.sl
+   sleep/tests/output/trace.sl
+   sleep/tests/output/wrong.sl
+   sleep/whatsnew.txt
+Log:
+added \u and \x escape sequences for parsed literal strings.
+
+
+
+Modified: sleep/src/sleep/parser/CodeGenerator.java
+===================================================================
+--- sleep/src/sleep/parser/CodeGenerator.java	2006-11-07 22:42:27 UTC (rev 172)
++++ sleep/src/sleep/parser/CodeGenerator.java	2006-11-08 01:03:17 UTC (rev 173)
+@@ -503,6 +503,44 @@
+                      c = c.substring(0, x) + replacedValue + c.substring(x + 2, c.length());
+                      x += replacedValue.length() - 1;
+                   }
++                  else if (c.charAt(x+1) == 'u')
++                  {
++                     if ((x + 5) &gt;= c.length())
++                     {
++                        parser.reportError(&quot;not enough remaning characters for \\uXXXX&quot;,  tokens[0]);
++                     }
++                     else
++                     {
++                        try
++                        {
++                           int codepoint = Integer.parseInt(c.substring(x + 2, x + 6), 16);
++                           c = c.substring(0, x) + ((char)codepoint)  + c.substring(x + 6, c.length());
++                        }
++                        catch (NumberFormatException nex)
++                        {
++                           parser.reportError(&quot;invalid unicode escape \\u&quot;+c.substring(x + 2, x + 6)+&quot; - must be hex digits&quot;, tokens[0]);
++                        }
++                     }
++                  }
++                  else if (c.charAt(x+1) == 'x')
++                  {
++                     if ((x + 3) &gt;= c.length())
++                     {
++                        parser.reportError(&quot;not enough remaning characters for \\xXX&quot;,  tokens[0]);
++                     }
++                     else
++                     {
++                        try
++                        {
++                           int codepoint = Integer.parseInt(c.substring(x + 2, x + 4), 16);
++                           c = c.substring(0, x) + ((char)codepoint)  + c.substring(x + 4, c.length());
++                        }
++                        catch (NumberFormatException nex)
++                        {
++                           parser.reportError(&quot;invalid unicode escape \\x&quot;+c.substring(x + 2, x + 4)+&quot; - must be hex digits&quot;, tokens[0]);
++                        }
++                     }
++                  }
+                   else  // default behavior is to skip over the character...
+                   {
+                      c = c.substring(0, x)+c.substring(x+1, c.length());
+
+Modified: sleep/tests/output/forker.sl
+===================================================================
+--- sleep/tests/output/forker.sl	2006-11-07 22:42:27 UTC (rev 172)
++++ sleep/tests/output/forker.sl	2006-11-08 01:03:17 UTC (rev 173)
+@@ -1,3 +1,3 @@
+ Trace: &amp;check('within fork') at line 9
+-Trace: &amp;fork(&amp;closure2:9) = <A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">sleep.bridges.io.IOObject at 922804</A> at line 8
++Trace: &amp;fork(&amp;closure2:9) = <A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">sleep.bridges.io.IOObject at ba0f36</A> at line 8
+ Trace: &amp;check('outside of fork') at line 12
+
+Modified: sleep/tests/output/trace.sl
+===================================================================
+--- sleep/tests/output/trace.sl	2006-11-07 22:42:27 UTC (rev 172)
++++ sleep/tests/output/trace.sl	2006-11-08 01:03:17 UTC (rev 173)
+@@ -1,13 +1,13 @@
+ this is a test
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 97d026</A> println: 'this is a test'] at line 6
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 7eb6e2</A> println: 'this is a test'] at line 6
+ Trace: [java.lang.Math pow: 3, 4] = 81.0 at line 7
+ 81.0
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 97d026</A> println: 81.0] at line 7
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 7eb6e2</A> println: 81.0] at line 7
+ Trace: [java.lang.Math pow: 3, 5] = 243.0 at line 8
+ 243.0
+ Trace: &amp;println(243.0) at line 8
+ testing again...
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 97d026</A> println: 'testing again...'] at line 10
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 7eb6e2</A> println: 'testing again...'] at line 10
+ Trace: [sleep.runtime.SleepUtils getListFromArray: @('a', 'b', 'c')] = [a, b, c] at line 12
+ Trace: [new java.util.LinkedList: [a, b, c]] = [a, b, c] at line 12
+ Warning: variable '$list' not declared at line 12
+
+Added: sleep/tests/output/unicodeseq.sl
+===================================================================
+--- sleep/tests/output/unicodeseq.sl	2006-11-07 22:42:27 UTC (rev 172)
++++ sleep/tests/output/unicodeseq.sl	2006-11-08 01:03:17 UTC (rev 173)
+@@ -0,0 +1,10 @@
++this is A test :)
++this is A test :)AAAAAXA
++Warning: checkError(): 1 error(s): invalid unicode escape \u004  - must be hex digits at 1 at line 13
++Warning: checkError(): 2 error(s): invalid unicode escape \u004  - must be hex digits at 1; not enough remaning characters for \uXXXX at 1 at line 17
++Warning: checkError(): 2 error(s): invalid unicode escape \uAZBC - must be hex digits at 1; not enough remaning characters for \uXXXX at 1 at line 21
++this is A test :)
++this is A test :)AAAAAXA
++Warning: checkError(): 1 error(s): invalid unicode escape \x4  - must be hex digits at 1 at line 35
++Warning: checkError(): 2 error(s): invalid unicode escape \x4  - must be hex digits at 1; not enough remaning characters for \xXX at 1 at line 39
++Warning: checkError(): 2 error(s): invalid unicode escape \xAZ - must be hex digits at 1; not enough remaning characters for \xXX at 1 at line 43
+
+Modified: sleep/tests/output/wrong.sl
+===================================================================
+--- sleep/tests/output/wrong.sl	2006-11-07 22:42:27 UTC (rev 172)
++++ sleep/tests/output/wrong.sl	2006-11-08 01:03:17 UTC (rev 173)
+@@ -1,32 +1,32 @@
+ Trace: [java.lang.Math pow: 3, 4] = 81.0 at line 6
+ 81.0
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at bf053f</A> println: 81.0] at line 6
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 6917ee</A> println: 81.0] at line 6
+ Trace: &amp;casti(1, 'z') = true at line 9
+ true
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at bf053f</A> println: true] at line 9
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 6917ee</A> println: true] at line 9
+ Trace: &amp;casti(0, 'z') = false at line 10
+ false
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at bf053f</A> println: false] at line 10
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 6917ee</A> println: false] at line 10
+ Trace: &amp;casti(1, 'd') = 1.0 at line 13
+ 1.0
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at bf053f</A> println: 1.0] at line 13
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 6917ee</A> println: 1.0] at line 13
+ Trace: &amp;casti(1, 'b') = 1 at line 16
+ 1
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at bf053f</A> println: 1] at line 16
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 6917ee</A> println: 1] at line 16
+ Trace: &amp;casti(100, 'f') = 100.0 at line 19
+ 100.0
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at bf053f</A> println: 100.0] at line 19
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 6917ee</A> println: 100.0] at line 19
+ Trace: &amp;casti('b', 'c') = b at line 22
+ b
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at bf053f</A> println: b] at line 22
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 6917ee</A> println: b] at line 22
+ Trace: &amp;casti(63, 'i') = 63 at line 25
+ 63
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at bf053f</A> println: 63] at line 25
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 6917ee</A> println: 63] at line 25
+ this is a string y0
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at bf053f</A> println: 'this is a string y0'] at line 28
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 6917ee</A> println: 'this is a string y0'] at line 28
+ Trace: [new java.lang.StringBuilder: 'test'] = test at line 31
+ test
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at bf053f</A> println: test] at line 31
+-Trace: &amp;cast(@('a', 'b', 'c', 'd'), 'c') = [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">C at 9cd75a</A> at line 34
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 6917ee</A> println: test] at line 31
++Trace: &amp;cast(@('a', 'b', 'c', 'd'), 'c') = [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">C at d0d45b</A> at line 34
+ abcd
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at bf053f</A> println: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">C at 9cd75a</A>] at line 34
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 6917ee</A> println: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">C at d0d45b</A>] at line 34
+
+Added: sleep/tests/unicodeseq.sl
+===================================================================
+--- sleep/tests/unicodeseq.sl	2006-11-07 22:42:27 UTC (rev 172)
++++ sleep/tests/unicodeseq.sl	2006-11-08 01:03:17 UTC (rev 173)
+@@ -0,0 +1,46 @@
++#
++# test specifying unicode literal strings...
++#
++
++debug(3);
++
++$x = &quot;this is \u0041 test :)&quot;;
++println($x);
++
++$x = &quot;this is \u0041 test :)\u0041\u0041\u0041\u0041\u0041X\u0041&quot;;
++println($x);
++
++eval('
++   $x = &quot;this is a \u004 test&quot;;
++');
++
++eval('
++   $x = &quot;this is a \u004 test \u004&quot;;
++');
++
++eval('
++   $x = &quot;this is a \uAZBCDEM test \u004&quot;;
++');
++
++#
++#
++#
++
++$x = &quot;this is \x41 test :)&quot;;
++println($x);
++
++$x = &quot;this is \x41 test :)\x41\u0041\x41\x41\x41X\x41&quot;;
++println($x);
++
++eval('
++   $x = &quot;this is a \x4 test&quot;;
++');
++
++eval('
++   $x = &quot;this is a \x4 test \x4&quot;;
++');
++
++eval('
++   $x = &quot;this is a \xAZBCDEM test \x4&quot;;
++');
++
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-11-07 22:42:27 UTC (rev 172)
++++ sleep/whatsnew.txt	2006-11-08 01:03:17 UTC (rev 173)
+@@ -2,8 +2,11 @@
+ ===========
+ - added sizeof(&quot;data format&quot;) to return the size (in bytes) of the
+   data structure represented by the specified format string. 
+-- attempting an invalid useage of the index op now fires a runtime
++- attempting an invalid usage of the index op now fires a runtime
+   warning notifying the scripter of what happened.
++- added \x and \u escapes for parsed literal strings... \xXX allows a
++  char to be specified and \uXXXX allows a unicode char to be specified.
++  X is expected to be a hex byte.
+ 
+ 2.1-beta 9  (6 Nov 06)
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000154.html">[Sleep-svn] r172 - in sleep: . src/sleep/engine/atoms tests	tests/output
+</A></li>
+	<LI>Next message: <A HREF="000156.html">[Sleep-svn] r174 - sleep/src/sleep/parser
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#155">[ date ]</a>
+              <a href="thread.html#155">[ thread ]</a>
+              <a href="subject.html#155">[ subject ]</a>
+              <a href="author.html#155">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

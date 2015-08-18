@@ -1,0 +1,197 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r112 - in sleep: . docs
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2006-September/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r112%20-%20in%20sleep%3A%20.%20docs&In-Reply-To=%3C200609110224.k8B2Ojwe018974%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000093.html">
+   <LINK REL="Next"  HREF="000095.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r112 - in sleep: . docs</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r112%20-%20in%20sleep%3A%20.%20docs&In-Reply-To=%3C200609110224.k8B2Ojwe018974%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r112 - in sleep: . docs">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Mon Sep 11 04:24:45 CEST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000093.html">[Sleep-svn] r111 - in sleep: . src/sleep/bridges src/sleep/runtime	tests tests/output
+</A></li>
+        <LI>Next message: <A HREF="000095.html">[Sleep-svn] r113 - in sleep: . src/sleep/parser tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#94">[ date ]</a>
+              <a href="thread.html#94">[ thread ]</a>
+              <a href="subject.html#94">[ subject ]</a>
+              <a href="author.html#94">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2006-09-11 04:24:44 +0200 (Mon, 11 Sep 2006)
+New Revision: 112
+
+Modified:
+   sleep/docs/sleeplang.html
+   sleep/readme.txt
+Log:
+Sleep 2.1 ready for release maaaaster
+
+
+
+Modified: sleep/docs/sleeplang.html
+===================================================================
+--- sleep/docs/sleeplang.html	2006-09-11 02:11:48 UTC (rev 111)
++++ sleep/docs/sleeplang.html	2006-09-11 02:24:44 UTC (rev 112)
+@@ -806,7 +806,7 @@
+ &lt;p&gt;These functions are useful if you would like to easily implement your own sorting function.  For example to implement a case
+ insensitive sort:&lt;/P&gt;
+ 
+-&lt;pre&gt;@array = array(&quot;Jill&quot;, &quot;Jack&quot;, &quot;BoB&quot;, &quot;iReNE&quot;, &quot;aDaWG&quot;);
++&lt;pre&gt;@array = @(&quot;Jill&quot;, &quot;Jack&quot;, &quot;BoB&quot;, &quot;iReNE&quot;, &quot;aDaWG&quot;);
+ 
+ sub my_sort
+ {
+@@ -822,10 +822,10 @@
+ &lt;p&gt;Sleep arrays are just arrays of scalars.  It is possible for one of the elements of a scalar array to contain another scalar 
+ array (or hash for that matter).  The following sets up a multidimensional array:&lt;/p&gt;
+ 
+-&lt;pre&gt;@data = array(
+-          array(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;),
+-          array(1, 2, 3, 4),
+-          array('.', '!', '#', '*')
++&lt;pre&gt;@data = @(
++          @(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;),
++          @(1, 2, 3, 4),
++          @('.', '!', '#', '*')
+        );&lt;/pre&gt;
+ 
+ &lt;p&gt;In the example above @data is an array of arrays.  To access an individual element of @data:&lt;/p&gt;
+@@ -876,10 +876,10 @@
+ 
+ &lt;h3&gt;The Key/Value Operator&lt;/h3&gt;
+ 
+-&lt;p&gt;Hashes can quickly be created using the &lt;code&gt;hash()&lt;/code&gt; function.  The hash() function takes a special kind of parameter 
+-known as a key/value pair:&lt;/p&gt;
++&lt;p&gt;Sleep has a literal form for dictionary data structures (hashes).  To construct a hash in place use a % followed
++by a comma separated list of key/value pairs enclosed in parantheses.  i.e.&lt;/P&gt;
+ 
+-&lt;pre&gt;%hash = hash(key1 =&gt; &quot;this is a value&quot;, key2 =&gt; 3 * (9 % 7));&lt;/pre&gt;
++&lt;pre&gt;%hash = %(key1 =&gt; &quot;this is a value&quot;, key2 =&gt; 3 * (9 % 7));&lt;/pre&gt;
+ 
+ &lt;p&gt;The =&gt; is the key/value pair operator.  Any time a key/value pair is required as a parameter it can be specified with =&gt; or 
+ as a string separating the key/value by an equal sign i.e. 'key=value'.  The =&gt; operator is special because the left hand side (key) is taken 
+@@ -890,10 +890,10 @@
+ &lt;p&gt;Multidimensional hashes work exactly the same as Sleep arrays.  It is also possible to have an array of hashes, or a hash of 
+ arrays.  Sleep even allows these two data structures to be mixed and matched as you please.&lt;/p&gt;
+ 
+-&lt;pre&gt;%hash = hash(letters =&gt; array(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;, &quot;d&quot;),
+-             names   =&gt; hash(
+-                          rsm =&gt; &quot;Raphael Mudge&quot;,
+-                          fvm =&gt; &quot;Frances Mudge&quot;)
++&lt;pre&gt;%hash = %(letters =&gt; @(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;, &quot;d&quot;),
++               names   =&gt; %(
++                            rsm =&gt; &quot;Raphael Mudge&quot;,
++                            fvm =&gt; &quot;Frances Mudge&quot;)
+             );&lt;/pre&gt;
+ 
+ &lt;p&gt;When a script tries to index to a level that is deeper than has been indexed prior Sleep will create a new hash/array as 
+@@ -1344,6 +1344,26 @@
+ &lt;p&gt;The above example breaks the string &quot;this is a test&quot; down by the delimeter &quot; &quot; using the java.util.StringTokenizer 
+ class.&lt;/p&gt;
+ 
++&lt;h4&gt;Using 3rd Party Jars&lt;/h4&gt;
++
++&lt;p&gt;Sleep can also import packages from jar files not loaded in the classpath.  For example to use the JDOM XML API in
++a Sleep script one would:&lt;/p&gt;
++
++&lt;pre&gt;import org.jdom.*        from: jdom.jar;
++import org.jdom.input.*  from: jdom.jar;
++import org.jdom.output.* from: jdom.jar;
++
++# load the document in
++$builder  = [new SAXBuilder];
++$document = [$builder build: @ARGV[0]];
++
++# print the document out.
++$output   = [new XMLOutputter: [Format getPrettyFormat]];
++[$output output: $document, [System out]];&lt;/pre&gt;
++
++&lt;p&gt;Sleep will try to find the specified jar file (i.e. jdom.jar) using the Sleep classpath.  This value is the
++sleep.classpath accessible as systemProperties()[&quot;sleep.classpath&quot;].&lt;/p&gt;
++
+ &lt;h3&gt;Sleep Interfaces&lt;/h3&gt;
+ 
+ &lt;p&gt;A neat feature of HOES is how interfaces can be quickly and easily created and passed to Java objects.  A Java interface
+@@ -1405,13 +1425,16 @@
+ &lt;p&gt;If the automatic casting is not enough, Sleep includes a &lt;code&gt;&amp;cast&lt;/code&gt; function.  The &lt;code&gt;&amp;cast&lt;/code&gt; 
+ function will cast an @array into any Java type.  Dimensions can be specified as well.  For example:&lt;/p&gt;
+ 
+-&lt;pre&gt;@array = array(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;, &quot;d&quot;, &quot;e&quot;, &quot;f&quot;);
++&lt;pre&gt;@array = @(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;, &quot;d&quot;, &quot;e&quot;, &quot;f&quot;);
+ $casted = cast(@array, &quot;*&quot;, 2, 3); # create a 2x3 array&lt;/pre&gt;
+ 
+ &lt;p&gt;The example above creates an object scalar &lt;var&gt;$casted&lt;/var&gt; that references a 2x3 array of Strings.  The elements of 
+ $casted are ((&quot;a, &quot;b&quot;, &quot;c&quot;), (&quot;d&quot;, &quot;e&quot;, &quot;f&quot;)).  Note that the @array argument passed to &lt;code&gt;&amp;cast&lt;/code&gt; is flattened 
+ prior to casting.&lt;/p&gt;
+ 
++&lt;p&gt;Sleep will also convert a Sleep array scalar into a java.util.List if need be.  Likewise a Sleep hash scalar
++is converted into a java.util.Map if a function requires such an argument.&lt;/p&gt;
++
+ &lt;h3&gt;Catching Exceptions&lt;/h3&gt;
+ 
+ &lt;p&gt;Often times Java API's acessed via HOES can throw an &quot;exception&quot;.  Exceptions are a mechanism used to notify programs that some type of error has occured.  You can check for an exception using the &lt;code&gt;checkError($scalar)&lt;/code&gt; function.&lt;/p&gt;
+@@ -2395,7 +2418,7 @@
+  &lt;tr&gt;
+   &lt;td&gt;$&lt;/td&gt;
+   &lt;td&gt;debug(level)&lt;/td&gt;
+-  &lt;td&gt;explicitly enables the specified debug level for this script: 0 - no debugging; 1 - show only critical errors (default); 2 - show all warnings; 4 - show first time use of non-declared variables.  any of the levels can be |'d together.&lt;/td&gt;
++  &lt;td&gt;explicitly enables the specified debug level for this script: 0 - no debugging; 1 - show only critical errors (default); 2 - show all warnings; 4 - show first time use of non-declared variables; 8 - trace all function calls.  any of the levels can be |'d together.&lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td&gt;$&lt;/td&gt;
+
+Modified: sleep/readme.txt
+===================================================================
+--- sleep/readme.txt	2006-09-11 02:11:48 UTC (rev 111)
++++ sleep/readme.txt	2006-09-11 02:24:44 UTC (rev 112)
+@@ -1,5 +1,5 @@
+  ------- -------------------- ---------   ---------------  ------- ---------
+-Sleep - 2.1 beta 3 - README   
++Sleep - 2.1 beta 4 - README   
+ -  ------------- -------- -   ---------------- --       -    -     -     - - -
+ 
+ &quot;You got the language, all you need now is the O'Reilly book&quot;.  That is
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000093.html">[Sleep-svn] r111 - in sleep: . src/sleep/bridges src/sleep/runtime	tests tests/output
+</A></li>
+	<LI>Next message: <A HREF="000095.html">[Sleep-svn] r113 - in sleep: . src/sleep/parser tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#94">[ date ]</a>
+              <a href="thread.html#94">[ thread ]</a>
+              <a href="subject.html#94">[ subject ]</a>
+              <a href="author.html#94">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

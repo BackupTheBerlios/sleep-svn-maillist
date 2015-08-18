@@ -1,0 +1,167 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r440 - in sleep: . src/sleep/bridges tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2008-September/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r440%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20tests%20tests/output&In-Reply-To=%3C200809252229.m8PMTOlZ007798%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000417.html">
+   <LINK REL="Next"  HREF="000419.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r440 - in sleep: . src/sleep/bridges tests tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r440%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20tests%20tests/output&In-Reply-To=%3C200809252229.m8PMTOlZ007798%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r440 - in sleep: . src/sleep/bridges tests tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Fri Sep 26 00:29:24 CEST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000417.html">[Sleep-svn] r439 - in sleep: . src/sleep/engine	src/sleep/engine/atoms src/sleep/runtime tests tests/output
+</A></li>
+        <LI>Next message: <A HREF="000419.html">[Sleep-svn] r441 - in sleep: . src/sleep/runtime
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#418">[ date ]</a>
+              <a href="thread.html#418">[ thread ]</a>
+              <a href="subject.html#418">[ subject ]</a>
+              <a href="author.html#418">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2008-09-26 00:29:23 +0200 (Fri, 26 Sep 2008)
+New Revision: 440
+
+Added:
+   sleep/tests/doubleship.sl
+   sleep/tests/output/doubleship.sl
+Modified:
+   sleep/src/sleep/bridges/BasicStrings.java
+   sleep/tests/output/keywrds.sl
+   sleep/whatsnew.txt
+Log:
+rewrote &lt;=&gt; op
+
+
+Modified: sleep/src/sleep/bridges/BasicStrings.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicStrings.java	2008-09-25 21:30:36 UTC (rev 439)
++++ sleep/src/sleep/bridges/BasicStrings.java	2008-09-25 22:29:23 UTC (rev 440)
+@@ -639,12 +639,27 @@
+ 
+            if (left.getType() == sleep.engine.types.DoubleValue.class || right.getType() == sleep.engine.types.DoubleValue.class)
+            {        
+-              return SleepUtils.getScalar(new java.math.BigDecimal(left.doubleValue()).compareTo(new java.math.BigDecimal(right.doubleValue())));
++              if (left.doubleValue() &gt; right.doubleValue())
++              {
++                 return SleepUtils.getScalar(1);
++              }
++              else if (left.doubleValue() &lt; right.doubleValue())
++              {
++                 return SleepUtils.getScalar(-1);
++              }
+            }
+            else
+            {
+-              return SleepUtils.getScalar(left.longValue() - right.longValue());
++              if (left.longValue() &gt; right.longValue())
++              {
++                 return SleepUtils.getScalar(1);
++              }
++              else if (left.longValue() &lt; right.longValue())
++              {
++                 return SleepUtils.getScalar(-1);
++              }
+            }
++           return SleepUtils.getScalar(0);
+         }
+     }
+ 
+
+Added: sleep/tests/doubleship.sl
+===================================================================
+--- sleep/tests/doubleship.sl	2008-09-25 21:30:36 UTC (rev 439)
++++ sleep/tests/doubleship.sl	2008-09-25 22:29:23 UTC (rev 440)
+@@ -0,0 +1,14 @@
++#
++# test out the spaceship operator with doubles.
++#
++
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">+ at array</A> = @(
++0.00000000000000000000043574857347858734,
++0.00000000000300000000043574857347858734,
++0.00000000000000000000043574857347958888,
++0.00000000000000000000053574857347858734,
++0.00000000000000000000073574857347858734,
++0.00000000000000000000023574857347858734);
++
++printAll(sort({ return $1 &lt;=&gt; $2; }, @array));
++
+
+Added: sleep/tests/output/doubleship.sl
+===================================================================
+--- sleep/tests/output/doubleship.sl	2008-09-25 21:30:36 UTC (rev 439)
++++ sleep/tests/output/doubleship.sl	2008-09-25 22:29:23 UTC (rev 440)
+@@ -0,0 +1,6 @@
++2.3574857347858734E-22
++4.357485734785873E-22
++4.357485734795889E-22
++5.357485734785873E-22
++7.357485734785873E-22
++3.0000000004357486E-12
+
+Modified: sleep/tests/output/keywrds.sl
+===================================================================
+--- sleep/tests/output/keywrds.sl	2008-09-25 21:30:36 UTC (rev 439)
++++ sleep/tests/output/keywrds.sl	2008-09-25 22:29:23 UTC (rev 440)
+@@ -1,2 +1,2 @@
+ -1
+--4
++-1
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2008-09-25 21:30:36 UTC (rev 439)
++++ sleep/whatsnew.txt	2008-09-25 22:29:23 UTC (rev 440)
+@@ -19,6 +19,9 @@
+ - proxy instances now have a more detailed string representation.  also the
+   string description of a proxy instance no longer calls the underlying
+   closure requesting toString.
++- rewrote &lt;=&gt; to return solely 1, 0, or -1 depending on how values compare.
++  this replaces the old method which subtracted the left value from the right
++  one.  avoids issues with overflowed bits this way.
+ 
+ 2.1-release  (7 Aug 08) [update 2.5]
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000417.html">[Sleep-svn] r439 - in sleep: . src/sleep/engine	src/sleep/engine/atoms src/sleep/runtime tests tests/output
+</A></li>
+	<LI>Next message: <A HREF="000419.html">[Sleep-svn] r441 - in sleep: . src/sleep/runtime
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#418">[ date ]</a>
+              <a href="thread.html#418">[ thread ]</a>
+              <a href="subject.html#418">[ subject ]</a>
+              <a href="author.html#418">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

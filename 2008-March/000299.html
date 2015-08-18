@@ -1,0 +1,106 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r321 - in sleep/tests: . output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2008-March/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r321%20-%20in%20sleep/tests%3A%20.%20output&In-Reply-To=%3C200803191837.m2JIbdc1031758%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000298.html">
+   <LINK REL="Next"  HREF="000300.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r321 - in sleep/tests: . output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r321%20-%20in%20sleep/tests%3A%20.%20output&In-Reply-To=%3C200803191837.m2JIbdc1031758%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r321 - in sleep/tests: . output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Wed Mar 19 19:37:39 CET 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000298.html">[Sleep-svn] r320 - in sleep: . src/sleep/bridges src/sleep/parser	tests tests/output
+</A></li>
+        <LI>Next message: <A HREF="000300.html">[Sleep-svn] r322 - in sleep: . src/sleep/bridges src/sleep/engine	tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#299">[ date ]</a>
+              <a href="thread.html#299">[ thread ]</a>
+              <a href="subject.html#299">[ subject ]</a>
+              <a href="author.html#299">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2008-03-19 19:37:39 +0100 (Wed, 19 Mar 2008)
+New Revision: 321
+
+Added:
+   sleep/tests/output/pureinterop.sl
+   sleep/tests/pureinterop.sl
+Log:
+checking in some unit tests yo.
+
+
+Added: sleep/tests/output/pureinterop.sl
+===================================================================
+--- sleep/tests/output/pureinterop.sl	2008-03-19 18:22:49 UTC (rev 320)
++++ sleep/tests/output/pureinterop.sl	2008-03-19 18:37:39 UTC (rev 321)
+@@ -0,0 +1,2 @@
++class sleep.runtime.Scalar
++class java.lang.String
+
+Added: sleep/tests/pureinterop.sl
+===================================================================
+--- sleep/tests/pureinterop.sl	2008-03-19 18:22:49 UTC (rev 320)
++++ sleep/tests/pureinterop.sl	2008-03-19 18:37:39 UTC (rev 321)
+@@ -0,0 +1,20 @@
++#
++# test out readAsObject and writeAsObject
++#
++
++$buffer1 = allocate(1024);
++writeObject($buffer1, &quot;this is a string&quot;);
++closef($buffer1);
++
++$test1 = readAsObject($buffer1);
++println([$test1 getClass]);
++
++###############
++
++$buffer2 = allocate(1024);
++writeObject($buffer2, &quot;this is a string&quot;);
++closef($buffer2);
++
++$test2 = readObject($buffer2);
++println([$test2 getClass]);
++
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000298.html">[Sleep-svn] r320 - in sleep: . src/sleep/bridges src/sleep/parser	tests tests/output
+</A></li>
+	<LI>Next message: <A HREF="000300.html">[Sleep-svn] r322 - in sleep: . src/sleep/bridges src/sleep/engine	tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#299">[ date ]</a>
+              <a href="thread.html#299">[ thread ]</a>
+              <a href="subject.html#299">[ subject ]</a>
+              <a href="author.html#299">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

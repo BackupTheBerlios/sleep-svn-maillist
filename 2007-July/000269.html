@@ -1,0 +1,192 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r290 - in sleep: . src/sleep/bridges tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2007-July/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r290%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20tests%20tests/output&In-Reply-To=%3C200707042001.l64K1FwA002355%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000268.html">
+   <LINK REL="Next"  HREF="000270.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r290 - in sleep: . src/sleep/bridges tests tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r290%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20tests%20tests/output&In-Reply-To=%3C200707042001.l64K1FwA002355%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r290 - in sleep: . src/sleep/bridges tests tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Wed Jul  4 22:01:15 CEST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000268.html">[Sleep-svn] r289 - in sleep: . src/sleep/bridges src/sleep/engine	tests tests/output
+</A></li>
+        <LI>Next message: <A HREF="000270.html">[Sleep-svn] r291 - in sleep: . src/sleep/bridges src/sleep/parser	src/sleep/runtime tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#269">[ date ]</a>
+              <a href="thread.html#269">[ thread ]</a>
+              <a href="subject.html#269">[ subject ]</a>
+              <a href="author.html#269">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2007-07-04 22:01:11 +0200 (Wed, 04 Jul 2007)
+New Revision: 290
+
+Added:
+   sleep/tests/addhash.sl
+   sleep/tests/fetest.sl
+   sleep/tests/output/addhash.sl
+   sleep/tests/output/fetest.sl
+Modified:
+   sleep/src/sleep/bridges/BasicUtilities.java
+   sleep/whatsnew.txt
+Log:
+more misc. changes.
+
+
+
+Modified: sleep/src/sleep/bridges/BasicUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicUtilities.java	2007-07-04 19:29:42 UTC (rev 289)
++++ sleep/src/sleep/bridges/BasicUtilities.java	2007-07-04 20:01:11 UTC (rev 290)
+@@ -750,9 +750,8 @@
+              sleep.engine.atoms.Iterate.IteratorData d = (sleep.engine.atoms.Iterate.IteratorData)iterators.peek();
+              d.iterator.remove();
+              d.count = d.count - 1;
++             return d.source;
+           }
+-         
+-          return SleepUtils.getEmptyScalar();
+        }
+        else if (n.equals(&quot;&amp;watch&quot;))
+        {
+@@ -940,8 +939,21 @@
+        {
+           Scalar item = BridgeUtilities.getScalar(l);
+           int index   = BridgeUtilities.normalize(BridgeUtilities.getInt(l, 0), value.getArray().size() + 1);
+-          return value.getArray().add(SleepUtils.getScalar(item), index);
++          value.getArray().add(SleepUtils.getScalar(item), index);
++          return value;
+        }
++       else if (n.equals(&quot;&amp;add&quot;) &amp;&amp; value.getHash() != null)
++       {
++          while (!l.isEmpty())
++          {
++             KeyValuePair kvp = BridgeUtilities.getKeyValuePair(l);
++
++             Scalar blah = value.getHash().getAt(kvp.getKey());
++             blah.setValue(kvp.getValue());
++          }
++
++          return value;
++       }
+        else if (n.equals(&quot;&amp;splice&quot;) &amp;&amp; value.getArray() != null)
+        {
+           // splice(@old, @stuff, start, n to remove)
+@@ -1074,6 +1086,8 @@
+                 value.getHash().remove(scalar);
+              }
+           }
++
++          return value;
+        }
+        else if (n.equals(&quot;&amp;keys&quot;)) // &amp;keys(%hash)
+        {
+
+Added: sleep/tests/addhash.sl
+===================================================================
+--- sleep/tests/addhash.sl	2007-07-04 19:29:42 UTC (rev 289)
++++ sleep/tests/addhash.sl	2007-07-04 20:01:11 UTC (rev 290)
+@@ -0,0 +1,8 @@
++#
++# add a value to a hash.
++# 
++
++%hash = %(a =&gt; &quot;apple&quot;, b =&gt; &quot;boy&quot;, c =&gt; &quot;chump&quot;);
++
++add(%hash, d =&gt; &quot;dog&quot;, p =&gt; 'pH34r', j =&gt; &quot;jumping jack flash&quot;, f =&gt; { println(&quot;some function&quot;); });
++println(%hash);
+
+Added: sleep/tests/fetest.sl
+===================================================================
+--- sleep/tests/fetest.sl	2007-07-04 19:29:42 UTC (rev 289)
++++ sleep/tests/fetest.sl	2007-07-04 20:01:11 UTC (rev 290)
+@@ -0,0 +1,9 @@
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">+ at a</A> = @(1, 2, 3, 4, &quot;e&quot;, &quot;f&quot;, &quot;g&quot;);
++
++foreach $index =&gt; $value (@a)
++{
++   if (remove() is @a)
++   {
++      println(&quot;good!&quot;);
++   }
++}
+
+Added: sleep/tests/output/addhash.sl
+===================================================================
+--- sleep/tests/output/addhash.sl	2007-07-04 19:29:42 UTC (rev 289)
++++ sleep/tests/output/addhash.sl	2007-07-04 20:01:11 UTC (rev 290)
+@@ -0,0 +1 @@
++%(d =&gt; 'dog', a =&gt; 'apple', c =&gt; 'chump', f =&gt; &amp;closure[addhash.sl:7]#1, j =&gt; 'jumping jack flash', p =&gt; 'pH34r', b =&gt; 'boy')
+
+Added: sleep/tests/output/fetest.sl
+===================================================================
+--- sleep/tests/output/fetest.sl	2007-07-04 19:29:42 UTC (rev 289)
++++ sleep/tests/output/fetest.sl	2007-07-04 20:01:11 UTC (rev 290)
+@@ -0,0 +1,7 @@
++good!
++good!
++good!
++good!
++good!
++good!
++good!
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2007-07-04 19:29:42 UTC (rev 289)
++++ sleep/whatsnew.txt	2007-07-04 20:01:11 UTC (rev 290)
+@@ -18,7 +18,10 @@
+   requesting a byte[] or char[] parameter.
+ - Sleep scalars returned by Java calls will be returned as is.
+ - increased performance (x3) of Sleeps internal functions to convert a 
+-  String to a non-tampered byte array. 
++  String to a non-mangled byte array. 
++- &amp;remove returns data structure data was removed from
++- extended &amp;add to accept a hash and multiple key/value pairs for
++  adding stuff to an existing hash.
+ 
+ 2.1-beta 17  (17 Jun 07)
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000268.html">[Sleep-svn] r289 - in sleep: . src/sleep/bridges src/sleep/engine	tests tests/output
+</A></li>
+	<LI>Next message: <A HREF="000270.html">[Sleep-svn] r291 - in sleep: . src/sleep/bridges src/sleep/parser	src/sleep/runtime tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#269">[ date ]</a>
+              <a href="thread.html#269">[ thread ]</a>
+              <a href="subject.html#269">[ subject ]</a>
+              <a href="author.html#269">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

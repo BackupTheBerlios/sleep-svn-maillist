@@ -1,0 +1,498 @@
+From rsmudge at mail.berlios.de  Wed Jul  2 00:40:05 2008
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Wed, 2 Jul 2008 00:40:05 +0200
+Subject: [Sleep-svn] r414 - in sleep: . src/sleep/bridges tests tests/output
+Message-ID: <200807012240.m61Me5pn011462@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2008-07-02 00:40:03 +0200 (Wed, 02 Jul 2008)
+New Revision: 414
+
+Added:
+   sleep/tests/output/values.sl
+   sleep/tests/values.sl
+Modified:
+   sleep/src/sleep/bridges/BasicUtilities.java
+   sleep/whatsnew.txt
+Log:
+..
+
+
+Modified: sleep/src/sleep/bridges/BasicUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicUtilities.java	2008-06-17 21:42:23 UTC (rev 413)
++++ sleep/src/sleep/bridges/BasicUtilities.java	2008-07-01 22:40:03 UTC (rev 414)
+@@ -1358,7 +1358,12 @@
+              Iterator iter = value.getHash().getData().values().iterator();
+              while (iter.hasNext())
+              {
+-                temp.getArray().push((Scalar)iter.next());
++                Scalar next = (Scalar)iter.next();
++
++                if (!SleepUtils.isEmptyScalar(next))
++                {
++                   temp.getArray().push(next);
++                }
+              }
+ 
+              return temp;
+
+Added: sleep/tests/output/values.sl
+===================================================================
+--- sleep/tests/output/values.sl	2008-06-17 21:42:23 UTC (rev 413)
++++ sleep/tests/output/values.sl	2008-07-01 22:40:03 UTC (rev 414)
+@@ -0,0 +1,5 @@
++%(a => 'apple', c => 'cat', n => 443, b => 'boy')
++apple
++cat
++443
++boy
+
+Added: sleep/tests/values.sl
+===================================================================
+--- sleep/tests/values.sl	2008-06-17 21:42:23 UTC (rev 413)
++++ sleep/tests/values.sl	2008-07-01 22:40:03 UTC (rev 414)
+@@ -0,0 +1,7 @@
++%hash = %(a => "apple", b => 'boy', c => 'cat', n => 443);
++
++if (%hash["whatever"] is $null && %hash["rhinos"] is $null)
++{
++   println(%hash);
++   printAll(values(%hash));
++}
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2008-06-17 21:42:23 UTC (rev 413)
++++ sleep/whatsnew.txt	2008-07-01 22:40:03 UTC (rev 414)
+@@ -1,6 +1,7 @@
+ 2.1-release  (...)
+ ===========
+ - splice() no longer corrupts sublists.
++- values(%hash) now omits $null values.  
+ 
+ 2.1-release  (16 Jun 08)
+ ===========
+
+
+
+From rsmudge at mail.berlios.de  Wed Jul  2 00:49:11 2008
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Wed, 2 Jul 2008 00:49:11 +0200
+Subject: [Sleep-svn] r415 - in sleep: . src/sleep/bridges
+Message-ID: <200807012249.m61MnBrg022285@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2008-07-02 00:49:10 +0200 (Wed, 02 Jul 2008)
+New Revision: 415
+
+Modified:
+   sleep/src/sleep/bridges/BasicUtilities.java
+   sleep/whatsnew.txt
+Log:
+sped up local, global, and this functions
+
+
+Modified: sleep/src/sleep/bridges/BasicUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicUtilities.java	2008-07-01 22:40:03 UTC (rev 414)
++++ sleep/src/sleep/bridges/BasicUtilities.java	2008-07-01 22:49:10 UTC (rev 415)
+@@ -758,6 +758,8 @@
+ 
+     private static class SetScope implements Function
+     {
++       private java.util.regex.Pattern splitter = java.util.regex.Pattern.compile(" ");
++
+        public Scalar evaluate(String n, ScriptInstance i, Stack l)
+        {
+           Variable level = null;
+@@ -771,7 +773,7 @@
+           if (level == null)
+               return SleepUtils.getEmptyScalar(); 
+ 
+-          String vars[] = temp.split(" "); 
++          String vars[] = splitter.split(temp); 
+           for (int x = 0; x < vars.length; x++)
+           {
+              if (level.scalarExists(vars[x]))
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2008-07-01 22:40:03 UTC (rev 414)
++++ sleep/whatsnew.txt	2008-07-01 22:49:10 UTC (rev 415)
+@@ -2,6 +2,8 @@
+ ===========
+ - splice() no longer corrupts sublists.
+ - values(%hash) now omits $null values.  
++- sped up local, global, and this by cacheing the regex pattern
++  used to split up the var names
+ 
+ 2.1-release  (16 Jun 08)
+ ===========
+
+
+
+From rsmudge at mail.berlios.de  Wed Jul  2 01:22:36 2008
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Wed, 2 Jul 2008 01:22:36 +0200
+Subject: [Sleep-svn] r416 - in sleep: . src/sleep/parser tests tests/output
+Message-ID: <200807012322.m61NMaFB026168@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2008-07-02 01:22:36 +0200 (Wed, 02 Jul 2008)
+New Revision: 416
+
+Added:
+   sleep/tests/argerr.sl
+   sleep/tests/keyvalueerr.sl
+   sleep/tests/output/argerr.sl
+   sleep/tests/output/keyvalueerr.sl
+Modified:
+   sleep/src/sleep/parser/CodeGenerator.java
+   sleep/whatsnew.txt
+Log:
+..
+
+
+Modified: sleep/src/sleep/parser/CodeGenerator.java
+===================================================================
+--- sleep/src/sleep/parser/CodeGenerator.java	2008-07-01 22:49:10 UTC (rev 415)
++++ sleep/src/sleep/parser/CodeGenerator.java	2008-07-01 23:22:36 UTC (rev 416)
+@@ -333,13 +333,13 @@
+       }
+    }
+   
+-   public void parseIdea(Token data) 
++   public List parseIdea(Token data) 
+    {
+       LinkedList allData = TokenParser.ParseIdea(parser, LexicalAnalyzer.GroupBlockTokens(parser, new StringIterator(data.toString(), data.getHint())));
+       
+       if (parser.hasErrors())
+       {
+-         return;
++         return null;
+       }
+ 
+       Iterator i = allData.iterator();
+@@ -347,6 +347,8 @@
+       {
+          parse((Statement)i.next());
+       }
++
++      return allData;
+    }
+ 
+    public void parse(Statement datum)
+@@ -392,8 +394,19 @@
+            //
+            // parse B
+            //
+-           parseIdea(tokens[2]);
++           List valuez = parseIdea(tokens[2]);
+ 
++           /* a bit of error checking to guard against a common error */
++           Iterator iz = valuez.iterator();
++           while (iz.hasNext())
++           {
++              Statement t = (Statement)iz.next();
++              if (t.getType() == IDEA_HASH_PAIR)
++              {
++                 parser.reportError("key/value pair specified for '"+tokens[0]+"', did you forget a comma?", tokens[2]);
++              }
++           }
++
+            //
+            // parse A - or just push it onto the stack as a literal token :)
+            //
+
+Added: sleep/tests/argerr.sl
+===================================================================
+--- sleep/tests/argerr.sl	2008-07-01 22:49:10 UTC (rev 415)
++++ sleep/tests/argerr.sl	2008-07-01 23:22:36 UTC (rev 416)
+@@ -0,0 +1,7 @@
++sub foo
++{
++   println("Named args are $a and $b");
++}
++
++foo(3, $a => "whatever I phear you" 
++       $b => 'uNF');
+
+Added: sleep/tests/keyvalueerr.sl
+===================================================================
+--- sleep/tests/keyvalueerr.sl	2008-07-01 22:49:10 UTC (rev 415)
++++ sleep/tests/keyvalueerr.sl	2008-07-01 23:22:36 UTC (rev 416)
+@@ -0,0 +1,8 @@
++%hash = %(a => "baseball",
++          b => "ardvarks",
++          c => "cats"
++          d => "dogs");
++
++println(%hash);
++
++printAll(map({ return typeOf($1) . " $1"; }, values(%hash)));
+
+Added: sleep/tests/output/argerr.sl
+===================================================================
+--- sleep/tests/output/argerr.sl	2008-07-01 22:49:10 UTC (rev 415)
++++ sleep/tests/output/argerr.sl	2008-07-01 23:22:36 UTC (rev 416)
+@@ -0,0 +1,2 @@
++Error: key/value pair specified for '$a', did you forget a comma? at line 6
++       "whatever I phear you" $b => 'uNF'
+
+Added: sleep/tests/output/keyvalueerr.sl
+===================================================================
+--- sleep/tests/output/keyvalueerr.sl	2008-07-01 22:49:10 UTC (rev 415)
++++ sleep/tests/output/keyvalueerr.sl	2008-07-01 23:22:36 UTC (rev 416)
+@@ -0,0 +1,2 @@
++Error: key/value pair specified for 'c', did you forget a comma? at line 3
++       "cats" d => "dogs"
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2008-07-01 22:49:10 UTC (rev 415)
++++ sleep/whatsnew.txt	2008-07-01 23:22:36 UTC (rev 416)
+@@ -2,8 +2,9 @@
+ ===========
+ - splice() no longer corrupts sublists.
+ - values(%hash) now omits $null values.  
+-- sped up local, global, and this by cacheing the regex pattern
+-  used to split up the var names
++- sped up scope functions: &local, &global, and &this by cacheing 
++  the regex pattern used to split up the var names
++- added a compile time check for %(a => ... b => ...) errors
+ 
+ 2.1-release  (16 Jun 08)
+ ===========
+
+
+
+From rsmudge at mail.berlios.de  Wed Jul  2 01:40:24 2008
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Wed, 2 Jul 2008 01:40:24 +0200
+Subject: [Sleep-svn] r417 - in sleep: . tests tests/output
+Message-ID: <200807012340.m61NeOH7026242@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2008-07-02 01:40:23 +0200 (Wed, 02 Jul 2008)
+New Revision: 417
+
+Added:
+   sleep/tests/output/splicetest.sl
+   sleep/tests/splicetest.sl
+Modified:
+   sleep/whatsnew.txt
+Log:
+..
+
+
+Added: sleep/tests/output/splicetest.sl
+===================================================================
+--- sleep/tests/output/splicetest.sl	2008-07-01 23:22:36 UTC (rev 416)
++++ sleep/tests/output/splicetest.sl	2008-07-01 23:40:23 UTC (rev 417)
+@@ -0,0 +1,64 @@
++@('a', 'b', 'c', 'd', 'e', 'f')
++@('a')
++  @('a', 1, 2, 3)
++  @('a', 1, 2, 3, 'b', 'c', 'd', 'e', 'f')
++@('a', 'b')
++  @('a', 1, 2, 3)
++  @('a', 1, 2, 3, 'c', 'd', 'e', 'f')
++@('a', 'b', 'c')
++  @('a', 1, 2, 3)
++  @('a', 1, 2, 3, 'd', 'e', 'f')
++@('a', 'b', 'c', 'd')
++  @('a', 1, 2, 3, 'd')
++  @('a', 1, 2, 3, 'd', 'e', 'f')
++@('a', 'b', 'c', 'd', 'e')
++  @('a', 1, 2, 3, 'd', 'e')
++  @('a', 1, 2, 3, 'd', 'e', 'f')
++@('a', 'b', 'c', 'd', 'e', 'f')
++  @('a', 1, 2, 3, 'd', 'e', 'f')
++  @('a', 1, 2, 3, 'd', 'e', 'f')
++@('b')
++  @('b', 1, 2, 3)
++  @('a', 'b', 1, 2, 3, 'c', 'd', 'e', 'f')
++@('b', 'c')
++  @('b', 1, 2, 3)
++  @('a', 'b', 1, 2, 3, 'd', 'e', 'f')
++@('b', 'c', 'd')
++  @('b', 1, 2, 3)
++  @('a', 'b', 1, 2, 3, 'e', 'f')
++@('b', 'c', 'd', 'e')
++  @('b', 1, 2, 3, 'e')
++  @('a', 'b', 1, 2, 3, 'e', 'f')
++@('b', 'c', 'd', 'e', 'f')
++  @('b', 1, 2, 3, 'e', 'f')
++  @('a', 'b', 1, 2, 3, 'e', 'f')
++@('c')
++  @('c', 1, 2, 3)
++  @('a', 'b', 'c', 1, 2, 3, 'd', 'e', 'f')
++@('c', 'd')
++  @('c', 1, 2, 3)
++  @('a', 'b', 'c', 1, 2, 3, 'e', 'f')
++@('c', 'd', 'e')
++  @('c', 1, 2, 3)
++  @('a', 'b', 'c', 1, 2, 3, 'f')
++@('c', 'd', 'e', 'f')
++  @('c', 1, 2, 3, 'f')
++  @('a', 'b', 'c', 1, 2, 3, 'f')
++@('d')
++  @('d', 1, 2, 3)
++  @('a', 'b', 'c', 'd', 1, 2, 3, 'e', 'f')
++@('d', 'e')
++  @('d', 1, 2, 3)
++  @('a', 'b', 'c', 'd', 1, 2, 3, 'f')
++@('d', 'e', 'f')
++  @('d', 1, 2, 3)
++  @('a', 'b', 'c', 'd', 1, 2, 3)
++@('e')
++  @('e', 1, 2, 3)
++  @('a', 'b', 'c', 'd', 'e', 1, 2, 3, 'f')
++@('e', 'f')
++  @('e', 1, 2, 3)
++  @('a', 'b', 'c', 'd', 'e', 1, 2, 3)
++@('f')
++  @('f', 1, 2, 3)
++  @('a', 'b', 'c', 'd', 'e', 'f', 1, 2, 3)
+
+Added: sleep/tests/splicetest.sl
+===================================================================
+--- sleep/tests/splicetest.sl	2008-07-01 23:22:36 UTC (rev 416)
++++ sleep/tests/splicetest.sl	2008-07-01 23:40:23 UTC (rev 417)
+@@ -0,0 +1,20 @@
++#
++# test out list splicing on sublists
++#
++
++ at a = @("a", "b", "c", "d", "e", "f");
++println(@a);
++
++for ($x = 0; $x < 7; $x++)
++{
++   for ($y = $x + 1; $y < 7; $y++)
++   {
++      @a = @("a", "b", "c", "d", "e", "f");
++      @b = sublist(@a, $x, $y);
++      println(@b);
++
++      splice(@b, @(1, 2, 3), 1, 2);
++      println("  " . @b);
++      println("  " . @a);
++   }
++}
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2008-07-01 23:22:36 UTC (rev 416)
++++ sleep/whatsnew.txt	2008-07-01 23:40:23 UTC (rev 417)
+@@ -5,6 +5,7 @@
+ - sped up scope functions: &local, &global, and &this by cacheing 
+   the regex pattern used to split up the var names
+ - added a compile time check for %(a => ... b => ...) errors
++  [notice the missing comma between the key/value pairs]
+ 
+ 2.1-release  (16 Jun 08)
+ ===========
+
+
+
+From rsmudge at mail.berlios.de  Wed Jul  2 01:43:04 2008
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Wed, 2 Jul 2008 01:43:04 +0200
+Subject: [Sleep-svn] r418 - in sleep: . src/sleep/runtime
+Message-ID: <200807012343.m61Nh4W3026475@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2008-07-02 01:43:03 +0200 (Wed, 02 Jul 2008)
+New Revision: 418
+
+Modified:
+   sleep/readme.txt
+   sleep/src/sleep/runtime/SleepUtils.java
+   sleep/whatsnew.txt
+Log:
+..
+
+
+Modified: sleep/readme.txt
+===================================================================
+--- sleep/readme.txt	2008-07-01 23:40:23 UTC (rev 417)
++++ sleep/readme.txt	2008-07-01 23:43:03 UTC (rev 418)
+@@ -23,7 +23,7 @@
+ closures and access to the Java class library. 
+ 
+ After Sleep 2.0 I let the project sit and collect bug reports for about a 
+-year.   At some point I added coroutines into Sleep 2.0 and thus Sleep 2.1 
++year.  At some point I added coroutines into Sleep 2.0 and thus Sleep 2.1 
+ was born.  This release is the result of a 2 year polishing effort on the Sleep 
+ 2.0 codebase. 
+ 
+@@ -170,8 +170,8 @@
+ -  ------------- -------- -   ---------------- --       -    -     -     - - -
+ 
+ Sleep is (c) 2002, 2003, 2004, 2005, 2006, 2007, and 2008 (wow, been at this
+-awhile) Raphael Mudge (rsmudge at gmail.com).  All of the source and somehow the 
+-documentation are released under the GNU Lesser Public License.  
++awhile) Raphael Mudge (rsmudge at gmail.com).  All of the source is released under
++the GNU Lesser Public License.
+ 
+ The scripts and library files supplied as input to or produced as output 
+ from the Sleep library do not automatically fall under the copyright of the
+
+Modified: sleep/src/sleep/runtime/SleepUtils.java
+===================================================================
+--- sleep/src/sleep/runtime/SleepUtils.java	2008-07-01 23:40:23 UTC (rev 417)
++++ sleep/src/sleep/runtime/SleepUtils.java	2008-07-01 23:43:03 UTC (rev 418)
+@@ -26,7 +26,7 @@
+ public class SleepUtils
+ {
+    /** A date stamp of this Sleep release in YYYYMMDD format */
+-   public static final int    SLEEP_RELEASE = 20080616;
++   public static final int    SLEEP_RELEASE = 20080701;
+ 
+    /** A string description of this Sleep release */
+    public static final String SLEEP_VERSION = "Sleep 2.1";
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2008-07-01 23:40:23 UTC (rev 417)
++++ sleep/whatsnew.txt	2008-07-01 23:43:03 UTC (rev 418)
+@@ -1,4 +1,4 @@
+-2.1-release  (...)
++2.1-release  (1 Jul 08)
+ ===========
+ - splice() no longer corrupts sublists.
+ - values(%hash) now omits $null values.  
+
+
+
+From TanjaPrivat at erobay.in  Fri Jul 18 12:48:12 2008
+From: TanjaPrivat at erobay.in (TanjaPrivat)
+Date: Fri, 18 Jul 2008 14:48:12 +0400
+Subject: [Sleep-svn] Einschreiben von TanjaPrivat
+Message-ID: <E1KJnVU-000I19-48@host05.best-hosting.ru>
+
+Hallo!
+
+Ein(e) Bekannte(r) von Dir (TanjaPrivat) 
+hat Dich eingeladen, seine/ihre neue Auktion zu besuchen.
+Was genau versteigert wird, erfaehrst Du auf der Auktionsseite.
+
+Folge bitte diesem Link:
+http://www.erobay.in/?auctionator=TanjaPrivat
+
+Ausser der privaten Auktion von TanjaPrivat findest zu noch
+Dates, Parties, Swinger, Toys und mehr ab 1 EURO!
+
+Viele Gruesse und viel Spass bei Erobay!
+Ihr erobay.in Team
+
+
+PS: Diese Einladung wurde einmalig ueber das EINLADEN Formular von erobay.in
+einmalig verschickt. erobay ist hierfuer nicht verantwortlich.
+
+  
+
+
+

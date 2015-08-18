@@ -1,0 +1,122 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r13 - in sleep: . src/sleep/bridges
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2005-June/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r13%20-%20in%20sleep%3A%20.%20src/sleep/bridges&In-Reply-To=%3C200506031811.j53IBKqV001691%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000001.html">
+   <LINK REL="Next"  HREF="000003.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r13 - in sleep: . src/sleep/bridges</H1>
+    <B>Raphael Mudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r13%20-%20in%20sleep%3A%20.%20src/sleep/bridges&In-Reply-To=%3C200506031811.j53IBKqV001691%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r13 - in sleep: . src/sleep/bridges">rsmudge at sheep.berlios.de
+       </A><BR>
+    <I>Fri Jun  3 20:11:20 CEST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000001.html">[Sleep-svn] r12 - in sleep: . src/sleep/parser tests tests/output
+</A></li>
+        <LI>Next message: <A HREF="000003.html">[Sleep-svn] r14 - in sleep: . src/sleep/bridges src/sleep/error
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2">[ date ]</a>
+              <a href="thread.html#2">[ thread ]</a>
+              <a href="subject.html#2">[ subject ]</a>
+              <a href="author.html#2">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2005-06-03 20:11:20 +0200 (Fri, 03 Jun 2005)
+New Revision: 13
+
+Modified:
+   sleep/src/sleep/bridges/BasicUtilities.java
+   sleep/whatsnew.txt
+Log:
+Added a subarray function
+
+
+Modified: sleep/src/sleep/bridges/BasicUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicUtilities.java	2005-06-03 17:57:33 UTC (rev 12)
++++ sleep/src/sleep/bridges/BasicUtilities.java	2005-06-03 18:11:20 UTC (rev 13)
+@@ -59,6 +59,7 @@
+         temp.put(&quot;&amp;pop&quot;,   this);      // &amp;pop(@array) = $scalar
+         temp.put(&quot;&amp;add&quot;,   this);      // &amp;pop(@array) = $scalar
+         temp.put(&quot;&amp;clear&quot;, this);
++        temp.put(&quot;&amp;subarray&quot;, this);
+         temp.put(&quot;&amp;copy&quot;,  new copy());
+         temp.put(&quot;&amp;map&quot;,    new map());
+ 
+@@ -506,6 +507,23 @@
+              value.setValue(SleepUtils.getEmptyScalar());
+           }
+        }
++       else if (n.equals(&quot;&amp;subarray&quot;))
++       {
++          if (value.getArray() != null)
++          {
++             int begin = BridgeUtilities.getInt(l, 0);
++             int end   = BridgeUtilities.getInt(l, value.getArray().size());
++
++             Scalar rv = SleepUtils.getArrayScalar();
++             while (begin &lt; end)
++             {
++                rv.getArray().push(value.getArray().getAt(begin));
++                begin++;
++             }
++
++             return rv;
++          }
++       }
+        else if (n.equals(&quot;&amp;remove&quot;))
+        {
+           Scalar scalar = (Scalar)l.pop();
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2005-06-03 17:57:33 UTC (rev 12)
++++ sleep/whatsnew.txt	2005-06-03 18:11:20 UTC (rev 13)
+@@ -1,6 +1,7 @@
+ 2.0-b8 in progress
+ ======
+ - fixed a bug parsing tuple assignments in certain cases.
++- added a &amp;subarray(@array, n, [m]) function for extracting an array slice
+ 
+ 2.0-b7
+ ======
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000001.html">[Sleep-svn] r12 - in sleep: . src/sleep/parser tests tests/output
+</A></li>
+	<LI>Next message: <A HREF="000003.html">[Sleep-svn] r14 - in sleep: . src/sleep/bridges src/sleep/error
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2">[ date ]</a>
+              <a href="thread.html#2">[ thread ]</a>
+              <a href="subject.html#2">[ subject ]</a>
+              <a href="author.html#2">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

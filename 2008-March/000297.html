@@ -1,0 +1,427 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r319 - in sleep: . src/sleep/bridges src/sleep/engine	tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2008-March/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r319%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20src/sleep/engine%0A%09tests%20tests/output&In-Reply-To=%3C200803191720.m2JHKIMJ001581%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   
+   <LINK REL="Next"  HREF="000298.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r319 - in sleep: . src/sleep/bridges src/sleep/engine	tests tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r319%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20src/sleep/engine%0A%09tests%20tests/output&In-Reply-To=%3C200803191720.m2JHKIMJ001581%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r319 - in sleep: . src/sleep/bridges src/sleep/engine	tests tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Wed Mar 19 18:20:18 CET 2008</I>
+    <P><UL>
+        
+        <LI>Next message: <A HREF="000298.html">[Sleep-svn] r320 - in sleep: . src/sleep/bridges src/sleep/parser	tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#297">[ date ]</a>
+              <a href="thread.html#297">[ thread ]</a>
+              <a href="subject.html#297">[ subject ]</a>
+              <a href="author.html#297">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2008-03-19 18:20:14 +0100 (Wed, 19 Mar 2008)
+New Revision: 319
+
+Added:
+   sleep/tests/copy.sl
+   sleep/tests/forkshare.sl
+   sleep/tests/output/copy.sl
+   sleep/tests/output/forkshare.sl
+   sleep/tests/output/pushl.sl
+   sleep/tests/output/round.sl
+   sleep/tests/pushl.sl
+   sleep/tests/round.sl
+Modified:
+   sleep/src/sleep/bridges/BasicIO.java
+   sleep/src/sleep/bridges/BasicNumbers.java
+   sleep/src/sleep/bridges/BasicUtilities.java
+   sleep/src/sleep/bridges/BridgeUtilities.java
+   sleep/src/sleep/bridges/RegexBridge.java
+   sleep/src/sleep/bridges/SleepClosure.java
+   sleep/src/sleep/engine/CallRequest.java
+   sleep/whatsnew.txt
+Log:
+lots of changes...
+
+
+Modified: sleep/src/sleep/bridges/BasicIO.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicIO.java	2008-02-16 16:03:15 UTC (rev 318)
++++ sleep/src/sleep/bridges/BasicIO.java	2008-03-19 17:20:14 UTC (rev 319)
+@@ -457,7 +457,7 @@
+           while (!l.isEmpty())
+           {
+              KeyValuePair kvp = BridgeUtilities.getKeyValuePair(l);
+-             vars.putScalar(kvp.getKey().toString(), kvp.getValue());
++             vars.putScalar(kvp.getKey().toString(), SleepUtils.getScalar(kvp.getValue()));
+           }
+ 
+           // create a pipe between these two items...
+
+Modified: sleep/src/sleep/bridges/BasicNumbers.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicNumbers.java	2008-02-16 16:03:15 UTC (rev 318)
++++ sleep/src/sleep/bridges/BasicNumbers.java	2008-03-19 17:20:14 UTC (rev 319)
+@@ -110,7 +110,22 @@
+        else if (name.equals(&quot;&amp;cos&quot;)) { return SleepUtils.getScalar(Math.cos(BridgeUtilities.getDouble(args, 0.0))); }
+        else if (name.equals(&quot;&amp;log&quot;) &amp;&amp; args.size() == 1) { return SleepUtils.getScalar(Math.log(BridgeUtilities.getDouble(args, 0.0))); }
+        else if (name.equals(&quot;&amp;log&quot;) &amp;&amp; args.size() == 2) { return SleepUtils.getScalar(Math.log(BridgeUtilities.getDouble(args, 0.0)) / Math.log(BridgeUtilities.getDouble(args, 0.0))); }
+-       else if (name.equals(&quot;&amp;round&quot;)) { return SleepUtils.getScalar(Math.round(BridgeUtilities.getDouble(args, 0.0))); }
++       else if (name.equals(&quot;&amp;round&quot;)) { 
++           if (args.size() == 1)
++           {
++              return SleepUtils.getScalar(Math.round(BridgeUtilities.getDouble(args, 0.0))); 
++           }
++           else
++           {
++              /* round to a certain number of places--if the argument is significantly large, this function could break */
++              double number = BridgeUtilities.getDouble(args, 0.0);
++              double places = Math.pow(10, BridgeUtilities.getInt(args, 0));
++
++              number = Math.round(number * places);
++              number = number / places;
++              return SleepUtils.getScalar(number);
++           }
++       }
+        else if (name.equals(&quot;&amp;sin&quot;)) { return SleepUtils.getScalar(Math.sin(BridgeUtilities.getDouble(args, 0.0))); }
+        else if (name.equals(&quot;&amp;sqrt&quot;)) { return SleepUtils.getScalar(Math.sqrt(BridgeUtilities.getDouble(args, 0.0))); }
+        else if (name.equals(&quot;&amp;tan&quot;)) { return SleepUtils.getScalar(Math.tan(BridgeUtilities.getDouble(args, 0.0))); }
+
+Modified: sleep/src/sleep/bridges/BasicUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicUtilities.java	2008-02-16 16:03:15 UTC (rev 318)
++++ sleep/src/sleep/bridges/BasicUtilities.java	2008-03-19 17:20:14 UTC (rev 319)
+@@ -95,6 +95,9 @@
+         temp.put(&quot;&amp;removeAll&quot;, this);
+         temp.put(&quot;&amp;retainAll&quot;, this);
+ 
++        temp.put(&quot;&amp;pushl&quot;, this);
++        temp.put(&quot;&amp;popl&quot;, this);
++      
+         temp.put(&quot;&amp;search&quot;, this);
+         temp.put(&quot;&amp;reduce&quot;, this);
+         temp.put(&quot;&amp;values&quot;, this);
+@@ -121,6 +124,7 @@
+         temp.put(&quot;&amp;watch&quot;, this);
+ 
+         temp.put(&quot;&amp;debug&quot;, this);
++        temp.put(&quot;&amp;warn&quot;, this);
+         temp.put(&quot;&amp;profile&quot;, this);
+         temp.put(&quot;&amp;getStackTrace&quot;, this);
+ 
+@@ -909,6 +913,10 @@
+        {
+           return SleepUtils.getArrayWrapper(i.getStackTrace());
+        }
++       else if (n.equals(&quot;&amp;warn&quot;))
++       {
++          return SleepUtils.getEmptyScalar();
++       }
+        else if (n.equals(&quot;&amp;debug&quot;))
+        {
+           /* allow the script to programatically set the debug level */
+@@ -924,7 +932,27 @@
+        {
+           return BridgeUtilities.flattenIterator(BridgeUtilities.getIterator(l, i), null);
+        }
++       else if (n.equals(&quot;&amp;pushl&quot;) || n.equals(&quot;&amp;popl&quot;))
++       {
++          ScriptVariables vars = i.getScriptVariables();
++ 
++          if (n.equals(&quot;&amp;pushl&quot;))
++          {
++             vars.pushLocalLevel();
++          }
++          else if (n.equals(&quot;&amp;popl&quot;))
++          {
++             vars.popLocalLevel();
++          }
+ 
++          if (!l.isEmpty())
++          {
++             BridgeUtilities.initLocalScope(vars, vars.getLocalVariables(), l);
++          }
++
++          return SleepUtils.getEmptyScalar();
++       }
++
+        /** Start of many array functions */
+ 
+        Scalar value = BridgeUtilities.getScalar(l);
+
+Modified: sleep/src/sleep/bridges/BridgeUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BridgeUtilities.java	2008-02-16 16:03:15 UTC (rev 318)
++++ sleep/src/sleep/bridges/BridgeUtilities.java	2008-03-19 17:20:14 UTC (rev 319)
+@@ -313,7 +313,7 @@
+    }
+ 
+    /** initializes local scope based on argument stack */
+-   public static void initLocalScope(ScriptVariables vars, Variable localLevel, Stack locals)
++   public static int initLocalScope(ScriptVariables vars, Variable localLevel, Stack locals)
+    {
+       int name = 1;
+ 
+@@ -341,7 +341,8 @@
+          }
+       }
+ 
+-      vars.setScalarLevel(&quot;@_&quot;, SleepUtils.getArrayScalar(new ArgumentArray(name, localLevel)), localLevel);
++//      vars.setScalarLevel(&quot;@_&quot;, SleepUtils.getArrayScalar(new ArgumentArray(name, localLevel)), localLevel);
++      return name;
+    }
+ 
+    /** normalizes the index value based on the specified length */
+
+Modified: sleep/src/sleep/bridges/RegexBridge.java
+===================================================================
+--- sleep/src/sleep/bridges/RegexBridge.java	2008-02-16 16:03:15 UTC (rev 318)
++++ sleep/src/sleep/bridges/RegexBridge.java	2008-03-19 17:20:14 UTC (rev 319)
+@@ -240,9 +240,9 @@
+     {
+        public Scalar evaluate(String n, ScriptInstance script, Stack l)
+        {
+-          String a = ((Scalar)l.pop()).toString(); // current
+-          String b = ((Scalar)l.pop()).toString(); // old
+-          String c = ((Scalar)l.pop()).toString(); // new
++          String a = BridgeUtilities.getString(l, &quot;&quot;); // current
++          String b = BridgeUtilities.getString(l, &quot;&quot;); // old
++          String c = BridgeUtilities.getString(l, &quot;&quot;); // new
+           int    d = BridgeUtilities.getInt(l, -1);
+ 
+           StringBuffer rv = new StringBuffer();
+
+Modified: sleep/src/sleep/bridges/SleepClosure.java
+===================================================================
+--- sleep/src/sleep/bridges/SleepClosure.java	2008-02-16 16:03:15 UTC (rev 318)
++++ sleep/src/sleep/bridges/SleepClosure.java	2008-03-19 17:20:14 UTC (rev 319)
+@@ -211,7 +211,8 @@
+           // initialize local variables...
+           //
+           vars.setScalarLevel(&quot;$0&quot;, SleepUtils.getScalar(message), localLevel);
+-          BridgeUtilities.initLocalScope(vars, localLevel, locals);
++          int targs = BridgeUtilities.initLocalScope(vars, localLevel, locals);
++          vars.setScalarLevel(&quot;@_&quot;, SleepUtils.getArrayScalar(new ArgumentArray(targs, localLevel)), localLevel);
+ 
+           //
+           // call the function, save the scalar that was returned. 
+
+Modified: sleep/src/sleep/engine/CallRequest.java
+===================================================================
+--- sleep/src/sleep/engine/CallRequest.java	2008-02-16 16:03:15 UTC (rev 318)
++++ sleep/src/sleep/engine/CallRequest.java	2008-03-19 17:20:14 UTC (rev 319)
+@@ -285,7 +285,10 @@
+          synchronized (vars)
+          {
+             Variable localLevel = vars.getLocalVariables();
+-            sleep.bridges.BridgeUtilities.initLocalScope(vars, localLevel, getScriptEnvironment().getCurrentFrame());
++
++            int targs = sleep.bridges.BridgeUtilities.initLocalScope(vars, localLevel, getScriptEnvironment().getCurrentFrame());
++            vars.setScalarLevel(&quot;@_&quot;, SleepUtils.getArrayScalar(new sleep.bridges.ArgumentArray(targs, localLevel)), localLevel);
++
+             return inline.evaluate(getScriptEnvironment());
+          }
+       }
+
+Added: sleep/tests/copy.sl
+===================================================================
+--- sleep/tests/copy.sl	2008-02-16 16:03:15 UTC (rev 318)
++++ sleep/tests/copy.sl	2008-03-19 17:20:14 UTC (rev 319)
+@@ -0,0 +1,9 @@
++#
++# copying a hash...
++#
++
++%hash = %(a =&gt; &quot;apple&quot;, b =&gt; &quot;bananna&quot;, g =&gt; &quot;grape fruit&quot;, k =&gt; &quot;kiwi&quot;);
++%h2   = copy(%hash);
++
++println(%h2);
++println(keys(%h2));
+
+Added: sleep/tests/forkshare.sl
+===================================================================
+--- sleep/tests/forkshare.sl	2008-02-16 16:03:15 UTC (rev 318)
++++ sleep/tests/forkshare.sl	2008-03-19 17:20:14 UTC (rev 319)
+@@ -0,0 +1,26 @@
++#
++# fork, sharing values...  
++#
++
++$counter = 90;
++
++fork({
++  while ($counter &lt; 100)
++  {
++     $counter++;
++     println(&quot;A: $counter&quot;);
++     [Thread yield];
++  }
++
++}, \$counter);
++
++fork({
++  sleep(500); # I hate time kludges...
++
++  while ($counter &lt; 100)
++  {
++     $counter++;
++     println(&quot;B: $counter&quot;);
++     [Thread yield];
++  }
++}, \$counter);
+
+Added: sleep/tests/output/copy.sl
+===================================================================
+--- sleep/tests/output/copy.sl	2008-02-16 16:03:15 UTC (rev 318)
++++ sleep/tests/output/copy.sl	2008-03-19 17:20:14 UTC (rev 319)
+@@ -0,0 +1,2 @@
++%(k =&gt; 'kiwi', a =&gt; 'apple', g =&gt; 'grape fruit', b =&gt; 'bananna')
++@('k', 'a', 'g', 'b')
+
+Added: sleep/tests/output/forkshare.sl
+===================================================================
+--- sleep/tests/output/forkshare.sl	2008-02-16 16:03:15 UTC (rev 318)
++++ sleep/tests/output/forkshare.sl	2008-03-19 17:20:14 UTC (rev 319)
+@@ -0,0 +1,20 @@
++A: 91
++A: 92
++A: 93
++A: 94
++A: 95
++A: 96
++A: 97
++A: 98
++A: 99
++A: 100
++B: 91
++B: 92
++B: 93
++B: 94
++B: 95
++B: 96
++B: 97
++B: 98
++B: 99
++B: 100
+
+Added: sleep/tests/output/pushl.sl
+===================================================================
+--- sleep/tests/output/pushl.sl	2008-02-16 16:03:15 UTC (rev 318)
++++ sleep/tests/output/pushl.sl	2008-03-19 17:20:14 UTC (rev 319)
+@@ -0,0 +1,3 @@
++This is a test! noPHEAR and 
++pHEAR
++13500 and noPHEAR
+
+Added: sleep/tests/output/round.sl
+===================================================================
+--- sleep/tests/output/round.sl	2008-02-16 16:03:15 UTC (rev 318)
++++ sleep/tests/output/round.sl	2008-03-19 17:20:14 UTC (rev 319)
+@@ -0,0 +1,5 @@
++4.57
++4.569
++4.569
++4.567954
++4.567953
+
+Added: sleep/tests/pushl.sl
+===================================================================
+--- sleep/tests/pushl.sl	2008-02-16 16:03:15 UTC (rev 318)
++++ sleep/tests/pushl.sl	2008-03-19 17:20:14 UTC (rev 319)
+@@ -0,0 +1,22 @@
++#
++# test for scope management...
++#
++
++inline bar
++{
++   pushl($a =&gt; $1, $b =&gt; $2);
++   $z = &quot;pHEAR&quot;;
++   println($z);
++   popl($result =&gt; $a * $b);
++}
++
++sub foo
++{
++   local('$z'); 
++   $z = &quot;noPHEAR&quot;;
++   println(&quot;This is a test! $z and $result&quot;);
++   bar(300, 45);
++   println(&quot;$result and $z&quot;);
++}
++
++foo();
+
+Added: sleep/tests/round.sl
+===================================================================
+--- sleep/tests/round.sl	2008-02-16 16:03:15 UTC (rev 318)
++++ sleep/tests/round.sl	2008-03-19 17:20:14 UTC (rev 319)
+@@ -0,0 +1,5 @@
++println(round(4.56734, 2));
++println(round(4.56899, 3));
++println(round(4.56900, 4));
++println(round(4.5679538543795973573789, 6));
++println(round(4.5679532543795973573789, 6));
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2008-02-16 16:03:15 UTC (rev 318)
++++ sleep/whatsnew.txt	2008-03-19 17:20:14 UTC (rev 319)
+@@ -10,6 +10,17 @@
+   Java objects (in lieu of sleep.runtime.Scalar objects)
+ - updated &amp;copy to accept either a singular scalar or a hash 
+   argument.
++- added &amp;pushl and &amp;popl for creating and removing local scope, 
++  arguments to these functions are used to pass data between the
++  current and resulting local scope.
++- fork now passes copies of its arguments into the forked scope.
++  this is in line with how lambda, let, etc.. work.  pass a data
++  structure (such as an array or hash) to have updateable shared
++  values.
++- round function can now round to a certain number of places if
++  desired.
++- replace function can now handle empty arguments, it will use
++  empty strings in their place.
+ 
+ 2.1-beta 20  (12 Nov 07)
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	
+	<LI>Next message: <A HREF="000298.html">[Sleep-svn] r320 - in sleep: . src/sleep/bridges src/sleep/parser	tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#297">[ date ]</a>
+              <a href="thread.html#297">[ thread ]</a>
+              <a href="subject.html#297">[ subject ]</a>
+              <a href="author.html#297">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

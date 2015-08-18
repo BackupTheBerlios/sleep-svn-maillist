@@ -1,0 +1,100 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r178 - in sleep: . src/sleep/parser
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2006-November/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r178%20-%20in%20sleep%3A%20.%20src/sleep/parser&In-Reply-To=%3C200611202016.kAKKGKhF024529%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000159.html">
+   <LINK REL="Next"  HREF="000161.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r178 - in sleep: . src/sleep/parser</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r178%20-%20in%20sleep%3A%20.%20src/sleep/parser&In-Reply-To=%3C200611202016.kAKKGKhF024529%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r178 - in sleep: . src/sleep/parser">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Mon Nov 20 21:16:20 CET 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000159.html">[Sleep-svn] r177 - in sleep: . src/sleep/bridges	src/sleep/bridges/io
+</A></li>
+        <LI>Next message: <A HREF="000161.html">[Sleep-svn] r179 - in sleep: . src/sleep/engine	src/sleep/engine/atoms src/sleep/parser tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#160">[ date ]</a>
+              <a href="thread.html#160">[ thread ]</a>
+              <a href="subject.html#160">[ subject ]</a>
+              <a href="author.html#160">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2006-11-20 21:16:20 +0100 (Mon, 20 Nov 2006)
+New Revision: 178
+
+Modified:
+   sleep/src/sleep/parser/TokenParser.java
+   sleep/whatsnew.txt
+Log:
+fixed a parser error... making it smarter to certain things :)
+
+
+Modified: sleep/src/sleep/parser/TokenParser.java
+===================================================================
+--- sleep/src/sleep/parser/TokenParser.java	2006-11-18 23:20:27 UTC (rev 177)
++++ sleep/src/sleep/parser/TokenParser.java	2006-11-20 20:16:20 UTC (rev 178)
+@@ -405,7 +405,7 @@
+             myToken.setType(IDEA_EXPR);
+             myToken.add(tokens[x]);
+          }
+-         else if (Checkers.isFunction(strings[x]))
++         else if (Checkers.isFunction(strings[x]) &amp;&amp; Checkers.isFunctionReferenceToken(strings[x]))
+          {
+             myToken.setType(IDEA_FUNC);
+             myToken.add(tokens[x]);
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-11-18 23:20:27 UTC (rev 177)
++++ sleep/whatsnew.txt	2006-11-20 20:16:20 UTC (rev 178)
+@@ -12,6 +12,8 @@
+ - added &amp;setEncoding($handle, &quot;charset name&quot;) to set the encoding to use
+   with the specified handle.
+ - added &amp;readc($handle) for reading a single character from an I/O handle.
++- oops, parser no longer assumes a bareword in a expression is a function
++  reference.  should stop some frustrating errors :)
+ 
+ 2.1-beta 9  (6 Nov 06)
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000159.html">[Sleep-svn] r177 - in sleep: . src/sleep/bridges	src/sleep/bridges/io
+</A></li>
+	<LI>Next message: <A HREF="000161.html">[Sleep-svn] r179 - in sleep: . src/sleep/engine	src/sleep/engine/atoms src/sleep/parser tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#160">[ date ]</a>
+              <a href="thread.html#160">[ thread ]</a>
+              <a href="subject.html#160">[ subject ]</a>
+              <a href="author.html#160">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

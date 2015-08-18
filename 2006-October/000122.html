@@ -1,0 +1,128 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r140 - in sleep: . src/sleep/bridges tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2006-October/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r140%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20tests%20tests/output&In-Reply-To=%3C200610281630.k9SGU8ti028955%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000121.html">
+   <LINK REL="Next"  HREF="000123.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r140 - in sleep: . src/sleep/bridges tests tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r140%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20tests%20tests/output&In-Reply-To=%3C200610281630.k9SGU8ti028955%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r140 - in sleep: . src/sleep/bridges tests tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Sat Oct 28 18:30:08 CEST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000121.html">[Sleep-svn] r139 - in sleep: . docs src src/sleep/runtime
+</A></li>
+        <LI>Next message: <A HREF="000123.html">[Sleep-svn] r141 - in sleep: . src/sleep/bridges src/sleep/parser	tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#122">[ date ]</a>
+              <a href="thread.html#122">[ thread ]</a>
+              <a href="subject.html#122">[ subject ]</a>
+              <a href="author.html#122">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2006-10-28 18:30:07 +0200 (Sat, 28 Oct 2006)
+New Revision: 140
+
+Added:
+   sleep/tests/longip.sl
+   sleep/tests/output/longip.sl
+Modified:
+   sleep/src/sleep/bridges/BasicIO.java
+   sleep/whatsnew.txt
+Log:
+Fixed a bug with packing unsigned integers
+
+
+
+Modified: sleep/src/sleep/bridges/BasicIO.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicIO.java	2006-10-16 00:53:05 UTC (rev 139)
++++ sleep/src/sleep/bridges/BasicIO.java	2006-10-28 16:30:07 UTC (rev 140)
+@@ -899,10 +899,13 @@
+                         out.write(bdata, 0, 2);
+                         break;
+                       case 'i':
+-                      case 'I':
+                         buffer.putInt(0, temp.intValue());
+                         out.write(bdata, 0, 4);
+                         break;
++                      case 'I':
++                        buffer.putInt(0, (int)temp.longValue());
++                        out.write(bdata, 0, 4);
++                        break;
+                       case 'f':
+                         buffer.putFloat(0, (float)temp.doubleValue());
+                         out.write(bdata, 0, 4);
+
+Added: sleep/tests/longip.sl
+===================================================================
+--- sleep/tests/longip.sl	2006-10-16 00:53:05 UTC (rev 139)
++++ sleep/tests/longip.sl	2006-10-28 16:30:07 UTC (rev 140)
+@@ -0,0 +1,4 @@
++$ip = join('.', unpack(&quot;B4&quot;, pack(&quot;I&quot;, '3232235777')));
++$longip = unpack(&quot;I-&quot;, pack(&quot;B4&quot;, split('\.', &quot;192.168.1.1&quot;)))[0];
++
++println(&quot;$ip and $longip&quot;);
+
+Added: sleep/tests/output/longip.sl
+===================================================================
+--- sleep/tests/output/longip.sl	2006-10-16 00:53:05 UTC (rev 139)
++++ sleep/tests/output/longip.sl	2006-10-28 16:30:07 UTC (rev 140)
+@@ -0,0 +1 @@
++192.168.1.1 and 3232235777
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-10-16 00:53:05 UTC (rev 139)
++++ sleep/whatsnew.txt	2006-10-28 16:30:07 UTC (rev 140)
+@@ -1,3 +1,9 @@
++2.1-beta 8  (29 Oct 06)
++===========
++- when packing an unsigned integer the argument is now interpreted as a long
++  (and cast to an int) rather than an int (since an unsigned integer can be
++  &quot;bigger&quot; than a normal java integer).  
++
+ 2.1-beta 7  (15 Oct 06)
+ ===========
+ - index operator can now be applied to closures to reference the &quot;this&quot; scope
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000121.html">[Sleep-svn] r139 - in sleep: . docs src src/sleep/runtime
+</A></li>
+	<LI>Next message: <A HREF="000123.html">[Sleep-svn] r141 - in sleep: . src/sleep/bridges src/sleep/parser	tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#122">[ date ]</a>
+              <a href="thread.html#122">[ thread ]</a>
+              <a href="subject.html#122">[ subject ]</a>
+              <a href="author.html#122">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

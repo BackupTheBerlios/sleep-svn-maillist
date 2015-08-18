@@ -1,0 +1,98 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r374 - sleep/jsr223
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2008-May/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r374%20-%20sleep/jsr223&In-Reply-To=%3C200805150120.m4F1KNUt015535%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000350.html">
+   <LINK REL="Next"  HREF="000348.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r374 - sleep/jsr223</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r374%20-%20sleep/jsr223&In-Reply-To=%3C200805150120.m4F1KNUt015535%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r374 - sleep/jsr223">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Thu May 15 03:20:24 CEST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000350.html">[Sleep-svn] r373 - sleep
+</A></li>
+        <LI>Next message: <A HREF="000348.html">[Sleep-svn] r375 - sleep/jsr223
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#349">[ date ]</a>
+              <a href="thread.html#349">[ thread ]</a>
+              <a href="subject.html#349">[ subject ]</a>
+              <a href="author.html#349">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2008-05-15 03:20:22 +0200 (Thu, 15 May 2008)
+New Revision: 374
+
+Modified:
+   sleep/jsr223/readme-jsr223.txt
+Log:
+argh!!
+
+
+Modified: sleep/jsr223/readme-jsr223.txt
+===================================================================
+--- sleep/jsr223/readme-jsr223.txt	2008-05-15 01:06:25 UTC (rev 373)
++++ sleep/jsr223/readme-jsr223.txt	2008-05-15 01:20:22 UTC (rev 374)
+@@ -13,10 +13,19 @@
+ of Sleep in the toplevel directory.  The contents of jsr223/sleep-engine.jar will automatically
+ be included in the sleep.jar file.
+ 
+-Running a script doesn't get any easier than this:
++**** Make sure sleep.jar is in the classpath ****
+ 
+-[<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">raffi at beardsley</A> ~/sleep] jrunscript -cp sleep.jar -l sleep -f file.sl
++To run a script (.sl is recognized as a sleep script):
+ 
++[<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">raffi at beardsley</A> ~/sleep] jrunscript -f file.sl
++
++To evaluate Sleep code within Java:
++
++  ScriptEngineManager manager = new ScriptEngineManager();
++  ScriptEngine sleepEngine = manager.getEngineByName(&quot;sleep&quot;);
++
++  @see <A HREF="http://java.sun.com/javase/6/docs/api/javax/script/ScriptEngine.html">http://java.sun.com/javase/6/docs/api/javax/script/ScriptEngine.html</A>
++  
+ Some notes about the integration:
+ 
+ - The GLOBAL_SCOPE Bindings of the ScriptContext are treated as Sleep globals.  The Binding values
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000350.html">[Sleep-svn] r373 - sleep
+</A></li>
+	<LI>Next message: <A HREF="000348.html">[Sleep-svn] r375 - sleep/jsr223
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#349">[ date ]</a>
+              <a href="thread.html#349">[ thread ]</a>
+              <a href="subject.html#349">[ subject ]</a>
+              <a href="author.html#349">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

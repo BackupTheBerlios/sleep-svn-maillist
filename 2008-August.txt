@@ -1,0 +1,2212 @@
+From rsmudge at mail.berlios.de  Fri Aug  1 07:09:21 2008
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Fri, 1 Aug 2008 07:09:21 +0200
+Subject: [Sleep-svn] r419 - in sleep: . src/sleep/parser
+Message-ID: <200808010509.m7159LWQ022338@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2008-08-01 07:09:18 +0200 (Fri, 01 Aug 2008)
+New Revision: 419
+
+Modified:
+   sleep/src/sleep/parser/ImportManager.java
+   sleep/whatsnew.txt
+Log:
+classpath hack for import from
+
+
+
+Modified: sleep/src/sleep/parser/ImportManager.java
+===================================================================
+--- sleep/src/sleep/parser/ImportManager.java	2008-07-01 23:43:03 UTC (rev 418)
++++ sleep/src/sleep/parser/ImportManager.java	2008-08-01 05:09:18 UTC (rev 419)
+@@ -11,9 +11,8 @@
+     information. */
+ public class ImportManager
+ {
+-   protected Map        imports   = new LinkedHashMap();
++   protected List       imports   = new LinkedList();
+    protected HashMap    classes   = new HashMap();
+-   protected HashMap    jars      = new HashMap(); /* resolved jar files, key=jar name value=ClassLoader */  
+ 
+    /** Used by Sleep to import statement to save an imported package name. */
+    public void importPackage(String packagez, String from)
+@@ -40,27 +39,19 @@
+ 
+           if (returnValue == null || !returnValue.exists()) { throw new RuntimeException("jar file to import package from was not found!"); }
+ 
+-          try
+-          {
+-             if (!jars.containsKey(from))
+-             {
+-                URLClassLoader loader = new URLClassLoader(new URL[] { returnValue.toURL() }, Thread.currentThread().getContextClassLoader());
+-                jars.put(from, loader);
+-             }
+-          }
+-          catch (Exception ex) { ex.printStackTrace(); }
++          addFile(returnValue);
+        }
+ 
+        /* handle importing our package */
+ 
+        if (clas.equals("*"))
+        {
+-          imports.put(pack, from);
++          imports.add(pack);
+        }
+        else if (pack == null)
+        {
+-          imports.put(packagez, from);
+-          Class found = resolveClass(null, packagez, (String)imports.get(packagez)); /* try with no package to see if we have an anonymous class */
++          imports.add(packagez);
++          Class found = resolveClass(null, packagez); /* try with no package to see if we have an anonymous class */
+           classes.put(packagez, found);
+ 
+           if (found == null)
+@@ -68,7 +59,7 @@
+        }
+        else
+        {
+-          imports.put(packagez, from);
++          imports.add(packagez);
+          
+           Class found = findImportedClass(packagez);
+           classes.put(clas, found);
+@@ -79,7 +70,7 @@
+    }
+ 
+    /** This method is used by Sleep to resolve a specific class (or at least try) */
+-   private Class resolveClass(String pack, String clas, String jar)
++   private Class resolveClass(String pack, String clas)
+    {
+        StringBuffer name = new StringBuffer();
+        if (pack != null) { name.append(pack); name.append("."); }
+@@ -87,21 +78,34 @@
+ 
+        try
+        {
+-          if (jar != null)
+-          {
+-             ClassLoader cl = (ClassLoader)jars.get(jar);
+-             return Class.forName(name.toString(), true, cl);
+-          }
+-          else
+-          {
+-             return Class.forName(name.toString());
+-          }
++          return Class.forName(name.toString());
+        }
+        catch (Exception ex) { }
+ 
+        return null;
+    }
+ 
++   /** A hack to add a jar to the system classpath courtesy of Ralph Becker. */
++   private void addFile(File f)
++   {
++        try
++        {
++            URL url = f.toURL();
++
++            URLClassLoader sysloader = (URLClassLoader) ClassLoader.getSystemClassLoader();
++            Class sysclass = java.net.URLClassLoader.class;
++
++            Method method = sysclass.getDeclaredMethod( "addURL", new Class[] { URL.class } );
++            method.setAccessible( true );
++            method.invoke( sysloader, new Object[] { url } );
++        }    
++        catch(Throwable t)
++        {    
++            t.printStackTrace();
++            throw new RuntimeException("Error, could not add "+f+" to system classloader - " + t.getMessage());
++        }
++   }
++
+    /** Attempts to find a class, starts out with the passed in string itself, if that doesn't resolve then the string is 
+        appended to each imported package to see where the class might exist */
+    public Class findImportedClass(String name)
+@@ -116,17 +120,16 @@
+              clas = name.substring(name.lastIndexOf(".") + 1, name.length());
+              pack = name.substring(0, name.lastIndexOf("."));
+ 
+-	     rv   = resolveClass(pack, clas, (String)imports.get(name));
++	     rv   = resolveClass(pack, clas);
+           }
+           else
+           {
+-             rv = resolveClass(null, name, (String)imports.get(name)); /* try with no package to see if we have an anonymous class */
++             rv = resolveClass(null, name); /* try with no package to see if we have an anonymous class */
+ 
+-             Iterator i = imports.entrySet().iterator();
++             Iterator i = imports.iterator();
+              while (i.hasNext() && rv == null)
+              {
+-                Map.Entry en = (Map.Entry)i.next();
+-                rv = resolveClass((String)en.getKey(), name, (String)en.getValue());
++                rv = resolveClass((String)i.next(), name);
+              }
+           }
+ 
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2008-07-01 23:43:03 UTC (rev 418)
++++ sleep/whatsnew.txt	2008-08-01 05:09:18 UTC (rev 419)
+@@ -1,3 +1,12 @@
++2.1-release  (???)
++===========
++- modified import from to add jar file to system classpath.  This
++  uses a reflection hack but it now means you can add multiple jars
++  and they can find resources from eachother, all at runtime.
++
++  This hack came from Ralph Becker's Classpath extension for Sleep.  
++- 
++
+ 2.1-release  (1 Jul 08)
+ ===========
+ - splice() no longer corrupts sublists.
+
+
+
+From rsmudge at mail.berlios.de  Fri Aug  1 07:17:24 2008
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Fri, 1 Aug 2008 07:17:24 +0200
+Subject: [Sleep-svn] r420 - in sleep: . src/sleep/bridges
+Message-ID: <200808010517.m715HOX5025733@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2008-08-01 07:17:22 +0200 (Fri, 01 Aug 2008)
+New Revision: 420
+
+Removed:
+   sleep/src/sleep/bridges/BasicSubroutine.java
+Modified:
+   sleep/src/sleep/bridges/DefaultEnvironment.java
+   sleep/whatsnew.txt
+Log:
+removed unload cleanup mechanism from sub keyword 
+
+
+
+Deleted: sleep/src/sleep/bridges/BasicSubroutine.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicSubroutine.java	2008-08-01 05:09:18 UTC (rev 419)
++++ sleep/src/sleep/bridges/BasicSubroutine.java	2008-08-01 05:17:22 UTC (rev 420)
+@@ -1,48 +0,0 @@
+-/*
+-   SLEEP - Simple Language for Environment Extension Purposes
+- .-----------------------.
+- | sleep.bridges.BasicIO |____________________________________________________
+- |                                                                            |
+-   Author: Raphael Mudge (raffi at hick.org)
+-           http://www.hick.org/~raffi/
+-
+-   Description:
+-       Implementation of the subroutine concept.
+-
+-   Documentation:
+-
+-   Changelog:
+-
+-   * This software is distributed under the artistic license, see license.txt
+-     for more information. *
+-
+- |____________________________________________________________________________|
+- */
+-
+-package sleep.bridges;
+- 
+-import java.util.*;
+-import java.io.*;
+-
+-import sleep.engine.*;
+-import sleep.interfaces.*;
+-import sleep.runtime.*;
+-
+-/** The actual implementation of each subroutine declared with the sub keyword.
+-    @see sleep.bridges.DefaultEnvironment     */
+-public class BasicSubroutine extends SleepClosure
+-{
+-    Stack          unload; // stack for other subroutines with the same name.
+-
+-    public BasicSubroutine(ScriptInstance si, Block _code, Stack _unload)
+-    {
+-       super(si, _code);
+-       unload = _unload;
+-    }
+-
+-    public Stack getUnloadStack()
+-    {
+-       return unload;
+-    }
+-}
+-
+
+Modified: sleep/src/sleep/bridges/DefaultEnvironment.java
+===================================================================
+--- sleep/src/sleep/bridges/DefaultEnvironment.java	2008-08-01 05:09:18 UTC (rev 419)
++++ sleep/src/sleep/bridges/DefaultEnvironment.java	2008-08-01 05:17:22 UTC (rev 420)
+@@ -9,112 +9,24 @@
+ 
+ public class DefaultEnvironment implements Loadable, Environment
+ {
+-    public HashMap   func; // table to store the actual block associated with the function.
+-
+     public void scriptUnloaded (ScriptInstance si)
+     {
+-        // My apoligies in advance.  It appears this code for unloading scripts is really ugly.
+-        // Indeed it is.  However it accomplishes my goals of reverting to a previously defined version of a
+-        // subroutine and purging out of memory code we don't want.
+-
+-        Hashtable env = si.getScriptEnvironment().getEnvironment();
+-
+-        String key;
+-
+-        Enumeration en = env.keys();
+-        while (en.hasMoreElements())
+-        {
+-           key = (String)en.nextElement();
+-           if (key.charAt(0) == '&')
+-           {
+-              if (env.get(key) instanceof BasicSubroutine)
+-              {
+-                 //
+-                 // check if the sub routine inside of the environment is owned by this script
+-                 //
+-                 BasicSubroutine function = (BasicSubroutine)env.get(key);
+-                 if (!function.getOwner().isLoaded())
+-                 {
+-                     BasicSubroutine nextRoutine = getNextSafeSubroutine( function );
+-
+-                     if (nextRoutine == null)
+-                     { 
+-                         // no other functions waiting to take its place
+-                         env.remove(key);
+-                     }
+-                     else
+-                     {
+-                         // the unload stack keeps track of the last version of this subroutine loaded into memory
+-                         env.put(key, nextRoutine);
+-                     }
+-                 }
+-              }
+-           }
+-        }
+     }
+ 
+-    // It's a remote possibility that a script might have the following:
+-    // sub myfunc 
+-    // {
+-    //    if (someCondition)
+-    //    {
+-    //       sub myfunc
+-    //       {
+-    //          # replaces myfunc in the environment
+-    //       }
+-    //    }
+-    // }
+-    //
+-    // This code is kind of a work around for that condition.  Better safe than sorry, right?
+-    //
+-    protected BasicSubroutine getNextSafeSubroutine(BasicSubroutine function)
+-    {
+-        if (function.getOwner().isLoaded())
+-        {
+-           return function;
+-        }
+-
+-        if (!function.getUnloadStack().isEmpty())
+-        {
+-           BasicSubroutine temp = (BasicSubroutine)function.getUnloadStack().pop();
+-           return getNextSafeSubroutine(temp);
+-        }
+-
+-        return null;
+-    }
+-
+     public void scriptLoaded (ScriptInstance si)
+     {
+-        Hashtable env = si.getScriptEnvironment().getEnvironment(); // assuming the environment is shared. hah right
+-
+-        //
+-        // tell the environment that we want subroutine's to be bound here
+-        //
++        Hashtable env = si.getScriptEnvironment().getEnvironment(); 
+         env.put("sub",    this);
+         env.put("inline", this);
+     }
+ 
+     public void bindFunction(ScriptInstance si, String type, String name, Block code)
+     {
+-        Hashtable env = si.getScriptEnvironment().getEnvironment(); // assuming the environment is shared. hah right
++        Hashtable env = si.getScriptEnvironment().getEnvironment(); 
+ 
+         if (type.equals("sub"))
+         {
+-           Stack unloadStack;
+-
+-           if (env.get("&"+name) != null && env.get("&"+name) instanceof BasicSubroutine)
+-           {
+-               BasicSubroutine temp = (BasicSubroutine)env.get("&"+name);
+-               unloadStack = temp.getUnloadStack();
+-
+-               unloadStack.push(temp); // make this instance of BasicSubroutine available in case the main one gets unloaded
+-           }
+-           else
+-           {
+-               unloadStack = new Stack();
+-           }
+-
+-           env.put("&"+name, new BasicSubroutine(si, code, unloadStack));
++           env.put("&"+name, new SleepClosure(si, code));
+         }
+         else if (type.equals("inline"))
+         {
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2008-08-01 05:09:18 UTC (rev 419)
++++ sleep/whatsnew.txt	2008-08-01 05:17:22 UTC (rev 420)
+@@ -5,7 +5,13 @@
+   and they can find resources from eachother, all at runtime.
+ 
+   This hack came from Ralph Becker's Classpath extension for Sleep.  
+-- 
++- Sleep 2.1 default implementation no longer manages cleanup of
++  subroutines from unloaded scripts.  The old mechanism for this
++  was complex and resulted in an unnecessary memory leak in 
++  shared environments with no awareness of this feature.  jIRCii
++  depends on this behavior and so I am moving the code for this
++  to the jIRCii source tree (where it manages similar cleanup
++  for events, aliases, and other things).
+ 
+ 2.1-release  (1 Jul 08)
+ ===========
+
+
+
+From rsmudge at mail.berlios.de  Fri Aug  1 08:10:45 2008
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Fri, 1 Aug 2008 08:10:45 +0200
+Subject: [Sleep-svn] r421 - in sleep: . src/sleep/bridges tests tests/output
+Message-ID: <200808010610.m716Aj8J019792@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2008-08-01 08:10:39 +0200 (Fri, 01 Aug 2008)
+New Revision: 421
+
+Added:
+   sleep/tests/incit.sl
+   sleep/tests/incit2.sl
+   sleep/tests/incit3.sl
+   sleep/tests/output/incit.sl
+   sleep/tests/output/incit2.sl
+   sleep/tests/output/incit3.sl
+Modified:
+   sleep/src/sleep/bridges/BasicUtilities.java
+   sleep/whatsnew.txt
+Log:
+..
+
+
+Modified: sleep/src/sleep/bridges/BasicUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicUtilities.java	2008-08-01 05:17:22 UTC (rev 420)
++++ sleep/src/sleep/bridges/BasicUtilities.java	2008-08-01 06:10:39 UTC (rev 421)
+@@ -300,10 +300,10 @@
+              }
+              else
+              {
+-                File a     = sleep.parser.ParserConfig.findJarFile(obj.toString());
++                File a      = sleep.parser.ParserConfig.findJarFile(obj.toString());
+ 
+-                parent     = a.getParentFile();
+-                className  = a.getName();
++                parent      = a.getParentFile();
++                className   = a.getName();
+              }
+           }
+ 
+@@ -349,6 +349,13 @@
+                 ScriptLoader   sloader = (ScriptLoader)si.getScriptEnvironment().getEnvironment().get("(isloaded)");
+                 InputStream    istream;
+          
++                Scalar incz = si.getScriptVariables().getScalar("$__INCLUDE__");
++                if (incz == null)
++                {
++                   incz = SleepUtils.getEmptyScalar();
++                   si.getScriptVariables().getGlobalVariables().putScalar("$__INCLUDE__", incz);
++                }
++
+                 if (parent != null)
+                 {
+                    File theFile = parent.isDirectory() ? new File(parent, className) : parent;
+@@ -358,6 +365,7 @@
+                    si.associateFile(theFile); /* associate this included script with the current script instance */
+ 
+                    istream = loader.getResourceAsStream(className);
++                   incz.setValue( SleepUtils.getScalar(theFile) );
+                 }
+                 else
+                 {
+@@ -366,6 +374,7 @@
+                    si.associateFile(tempf); /* associate this included script with the current script instance */
+ 
+                    istream = new FileInputStream(tempf);
++                   incz.setValue( SleepUtils.getScalar(tempf) );
+                 }
+ 
+                 if (istream != null)
+
+Added: sleep/tests/incit.sl
+===================================================================
+--- sleep/tests/incit.sl	2008-08-01 05:17:22 UTC (rev 420)
++++ sleep/tests/incit.sl	2008-08-01 06:10:39 UTC (rev 421)
+@@ -0,0 +1 @@
++println("Included with $__INCLUDE__");
+
+Added: sleep/tests/incit2.sl
+===================================================================
+--- sleep/tests/incit2.sl	2008-08-01 05:17:22 UTC (rev 420)
++++ sleep/tests/incit2.sl	2008-08-01 06:10:39 UTC (rev 421)
+@@ -0,0 +1,8 @@
++sub foo
++{
++   local('$__INCLUDE__');
++   include("incit.sl");
++}
++
++foo();
++println("Post job: $__INCLUDE__");
+
+Added: sleep/tests/incit3.sl
+===================================================================
+--- sleep/tests/incit3.sl	2008-08-01 05:17:22 UTC (rev 420)
++++ sleep/tests/incit3.sl	2008-08-01 06:10:39 UTC (rev 421)
+@@ -0,0 +1,9 @@
++debug(7);
++
++sub foo
++{
++   include("incit.sl");
++}
++
++foo();
++println("Post job: $__INCLUDE__");
+
+Added: sleep/tests/output/incit.sl
+===================================================================
+--- sleep/tests/output/incit.sl	2008-08-01 05:17:22 UTC (rev 420)
++++ sleep/tests/output/incit.sl	2008-08-01 06:10:39 UTC (rev 421)
+@@ -0,0 +1 @@
++Included with 
+
+Added: sleep/tests/output/incit2.sl
+===================================================================
+--- sleep/tests/output/incit2.sl	2008-08-01 05:17:22 UTC (rev 420)
++++ sleep/tests/output/incit2.sl	2008-08-01 06:10:39 UTC (rev 421)
+@@ -0,0 +1,2 @@
++Included with /Users/raffi/sleepdev/sleep/tests/incit.sl
++Post job: 
+
+Added: sleep/tests/output/incit3.sl
+===================================================================
+--- sleep/tests/output/incit3.sl	2008-08-01 05:17:22 UTC (rev 420)
++++ sleep/tests/output/incit3.sl	2008-08-01 06:10:39 UTC (rev 421)
+@@ -0,0 +1,2 @@
++Included with /Users/raffi/sleepdev/sleep/tests/incit.sl
++Post job: /Users/raffi/sleepdev/sleep/tests/incit.sl
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2008-08-01 05:17:22 UTC (rev 420)
++++ sleep/whatsnew.txt	2008-08-01 06:10:39 UTC (rev 421)
+@@ -12,6 +12,9 @@
+   depends on this behavior and so I am moving the code for this
+   to the jIRCii source tree (where it manages similar cleanup
+   for events, aliases, and other things).
++- include(...) now sets $__INCLUDE__ to the file included.  
++  use this to allow modules to find resources that are located
++  relative to themselves.
+ 
+ 2.1-release  (1 Jul 08)
+ ===========
+
+
+
+From rsmudge at mail.berlios.de  Fri Aug  1 08:34:58 2008
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Fri, 1 Aug 2008 08:34:58 +0200
+Subject: [Sleep-svn] r422 - in sleep: . src/sleep/bridges tests/output
+Message-ID: <200808010634.m716Ywlh021587@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2008-08-01 08:34:57 +0200 (Fri, 01 Aug 2008)
+New Revision: 422
+
+Modified:
+   sleep/src/sleep/bridges/BasicStrings.java
+   sleep/tests/output/keywrds.sl
+   sleep/whatsnew.txt
+Log:
+fixes to <=>
+
+
+Modified: sleep/src/sleep/bridges/BasicStrings.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicStrings.java	2008-08-01 06:10:39 UTC (rev 421)
++++ sleep/src/sleep/bridges/BasicStrings.java	2008-08-01 06:34:57 UTC (rev 422)
+@@ -634,10 +634,17 @@
+     {
+         public Scalar operate(String o, ScriptInstance i, Stack l)
+         {
+-           double left  = BridgeUtilities.getDouble(l, 0); 
+-           double right = BridgeUtilities.getDouble(l, 0); 
+-        
+-           return SleepUtils.getScalar(left - right);
++           ScalarType left  = BridgeUtilities.getScalar(l).getActualValue();
++           ScalarType right = BridgeUtilities.getScalar(l).getActualValue();
++
++           if (left.getType() == sleep.engine.types.DoubleValue.class || right.getType() == sleep.engine.types.DoubleValue.class)
++           {        
++              return SleepUtils.getScalar(new java.math.BigDecimal(left.doubleValue()).compareTo(new java.math.BigDecimal(right.doubleValue())));
++           }
++           else
++           {
++              return SleepUtils.getScalar(left.longValue() - right.longValue());
++           }
+         }
+     }
+ 
+
+Modified: sleep/tests/output/keywrds.sl
+===================================================================
+--- sleep/tests/output/keywrds.sl	2008-08-01 06:10:39 UTC (rev 421)
++++ sleep/tests/output/keywrds.sl	2008-08-01 06:34:57 UTC (rev 422)
+@@ -1,2 +1,2 @@
+ -1
+--4.0
++-4
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2008-08-01 06:10:39 UTC (rev 421)
++++ sleep/whatsnew.txt	2008-08-01 06:34:57 UTC (rev 422)
+@@ -15,6 +15,8 @@
+ - include(...) now sets $__INCLUDE__ to the file included.  
+   use this to allow modules to find resources that are located
+   relative to themselves.
++- hacked <=> to compare doubles with a BigDecimal, gets around
++  processor floating point issues when comparing doubles
+ 
+ 2.1-release  (1 Jul 08)
+ ===========
+
+
+
+From rsmudge at mail.berlios.de  Tue Aug  5 00:11:58 2008
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Tue, 5 Aug 2008 00:11:58 +0200
+Subject: [Sleep-svn] r423 - in sleep/tests: . output
+Message-ID: <200808042211.m74MBwt1008843@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2008-08-05 00:11:57 +0200 (Tue, 05 Aug 2008)
+New Revision: 423
+
+Added:
+   sleep/tests/oper_space.sl
+   sleep/tests/output/oper_space.sl
+Log:
+changes to the spaceship operator yo.
+
+
+Added: sleep/tests/oper_space.sl
+===================================================================
+--- sleep/tests/oper_space.sl	2008-08-01 06:34:57 UTC (rev 422)
++++ sleep/tests/oper_space.sl	2008-08-04 22:11:57 UTC (rev 423)
+@@ -0,0 +1,6 @@
++#
++#
++#
++
++ at a = @(1, 2, 5.9, 3, 4, 4.01, 5.912, 5, 5.9123, 6, 7);
++printAll(sort({ return $1 <=> $2; }, @a));
+
+Added: sleep/tests/output/oper_space.sl
+===================================================================
+--- sleep/tests/output/oper_space.sl	2008-08-01 06:34:57 UTC (rev 422)
++++ sleep/tests/output/oper_space.sl	2008-08-04 22:11:57 UTC (rev 423)
+@@ -0,0 +1,11 @@
++1
++2
++3
++4
++4.01
++5
++5.9
++5.912
++5.9123
++6
++7
+
+
+
+From rsmudge at mail.berlios.de  Tue Aug  5 00:25:14 2008
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Tue, 5 Aug 2008 00:25:14 +0200
+Subject: [Sleep-svn] r424 - in sleep: . src/sleep/engine/atoms tests
+	tests/output
+Message-ID: <200808042225.m74MPEAN009667@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2008-08-05 00:25:13 +0200 (Tue, 05 Aug 2008)
+New Revision: 424
+
+Added:
+   sleep/tests/feprob.sl
+   sleep/tests/output/feprob.sl
+Modified:
+   sleep/src/sleep/engine/atoms/Iterate.java
+   sleep/whatsnew.txt
+Log:
+..
+
+
+Modified: sleep/src/sleep/engine/atoms/Iterate.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/Iterate.java	2008-08-04 22:11:57 UTC (rev 423)
++++ sleep/src/sleep/engine/atoms/Iterate.java	2008-08-04 22:25:13 UTC (rev 424)
+@@ -173,6 +173,13 @@
+ 
+       if (data.source.getHash() != null)
+       {
++         if (SleepUtils.isEmptyScalar((Scalar)((Map.Entry)next).getValue()))
++         {
++            e.getCurrentFrame().pop(); /* consume the old value true/false value */
++            iterator_next(e);
++            return;
++         }
++
+          if (data.key != null)
+          {  
+             data.kenv.putScalar(data.key, SleepUtils.getScalar(((Map.Entry)next).getKey()));
+
+Added: sleep/tests/feprob.sl
+===================================================================
+--- sleep/tests/feprob.sl	2008-08-04 22:11:57 UTC (rev 423)
++++ sleep/tests/feprob.sl	2008-08-04 22:25:13 UTC (rev 424)
+@@ -0,0 +1,8 @@
++%h = %(a => "apple", b => "bat", c => "cat");
++
++%h["b"] = $null;
++
++foreach $key => $value (%h)
++{
++   println("$key and $value");
++}
+
+Added: sleep/tests/output/feprob.sl
+===================================================================
+--- sleep/tests/output/feprob.sl	2008-08-04 22:11:57 UTC (rev 423)
++++ sleep/tests/output/feprob.sl	2008-08-04 22:25:13 UTC (rev 424)
+@@ -0,0 +1,2 @@
++a and apple
++c and cat
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2008-08-04 22:11:57 UTC (rev 423)
++++ sleep/whatsnew.txt	2008-08-04 22:25:13 UTC (rev 424)
+@@ -17,6 +17,9 @@
+   relative to themselves.
+ - hacked <=> to compare doubles with a BigDecimal, gets around
+   processor floating point issues when comparing doubles
++- foreach on a hash now skips over keys with $null values
++  (a $null value is removed at the first convienence from a
++  Sleep hash--usually by keys() or values() functions)
+ 
+ 2.1-release  (1 Jul 08)
+ ===========
+
+
+
+From rsmudge at mail.berlios.de  Tue Aug  5 00:33:28 2008
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Tue, 5 Aug 2008 00:33:28 +0200
+Subject: [Sleep-svn] r425 - in sleep: . src/sleep/bridges tests tests/output
+Message-ID: <200808042233.m74MXS20014096@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2008-08-05 00:33:21 +0200 (Tue, 05 Aug 2008)
+New Revision: 425
+
+Added:
+   sleep/tests/excheck.sl
+   sleep/tests/output/excheck.sl
+Modified:
+   sleep/src/sleep/bridges/BridgeUtilities.java
+   sleep/whatsnew.txt
+Log:
+fixed bug with -exists
+
+
+
+Modified: sleep/src/sleep/bridges/BridgeUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BridgeUtilities.java	2008-08-04 22:25:13 UTC (rev 424)
++++ sleep/src/sleep/bridges/BridgeUtilities.java	2008-08-04 22:33:21 UTC (rev 425)
+@@ -266,7 +266,7 @@
+ 
+       File f = new File(text);
+ 
+-      if (!f.isAbsolute())
++      if (!f.isAbsolute() && text.length() > 0)
+       {
+          return new File(i.cwd(), text);
+       }
+
+Added: sleep/tests/excheck.sl
+===================================================================
+--- sleep/tests/excheck.sl	2008-08-04 22:25:13 UTC (rev 424)
++++ sleep/tests/excheck.sl	2008-08-04 22:33:21 UTC (rev 425)
+@@ -0,0 +1,8 @@
++if (-exists "")
++{
++   println('"" exists?');
++}
++else
++{
++   println('"" does not exist :)');
++} 
+
+Added: sleep/tests/output/excheck.sl
+===================================================================
+--- sleep/tests/output/excheck.sl	2008-08-04 22:25:13 UTC (rev 424)
++++ sleep/tests/output/excheck.sl	2008-08-04 22:33:21 UTC (rev 425)
+@@ -0,0 +1 @@
++"" does not exist :)
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2008-08-04 22:25:13 UTC (rev 424)
++++ sleep/whatsnew.txt	2008-08-04 22:33:21 UTC (rev 425)
+@@ -20,6 +20,8 @@
+ - foreach on a hash now skips over keys with $null values
+   (a $null value is removed at the first convienence from a
+   Sleep hash--usually by keys() or values() functions)
++- Fixed bug causing -exists "" to return true..  turns out
++  toSleepFile evaluated "" to the current working directory
+ 
+ 2.1-release  (1 Jul 08)
+ ===========
+
+
+
+From rsmudge at mail.berlios.de  Tue Aug  5 00:59:58 2008
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Tue, 5 Aug 2008 00:59:58 +0200
+Subject: [Sleep-svn] r426 - in sleep: . src/sleep/bridges
+	src/sleep/engine/atoms src/sleep/runtime tests tests/output
+Message-ID: <200808042259.m74MxwsH016578@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2008-08-05 00:59:56 +0200 (Tue, 05 Aug 2008)
+New Revision: 426
+
+Added:
+   sleep/src/sleep/runtime/ProxyIterator.java
+   sleep/tests/jiter1.sl
+   sleep/tests/jiter2.sl
+   sleep/tests/jiter3.sl
+   sleep/tests/output/jiter1.sl
+   sleep/tests/output/jiter2.sl
+   sleep/tests/output/jiter3.sl
+Modified:
+   sleep/src/sleep/bridges/BridgeUtilities.java
+   sleep/src/sleep/engine/atoms/Iterate.java
+   sleep/src/sleep/runtime/CollectionWrapper.java
+   sleep/whatsnew.txt
+Log:
+Added support for Iterating over Java iterators.
+
+
+
+Modified: sleep/src/sleep/bridges/BridgeUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BridgeUtilities.java	2008-08-04 22:33:21 UTC (rev 425)
++++ sleep/src/sleep/bridges/BridgeUtilities.java	2008-08-04 22:59:56 UTC (rev 426)
+@@ -151,11 +151,14 @@
+       {
+          return temp.getArray().scalarIterator();
+       }      
+-
+-      if (SleepUtils.isFunctionScalar(temp))
++      else if (SleepUtils.isFunctionScalar(temp))
+       {
+          return SleepUtils.getFunctionFromScalar(temp).scalarIterator();
+       }
++      else if (ProxyIterator.isIterator(temp))
++      {
++         return new ProxyIterator((Iterator)temp.objectValue(), true);
++      }
+ 
+       throw new IllegalArgumentException("expected iterator (@array or &closure)--received: " + SleepUtils.describe(temp));
+    }
+
+Modified: sleep/src/sleep/engine/atoms/Iterate.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/Iterate.java	2008-08-04 22:33:21 UTC (rev 425)
++++ sleep/src/sleep/engine/atoms/Iterate.java	2008-08-04 22:59:56 UTC (rev 426)
+@@ -125,6 +125,10 @@
+       {
+          data.iterator = SleepUtils.getFunctionFromScalar(data.source, e.getScriptInstance()).scalarIterator();
+       }
++      else if (ProxyIterator.isIterator(data.source))
++      {
++         data.iterator = new ProxyIterator((Iterator)data.source.objectValue(), true);
++      }
+       else
+       {
+          e.getScriptInstance().fireWarning("Attempted to use foreach on non-array: '" + data.source + "'", getLineNumber());
+
+Modified: sleep/src/sleep/runtime/CollectionWrapper.java
+===================================================================
+--- sleep/src/sleep/runtime/CollectionWrapper.java	2008-08-04 22:33:21 UTC (rev 425)
++++ sleep/src/sleep/runtime/CollectionWrapper.java	2008-08-04 22:59:56 UTC (rev 426)
+@@ -75,7 +75,7 @@
+ 
+    public Iterator scalarIterator()
+    {
+-      return new ProxyIterator();
++      return new ProxyIterator(values.iterator(), false);
+    }
+ 
+    public Scalar add(Scalar value, int index)
+@@ -88,31 +88,4 @@
+       throw new RuntimeException("array is read-only");
+       // do nothing
+    }
+-
+-   protected class ProxyIterator implements Iterator
+-   {
+-      protected Iterator realIterator;
+-
+-      public ProxyIterator()
+-      {
+-         realIterator = values.iterator();
+-      }
+-
+-      public boolean hasNext()
+-      {
+-         return realIterator.hasNext(); 
+-      }
+-
+-      public Object next()
+-      {
+-         Object temp = realIterator.next();
+-         return ObjectUtilities.BuildScalar(true, temp);
+-      }
+-
+-      public void remove()
+-      {
+-          throw new RuntimeException("array is read-only");
+-          // no dice
+-      }
+-   }
+ }
+
+Added: sleep/src/sleep/runtime/ProxyIterator.java
+===================================================================
+--- sleep/src/sleep/runtime/ProxyIterator.java	2008-08-04 22:33:21 UTC (rev 425)
++++ sleep/src/sleep/runtime/ProxyIterator.java	2008-08-04 22:59:56 UTC (rev 426)
+@@ -0,0 +1,47 @@
++package sleep.runtime;
++
++import java.util.*;
++import sleep.engine.ObjectUtilities;
++
++/* An iterator wrapper that constructs Sleep compatible Scalars for 
++   each iterator. */
++public class ProxyIterator implements Iterator
++{
++   protected Iterator realIterator;
++   protected boolean  modifyAllow;
++
++   public ProxyIterator(Iterator iter, boolean _modifyAllow)
++   {
++      realIterator = iter;
++      modifyAllow  = _modifyAllow;
++   }
++
++   /** Check if the Scalar contains a Java iterator value */
++   public static boolean isIterator(Scalar value)
++   {
++      return value.getActualValue() != null && value.objectValue() instanceof Iterator;
++   }
++
++   public boolean hasNext()
++   {
++      return realIterator.hasNext(); 
++   }
++
++   public Object next()
++   {
++      Object temp = realIterator.next();
++      return ObjectUtilities.BuildScalar(true, temp);
++   }
++
++   public void remove()
++   {
++      if (modifyAllow)
++      {
++         realIterator.remove();
++      }
++      else
++      {
++         throw new RuntimeException("iterator is read-only");
++      }
++   }
++}
+
+Added: sleep/tests/jiter1.sl
+===================================================================
+--- sleep/tests/jiter1.sl	2008-08-04 22:33:21 UTC (rev 425)
++++ sleep/tests/jiter1.sl	2008-08-04 22:59:56 UTC (rev 426)
+@@ -0,0 +1,14 @@
++#
++#
++
++$list = [new LinkedList];
++[$list add: "a"];
++[$list add: "b"];
++[$list add: "c"];
++[$list add: "d"];
++[$list add: "e"];
++
++foreach $count => $value ([$list iterator])
++{
++   println("$count and $value");
++}
+
+Added: sleep/tests/jiter2.sl
+===================================================================
+--- sleep/tests/jiter2.sl	2008-08-04 22:33:21 UTC (rev 425)
++++ sleep/tests/jiter2.sl	2008-08-04 22:59:56 UTC (rev 426)
+@@ -0,0 +1,21 @@
++#
++#
++
++$list = [new LinkedList];
++[$list add: "a"];
++[$list add: "b"];
++[$list add: "c"];
++[$list add: "d"];
++[$list add: "e"];
++
++foreach $count => $value ([$list iterator])
++{
++   println("$count and $value");
++
++   if ($count > 2)
++   {
++      remove();
++   }
++}
++
++println($list);
+
+Added: sleep/tests/jiter3.sl
+===================================================================
+--- sleep/tests/jiter3.sl	2008-08-04 22:33:21 UTC (rev 425)
++++ sleep/tests/jiter3.sl	2008-08-04 22:59:56 UTC (rev 426)
+@@ -0,0 +1,8 @@
++$list = [new LinkedList];
++[$list add: 1];
++[$list add: 3];
++[$list add: 9];
++[$list add: 12];
++
++println(map({ return $1 * 3; }, [$list iterator]));
++
+
+Added: sleep/tests/output/jiter1.sl
+===================================================================
+--- sleep/tests/output/jiter1.sl	2008-08-04 22:33:21 UTC (rev 425)
++++ sleep/tests/output/jiter1.sl	2008-08-04 22:59:56 UTC (rev 426)
+@@ -0,0 +1,5 @@
++0 and a
++1 and b
++2 and c
++3 and d
++4 and e
+
+Added: sleep/tests/output/jiter2.sl
+===================================================================
+--- sleep/tests/output/jiter2.sl	2008-08-04 22:33:21 UTC (rev 425)
++++ sleep/tests/output/jiter2.sl	2008-08-04 22:59:56 UTC (rev 426)
+@@ -0,0 +1,6 @@
++0 and a
++1 and b
++2 and c
++3 and d
++3 and e
++[a, b, c]
+
+Added: sleep/tests/output/jiter3.sl
+===================================================================
+--- sleep/tests/output/jiter3.sl	2008-08-04 22:33:21 UTC (rev 425)
++++ sleep/tests/output/jiter3.sl	2008-08-04 22:59:56 UTC (rev 426)
+@@ -0,0 +1 @@
++@(3, 9, 27, 36)
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2008-08-04 22:33:21 UTC (rev 425)
++++ sleep/whatsnew.txt	2008-08-04 22:59:56 UTC (rev 426)
+@@ -22,6 +22,9 @@
+   Sleep hash--usually by keys() or values() functions)
+ - Fixed bug causing -exists "" to return true..  turns out
+   toSleepFile evaluated "" to the current working directory
++- Sleep functions (map, reduce, filter, etc.) that support 
++  iterating over a closure or array and foreach loops can now
++  iterate over Java iterators.  
+ 
+ 2.1-release  (1 Jul 08)
+ ===========
+
+
+
+From rsmudge at mail.berlios.de  Tue Aug  5 01:46:52 2008
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Tue, 5 Aug 2008 01:46:52 +0200
+Subject: [Sleep-svn] r427 - in sleep: . src/sleep/taint tests tests/output
+Message-ID: <200808042346.m74Nkq0c008155@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2008-08-05 01:46:52 +0200 (Tue, 05 Aug 2008)
+New Revision: 427
+
+Added:
+   sleep/tests/output/taint11.sl
+   sleep/tests/taint11.sl
+Modified:
+   sleep/build.xml
+   sleep/runtests.sl
+   sleep/src/sleep/taint/TaintUtils.java
+   sleep/whatsnew.txt
+Log:
+fixed taint problem.
+
+
+
+Modified: sleep/build.xml
+===================================================================
+--- sleep/build.xml	2008-08-04 22:59:56 UTC (rev 426)
++++ sleep/build.xml	2008-08-04 23:46:52 UTC (rev 427)
+@@ -16,7 +16,7 @@
+            destdir="${project.build}"
+            nowarn="yes"
+            depend="yes"
+-           debug="false"
++           debug="true"
+            source="1.4"
+            target="1.4"
+            optimize="yes"
+
+Modified: sleep/runtests.sl
+===================================================================
+--- sleep/runtests.sl	2008-08-04 22:59:56 UTC (rev 426)
++++ sleep/runtests.sl	2008-08-04 23:46:52 UTC (rev 427)
+@@ -109,7 +109,7 @@
+    chdir("tests");
+ 
+    # some special scripts that require command line execution to test out some stuff...
+-   for ($x = 0; $x < 11; $x++)
++   for ($x = 0; $x < 12; $x++)
+    {
+       %special["taint $+ $x $+ .sl"]  = "java -Dsleep.taint=true -jar ../sleep.jar taint $+ $x $+ .sl";
+    }
+
+Modified: sleep/src/sleep/taint/TaintUtils.java
+===================================================================
+--- sleep/src/sleep/taint/TaintUtils.java	2008-08-04 22:59:56 UTC (rev 426)
++++ sleep/src/sleep/taint/TaintUtils.java	2008-08-04 23:46:52 UTC (rev 427)
+@@ -112,7 +112,8 @@
+           Iterator i = value.getHash().getData().entrySet().iterator();
+           while (i.hasNext())
+           {
+-             taintAll((Scalar)i.next());
++             Map.Entry tempe = (Map.Entry)i.next();
++             taintAll((Scalar)tempe.getValue());
+           }
+        }
+        else if (value.getActualValue().getType() == ObjectValue.class && value.objectValue().getClass() == KeyValuePair.class)
+
+Added: sleep/tests/output/taint11.sl
+===================================================================
+--- sleep/tests/output/taint11.sl	2008-08-04 22:59:56 UTC (rev 426)
++++ sleep/tests/output/taint11.sl	2008-08-04 23:46:52 UTC (rev 427)
+@@ -0,0 +1,3 @@
++%(a => 'apple', c => 'cats', b => 'bats')
++@('a', 'c', 'b')
++@('apple', 'cats', 'bats')
+
+Added: sleep/tests/taint11.sl
+===================================================================
+--- sleep/tests/taint11.sl	2008-08-04 22:59:56 UTC (rev 426)
++++ sleep/tests/taint11.sl	2008-08-04 23:46:52 UTC (rev 427)
+@@ -0,0 +1,18 @@
++#
++# test out taint mode with serialization
++#
++
++debug(7);
++
++local('$buffer %hash $temp');
++
++%hash   = %(a => "apple", b => "bats", c => "cats");
++$buffer = allocate();
++writeObject($buffer, %hash);
++closef($buffer);
++
++$temp = readObject($buffer);
++println($temp);
++println(keys($temp));
++println(values($temp));
++
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2008-08-04 22:59:56 UTC (rev 426)
++++ sleep/whatsnew.txt	2008-08-04 23:46:52 UTC (rev 427)
+@@ -25,6 +25,8 @@
+ - Sleep functions (map, reduce, filter, etc.) that support 
+   iterating over a closure or array and foreach loops can now
+   iterate over Java iterators.  
++- fixed a bug with taintAll causing a class cast exception with
++  hash scalars
+ 
+ 2.1-release  (1 Jul 08)
+ ===========
+
+
+
+From rsmudge at mail.berlios.de  Tue Aug  5 02:00:57 2008
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Tue, 5 Aug 2008 02:00:57 +0200
+Subject: [Sleep-svn] r428 - in sleep: . src/sleep/engine/atoms tests
+	tests/output
+Message-ID: <200808050000.m7500v3W009141@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2008-08-05 02:00:50 +0200 (Tue, 05 Aug 2008)
+New Revision: 428
+
+Added:
+   sleep/tests/feloc.sl
+   sleep/tests/output/feloc.sl
+Modified:
+   sleep/src/sleep/engine/atoms/Iterate.java
+   sleep/tests/output/fe_generatordb.sl
+   sleep/tests/output/iternotrace.sl
+   sleep/tests/output/newInstance.sl
+   sleep/whatsnew.txt
+Log:
+foreach now complains when strict mode is on
+
+
+Modified: sleep/src/sleep/engine/atoms/Iterate.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/Iterate.java	2008-08-04 23:46:52 UTC (rev 427)
++++ sleep/src/sleep/engine/atoms/Iterate.java	2008-08-05 00:00:50 UTC (rev 428)
+@@ -99,6 +99,11 @@
+       if (data.venv == null)
+       {
+          data.venv = e.getScriptVariables().getGlobalVariables();
++
++         if ((e.getScriptInstance().getDebugFlags() & ScriptInstance.DEBUG_REQUIRE_STRICT) == ScriptInstance.DEBUG_REQUIRE_STRICT)
++         {
++            e.showDebugMessage("variable '" + data.value + "' not declared");
++         }
+       }
+ 
+       if (key != null)
+@@ -107,7 +112,14 @@
+          data.kenv = e.getScriptVariables().getScalarLevel(key, e.getScriptInstance());
+ 
+          if (data.kenv == null)
++         {
+             data.kenv = e.getScriptVariables().getGlobalVariables();
++
++            if ((e.getScriptInstance().getDebugFlags() & ScriptInstance.DEBUG_REQUIRE_STRICT) == ScriptInstance.DEBUG_REQUIRE_STRICT)
++            {
++               e.showDebugMessage("variable '" + data.key + "' not declared");
++            }
++         }
+       }
+       
+       //
+
+Added: sleep/tests/feloc.sl
+===================================================================
+--- sleep/tests/feloc.sl	2008-08-04 23:46:52 UTC (rev 427)
++++ sleep/tests/feloc.sl	2008-08-05 00:00:50 UTC (rev 428)
+@@ -0,0 +1,20 @@
++#
++#
++#
++
++debug(7);
++
++global('$x');
++
++sub foo
++{
++   foreach $y (@(1, 2, 3, 4, 5, 6, 7))
++   {
++       # ... :) ...
++   }
++}
++
++$x = 33;
++foo();
++println($x);
++println($y);
+
+Modified: sleep/tests/output/fe_generatordb.sl
+===================================================================
+--- sleep/tests/output/fe_generatordb.sl	2008-08-04 23:46:52 UTC (rev 427)
++++ sleep/tests/output/fe_generatordb.sl	2008-08-05 00:00:50 UTC (rev 428)
+@@ -1,3 +1,4 @@
++Warning: variable '$index' not declared at fe_generatordb.sl:6
+ Trace: &this('$x') at fe_generatordb.sl:6
+ Trace: [&closure[fe_generatordb.sl:6]#X eval] = 'val: 0' at <internal>:-1
+ 0 => val: 0
+
+Added: sleep/tests/output/feloc.sl
+===================================================================
+--- sleep/tests/output/feloc.sl	2008-08-04 23:46:52 UTC (rev 427)
++++ sleep/tests/output/feloc.sl	2008-08-05 00:00:50 UTC (rev 428)
+@@ -0,0 +1,3 @@
++Warning: variable '$y' not declared at feloc.sl:11
++33
++7
+
+Modified: sleep/tests/output/iternotrace.sl
+===================================================================
+--- sleep/tests/output/iternotrace.sl	2008-08-04 23:46:52 UTC (rev 427)
++++ sleep/tests/output/iternotrace.sl	2008-08-05 00:00:50 UTC (rev 428)
+@@ -1,4 +1,5 @@
+ Trace: function('&generator') = &closure[iternotrace.sl:5-9]#X at iternotrace.sl:15
++Warning: variable '$data' not declared at iternotrace.sl:15
+ Trace: &local('$x') at iternotrace.sl:5
+ Trace: [&closure[iternotrace.sl:5-9]#X eval] = 0 at <internal>:-1
+ Received 0
+
+Modified: sleep/tests/output/newInstance.sl
+===================================================================
+--- sleep/tests/output/newInstance.sl	2008-08-04 23:46:52 UTC (rev 427)
++++ sleep/tests/output/newInstance.sl	2008-08-05 00:00:50 UTC (rev 428)
+@@ -1,4 +1,4 @@
+-Class:      class $Proxy0
++Class:      class $Proxy#
+ Interfaces: @(interface java.lang.Comparable)
+ Value:      <&foo as an object>
+ Trace: &local('$a') at newInstance.sl:10
+@@ -6,13 +6,14 @@
+ Trace: &println('I have been called with: compareTo') at newInstance.sl:12
+ My args are:
+ Trace: &println('My args are:') at newInstance.sl:13
++Warning: variable '$n' not declared at newInstance.sl:14
+   0 => foo
+ Trace: &println('  0 => foo') at newInstance.sl:16
+-Trace: [&closure[newInstance.sl:5-19]#1 compareTo: 'foo'] = 3 at <Java>:-1
+-Trace: [$Proxy0 compareTo: 'foo'] = 3 at newInstance.sl:29
++Trace: [&closure[newInstance.sl:5-19]#X compareTo: 'foo'] = 3 at <Java>:-1
++Trace: [$Proxy# compareTo: 'foo'] = 3 at newInstance.sl:29
+ 3
+ Trace: &println(3) at newInstance.sl:29
+ Trace: &debug(7) = 7 at newInstance.sl:31
+-Class:      class $Proxy1
++Class:      class $Proxy#
+ Interfaces: @(interface java.util.List, interface java.lang.Comparable)
+ Value:      <&foo as an object>
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2008-08-04 23:46:52 UTC (rev 427)
++++ sleep/whatsnew.txt	2008-08-05 00:00:50 UTC (rev 428)
+@@ -27,6 +27,8 @@
+   iterate over Java iterators.  
+ - fixed a bug with taintAll causing a class cast exception with
+   hash scalars
++- foreach now reports undeclared key/value variables when strict
++  mode is enabled.
+ 
+ 2.1-release  (1 Jul 08)
+ ===========
+
+
+
+From rsmudge at mail.berlios.de  Tue Aug  5 02:14:55 2008
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Tue, 5 Aug 2008 02:14:55 +0200
+Subject: [Sleep-svn] r429 - in sleep: . src/sleep/bridges src/sleep/runtime
+	tests tests/output
+Message-ID: <200808050014.m750EtaS011221@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2008-08-05 02:14:54 +0200 (Tue, 05 Aug 2008)
+New Revision: 429
+
+Added:
+   sleep/tests/brokendec.sl
+   sleep/tests/output/brokendec.sl
+Modified:
+   sleep/src/sleep/bridges/BasicUtilities.java
+   sleep/src/sleep/runtime/SleepUtils.java
+   sleep/whatsnew.txt
+Log:
+Sleep 2.1 update 2?
+
+
+Modified: sleep/src/sleep/bridges/BasicUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicUtilities.java	2008-08-05 00:00:50 UTC (rev 428)
++++ sleep/src/sleep/bridges/BasicUtilities.java	2008-08-05 00:14:54 UTC (rev 429)
+@@ -767,7 +767,7 @@
+ 
+     private static class SetScope implements Function
+     {
+-       private java.util.regex.Pattern splitter = java.util.regex.Pattern.compile(" ");
++       private java.util.regex.Pattern splitter = java.util.regex.Pattern.compile("\\s+");
+ 
+        public Scalar evaluate(String n, ScriptInstance i, Stack l)
+        {
+@@ -801,6 +801,10 @@
+              {
+                 i.getScriptVariables().setScalarLevel(vars[x], SleepUtils.getHashScalar(), level);
+              }
++             else
++             {
++                throw new IllegalArgumentException(n + ": malformed variable name '" + vars[x] + "' from '" + temp + "'");
++             }
+           }
+ 
+           return SleepUtils.getEmptyScalar();
+
+Modified: sleep/src/sleep/runtime/SleepUtils.java
+===================================================================
+--- sleep/src/sleep/runtime/SleepUtils.java	2008-08-05 00:00:50 UTC (rev 428)
++++ sleep/src/sleep/runtime/SleepUtils.java	2008-08-05 00:14:54 UTC (rev 429)
+@@ -26,7 +26,7 @@
+ public class SleepUtils
+ {
+    /** A date stamp of this Sleep release in YYYYMMDD format */
+-   public static final int    SLEEP_RELEASE = 20080701;
++   public static final int    SLEEP_RELEASE = 20080805;
+ 
+    /** A string description of this Sleep release */
+    public static final String SLEEP_VERSION = "Sleep 2.1";
+
+Added: sleep/tests/brokendec.sl
+===================================================================
+--- sleep/tests/brokendec.sl	2008-08-05 00:00:50 UTC (rev 428)
++++ sleep/tests/brokendec.sl	2008-08-05 00:14:54 UTC (rev 429)
+@@ -0,0 +1,11 @@
++debug(7);
++
++global('$x');
++
++sub foo
++{
++   local("$x $y $z");
++}
++
++$x = 33;
++foo();
+
+Added: sleep/tests/output/brokendec.sl
+===================================================================
+--- sleep/tests/output/brokendec.sl	2008-08-05 00:00:50 UTC (rev 428)
++++ sleep/tests/output/brokendec.sl	2008-08-05 00:14:54 UTC (rev 429)
+@@ -0,0 +1,3 @@
++Warning: variable '$y' not declared at brokendec.sl:7
++Warning: variable '$z' not declared at brokendec.sl:7
++Warning: &local: malformed variable name '33' from '33  ' at brokendec.sl:7
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2008-08-05 00:00:50 UTC (rev 428)
++++ sleep/whatsnew.txt	2008-08-05 00:14:54 UTC (rev 429)
+@@ -1,4 +1,4 @@
+-2.1-release  (???)
++2.1-release  (5 Aug 08) [update 2]
+ ===========
+ - modified import from to add jar file to system classpath.  This
+   uses a reflection hack but it now means you can add multiple jars
+@@ -29,8 +29,10 @@
+   hash scalars
+ - foreach now reports undeclared key/value variables when strict
+   mode is enabled.
++- &local, &this, and &global now throw an exception if a malformed
++  variable name is passed to them.  
+ 
+-2.1-release  (1 Jul 08)
++2.1-release  (1 Jul 08) [update 1]
+ ===========
+ - splice() no longer corrupts sublists.
+ - values(%hash) now omits $null values.  
+
+
+
+From rsmudge at mail.berlios.de  Tue Aug  5 17:00:01 2008
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Tue, 5 Aug 2008 17:00:01 +0200
+Subject: [Sleep-svn] r430 - sleep/src/sleep/runtime
+Message-ID: <200808051500.m75F0178014029@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2008-08-05 17:00:01 +0200 (Tue, 05 Aug 2008)
+New Revision: 430
+
+Modified:
+   sleep/src/sleep/runtime/ScriptLoader.java
+Log:
+..
+
+
+Modified: sleep/src/sleep/runtime/ScriptLoader.java
+===================================================================
+--- sleep/src/sleep/runtime/ScriptLoader.java	2008-08-05 00:14:54 UTC (rev 429)
++++ sleep/src/sleep/runtime/ScriptLoader.java	2008-08-05 15:00:01 UTC (rev 430)
+@@ -268,10 +268,10 @@
+     }
+ 
+     /**
+-     * Process the newly loaded script.  Setup its name, add it to the data structures, and load the bridges into the environment
+-     * assuming this hasn't been done before.
++     * Process the newly loaded script.  Setup its name and load the bridges into the environment
++     * assuming this hasn't been done before.  
+      */
+-    private void inProcessScript(String name, ScriptInstance si)
++    protected void inProcessScript(String name, ScriptInstance si)
+     {
+         si.setName(name);
+ 
+@@ -291,13 +291,6 @@
+             }
+             si.getScriptEnvironment().getEnvironment().put("(isloaded)", this);
+         }
+-
+-        // add script to our loaded scripts data structure
+-
+-        if (! name.equals("<interact mode>")) {
+-            loadedScripts.add(si);
+-            scripts.put(name, si);
+-        }
+     }
+ 
+     /**
+@@ -349,14 +342,36 @@
+         o.writeObject(si.getRunnableBlock());
+     }
+ 
+-    public ScriptInstance loadScript(String name, Block code, Hashtable env)
++    /** creates a Sleep script instance using the precompiled code, name, and shared environment.  This function also
++        processes the script using the global and specific bridges registered with this script loader.  No reference
++        to the newly created script is kept by the script loader */
++    public ScriptInstance loadScriptNoReference(String name, Block code, Hashtable env)
+     {
+         ScriptInstance si = new ScriptInstance(env);
+         si.installBlock(code);
+         inProcessScript(name, si);
++
+         return si;
+     }
+ 
++    /** creates a Sleep script instance using the precompiled code, name, and shared environment.  This function also
++        processes the script using the global and specific bridges registered with this script loader.  The script is
++        also referened by this loader so it can be processed again (during the unload phase) when unloadScript is
++        called. */
++    public ScriptInstance loadScript(String name, Block code, Hashtable env)
++    {
++        ScriptInstance si = loadScriptNoReference(name, code, env);
++
++        // add script to our loaded scripts data structure
++
++        if (! name.equals("<interact mode>")) {
++            loadedScripts.add(si);
++            scripts.put(name, si);
++        }
++
++        return si;
++    }
++
+     /** loads the specified script */
+     public ScriptInstance loadScript(String name, String code, Hashtable env) throws YourCodeSucksException
+     {
+
+
+
+From rsmudge at mail.berlios.de  Tue Aug  5 17:08:15 2008
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Tue, 5 Aug 2008 17:08:15 +0200
+Subject: [Sleep-svn] r431 - sleep
+Message-ID: <200808051508.m75F8Fhr014764@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2008-08-05 17:08:14 +0200 (Tue, 05 Aug 2008)
+New Revision: 431
+
+Modified:
+   sleep/build.xml
+Log:
+..
+
+
+Modified: sleep/build.xml
+===================================================================
+--- sleep/build.xml	2008-08-05 15:00:01 UTC (rev 430)
++++ sleep/build.xml	2008-08-05 15:08:14 UTC (rev 431)
+@@ -16,7 +16,7 @@
+            destdir="${project.build}"
+            nowarn="yes"
+            depend="yes"
+-           debug="true"
++           debug="false"
+            source="1.4"
+            target="1.4"
+            optimize="yes"
+
+
+
+From rsmudge at mail.berlios.de  Wed Aug  6 22:54:36 2008
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Wed, 6 Aug 2008 22:54:36 +0200
+Subject: [Sleep-svn] r432 - in sleep: . src/sleep/engine src/sleep/runtime
+	tests tests/output
+Message-ID: <200808062054.m76KsaWu009741@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2008-08-06 22:54:35 +0200 (Wed, 06 Aug 2008)
+New Revision: 432
+
+Added:
+   sleep/tests/output/slist3.sl
+   sleep/tests/slist3.sl
+Modified:
+   sleep/src/sleep/engine/CallRequest.java
+   sleep/src/sleep/runtime/CollectionWrapper.java
+   sleep/src/sleep/runtime/SleepUtils.java
+   sleep/whatsnew.txt
+Log:
+la la la... fixing bugs
+
+
+Modified: sleep/src/sleep/engine/CallRequest.java
+===================================================================
+--- sleep/src/sleep/engine/CallRequest.java	2008-08-05 15:08:14 UTC (rev 431)
++++ sleep/src/sleep/engine/CallRequest.java	2008-08-06 20:54:35 UTC (rev 432)
+@@ -334,7 +334,7 @@
+             Scalar eval = inline.evaluate(getScriptEnvironment());
+     
+             /* restore the argument variables */
+-            if (oldargs != null)
++            if (oldargs != null && oldargs.getArray() != null)
+             {
+                localLevel.putScalar("@_", oldargs);
+                if (targs > 0)
+
+Modified: sleep/src/sleep/runtime/CollectionWrapper.java
+===================================================================
+--- sleep/src/sleep/runtime/CollectionWrapper.java	2008-08-05 15:08:14 UTC (rev 431)
++++ sleep/src/sleep/runtime/CollectionWrapper.java	2008-08-06 20:54:35 UTC (rev 432)
+@@ -18,9 +18,11 @@
+       int count = 0;
+       while (i.hasNext() && count < end)
+       {
++         Object tempo = i.next();
++
+          if (count >= begin)
+          {
+-            temp.add(i.next());
++            temp.add(tempo);
+          }
+          count++;
+       }
+
+Modified: sleep/src/sleep/runtime/SleepUtils.java
+===================================================================
+--- sleep/src/sleep/runtime/SleepUtils.java	2008-08-05 15:08:14 UTC (rev 431)
++++ sleep/src/sleep/runtime/SleepUtils.java	2008-08-06 20:54:35 UTC (rev 432)
+@@ -26,7 +26,7 @@
+ public class SleepUtils
+ {
+    /** A date stamp of this Sleep release in YYYYMMDD format */
+-   public static final int    SLEEP_RELEASE = 20080805;
++   public static final int    SLEEP_RELEASE = 20080806;
+ 
+    /** A string description of this Sleep release */
+    public static final String SLEEP_VERSION = "Sleep 2.1";
+
+Added: sleep/tests/output/slist3.sl
+===================================================================
+--- sleep/tests/output/slist3.sl	2008-08-05 15:08:14 UTC (rev 431)
++++ sleep/tests/output/slist3.sl	2008-08-06 20:54:35 UTC (rev 432)
+@@ -0,0 +1,67 @@
++@('a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k')
++sublist($array, 0, 0):    @()
++sublist($array, 0, 1):    @('a')
++sublist($array, 0, 2):    @('a', 'b')
++sublist($array, 0, 3):    @('a', 'b', 'c')
++sublist($array, 0, 4):    @('a', 'b', 'c', 'd')
++sublist($array, 0, 5):    @('a', 'b', 'c', 'd', 'e')
++sublist($array, 0, 6):    @('a', 'b', 'c', 'd', 'e', 'f')
++sublist($array, 0, 7):    @('a', 'b', 'c', 'd', 'e', 'f', 'g')
++sublist($array, 0, 8):    @('a', 'b', 'c', 'd', 'e', 'f', 'g', 'h')
++sublist($array, 0, 9):    @('a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i')
++sublist($array, 0, 10):   @('a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j')
++sublist($array, 1, 1):    @()
++sublist($array, 1, 2):    @('b')
++sublist($array, 1, 3):    @('b', 'c')
++sublist($array, 1, 4):    @('b', 'c', 'd')
++sublist($array, 1, 5):    @('b', 'c', 'd', 'e')
++sublist($array, 1, 6):    @('b', 'c', 'd', 'e', 'f')
++sublist($array, 1, 7):    @('b', 'c', 'd', 'e', 'f', 'g')
++sublist($array, 1, 8):    @('b', 'c', 'd', 'e', 'f', 'g', 'h')
++sublist($array, 1, 9):    @('b', 'c', 'd', 'e', 'f', 'g', 'h', 'i')
++sublist($array, 1, 10):   @('b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j')
++sublist($array, 2, 2):    @()
++sublist($array, 2, 3):    @('c')
++sublist($array, 2, 4):    @('c', 'd')
++sublist($array, 2, 5):    @('c', 'd', 'e')
++sublist($array, 2, 6):    @('c', 'd', 'e', 'f')
++sublist($array, 2, 7):    @('c', 'd', 'e', 'f', 'g')
++sublist($array, 2, 8):    @('c', 'd', 'e', 'f', 'g', 'h')
++sublist($array, 2, 9):    @('c', 'd', 'e', 'f', 'g', 'h', 'i')
++sublist($array, 2, 10):   @('c', 'd', 'e', 'f', 'g', 'h', 'i', 'j')
++sublist($array, 3, 3):    @()
++sublist($array, 3, 4):    @('d')
++sublist($array, 3, 5):    @('d', 'e')
++sublist($array, 3, 6):    @('d', 'e', 'f')
++sublist($array, 3, 7):    @('d', 'e', 'f', 'g')
++sublist($array, 3, 8):    @('d', 'e', 'f', 'g', 'h')
++sublist($array, 3, 9):    @('d', 'e', 'f', 'g', 'h', 'i')
++sublist($array, 3, 10):   @('d', 'e', 'f', 'g', 'h', 'i', 'j')
++sublist($array, 4, 4):    @()
++sublist($array, 4, 5):    @('e')
++sublist($array, 4, 6):    @('e', 'f')
++sublist($array, 4, 7):    @('e', 'f', 'g')
++sublist($array, 4, 8):    @('e', 'f', 'g', 'h')
++sublist($array, 4, 9):    @('e', 'f', 'g', 'h', 'i')
++sublist($array, 4, 10):   @('e', 'f', 'g', 'h', 'i', 'j')
++sublist($array, 5, 5):    @()
++sublist($array, 5, 6):    @('f')
++sublist($array, 5, 7):    @('f', 'g')
++sublist($array, 5, 8):    @('f', 'g', 'h')
++sublist($array, 5, 9):    @('f', 'g', 'h', 'i')
++sublist($array, 5, 10):   @('f', 'g', 'h', 'i', 'j')
++sublist($array, 6, 6):    @()
++sublist($array, 6, 7):    @('g')
++sublist($array, 6, 8):    @('g', 'h')
++sublist($array, 6, 9):    @('g', 'h', 'i')
++sublist($array, 6, 10):   @('g', 'h', 'i', 'j')
++sublist($array, 7, 7):    @()
++sublist($array, 7, 8):    @('h')
++sublist($array, 7, 9):    @('h', 'i')
++sublist($array, 7, 10):   @('h', 'i', 'j')
++sublist($array, 8, 8):    @()
++sublist($array, 8, 9):    @('i')
++sublist($array, 8, 10):   @('i', 'j')
++sublist($array, 9, 9):    @()
++sublist($array, 9, 10):   @('j')
++sublist($array, 10, 10):  @()
+
+Added: sleep/tests/slist3.sl
+===================================================================
+--- sleep/tests/slist3.sl	2008-08-05 15:08:14 UTC (rev 431)
++++ sleep/tests/slist3.sl	2008-08-06 20:54:35 UTC (rev 432)
+@@ -0,0 +1,29 @@
++#
++# test sublist on read only arrays.
++#
++
++$list = [new LinkedList];
++[$list add: "a"];
++[$list add: "b"];
++[$list add: "c"];
++[$list add: "d"];
++[$list add: "e"];
++[$list add: "f"];
++[$list add: "g"];
++[$list add: "h"];
++[$list add: "i"];
++[$list add: "j"];
++[$list add: "k"];
++
++$array = [SleepUtils getArrayWrapper: $list];
++
++println($array);
++
++for ($x = 0; $x < size($array); $x++)
++{
++   for ($y = $x; $y < size($array); $y++)
++   {
++      $p = 'sublist($array, ' . $x . ', ' . $y . '):';
++      println("$[25]p " . sublist($array, $x, $y));
++   }
++}
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2008-08-05 15:08:14 UTC (rev 431)
++++ sleep/whatsnew.txt	2008-08-06 20:54:35 UTC (rev 432)
+@@ -1,3 +1,10 @@
++2.1-release  (6 Aug 08) [update 2]
++===========
++- made a sanity check with inline function execution to keep jIRCii
++  compatability
++- fixed &sublist only front elements of read-only arrays. (another
++  find from the jIRCii scripting community)
++
+ 2.1-release  (5 Aug 08) [update 2]
+ ===========
+ - modified import from to add jar file to system classpath.  This
+
+
+
+From rsmudge at mail.berlios.de  Thu Aug  7 03:44:55 2008
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Thu, 7 Aug 2008 03:44:55 +0200
+Subject: [Sleep-svn] r433 - in sleep: . src/sleep/runtime
+Message-ID: <200808070144.m771itbU000364@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2008-08-07 03:44:53 +0200 (Thu, 07 Aug 2008)
+New Revision: 433
+
+Modified:
+   sleep/src/sleep/runtime/SleepUtils.java
+   sleep/whatsnew.txt
+Log:
+Sleep 2.1-u2.5
+
+
+Modified: sleep/src/sleep/runtime/SleepUtils.java
+===================================================================
+--- sleep/src/sleep/runtime/SleepUtils.java	2008-08-06 20:54:35 UTC (rev 432)
++++ sleep/src/sleep/runtime/SleepUtils.java	2008-08-07 01:44:53 UTC (rev 433)
+@@ -26,7 +26,7 @@
+ public class SleepUtils
+ {
+    /** A date stamp of this Sleep release in YYYYMMDD format */
+-   public static final int    SLEEP_RELEASE = 20080806;
++   public static final int    SLEEP_RELEASE = 20080807;
+ 
+    /** A string description of this Sleep release */
+    public static final String SLEEP_VERSION = "Sleep 2.1";
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2008-08-06 20:54:35 UTC (rev 432)
++++ sleep/whatsnew.txt	2008-08-07 01:44:53 UTC (rev 433)
+@@ -1,4 +1,4 @@
+-2.1-release  (6 Aug 08) [update 2]
++2.1-release  (7 Aug 08) [update 2.5]
+ ===========
+ - made a sanity check with inline function execution to keep jIRCii
+   compatability
+
+
+
+From rsmudge at mail.berlios.de  Thu Aug  7 22:11:32 2008
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Thu, 7 Aug 2008 22:11:32 +0200
+Subject: [Sleep-svn] r434 - sleep/tests
+Message-ID: <200808072011.m77KBWHp011587@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2008-08-07 22:11:32 +0200 (Thu, 07 Aug 2008)
+New Revision: 434
+
+Added:
+   sleep/tests/setfield3.sl
+Log:
+..
+
+
+Added: sleep/tests/setfield3.sl
+===================================================================
+--- sleep/tests/setfield3.sl	2008-08-07 01:44:53 UTC (rev 433)
++++ sleep/tests/setfield3.sl	2008-08-07 20:11:32 UTC (rev 434)
+@@ -0,0 +1,10 @@
++import com.eric.* from: data3/test.jar;
++
++$eric = [new Eric: "Eric", "Smith"];
++
++println([$eric fname]);
++println([$eric lname]);
++
++setField($eric, fname => "Dave");
++
++println([$eric fname]);
+
+
+
+From rsmudge at mail.berlios.de  Thu Aug  7 23:10:06 2008
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Thu, 7 Aug 2008 23:10:06 +0200
+Subject: [Sleep-svn] r435 - in sleep: . src/sleep/bridges tests tests/data3
+	tests/data3/src tests/data3/src/com tests/data3/src/com/eric
+	tests/output
+Message-ID: <200808072110.m77LA69s017190@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2008-08-07 23:10:05 +0200 (Thu, 07 Aug 2008)
+New Revision: 435
+
+Added:
+   sleep/tests/data3/
+   sleep/tests/data3/build.xml
+   sleep/tests/data3/readme.txt
+   sleep/tests/data3/src/
+   sleep/tests/data3/src/com/
+   sleep/tests/data3/src/com/eric/
+   sleep/tests/data3/src/com/eric/Eric.java
+   sleep/tests/data3/src/com/eric/Person.java
+   sleep/tests/data3/test.jar
+   sleep/tests/output/setfield3.sl
+Modified:
+   sleep/runtests.sl
+   sleep/src/sleep/bridges/BasicUtilities.java
+   sleep/tests/megaio.sl
+   sleep/whatsnew.txt
+Log:
+setField now works on fields inherited from parent.
+
+
+Modified: sleep/runtests.sl
+===================================================================
+--- sleep/runtests.sl	2008-08-07 20:11:32 UTC (rev 434)
++++ sleep/runtests.sl	2008-08-07 21:10:05 UTC (rev 435)
+@@ -126,7 +126,8 @@
+    %special["convertds2.sl"] = "java -jar ../sleep.jar convertds2.sl"; # calls System.out
+    %special["convertds3.sl"] = "java -jar ../sleep.jar convertds3.sl"; # calls System.out
+    %special["convertds4.sl"] = "java -jar ../sleep.jar convertds4.sl"; # calls System.out
+-   %special["setfield.sl"]   = "java -jar ../sleep.jar setfield.sl";   # calls System.out
++   %special["setfield.sl"]    = "java -jar ../sleep.jar setfield.sl";    # calls System.out
++   %special["setfield3.sl"]   = "java -jar ../sleep.jar setfield3.sl";   # calls System.out
+    %special["process.sl"]    = "java -jar ../sleep.jar process.sl";    # instantiates ScriptLoader which is immune to current working directory.
+ 
+    @scripts = filter({ return iff("*.sl" iswm $1, getFileName($1)); }, ls());
+
+Modified: sleep/src/sleep/bridges/BasicUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicUtilities.java	2008-08-07 20:11:32 UTC (rev 434)
++++ sleep/src/sleep/bridges/BasicUtilities.java	2008-08-07 21:10:05 UTC (rev 435)
+@@ -1424,7 +1424,14 @@
+ 
+              try
+              {
+-                setMe = aClass.getDeclaredField(name);
++                try
++                {
++                   setMe = aClass.getDeclaredField(name);
++                }
++                catch (NoSuchFieldException nsfe)
++                {
++                   setMe = aClass.getField(name);
++                }
+ 
+                 if (ObjectUtilities.isArgMatch(setMe.getType(), arg) != 0)
+                 {
+
+Added: sleep/tests/data3/build.xml
+===================================================================
+--- sleep/tests/data3/build.xml	2008-08-07 20:11:32 UTC (rev 434)
++++ sleep/tests/data3/build.xml	2008-08-07 21:10:05 UTC (rev 435)
+@@ -0,0 +1,40 @@
++<project name="sleep" default="all" basedir=".">
++  <property name="project.src"   location="src" />
++  <property name="project.build" location="bin" />
++
++  <property name="project.path"  value="sleep" />
++
++  <target name="all" depends="init, compile, jar" />
++
++  <target name="init">
++    <tstamp />
++    <mkdir dir="${project.build}" />
++  </target>
++
++  <target name="compile" depends="init" description="compile the source " >
++    <javac srcdir="${project.src}/"
++           destdir="${project.build}"
++           classpath="../../sleep.jar"
++           nowarn="yes"
++           depend="yes"
++           debug="no"
++           optimize="yes"
++    >
++    </javac>
++  </target>
++
++  <target name="jar" depends="compile">
++     <jar destfile="test.jar"
++          basedir="bin"
++          includes="**/*.class">
++         <manifest>
++           <attribute name="Main-Class" value="sleep.console.TextConsole" />
++         </manifest>
++      </jar>
++  </target>
++
++  <target name="clean" description="clean up" >
++    <delete dir="${build}"/>
++  </target>
++</project>
++
+
+Added: sleep/tests/data3/readme.txt
+===================================================================
+--- sleep/tests/data3/readme.txt	2008-08-07 20:11:32 UTC (rev 434)
++++ sleep/tests/data3/readme.txt	2008-08-07 21:10:05 UTC (rev 435)
+@@ -0,0 +1,7 @@
++This directory just contains test data used by one or more of the unit test scripts.
++
++To build the data just type "ant" by itself.
++
++Source code is all included in the tests/data/src/ directory.
++
++				-- Raffi
+
+Added: sleep/tests/data3/src/com/eric/Eric.java
+===================================================================
+--- sleep/tests/data3/src/com/eric/Eric.java	2008-08-07 20:11:32 UTC (rev 434)
++++ sleep/tests/data3/src/com/eric/Eric.java	2008-08-07 21:10:05 UTC (rev 435)
+@@ -0,0 +1,8 @@
++package com.eric;
++class Eric extends Person{
++  
++  public Eric(String fname, String lname){
++    super(fname, lname);
++  }
++}
++
+
+Added: sleep/tests/data3/src/com/eric/Person.java
+===================================================================
+--- sleep/tests/data3/src/com/eric/Person.java	2008-08-07 20:11:32 UTC (rev 434)
++++ sleep/tests/data3/src/com/eric/Person.java	2008-08-07 21:10:05 UTC (rev 435)
+@@ -0,0 +1,11 @@
++package com.eric;
++class Person{
++  public String fname;
++  public String lname;
++ 
++ public Person(String fname, String lname){
++   this.fname = fname;
++   this.lname = lname;
++ }
++}
++
+
+Added: sleep/tests/data3/test.jar
+===================================================================
+(Binary files differ)
+
+
+Property changes on: sleep/tests/data3/test.jar
+___________________________________________________________________
+Name: svn:mime-type
+   + application/octet-stream
+
+Modified: sleep/tests/megaio.sl
+===================================================================
+--- sleep/tests/megaio.sl	2008-08-07 20:11:32 UTC (rev 434)
++++ sleep/tests/megaio.sl	2008-08-07 21:10:05 UTC (rev 435)
+@@ -49,4 +49,4 @@
+   println("Read in $z bytes");
+ 
+   closef($handle);
+-}, $handle => $src), 5000);
++}, $handle => $src), 10000);
+
+Added: sleep/tests/output/setfield3.sl
+===================================================================
+--- sleep/tests/output/setfield3.sl	2008-08-07 20:11:32 UTC (rev 434)
++++ sleep/tests/output/setfield3.sl	2008-08-07 21:10:05 UTC (rev 435)
+@@ -0,0 +1,3 @@
++Eric
++Smith
++Dave
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2008-08-07 20:11:32 UTC (rev 434)
++++ sleep/whatsnew.txt	2008-08-07 21:10:05 UTC (rev 435)
+@@ -1,3 +1,8 @@
++2.1-release
++===========
++- fixed a problem with setField not accessing fields declared in a parent
++  class for an object.
++
+ 2.1-release  (7 Aug 08) [update 2.5]
+ ===========
+ - made a sanity check with inline function execution to keep jIRCii
+
+
+
+From rsmudge at mail.berlios.de  Thu Aug  7 23:13:36 2008
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Thu, 7 Aug 2008 23:13:36 +0200
+Subject: [Sleep-svn] r436 - in sleep: . src/sleep/engine/atoms tests
+	tests/output
+Message-ID: <200808072113.m77LDaUl017611@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2008-08-07 23:13:36 +0200 (Thu, 07 Aug 2008)
+New Revision: 436
+
+Added:
+   sleep/tests/output/testfield.sl
+   sleep/tests/testfield.sl
+Modified:
+   sleep/src/sleep/engine/atoms/ObjectAccess.java
+   sleep/whatsnew.txt
+Log:
+another change... why not.
+
+
+Modified: sleep/src/sleep/engine/atoms/ObjectAccess.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/ObjectAccess.java	2008-08-07 21:10:05 UTC (rev 435)
++++ sleep/src/sleep/engine/atoms/ObjectAccess.java	2008-08-07 21:13:36 UTC (rev 436)
+@@ -211,8 +211,17 @@
+       {
+          try
+          {
+-            Field aField = theClass.getField(name);
++            Field aField;
+ 
++            try
++            {
++               aField = theClass.getDeclaredField(name);
++            }
++            catch (NoSuchFieldException nsfe)
++            {
++               aField = theClass.getField(name);
++            }
++
+             if (aField != null)
+             {
+                try
+
+Added: sleep/tests/output/testfield.sl
+===================================================================
+--- sleep/tests/output/testfield.sl	2008-08-07 21:10:05 UTC (rev 435)
++++ sleep/tests/output/testfield.sl	2008-08-07 21:13:36 UTC (rev 436)
+@@ -0,0 +1,4 @@
++34
++35
++???: 35
++Done?
+
+Added: sleep/tests/testfield.sl
+===================================================================
+--- sleep/tests/testfield.sl	2008-08-07 21:10:05 UTC (rev 435)
++++ sleep/tests/testfield.sl	2008-08-07 21:13:36 UTC (rev 436)
+@@ -0,0 +1,15 @@
++#
++# test setting of fields...
++#
++
++import org.hick.blah.SqueezeBox from: data/test.jar;
++
++$sb1 = [new SqueezeBox];
++
++println([$sb1 squeeze]);
++#setField($sb1, sq => 55);
++println([$sb1 squeeze]);
++
++println("???: " . [$sb1 sq]);
++
++println("Done?");
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2008-08-07 21:10:05 UTC (rev 435)
++++ sleep/whatsnew.txt	2008-08-07 21:13:36 UTC (rev 436)
+@@ -2,6 +2,9 @@
+ ===========
+ - fixed a problem with setField not accessing fields declared in a parent
+   class for an object.
++- [$obj field] can now get protected members declared within the parent of
++  $obj.  This does not extend to protected members declared up the class 
++  hierarchy.
+ 
+ 2.1-release  (7 Aug 08) [update 2.5]
+ ===========
+
+
+
+From TanjaGuenter at erobay.in  Sun Aug 17 17:55:48 2008
+From: TanjaGuenter at erobay.in (TanjaGuenter)
+Date: Sun, 17 Aug 2008 19:55:48 +0400
+Subject: [Sleep-svn] Einschreiben von TanjaGuenter
+Message-ID: <E1KUkbc-000Nqz-Sp@host05.best-hosting.ru>
+
+Hallo!
+
+Ein(e) Bekannte(r) von Dir (TanjaGuenter) 
+hat Dich eingeladen, seine/ihre neue Auktion zu besuchen.
+Was genau versteigert wird, erfaehrst Du auf der Auktionsseite.
+
+Folge bitte diesem Link:
+http://www.erobay.in/?auctionator=TanjaGuenter
+
+Ausser der privaten Auktion von TanjaGuenter findest zu noch
+Dates, Parties, Swinger, Toys und mehr ab 1 EURO!
+
+Viele Gruesse und viel Spass bei Erobay!
+Ihr erobay.in Team
+
+
+PS: Diese Einladung wurde einmalig ueber das EINLADEN Formular von erobay.in
+einmalig verschickt. erobay ist hierfuer nicht verantwortlich.
+
+  
+
+
+
+From TanjaGuenter at erobay.in  Mon Aug 18 18:07:51 2008
+From: TanjaGuenter at erobay.in (TanjaGuenter)
+Date: Mon, 18 Aug 2008 20:07:51 +0400
+Subject: [Sleep-svn] Einschreiben von TanjaGuenter
+Message-ID: <E1KV7Gp-000L89-Vg@host05.best-hosting.ru>
+
+Hallo!
+
+Ein(e) Bekannte(r) von Dir (TanjaGuenter) 
+hat Dich eingeladen, seine/ihre neue Auktion zu besuchen.
+Was genau versteigert wird, erfaehrst Du auf der Auktionsseite.
+
+Folge bitte diesem Link:
+http://www.erobay.in/?auctionator=TanjaGuenter
+
+Ausser der privaten Auktion von TanjaGuenter findest zu noch
+Dates, Parties, Swinger, Toys und mehr ab 1 EURO!
+
+Viele Gruesse und viel Spass bei Erobay!
+Ihr erobay.in Team
+
+
+PS: Diese Einladung wurde einmalig ueber das EINLADEN Formular von erobay.in
+einmalig verschickt. erobay ist hierfuer nicht verantwortlich.
+
+  
+
+
+

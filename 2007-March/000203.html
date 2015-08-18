@@ -1,0 +1,140 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r224 - in sleep: . src/sleep/bridges tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2007-March/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r224%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20tests%20tests/output&In-Reply-To=%3C200703171256.l2HCuvau025162%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000202.html">
+   <LINK REL="Next"  HREF="000204.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r224 - in sleep: . src/sleep/bridges tests tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r224%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20tests%20tests/output&In-Reply-To=%3C200703171256.l2HCuvau025162%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r224 - in sleep: . src/sleep/bridges tests tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Sat Mar 17 13:56:57 CET 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000202.html">[Sleep-svn] r223 - in sleep/tests: . output
+</A></li>
+        <LI>Next message: <A HREF="000204.html">[Sleep-svn] r225 - in sleep: src/sleep/bridges tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#203">[ date ]</a>
+              <a href="thread.html#203">[ thread ]</a>
+              <a href="subject.html#203">[ subject ]</a>
+              <a href="author.html#203">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2007-03-17 13:56:56 +0100 (Sat, 17 Mar 2007)
+New Revision: 224
+
+Added:
+   sleep/tests/argarr.sl
+   sleep/tests/output/argarr.sl
+Modified:
+   sleep/src/sleep/bridges/ArgumentArray.java
+   sleep/whatsnew.txt
+Log:
+
+another bug fix...
+
+
+Modified: sleep/src/sleep/bridges/ArgumentArray.java
+===================================================================
+--- sleep/src/sleep/bridges/ArgumentArray.java	2007-03-17 12:45:44 UTC (rev 223)
++++ sleep/src/sleep/bridges/ArgumentArray.java	2007-03-17 12:56:56 UTC (rev 224)
+@@ -54,7 +54,7 @@
+ 
+        public Scalar   pop() { check(); return super.pop(); }
+        public Scalar   push(Scalar value) { check(); return super.push(value); }
+-       public int      size() { return sz; }
++       public int      size() { if (values == null) { return sz; } else { return super.size(); } }
+        public Scalar   getAt(int index) { check(); return super.getAt(index); }
+        public Iterator scalarIterator() { check(); return super.scalarIterator(); }
+        public Scalar   add(Scalar value, int index) { check(); return super.add(value, index); }
+
+Added: sleep/tests/argarr.sl
+===================================================================
+--- sleep/tests/argarr.sl	2007-03-17 12:45:44 UTC (rev 223)
++++ sleep/tests/argarr.sl	2007-03-17 12:56:56 UTC (rev 224)
+@@ -0,0 +1,13 @@
++#
++# argument array breakage...
++#
++
++sub arr
++{
++   while (size(@_) &gt; 0)
++   {
++      println(&quot;Another arg: &quot; . shift(@_) . &quot; size: &quot; . size(@_));
++   }
++}
++
++arr(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;, &quot;d&quot;, &quot;e&quot;, &quot;f&quot;, &quot;g&quot;, &quot;h&quot;, &quot;i&quot;, &quot;j&quot;);
+
+Added: sleep/tests/output/argarr.sl
+===================================================================
+--- sleep/tests/output/argarr.sl	2007-03-17 12:45:44 UTC (rev 223)
++++ sleep/tests/output/argarr.sl	2007-03-17 12:56:56 UTC (rev 224)
+@@ -0,0 +1,10 @@
++Another arg: a size: 10
++Another arg: b size: 9
++Another arg: c size: 8
++Another arg: d size: 7
++Another arg: e size: 6
++Another arg: f size: 5
++Another arg: g size: 4
++Another arg: h size: 3
++Another arg: i size: 2
++Another arg: j size: 1
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2007-03-17 12:45:44 UTC (rev 223)
++++ sleep/whatsnew.txt	2007-03-17 12:56:56 UTC (rev 224)
+@@ -35,6 +35,9 @@
+   somewhat less descriptive but on the other hand you can fully inspect them
+   for whatever additional details you want.
+ - fixed a bug preventing use of increment/decrement ops in expression context
++- fixed a bug causing @_ to return the same size value no matter how many
++  modifications had been made to the array (thanks to Ralph Becker for 
++  finding this one).
+ 
+ 2.1-beta 12  (11 Mar 07)
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000202.html">[Sleep-svn] r223 - in sleep/tests: . output
+</A></li>
+	<LI>Next message: <A HREF="000204.html">[Sleep-svn] r225 - in sleep: src/sleep/bridges tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#203">[ date ]</a>
+              <a href="thread.html#203">[ thread ]</a>
+              <a href="subject.html#203">[ subject ]</a>
+              <a href="author.html#203">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

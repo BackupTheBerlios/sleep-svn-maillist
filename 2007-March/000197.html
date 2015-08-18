@@ -1,0 +1,1215 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r217 - in sleep: . src/sleep/bridges src/sleep/engine	src/sleep/engine/atoms src/sleep/parser src/sleep/runtime	tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2007-March/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r217%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20src/sleep/engine%0A%09src/sleep/engine/atoms%20src/sleep/parser%20src/sleep/runtime%0A%09tests%20tests/output&In-Reply-To=%3C200703160201.l2G21cc7009646%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000196.html">
+   <LINK REL="Next"  HREF="000198.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r217 - in sleep: . src/sleep/bridges src/sleep/engine	src/sleep/engine/atoms src/sleep/parser src/sleep/runtime	tests tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r217%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20src/sleep/engine%0A%09src/sleep/engine/atoms%20src/sleep/parser%20src/sleep/runtime%0A%09tests%20tests/output&In-Reply-To=%3C200703160201.l2G21cc7009646%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r217 - in sleep: . src/sleep/bridges src/sleep/engine	src/sleep/engine/atoms src/sleep/parser src/sleep/runtime	tests tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Fri Mar 16 03:01:38 CET 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000196.html">[Sleep-svn] r216 - in sleep/tests: . output
+</A></li>
+        <LI>Next message: <A HREF="000198.html">[Sleep-svn] r219 - in sleep: . src/sleep/bridges src/sleep/engine	src/sleep/engine/atoms src/sleep/runtime tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#197">[ date ]</a>
+              <a href="thread.html#197">[ thread ]</a>
+              <a href="subject.html#197">[ subject ]</a>
+              <a href="author.html#197">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2007-03-16 03:01:34 +0100 (Fri, 16 Mar 2007)
+New Revision: 217
+
+Added:
+   sleep/src/sleep/engine/atoms/PopTry.java
+   sleep/src/sleep/engine/atoms/Try.java
+   sleep/tests/output/tcatch.sl
+   sleep/tests/output/tcatch2.sl
+   sleep/tests/tcatch.sl
+   sleep/tests/tcatch2.sl
+Modified:
+   sleep/build.xml
+   sleep/src/sleep/bridges/BasicUtilities.java
+   sleep/src/sleep/engine/Block.java
+   sleep/src/sleep/engine/GeneratedSteps.java
+   sleep/src/sleep/engine/Step.java
+   sleep/src/sleep/engine/atoms/Call.java
+   sleep/src/sleep/engine/atoms/ObjectAccess.java
+   sleep/src/sleep/engine/atoms/ObjectNew.java
+   sleep/src/sleep/engine/atoms/PLiteral.java
+   sleep/src/sleep/parser/Checkers.java
+   sleep/src/sleep/parser/CodeGenerator.java
+   sleep/src/sleep/parser/ParserConstants.java
+   sleep/src/sleep/parser/TokenParser.java
+   sleep/src/sleep/runtime/ScriptEnvironment.java
+   sleep/src/sleep/runtime/ScriptInstance.java
+   sleep/tests/output/forker.sl
+   sleep/tests/output/trace.sl
+   sleep/tests/output/wrong.sl
+   sleep/tests/sync.sl
+   sleep/whatsnew.txt
+Log:
+halfway to having exception handling in Sleep... dun dun dun.
+
+
+
+Modified: sleep/build.xml
+===================================================================
+--- sleep/build.xml	2007-03-12 00:38:57 UTC (rev 216)
++++ sleep/build.xml	2007-03-16 02:01:34 UTC (rev 217)
+@@ -16,7 +16,7 @@
+            destdir=&quot;${project.build}&quot;
+            nowarn=&quot;yes&quot;
+            depend=&quot;yes&quot;
+-           debug=&quot;false&quot;
++           debug=&quot;true&quot;
+            source=&quot;1.4&quot;
+            target=&quot;1.4&quot;
+            optimize=&quot;yes&quot;
+
+Modified: sleep/src/sleep/bridges/BasicUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicUtilities.java	2007-03-12 00:38:57 UTC (rev 216)
++++ sleep/src/sleep/bridges/BasicUtilities.java	2007-03-16 02:01:34 UTC (rev 217)
+@@ -104,6 +104,7 @@
+ 
+         temp.put(&quot;&amp;debug&quot;, this);
+         temp.put(&quot;&amp;profile&quot;, this);
++        temp.put(&quot;&amp;getStackTrace&quot;, this);
+ 
+         temp.put(&quot;&amp;reverse&quot;,  new reverse());      // @array2 = &amp;reverse(@array) 
+         temp.put(&quot;&amp;removeAt&quot;, new removeAt());   // not safe within foreach loops yada yada yada...
+@@ -801,6 +802,10 @@
+        {
+           return SleepUtils.getArrayWrapper(i.getProfilerStatistics());
+        }
++       else if (n.equals(&quot;&amp;getStackTrace&quot;))
++       {
++          return SleepUtils.getArrayWrapper(i.getStackTrace());
++       }
+        else if (n.equals(&quot;&amp;debug&quot;))
+        {
+           /* allow the script to programatically set the debug level */
+
+Modified: sleep/src/sleep/engine/Block.java
+===================================================================
+--- sleep/src/sleep/engine/Block.java	2007-03-12 00:38:57 UTC (rev 216)
++++ sleep/src/sleep/engine/Block.java	2007-03-16 02:01:34 UTC (rev 217)
+@@ -176,6 +176,16 @@
+         return evaluate(environment, first);
+     }
+ 
++    /** handle an exception raised by a script / java object */
++    private void handleException(ScriptEnvironment environment)
++    {
++        if (environment.isResponsible(this))
++        {
++           Block doit = environment.getExceptionHandler();
++           doit.evaluate(environment);
++        }
++    }
++
+     /** evaluates this block of code.  please note that if the block has a return statement and the method clearReturn() is not 
+         called on the corresponding script environment chaos will ensue.  use SleepUtils.runCode() to safely execute a block of
+         code.  don't call this method yourself.  okay? */
+@@ -183,6 +193,13 @@
+     {
+         if (environment.isReturn())
+         {
++           if (environment.isThrownValue())
++           {
++              environment.pushSource(source); /* may not be necessary, but then again, maybe they are... used for stack traces */
++              handleException(environment);
++              environment.popSource();
++           }
++
+            return environment.getReturnValue();
+         }
+ 
+@@ -245,6 +262,13 @@
+                  environment.getScriptInstance().fireWarning(environment.getDebugString(), temp.getLineNumber());
+                  /** get debug string clears the debug interrupt! */
+               }
++              else if (environment.isThrownValue())
++              {
++                 handleException(environment);
++                 environment.popSource();
++                 return environment.getReturnValue(); /* we do this because the exception will get cleared and after that
++                                                         there may be a return value */
++              }
+               else
+               {
+                  environment.popSource();
+
+Modified: sleep/src/sleep/engine/GeneratedSteps.java
+===================================================================
+--- sleep/src/sleep/engine/GeneratedSteps.java	2007-03-12 00:38:57 UTC (rev 216)
++++ sleep/src/sleep/engine/GeneratedSteps.java	2007-03-16 02:01:34 UTC (rev 217)
+@@ -28,6 +28,18 @@
+ /** A class providing static methods for constructing an atomic step of a specific type */
+ public class GeneratedSteps
+ {
++    public static Step PopTry()
++    {
++       Step temp = new PopTry();
++       return temp;
++    }
++ 
++    public static Step Try(Block owner, Block handler, String var)
++    {
++       Step temp = new Try(owner, handler, var);
++       return temp;
++    }
++
+     public static Step Operate(String oper)
+     {
+        Step temp = new Operate(oper);
+@@ -46,12 +58,6 @@
+        return temp;
+     }
+ 
+-    public static Step NullOperation()
+-    {
+-       Step temp = new Step();
+-       return temp;
+-    }
+-
+     public static Step IteratorCreate(String key, String value)
+     {
+        return new Iterate(key, value, Iterate.ITERATOR_CREATE);
+
+Modified: sleep/src/sleep/engine/Step.java
+===================================================================
+--- sleep/src/sleep/engine/Step.java	2007-03-12 00:38:57 UTC (rev 216)
++++ sleep/src/sleep/engine/Step.java	2007-03-16 02:01:34 UTC (rev 217)
+@@ -30,7 +30,7 @@
+ &lt;/pre&gt; */
+ 
+ 
+-public class Step implements Serializable
++public abstract class Step implements Serializable
+ {
+    /** the script line number that this step was generated from */
+    protected int  line;
+@@ -43,7 +43,7 @@
+    {
+       return prefix+toString();
+    }
+-
++ 
+    /** convience method for the code generator to set the line number. */
+    public void setInfo(int _line)
+    {
+
+Modified: sleep/src/sleep/engine/atoms/Call.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/Call.java	2007-03-12 00:38:57 UTC (rev 216)
++++ sleep/src/sleep/engine/atoms/Call.java	2007-03-16 02:01:34 UTC (rev 217)
+@@ -70,6 +70,7 @@
+              {
+                 String args = SleepUtils.describe(e.getCurrentFrame());
+ 
++                String message = function + &quot;(&quot; + args + &quot;)&quot;;
+                 try
+                 {
+                    long stat = System.currentTimeMillis();
+@@ -80,16 +81,17 @@
+                 
+                    if (SleepUtils.isEmptyScalar(temp))
+                    {
+-                      e.getScriptInstance().fireWarning(function + &quot;(&quot; + args + &quot;)&quot;, getLineNumber(), true);
++                      e.getScriptInstance().fireWarning(message, getLineNumber(), true);
+                    }
+                    else
+                    {
+-                      e.getScriptInstance().fireWarning(function + &quot;(&quot; + args + &quot;) = &quot; + SleepUtils.describe(temp), getLineNumber(), true);
++                      e.getScriptInstance().fireWarning(message + &quot; = &quot; + SleepUtils.describe(temp), getLineNumber(), true);
+                    }
+                 }
+                 catch (RuntimeException rex)
+                 {
+-                   e.getScriptInstance().fireWarning(function + &quot;(&quot; + args + &quot;) - FAILED!&quot;, getLineNumber(), true);
++                   // add an e.killFrame() ?!?
++                   e.getScriptInstance().fireWarning(message + &quot; - FAILED!&quot;, getLineNumber(), true);
+                    throw(rex);
+                 }
+              }
+
+Modified: sleep/src/sleep/engine/atoms/ObjectAccess.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/ObjectAccess.java	2007-03-12 00:38:57 UTC (rev 216)
++++ sleep/src/sleep/engine/atoms/ObjectAccess.java	2007-03-16 02:01:34 UTC (rev 217)
+@@ -142,6 +142,7 @@
+                }
+                catch (RuntimeException rex)
+                {
++                  /** execute a kill frame here?!? */
+                   trace.append(&quot; - FAILED!&quot;);
+                   e.getScriptInstance().fireWarning(trace.toString(), getLineNumber(), true); 
+                   throw(rex);
+@@ -207,8 +208,6 @@
+ 
+                   parameters = ObjectUtilities.buildArgumentArray(theMethod.getParameterTypes(), e.getCurrentFrame(), e.getScriptInstance());
+ 
+-                  long stat = System.currentTimeMillis();
+-
+                   /* construct the actual trace message */
+ 
+                   StringBuffer trace = new StringBuffer(&quot;[&quot;);
+@@ -224,8 +223,8 @@
+ 
+                   try
+                   {
++                     long stat = System.currentTimeMillis();
+                      result = ObjectUtilities.BuildScalar(true, theMethod.invoke(accessMe, parameters));
+-
+                      stat = System.currentTimeMillis() - stat;
+                      e.getScriptInstance().collect(theMethod.toString(), getLineNumber(), stat);
+ 
+
+Modified: sleep/src/sleep/engine/atoms/ObjectNew.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/ObjectNew.java	2007-03-12 00:38:57 UTC (rev 216)
++++ sleep/src/sleep/engine/atoms/ObjectNew.java	2007-03-16 02:01:34 UTC (rev 217)
+@@ -87,8 +87,6 @@
+                else
+                {
+                   String args = SleepUtils.describe(e.getCurrentFrame());
+-
+-                  long stat = System.currentTimeMillis();
+                   parameters = ObjectUtilities.buildArgumentArray(theConstructor.getParameterTypes(), e.getCurrentFrame(), e.getScriptInstance());
+  
+                   StringBuffer trace = new StringBuffer(&quot;[new &quot; + name.getName());
+@@ -102,6 +100,7 @@
+ 
+                   try
+                   {
++                     long stat = System.currentTimeMillis();
+                      result = ObjectUtilities.BuildScalar(false, theConstructor.newInstance(parameters));
+ 
+                      stat = System.currentTimeMillis() - stat;
+
+Modified: sleep/src/sleep/engine/atoms/PLiteral.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/PLiteral.java	2007-03-12 00:38:57 UTC (rev 216)
++++ sleep/src/sleep/engine/atoms/PLiteral.java	2007-03-16 02:01:34 UTC (rev 217)
+@@ -26,14 +26,14 @@
+          switch (f.type)
+          {
+             case STRING_FRAGMENT:
+-              temp.append(&quot;   [Element]: &quot; + f.element + &quot;\n&quot;);
++              temp.append(prefix + &quot;   [Element]: &quot; + f.element + &quot;\n&quot;);
+               break;
+             case ALIGN_FRAGMENT:
+-              temp.append(&quot;   [Align Next Value]\n&quot;);
++              temp.append(prefix + &quot;   [Align Next Value]\n&quot;);
+               temp.append(((Block)f.element).toString(prefix+&quot;      &quot;)); 
+               break;
+             case VAR_FRAGMENT:
+-              temp.append(&quot;   [Access Variable]\n&quot;);
++              temp.append(prefix + &quot;   [Access Variable]\n&quot;);
+               temp.append(((Block)f.element).toString(prefix+&quot;      &quot;)); 
+               break;
+          }
+
+Added: sleep/src/sleep/engine/atoms/PopTry.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/PopTry.java	2007-03-12 00:38:57 UTC (rev 216)
++++ sleep/src/sleep/engine/atoms/PopTry.java	2007-03-16 02:01:34 UTC (rev 217)
+@@ -0,0 +1,27 @@
++package sleep.engine.atoms;
++
++import java.util.*;
++import sleep.interfaces.*;
++import sleep.engine.*;
++import sleep.runtime.*;
++
++public class PopTry extends Step
++{
++   public PopTry ()
++   {
++   }
++
++   public String toString(String prefix)
++   {
++      return prefix + &quot;[Pop Try]\n&quot;;
++   }
++
++   public Scalar evaluate(ScriptEnvironment e)
++   {
++      e.popExceptionContext();
++      return null;
++   }
++}
++
++
++
+
+Added: sleep/src/sleep/engine/atoms/Try.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/Try.java	2007-03-12 00:38:57 UTC (rev 216)
++++ sleep/src/sleep/engine/atoms/Try.java	2007-03-16 02:01:34 UTC (rev 217)
+@@ -0,0 +1,40 @@
++package sleep.engine.atoms;
++
++import java.util.*;
++import sleep.interfaces.*;
++import sleep.engine.*;
++import sleep.runtime.*;
++
++public class Try extends Step
++{
++   Block owner, handler;
++   String var;
++
++   public Try (Block _owner, Block _handler, String _var)
++   {
++      owner   = _owner;
++      handler = _handler;
++      var     = _var;
++   }
++
++   public String toString(String prefix)
++   {
++      StringBuffer buffer = new StringBuffer();
++      buffer.append(prefix);
++      buffer.append(&quot;[Try]\n&quot;);
++      buffer.append(owner.toString(prefix + &quot;   &quot;));
++      buffer.append(prefix);
++      buffer.append(&quot;[Catch]: &quot; + var + &quot;\n&quot;);
++      buffer.append(handler.toString(prefix + &quot;   &quot;));
++      return buffer.toString();
++   }
++
++   public Scalar evaluate(ScriptEnvironment e)
++   {
++      e.installExceptionHandler(owner, handler, var);
++      return owner.evaluate(e);
++   }
++}
++
++
++
+
+Modified: sleep/src/sleep/parser/Checkers.java
+===================================================================
+--- sleep/src/sleep/parser/Checkers.java	2007-03-12 00:38:57 UTC (rev 216)
++++ sleep/src/sleep/parser/Checkers.java	2007-03-16 02:01:34 UTC (rev 217)
+@@ -57,6 +57,9 @@
+       keywords.put(&quot;break&quot;,    Boolean.TRUE);
+       keywords.put(&quot;continue&quot;, Boolean.TRUE);
+       keywords.put(&quot;yield&quot;,    Boolean.TRUE);
++      keywords.put(&quot;throw&quot;,    Boolean.TRUE);
++      keywords.put(&quot;try&quot;,      Boolean.TRUE);
++      keywords.put(&quot;catch&quot;,    Boolean.TRUE);
+    }
+ 
+    public static boolean isIfStatement(String a, String b, String c)
+@@ -226,6 +229,11 @@
+        return (a.equals(&quot;for&quot;) &amp;&amp; isExpression(b) &amp;&amp; isBlock(c));
+    }
+ 
++   public static final boolean isTryCatch (String a, String b, String c, String d, String e)
++   {
++       return a.equals(&quot;try&quot;) &amp;&amp; c.equals(&quot;catch&quot;) &amp;&amp; isBlock(b) &amp;&amp; isBlock(e) &amp;&amp; isScalar(d);
++   }
++  
+    public static final boolean isForeach (String a, String b, String c, String d)
+    {
+        return (a.equals(&quot;foreach&quot;) &amp;&amp; isVariable(b) &amp;&amp; isExpression(c) &amp;&amp; isBlock(d));
+@@ -240,7 +248,7 @@
+    {
+        // halt and done are kind of jIRC related... when you write the scripting language you
+        // can do whatever you want...
+-       return  (temp.equals(&quot;return&quot;) || temp.equals(&quot;done&quot;) || temp.equals(&quot;halt&quot;) || temp.equals(&quot;break&quot;) || temp.equals(&quot;yield&quot;) || temp.equals(&quot;continue&quot;));
++       return  (temp.equals(&quot;return&quot;) || temp.equals(&quot;done&quot;) || temp.equals(&quot;halt&quot;) || temp.equals(&quot;break&quot;) || temp.equals(&quot;yield&quot;) || temp.equals(&quot;continue&quot;) || temp.equals(&quot;throw&quot;));
+    }
+ 
+    public static final boolean isString (String item)
+
+Modified: sleep/src/sleep/parser/CodeGenerator.java
+===================================================================
+--- sleep/src/sleep/parser/CodeGenerator.java	2007-03-12 00:38:57 UTC (rev 216)
++++ sleep/src/sleep/parser/CodeGenerator.java	2007-03-16 02:01:34 UTC (rev 217)
+@@ -697,6 +697,39 @@
+            atom = GeneratedSteps.Bind(strings[0], nameBlock, restore());
+            add(atom, tokens[0]);
+            break; 
++         case EXPR_TRYCATCH: 
++           //
++           // [TRYCATCH]: try | BLOCK | catch | VAR | BLOCK
++           // 
++
++           // now parse the code we want to try as if nothing special ever occured.
++           backup();
++
++              /* do the normal version of this, the code we want to &quot;try&quot; */
++           parseBlock(ParserUtilities.extract(tokens[1]));
++
++              /* pop the handler */
++           atom = GeneratedSteps.PopTry();
++           add(atom, tokens[4]);
++
++           a = restore();
++
++           // setup the thrown value handler and the stuff to install it...
++           backup();
++
++              /* pop the handler [ensure this happens first thing in our handler block] */
++           atom = GeneratedSteps.PopTry();
++           add(atom, tokens[4]);
++
++              /* parse the handler */
++           parseBlock(ParserUtilities.extract(tokens[4]));
++
++           b = restore();
++
++           // add this try/catch bits to the current block
++           atom = GeneratedSteps.Try(a, b, strings[3]);
++           add(atom, tokens[0]);
++           break;
+          case EXPR_BLOCK:  // implemented
+            parseBlock(ParserUtilities.extract(tokens[0]));
+            break;
+@@ -1073,6 +1106,11 @@
+               atom = GeneratedSteps.Return(ScriptEnvironment.FLOW_CONTROL_CONTINUE);
+               add(atom, tokens[0]);
+            }
++           else if (strings[0].equals(&quot;throw&quot;))
++           {
++              atom = GeneratedSteps.Return(ScriptEnvironment.FLOW_CONTROL_THROW);
++              add(atom, tokens[0]);
++           }
+            else if (strings[0].equals(&quot;yield&quot;))
+            {
+               atom = GeneratedSteps.Return(ScriptEnvironment.FLOW_CONTROL_YIELD);
+
+Modified: sleep/src/sleep/parser/ParserConstants.java
+===================================================================
+--- sleep/src/sleep/parser/ParserConstants.java	2007-03-12 00:38:57 UTC (rev 216)
++++ sleep/src/sleep/parser/ParserConstants.java	2007-03-16 02:01:34 UTC (rev 217)
+@@ -14,13 +14,13 @@
+    public static final int EXPR_FOREACH         = 400;
+    public static final int EXPR_FOR             = 401;
+    public static final int EXPR_FOREACH_SPECIAL = 402;
++   public static final int EXPR_TRYCATCH	= 403;
+    public static final int EXPR_RETURN          = 500;
+    public static final int EXPR_BREAK           = 501;
+    public static final int EXPR_BIND            = 502;
+    public static final int EXPR_ESCAPE          = 503;
+    public static final int EXPR_BIND_PRED       = 504;
+    public static final int EXPR_BIND_FILTER     = 505;
+-
+    public static final int EXPR_EVAL_STRING     = 506; // used for `backtick` strings that do something cool :)
+  
+    public static final int IDEA_EXPR            = 601;
+
+Modified: sleep/src/sleep/parser/TokenParser.java
+===================================================================
+--- sleep/src/sleep/parser/TokenParser.java	2007-03-12 00:38:57 UTC (rev 216)
++++ sleep/src/sleep/parser/TokenParser.java	2007-03-16 02:01:34 UTC (rev 217)
+@@ -468,7 +468,6 @@
+       Statement myToken;
+       int check;
+ 
+-
+       for (int x = 0; x &lt; tokens.length; x++)
+       {
+     	 myToken = new Statement();
+@@ -485,6 +484,16 @@
+             myToken.add(tokens[x+5]);
+             x += 5;
+          }
++         else if ((x + 4) &lt; tokens.length &amp;&amp; Checkers.isTryCatch(strings[x], strings[x+1], strings[x+2], strings[x+3], strings[x+4]))
++         {
++            myToken.setType(EXPR_TRYCATCH);
++            myToken.add(tokens[x]); 
++            myToken.add(tokens[x+1]);
++            myToken.add(tokens[x+2]);
++            myToken.add(tokens[x+3]);
++            myToken.add(tokens[x+4]);
++            x += 4;
++         }
+          else if ((x + 3) &lt; tokens.length &amp;&amp; Checkers.isSpecialWhile(strings[x], strings[x+1], strings[x+2], strings[x+3]))
+          {
+             myToken.setType(EXPR_WHILE_SPECIAL);
+@@ -627,6 +636,10 @@
+             myToken.setType(IDEA_EXPR_I);
+             myToken.add(tokens[x]);
+          }
++         else if (strings[x].equals(&quot;EOT&quot;)) /* do this before the binding stuff to prevent problems, k */
++         {
++            // do nothing.
++         }
+          // a bind predicate structure
+          else if ((x + 2) &lt; tokens.length &amp;&amp; Checkers.isBindPredicate(strings[x], strings[x+1], strings[x+2]))
+          {
+@@ -675,10 +688,6 @@
+             myToken.setType(IDEA_FUNC);
+             myToken.add(tokens[x]);
+          }
+-         else if (strings[x].equals(&quot;EOT&quot;))
+-         {
+-            // do nothing.
+-         }
+          // a bind filter structure
+          else if ((x + 3) &lt; tokens.length &amp;&amp; Checkers.isBindFilter(strings[x], strings[x+1], strings[x+2], strings[x+3]))
+          {
+
+Modified: sleep/src/sleep/runtime/ScriptEnvironment.java
+===================================================================
+--- sleep/src/sleep/runtime/ScriptEnvironment.java	2007-03-12 00:38:57 UTC (rev 216)
++++ sleep/src/sleep/runtime/ScriptEnvironment.java	2007-03-16 02:01:34 UTC (rev 217)
+@@ -216,8 +216,9 @@
+     
+     protected static class Context implements Serializable
+     {
+-       public Block block;
+-       public Step  last;       
++       public Block            block;
++       public Step             last;       
++       public ExceptionContext handler;
+     }
+ 
+     protected Stack    context      = new Stack();
+@@ -273,6 +274,12 @@
+        Context temp = new Context();
+        temp.block = b;
+        temp.last  = s;
++
++       if (isResponsible(b))
++       {
++          temp.handler = popExceptionContext();
++       }
++
+        context.add(temp);
+     }
+ 
+@@ -287,6 +294,10 @@
+        while (i.hasNext())
+        {
+           Context temp = (Context)i.next();
++
++          if (temp.handler != null)
++              installExceptionHandler(temp.handler);
++
+           rv = temp.block.evaluate(this, temp.last);
+ 
+           if (isReturn() &amp;&amp; getFlowControlRequest() == FLOW_CONTROL_YIELD)
+@@ -310,12 +321,89 @@
+ 
+        return cstack;
+     }
++ 
++    //
++    // ******** Exception Management **********
++    //
+ 
++    protected static class ExceptionContext implements Serializable
++    {
++       public Block  owner;
++       public String varname;
++       public Block  handler;
++    }
++
++    protected ExceptionContext currentHandler = null;
++    protected Stack            exhandlers     = new Stack(); /* exception handlers */
++
++    public boolean isExceptionHandlerInstalled()
++    {
++       return currentHandler != null;
++    }
++
++    public boolean isResponsible(Block block)
++    {
++       return currentHandler != null &amp;&amp; currentHandler.owner == block;
++    }
++
++    public void installExceptionHandler(ExceptionContext exc)
++    {
++       if (currentHandler != null)
++          exhandlers.push(currentHandler);
++
++       currentHandler = exc;
++    }
++
++    public void installExceptionHandler(Block owner, Block handler, String varname)
++    {
++       ExceptionContext c = new ExceptionContext();
++       c.owner   = owner;
++       c.handler = handler;
++       c.varname = varname;
++
++       installExceptionHandler(c);
++    }
++
++    /** if there is no handler, we'll just get the message which will clear the thrown message as well */
++    public Scalar getExceptionMessage()
++    {
++       request     &amp;= ~FLOW_CONTROL_THROW;       
++       Scalar temp  = rv;
++       rv           = null;
++       return temp;
++    }
++
++    /** preps and returns the current exception handler... */
++    public Block getExceptionHandler()
++    {
++       request     &amp;= ~FLOW_CONTROL_THROW;       
++       Block  doit  = currentHandler.handler;
++       putScalar(currentHandler.varname, rv);
++       rv           = null;
++       return doit;
++    }
++
++    public ExceptionContext popExceptionContext()
++    {
++       ExceptionContext old = currentHandler;
++
++       if (exhandlers.isEmpty())
++       {
++          currentHandler = null;
++       }
++       else
++       {
++          currentHandler = (ExceptionContext)exhandlers.pop();
++       }
++
++       return old;
++    }
++
+     //
+     // ******** Flow Control **********
+     //
+ 
+-    /** currently no flow contrl change has been requested */
++    /** currently no flow control change has been requested */
+     public static final int FLOW_CONTROL_NONE     = 0;
+ 
+     /** request a return from the current function */
+@@ -325,19 +413,29 @@
+     public static final int FLOW_CONTROL_BREAK    = 2;
+ 
+     /** adding a continue keyword as people keep demanding it */
+-    public static final int FLOW_CONTROL_CONTINUE = 3;
++    public static final int FLOW_CONTROL_CONTINUE = 4;
+ 
+     /** adding a yield keyword */
+-    public static final int FLOW_CONTROL_YIELD    = 4;
++    public static final int FLOW_CONTROL_YIELD    = 8;
+ 
+-    protected boolean isDebugInterrupt  = false;
++    /** adding a throw keyword -- sleep is now useable :) */
++    public static final int FLOW_CONTROL_THROW    = 16;
++
++    /** a special case for debugs and such */ 
++    public static final int FLOW_CONTROL_DEBUG    = 32;
++ 
+     protected String  debugString       = &quot;&quot;;
+     protected Scalar rv      = null;
+     protected int    request = 0;
+ 
++    public boolean isThrownValue()
++    {
++       return (request &amp; FLOW_CONTROL_THROW) == FLOW_CONTROL_THROW;
++    }
++
+     public boolean isDebugInterrupt()
+     {
+-       return isDebugInterrupt;
++       return (request &amp; FLOW_CONTROL_DEBUG) == FLOW_CONTROL_DEBUG;
+     }
+ 
+     public Scalar getReturnValue()
+@@ -347,7 +445,7 @@
+ 
+     public boolean isReturn()
+     {
+-       return request != FLOW_CONTROL_NONE || isDebugInterrupt;
++       return request != FLOW_CONTROL_NONE;
+     }
+ 
+     public int getFlowControlRequest()
+@@ -357,14 +455,14 @@
+ 
+     public String getDebugString()
+     {
+-       isDebugInterrupt = false;
++       request &amp;= ~FLOW_CONTROL_DEBUG;
+        return debugString;
+     }
+ 
+     /** fires this debug message via a runtime warning complete with line number of current step */
+     public void showDebugMessage(String message)
+     {
+-       isDebugInterrupt = true;
++       request |= FLOW_CONTROL_DEBUG;
+        debugString = message;
+     }
+ 
+@@ -377,8 +475,10 @@
+ 
+     public void clearReturn()
+     {
+-       request = FLOW_CONTROL_NONE;
+-       rv      = null;
++       request = FLOW_CONTROL_NONE | (request &amp; (FLOW_CONTROL_THROW | FLOW_CONTROL_DEBUG));
++
++       if (!isThrownValue())
++           rv      = null;
+     }
+ 
+     /** how many stacks does this damned class include? */
+
+Modified: sleep/src/sleep/runtime/ScriptInstance.java
+===================================================================
+--- sleep/src/sleep/runtime/ScriptInstance.java	2007-03-12 00:38:57 UTC (rev 216)
++++ sleep/src/sleep/runtime/ScriptInstance.java	2007-03-16 02:01:34 UTC (rev 217)
+@@ -84,8 +84,12 @@
+ 
+     /** forces function call tracing to occur (for the sake of profiling a script) but supresses
+         all runtime warnings as a result of the tracing */
+-    public static final int DEBUG_TRACE_PROFILE_ONLY  = 8 | 16;
++    public static final int DEBUG_TRACE_PROFILE_ONLY = 8 | 16;
+ 
++    /** users shouldn't need to flag this, it is just a general method of saying we're suppressing
++        trace messages... */
++    protected static final int DEBUG_TRACE_SUPPRESS = 16;
++
+     /** track all of the flagged debug options for this script (set to DEBUG_SHOW_ERRORS by default) */
+     protected int debug = DEBUG_SHOW_ERRORS;
+ 
+@@ -185,8 +189,64 @@
+         return temp;
+     }
+  
++    /** A container for Sleep strack trace elements. */
++    public static class SleepStackElement implements Serializable
++    {
++        public String sourcefile;
++        public String description;
++        public int    lineNumber;
++
++        public String toString()
++        {
++           return &quot;   &quot; + (new File(sourcefile).getName()) + &quot;:&quot; + lineNumber + &quot; &quot; + description;
++        }
++    }
++ 
++    /** Records a stack frame into this environments stack trace tracker thingie. */
++    public void recordStackFrame(String description, int lineNumber)
++    {
++       if (description == null) return;
++
++       List strace = (List)getScriptEnvironment().getEnvironment().get(&quot;%strace%&quot;);
++
++       if (strace == null) 
++       {
++          strace = new LinkedList();
++          getScriptEnvironment().getEnvironment().put(&quot;%strace%&quot;, strace);
++       }
++
++       SleepStackElement stat = new SleepStackElement();
++       stat.sourcefile  = getScriptEnvironment().getCurrentSource();
++       stat.description = description;
++       stat.lineNumber  = lineNumber;
++
++       strace.add(0, stat);
++    }
++
++    /** Removes the top element of the stack trace */
++    public void popStackFrame()
++    {
++       List strace = (List)getScriptEnvironment().getEnvironment().get(&quot;%strace%&quot;);
++       if (strace != null) 
++       {
++          strace.clear();
++       }
++    }
++
++    /** Returns the last stack trace.  Each element of the list is a ScriptInstance.SleepStackElement object.  
++        First element is the top of the trace, last element is the origin of the trace. */
++    public List getStackTrace()
++    {
++       List strace = (List)getScriptEnvironment().getEnvironment().get(&quot;%strace%&quot;);
++       if (strace == null)
++       {
++          strace = new LinkedList();
++       }
++       return strace;
++    }
++
+     /** A container for a profile statistic about a sleep function */
+-    public static class ProfilerStatistic implements Comparable
++    public static class ProfilerStatistic implements Comparable, Serializable
+     {
+         /** the name of the function call */
+         public String functionName;
+@@ -363,7 +423,7 @@
+     /** Fire a runtime script warning */
+     public void fireWarning(String message, int line, boolean isTrace)
+     {
+-       if (debug != DEBUG_NONE &amp;&amp; (!isTrace || (getDebugFlags() &amp; DEBUG_TRACE_PROFILE_ONLY) != DEBUG_TRACE_PROFILE_ONLY))
++       if (debug != DEBUG_NONE &amp;&amp; (!isTrace || (getDebugFlags() &amp; DEBUG_TRACE_SUPPRESS) != DEBUG_TRACE_SUPPRESS))
+        {
+           ScriptWarning temp = new ScriptWarning(this, message, line, isTrace);
+ 
+
+Modified: sleep/tests/output/forker.sl
+===================================================================
+--- sleep/tests/output/forker.sl	2007-03-12 00:38:57 UTC (rev 216)
++++ sleep/tests/output/forker.sl	2007-03-16 02:01:34 UTC (rev 217)
+@@ -1,3 +1,3 @@
+ Trace: &amp;check('within fork') at forker.sl:9
+-Trace: &amp;fork(&amp;closure[forker.sl:9]#2) = <A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">sleep.bridges.io.IOObject at 8b8914</A> at forker.sl:8
++Trace: &amp;fork(&amp;closure[forker.sl:9]#2) = <A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">sleep.bridges.io.IOObject at 608760</A> at forker.sl:8
+ Trace: &amp;check('outside of fork') at forker.sl:12
+
+Added: sleep/tests/output/tcatch.sl
+===================================================================
+--- sleep/tests/output/tcatch.sl	2007-03-12 00:38:57 UTC (rev 216)
++++ sleep/tests/output/tcatch.sl	2007-03-16 02:01:34 UTC (rev 217)
+@@ -0,0 +1,5 @@
++uNF... basic cas3 baby!@%
++nothing wrong here, I promise!@#
++In the sluts() function...
++An exception was thrown... hehe... from bar baby!@#$
++The beat does go on...
+
+Added: sleep/tests/output/tcatch2.sl
+===================================================================
+--- sleep/tests/output/tcatch2.sl	2007-03-12 00:38:57 UTC (rev 216)
++++ sleep/tests/output/tcatch2.sl	2007-03-16 02:01:34 UTC (rev 217)
+@@ -0,0 +1,18 @@
++Outside of try block.
++foo(): $c is &amp;closure[tcatch2.sl:8]#3
++1. Caught: this is being thrown because I can!!! - locals are visible (as they should be)
++Post try block
++Outside of try block.
++foo(): $c is &amp;closure[tcatch2.sl:8]#5
++1. Caught: this is being thrown because I can!!! - locals are visible (as they should be)
++0. Caught: this is being thrown because I can!!!
++Outside of try block.
++--- a. checkpoint 1
++--- b. pre foo
++foo(): $c is &amp;closure[tcatch2.sl:8]#7
++....
++--- d. in exception block: this is being thrown because I can!!!
++1. Caught: this is being thrown because I can!!! - 
++--- e. pre throw :)
++--- g. outermost catch block
++0. Caught: this is being thrown because I can!!!
+
+Modified: sleep/tests/output/trace.sl
+===================================================================
+--- sleep/tests/output/trace.sl	2007-03-12 00:38:57 UTC (rev 216)
++++ sleep/tests/output/trace.sl	2007-03-16 02:01:34 UTC (rev 217)
+@@ -1,13 +1,13 @@
+ this is a test
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at a23610</A> println: 'this is a test'] at trace.sl:6
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 9ea96</A> println: 'this is a test'] at trace.sl:6
+ Trace: [java.lang.Math pow: 3, 4] = 81.0 at trace.sl:7
+ 81.0
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at a23610</A> println: 81.0] at trace.sl:7
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 9ea96</A> println: 81.0] at trace.sl:7
+ Trace: [java.lang.Math pow: 3, 5] = 243.0 at trace.sl:8
+ 243.0
+ Trace: &amp;println(243.0) at trace.sl:8
+ testing again...
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at a23610</A> println: 'testing again...'] at trace.sl:10
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 9ea96</A> println: 'testing again...'] at trace.sl:10
+ Trace: [sleep.runtime.SleepUtils getListFromArray: @('a', 'b', 'c')] = [a, b, c] at trace.sl:12
+ Trace: [new java.util.LinkedList: [a, b, c]] = [a, b, c] at trace.sl:12
+ Warning: variable '$list' not declared at trace.sl:12
+
+Modified: sleep/tests/output/wrong.sl
+===================================================================
+--- sleep/tests/output/wrong.sl	2007-03-12 00:38:57 UTC (rev 216)
++++ sleep/tests/output/wrong.sl	2007-03-16 02:01:34 UTC (rev 217)
+@@ -1,32 +1,32 @@
+ Trace: [java.lang.Math pow: 3, 4] = 81.0 at wrong.sl:6
+ 81.0
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 8e8541</A> println: 81.0] at wrong.sl:6
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 6a3960</A> println: 81.0] at wrong.sl:6
+ Trace: &amp;casti(1, 'z') = true at wrong.sl:9
+ true
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 8e8541</A> println: true] at wrong.sl:9
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 6a3960</A> println: true] at wrong.sl:9
+ Trace: &amp;casti(0, 'z') = false at wrong.sl:10
+ false
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 8e8541</A> println: false] at wrong.sl:10
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 6a3960</A> println: false] at wrong.sl:10
+ Trace: &amp;casti(1, 'd') = 1.0 at wrong.sl:13
+ 1.0
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 8e8541</A> println: 1.0] at wrong.sl:13
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 6a3960</A> println: 1.0] at wrong.sl:13
+ Trace: &amp;casti(1, 'b') = 1 at wrong.sl:16
+ 1
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 8e8541</A> println: 1] at wrong.sl:16
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 6a3960</A> println: 1] at wrong.sl:16
+ Trace: &amp;casti(100, 'f') = 100.0 at wrong.sl:19
+ 100.0
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 8e8541</A> println: 100.0] at wrong.sl:19
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 6a3960</A> println: 100.0] at wrong.sl:19
+ Trace: &amp;casti('b', 'c') = b at wrong.sl:22
+ b
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 8e8541</A> println: b] at wrong.sl:22
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 6a3960</A> println: b] at wrong.sl:22
+ Trace: &amp;casti(63, 'i') = 63 at wrong.sl:25
+ 63
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 8e8541</A> println: 63] at wrong.sl:25
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 6a3960</A> println: 63] at wrong.sl:25
+ this is a string y0
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 8e8541</A> println: 'this is a string y0'] at wrong.sl:28
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 6a3960</A> println: 'this is a string y0'] at wrong.sl:28
+ Trace: [new java.lang.StringBuilder: 'test'] = test at wrong.sl:31
+ test
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 8e8541</A> println: test] at wrong.sl:31
+-Trace: &amp;cast(@('a', 'b', 'c', 'd'), 'c') = [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">C at cc5069</A> at wrong.sl:34
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 6a3960</A> println: test] at wrong.sl:31
++Trace: &amp;cast(@('a', 'b', 'c', 'd'), 'c') = [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">C at 502819</A> at wrong.sl:34
+ abcd
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 8e8541</A> println: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">C at cc5069</A>] at wrong.sl:34
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 6a3960</A> println: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">C at 502819</A>] at wrong.sl:34
+
+Modified: sleep/tests/sync.sl
+===================================================================
+--- sleep/tests/sync.sl	2007-03-12 00:38:57 UTC (rev 216)
++++ sleep/tests/sync.sl	2007-03-16 02:01:34 UTC (rev 217)
+@@ -4,9 +4,11 @@
+ 
+ $mutex = semaphore();
+ 
++acquire($mutex);
++
+ $handle = fork({
++  [Thread yield];
+ 
+-  acquire($mutex);
+   for ($x = 0; $x &lt; 10; $x++)
+   {
+      println(&quot;fork: $x&quot;);
+
+Added: sleep/tests/tcatch.sl
+===================================================================
+--- sleep/tests/tcatch.sl	2007-03-12 00:38:57 UTC (rev 216)
++++ sleep/tests/tcatch.sl	2007-03-16 02:01:34 UTC (rev 217)
+@@ -0,0 +1,39 @@
++#
++#
++#
++debug(24);
++println(&quot;uNF... basic cas3 baby!@%&quot;);
++
++sub foo
++{
++   $x = 1 + 2;
++   println(&quot;In the sluts() function...&quot;);
++   if ($x == 3)
++   {
++      bar();
++   }
++   println(&quot;more stuff...&quot;);
++}
++
++sub bar
++{
++   $x = 3 + 4;
++   throw &quot;hehe... from bar baby!@#$&quot;;
++   println(&quot;Bar stuff wheee...&quot;);
++}
++
++try
++{
++   $xyz = &quot;nothing wrong here, I promise!@#&quot;;
++   println($xyz);
++   $mmm = { foo(); };
++   [$mmm test: &quot;this is a HOES call&quot;];
++   println(&quot;More after foo&quot;);
++}
++catch $exception
++{
++   println(&quot;An exception was thrown... $exception&quot;);
++   printAll(getStackTrace()); # will return something...
++}
++
++println(&quot;The beat does go on...&quot;);
+
+Added: sleep/tests/tcatch2.sl
+===================================================================
+--- sleep/tests/tcatch2.sl	2007-03-12 00:38:57 UTC (rev 216)
++++ sleep/tests/tcatch2.sl	2007-03-16 02:01:34 UTC (rev 217)
+@@ -0,0 +1,117 @@
++#
++# some cases with try/catch, its fun, I promise...
++#
++sub foo
++{
++   local('$c');
++   $c = {
++      throw &quot;this is being thrown because I can!!!&quot;;
++   };
++   println(&quot;foo(): \$c is $c&quot;);
++   [$c];
++   println(&quot;Never reached (in theory)&quot;);
++}
++
++#
++# test normal case, please...
++#
++sub bar
++{
++   local('$lvar');
++   $lvar = &quot;locals are visible (as they should be)&quot;;
++
++   try
++   {
++      println(&quot;Outside of try block.&quot;);
++
++      try
++      {
++         foo(); 
++      }
++      catch $ex1
++      {
++         println(&quot;1. Caught: $ex1 - $lvar&quot;);
++      }
++
++      println(&quot;Post try block&quot;);
++   }
++   catch $exception
++   {
++      println(&quot;0. Caught: $exception&quot;);
++   }
++}
++
++bar();
++
++#
++# test the rethrowing of an exception...
++#
++sub fee
++{
++   local('$lvar');
++   $lvar = &quot;locals are visible (as they should be)&quot;;
++
++   try
++   {
++      println(&quot;Outside of try block.&quot;);
++
++      try
++      {
++         foo(); 
++      }
++      catch $ex1
++      {
++         println(&quot;1. Caught: $ex1 - $lvar&quot;);
++         throw $ex1;
++      }
++
++      println(&quot;Post try block&quot;);
++   }
++   catch $exception
++   {
++      println(&quot;0. Caught: $exception&quot;);
++   }
++}
++
++fee();
++
++#
++# test coroutines and exceptions
++#
++sub bee
++{
++   try
++   {
++      println(&quot;Outside of try block.&quot;);
++
++      yield &quot;a. checkpoint 1&quot;;
++
++      try
++      {
++         yield &quot;b. pre foo&quot;;
++         foo(); 
++         yield &quot;c. post foo&quot;;
++      }
++      catch $ex1
++      {
++         println(&quot;....&quot;);
++         yield &quot;d. in exception block: $ex1&quot;;
++         println(&quot;1. Caught: $ex1 - $lvar&quot;);
++         yield &quot;e. pre throw :)&quot;;
++         throw $ex1;
++      }
++
++      yield &quot;f. post catch block&quot;;
++      println(&quot;Post try block&quot;);
++   }
++   catch $exception
++   {
++      yield &quot;g. outermost catch block&quot;;
++      println(&quot;0. Caught: $exception&quot;);
++   }
++}
++
++while $test (bee())
++{
++   println(&quot;--- $test&quot;);
++}
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2007-03-12 00:38:57 UTC (rev 216)
++++ sleep/whatsnew.txt	2007-03-16 02:01:34 UTC (rev 217)
+@@ -1,3 +1,6 @@
++2.1-beta 13
++===========
++
+ 2.1-beta 12  (11 Mar 07)
+ ===========
+ - fixed yet another flurry of line number skew issues.  argh, make it stop!
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000196.html">[Sleep-svn] r216 - in sleep/tests: . output
+</A></li>
+	<LI>Next message: <A HREF="000198.html">[Sleep-svn] r219 - in sleep: . src/sleep/bridges src/sleep/engine	src/sleep/engine/atoms src/sleep/runtime tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#197">[ date ]</a>
+              <a href="thread.html#197">[ thread ]</a>
+              <a href="subject.html#197">[ subject ]</a>
+              <a href="author.html#197">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

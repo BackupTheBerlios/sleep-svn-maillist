@@ -1,0 +1,386 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r153 - in sleep: . src/sleep/bridges	src/sleep/interfaces src/sleep/runtime tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2006-November/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r153%20-%20in%20sleep%3A%20.%20src/sleep/bridges%0A%09src/sleep/interfaces%20src/sleep/runtime%20tests/output&In-Reply-To=%3C200611020114.kA21Efx5015754%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   
+   <LINK REL="Next"  HREF="000136.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r153 - in sleep: . src/sleep/bridges	src/sleep/interfaces src/sleep/runtime tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r153%20-%20in%20sleep%3A%20.%20src/sleep/bridges%0A%09src/sleep/interfaces%20src/sleep/runtime%20tests/output&In-Reply-To=%3C200611020114.kA21Efx5015754%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r153 - in sleep: . src/sleep/bridges	src/sleep/interfaces src/sleep/runtime tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Thu Nov  2 02:14:41 CET 2006</I>
+    <P><UL>
+        
+        <LI>Next message: <A HREF="000136.html">[Sleep-svn] r154 - in sleep: . src/sleep/runtime
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#135">[ date ]</a>
+              <a href="thread.html#135">[ thread ]</a>
+              <a href="subject.html#135">[ subject ]</a>
+              <a href="author.html#135">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2006-11-02 02:14:40 +0100 (Thu, 02 Nov 2006)
+New Revision: 153
+
+Modified:
+   sleep/src/sleep/bridges/BasicIO.java
+   sleep/src/sleep/bridges/SleepClosure.java
+   sleep/src/sleep/interfaces/Function.java
+   sleep/src/sleep/interfaces/Variable.java
+   sleep/src/sleep/runtime/ScalarArray.java
+   sleep/src/sleep/runtime/ScalarHash.java
+   sleep/src/sleep/runtime/ScalarType.java
+   sleep/src/sleep/runtime/ScriptEnvironment.java
+   sleep/tests/output/trace.sl
+   sleep/tests/output/wrong.sl
+   sleep/whatsnew.txt
+Log:
+added readObject/writeObject for serializing scalars
+made various interfaces implement serializable so sleep data can be passed
+via readObject/writeObject.  cool stuff.
+
+
+
+Modified: sleep/src/sleep/bridges/BasicIO.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicIO.java	2006-10-30 03:12:50 UTC (rev 152)
++++ sleep/src/sleep/bridges/BasicIO.java	2006-11-02 01:14:40 UTC (rev 153)
+@@ -78,6 +78,10 @@
+         temp.put(&quot;&amp;bread&quot;,      new bread());
+         temp.put(&quot;&amp;bwrite&quot;,     new bwrite());
+ 
++        // object io functions
++        temp.put(&quot;&amp;readObject&quot;,      this);
++        temp.put(&quot;&amp;writeObject&quot;,     this);
++
+         temp.put(&quot;&amp;pack&quot;,       new pack());
+         temp.put(&quot;&amp;unpack&quot;,     new unpack());
+ 
+@@ -133,6 +137,34 @@
+ 
+           return a.wait(i.getScriptEnvironment(), to);
+        }
++       else if (n.equals(&quot;&amp;writeObject&quot;))
++       {
++          IOObject a = chooseSource(l, 2, i);
++          Scalar   b = (Scalar)l.pop();
++          try
++          {
++             ObjectOutputStream ois = new ObjectOutputStream(a.getWriter());
++             ois.writeObject(b);
++          }
++          catch (Exception ex)
++          {
++             i.getScriptEnvironment().flagError(&quot;&amp;writeObject: &quot; + ex.toString());
++          }
++       }
++       else if (n.equals(&quot;&amp;readObject&quot;))
++       {
++          IOObject a = chooseSource(l, 1, i);
++          try
++          {
++             ObjectInputStream ois = new ObjectInputStream(a.getReader());
++             Scalar value = (Scalar)ois.readObject();
++             return value;
++          }
++          catch (Exception ex)
++          {
++             i.getScriptEnvironment().flagError(&quot;&amp;readObject: &quot; + ex.toString());
++          }
++       }
+        else if (n.equals(&quot;&amp;digest&quot;))
+        {
+           Scalar   s = BridgeUtilities.getScalar(l);
+@@ -241,8 +273,6 @@
+           }
+        }
+ 
+-       System.out.println(&quot;apparently we were wrong about '&quot; + n + &quot;'&quot;);
+-
+        return SleepUtils.getEmptyScalar();
+     }
+ 
+
+Modified: sleep/src/sleep/bridges/SleepClosure.java
+===================================================================
+--- sleep/src/sleep/bridges/SleepClosure.java	2006-10-30 03:12:50 UTC (rev 152)
++++ sleep/src/sleep/bridges/SleepClosure.java	2006-11-02 01:14:40 UTC (rev 153)
+@@ -61,17 +61,6 @@
+        return new ClosureIterator();
+     }
+ 
+-    public static Class CLOSURE_CLASS;
+-
+-    static
+-    {
+-       try
+-       {
+-          CLOSURE_CLASS = Class.forName(&quot;sleep.bridges.SleepClosure&quot;);
+-       }
+-       catch (Exception ex) { }
+-    }
+-
+     /** the block of code associated with this sleep closure */
+     Block                code;
+ 
+@@ -113,6 +102,12 @@
+        return &quot;&amp;closure&quot; + id + &quot;:&quot; + code.getApproximateLineRange();
+     }
+ 
++    /** This is here for the sake of serialization */
++    private SleepClosure()
++    {
++
++    }
++
+     /** Creates a new Sleep Closure, with a brand new set of internal variables.  Don't be afraid, you can call this constructor from your code. */
+     public SleepClosure(ScriptInstance si, Block _code)
+     {
+@@ -183,6 +178,8 @@
+     /** Evaluates the closure, use callClosure instead. */
+     public Scalar evaluate(String message, ScriptInstance si, Stack locals)
+     {
++       if (owner == null) { owner = si; }
++
+        ScriptVariables   vars = si.getScriptVariables();
+        ScriptEnvironment env  = si.getScriptEnvironment();
+ 
+@@ -261,5 +258,25 @@
+ 
+        return temp;
+     }
++
++    private void writeObject(ObjectOutputStream out) throws IOException
++    {
++       out.writeInt(id);
++       out.writeObject(code);
++       out.writeObject(context);
++       out.writeObject(metadata);
++       out.writeObject(variables);
++    }
++
++    private void readObject(ObjectInputStream in) throws IOException, ClassNotFoundException
++    {
++       id        = in.readInt();
++       code      = (Block)in.readObject();
++       context   = (Stack)in.readObject();
++       metadata  = (HashMap)in.readObject();
++       variables = (Variable)in.readObject();
++       owner     = null;
++    }
+ }
+ 
++
+
+Modified: sleep/src/sleep/interfaces/Function.java
+===================================================================
+--- sleep/src/sleep/interfaces/Function.java	2006-10-30 03:12:50 UTC (rev 152)
++++ sleep/src/sleep/interfaces/Function.java	2006-11-02 01:14:40 UTC (rev 153)
+@@ -82,7 +82,7 @@
+  * @see sleep.runtime.ScriptInstance
+  * @see sleep.runtime.SleepUtils
+  */
+-public interface Function
++public interface Function extends java.io.Serializable
+ {
+    /**
+     * Evaluate a function and return the resulting scalar.  Only the sleep interpreter should ever call this function.  If you have
+
+Modified: sleep/src/sleep/interfaces/Variable.java
+===================================================================
+--- sleep/src/sleep/interfaces/Variable.java	2006-10-30 03:12:50 UTC (rev 152)
++++ sleep/src/sleep/interfaces/Variable.java	2006-11-02 01:14:40 UTC (rev 153)
+@@ -41,7 +41,7 @@
+  * of the method as the value of the accessed scalar.&lt;/p&gt;
+  * 
+  */
+-public interface Variable
++public interface Variable extends java.io.Serializable
+ {
+     /** true if a scalar named key exists in this variable environment */
+     public boolean    scalarExists(String key); 
+
+Modified: sleep/src/sleep/runtime/ScalarArray.java
+===================================================================
+--- sleep/src/sleep/runtime/ScalarArray.java	2006-10-30 03:12:50 UTC (rev 152)
++++ sleep/src/sleep/runtime/ScalarArray.java	2006-11-02 01:14:40 UTC (rev 153)
+@@ -13,7 +13,7 @@
+  * &lt;p&gt;When implementing the following interface, keep in mind you are implementing an
+  * interface to an array data structure.&lt;/p&gt;
+  */
+-public interface ScalarArray
++public interface ScalarArray extends java.io.Serializable
+ {
+    public Scalar   pop();
+    public Scalar   push(Scalar value);
+
+Modified: sleep/src/sleep/runtime/ScalarHash.java
+===================================================================
+--- sleep/src/sleep/runtime/ScalarHash.java	2006-10-30 03:12:50 UTC (rev 152)
++++ sleep/src/sleep/runtime/ScalarHash.java	2006-11-02 01:14:40 UTC (rev 153)
+@@ -17,7 +17,7 @@
+  * &lt;p&gt;Keep in mind when implementing the interface below that you are defining the interface to a dictionary style
+  * data structure.&lt;/p&gt;
+  */
+-public interface ScalarHash
++public interface ScalarHash extends java.io.Serializable
+ {
+    /** Retrieves a scalar from the hashtable.  If a scalar key does not exist then the key should be created with a 
+        value of $null.  This $null or empty scalar value should be returned by the function.  This is how values are
+
+Modified: sleep/src/sleep/runtime/ScalarType.java
+===================================================================
+--- sleep/src/sleep/runtime/ScalarType.java	2006-10-30 03:12:50 UTC (rev 152)
++++ sleep/src/sleep/runtime/ScalarType.java	2006-11-02 01:14:40 UTC (rev 153)
+@@ -16,7 +16,7 @@
+  * &lt;p&gt;In the above example MyScalarType is an instance that implements the ScalarType interface.&lt;/p&gt;
+  * 
+  */
+-public interface ScalarType extends Serializable
++public interface ScalarType extends java.io.Serializable
+ {
+    /** create a clone of this scalar's value.  It is important to note that you should return a copy here unless you really want 
+        scalars of your scalar type to be passed by reference. */
+
+Modified: sleep/src/sleep/runtime/ScriptEnvironment.java
+===================================================================
+--- sleep/src/sleep/runtime/ScriptEnvironment.java	2006-10-30 03:12:50 UTC (rev 152)
++++ sleep/src/sleep/runtime/ScriptEnvironment.java	2006-11-02 01:14:40 UTC (rev 153)
+@@ -214,7 +214,7 @@
+     // ******** Context Management **********
+     //
+     
+-    protected static class Context
++    protected static class Context implements Serializable
+     {
+        public Block block;
+        public Step  last;       
+
+Modified: sleep/tests/output/trace.sl
+===================================================================
+--- sleep/tests/output/trace.sl	2006-10-30 03:12:50 UTC (rev 152)
++++ sleep/tests/output/trace.sl	2006-11-02 01:14:40 UTC (rev 153)
+@@ -1,13 +1,13 @@
+ this is a test
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at c7980c</A> println: 'this is a test'] at line 6
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at a4488</A> println: 'this is a test'] at line 6
+ Trace: [java.lang.Math pow: 3, 4] = 81.0 at line 7
+ 81.0
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at c7980c</A> println: 81.0] at line 7
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at a4488</A> println: 81.0] at line 7
+ Trace: [java.lang.Math pow: 3, 5] = 243.0 at line 8
+ 243.0
+ Trace: &amp;println(243.0) at line 8
+ testing again...
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at c7980c</A> println: 'testing again...'] at line 10
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at a4488</A> println: 'testing again...'] at line 10
+ Trace: [sleep.runtime.SleepUtils getListFromArray: @('a', 'b', 'c')] = [a, b, c] at line 12
+ Trace: [new java.util.LinkedList: [a, b, c]] = [a, b, c] at line 12
+ Warning: variable '$list' not declared at line 12
+
+Modified: sleep/tests/output/wrong.sl
+===================================================================
+--- sleep/tests/output/wrong.sl	2006-10-30 03:12:50 UTC (rev 152)
++++ sleep/tests/output/wrong.sl	2006-11-02 01:14:40 UTC (rev 153)
+@@ -1,32 +1,32 @@
+ Trace: [java.lang.Math pow: 3, 4] = 81.0 at line 6
+ 81.0
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 199939</A> println: 81.0] at line 6
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 23f1bb</A> println: 81.0] at line 6
+ Trace: &amp;casti(1, 'z') = true at line 9
+ true
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 199939</A> println: true] at line 9
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 23f1bb</A> println: true] at line 9
+ Trace: &amp;casti(0, 'z') = false at line 10
+ false
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 199939</A> println: false] at line 10
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 23f1bb</A> println: false] at line 10
+ Trace: &amp;casti(1, 'd') = 1.0 at line 13
+ 1.0
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 199939</A> println: 1.0] at line 13
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 23f1bb</A> println: 1.0] at line 13
+ Trace: &amp;casti(1, 'b') = 1 at line 16
+ 1
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 199939</A> println: 1] at line 16
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 23f1bb</A> println: 1] at line 16
+ Trace: &amp;casti(100, 'f') = 100.0 at line 19
+ 100.0
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 199939</A> println: 100.0] at line 19
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 23f1bb</A> println: 100.0] at line 19
+ Trace: &amp;casti('b', 'c') = b at line 22
+ b
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 199939</A> println: b] at line 22
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 23f1bb</A> println: b] at line 22
+ Trace: &amp;casti(63, 'i') = 63 at line 25
+ 63
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 199939</A> println: 63] at line 25
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 23f1bb</A> println: 63] at line 25
+ this is a string y0
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 199939</A> println: 'this is a string y0'] at line 28
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 23f1bb</A> println: 'this is a string y0'] at line 28
+ Trace: [new java.lang.StringBuilder: 'test'] = test at line 31
+ test
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 199939</A> println: test] at line 31
+-Trace: &amp;cast(@('a', 'b', 'c', 'd'), 'c') = [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">C at d33a6b</A> at line 34
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 23f1bb</A> println: test] at line 31
++Trace: &amp;cast(@('a', 'b', 'c', 'd'), 'c') = [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">C at b01afa</A> at line 34
+ abcd
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 199939</A> println: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">C at d33a6b</A>] at line 34
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 23f1bb</A> println: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">C at b01afa</A>] at line 34
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-10-30 03:12:50 UTC (rev 152)
++++ sleep/whatsnew.txt	2006-11-02 01:14:40 UTC (rev 153)
+@@ -1,3 +1,11 @@
++2.1-beta 9
++===========
++- made sleep data structures and sleepclosure all serializable.
++- added &amp;readObject([$handle]) and &amp;writeObject([$handle], $object) to
++  read/write scalars to a handle.   if you think about what is possible
++  with closures/coroutines and friends then you are thinking right.  this
++  should scare you.
++
+ 2.1-beta 8  (29 Oct 06)
+ ===========
+ - when packing an unsigned integer the argument is now interpreted as a long
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	
+	<LI>Next message: <A HREF="000136.html">[Sleep-svn] r154 - in sleep: . src/sleep/runtime
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#135">[ date ]</a>
+              <a href="thread.html#135">[ thread ]</a>
+              <a href="subject.html#135">[ subject ]</a>
+              <a href="author.html#135">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,133 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r234 - in sleep: . docs src/sleep/runtime
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2007-March/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r234%20-%20in%20sleep%3A%20.%20docs%20src/sleep/runtime&In-Reply-To=%3C200703232350.l2NNoxXm015312%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000212.html">
+   <LINK REL="Next"  HREF="000214.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r234 - in sleep: . docs src/sleep/runtime</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r234%20-%20in%20sleep%3A%20.%20docs%20src/sleep/runtime&In-Reply-To=%3C200703232350.l2NNoxXm015312%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r234 - in sleep: . docs src/sleep/runtime">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Sat Mar 24 00:50:59 CET 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000212.html">[Sleep-svn] r233 - in sleep: . src/sleep/parser
+</A></li>
+        <LI>Next message: <A HREF="000214.html">[Sleep-svn] r235 - in sleep: . src/sleep/bridges src/sleep/runtime	tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#213">[ date ]</a>
+              <a href="thread.html#213">[ thread ]</a>
+              <a href="subject.html#213">[ subject ]</a>
+              <a href="author.html#213">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2007-03-24 00:50:57 +0100 (Sat, 24 Mar 2007)
+New Revision: 234
+
+Modified:
+   sleep/docs/sleeplang.html
+   sleep/src/sleep/runtime/SleepUtils.java
+   sleep/whatsnew.txt
+Log:
+blah...
+
+
+Modified: sleep/docs/sleeplang.html
+===================================================================
+--- sleep/docs/sleeplang.html	2007-03-21 02:05:58 UTC (rev 233)
++++ sleep/docs/sleeplang.html	2007-03-23 23:50:57 UTC (rev 234)
+@@ -772,7 +772,7 @@
+ &quot;Michelangelo&quot;.&lt;/p&gt;
+ 
+ &lt;p&gt;When referencing an array with the index operator, it is acceptable to use negative indices.  For example to reference the
+-last element of &lt;var&gt;@foo&lt;/var&gt; one could use &lt;code&gt;@foo[-1]&lt;/code&gt;.&lt;/p&gt;
++last element of &lt;var&gt;@foo&lt;/var&gt; one could use &lt;code&gt;@foo[-1]&lt;/code&gt;.  Many array functions normalize negative indices as well.&lt;/p&gt;
+ 
+ &lt;p&gt;Arrays can be assigned to each other as well.   As stated in the Scalars section assigning an array to another array just 
+ copies the reference.   Both &lt;var&gt;@array&lt;/var&gt;'s will point to the same data.  A change in one array will affect the other 
+@@ -1578,6 +1578,8 @@
+ &lt;p&gt;Sleep will try to find the specified jar file (i.e. jdom.jar) using the Sleep classpath.  This value is the
+ sleep.classpath accessible as systemProperties()[&quot;sleep.classpath&quot;].&lt;/p&gt;
+ 
++&lt;p&gt;If the jar filename includes spaces, you can surround it with single or double quotes.&lt;/p&gt;
++
+ &lt;h3&gt;&lt;a name=&quot;interfaces&quot;&gt;&lt;/a&gt;Sleep Interfaces&lt;/h3&gt;
+ 
+ &lt;p&gt;A neat feature of HOES is how interfaces can be quickly and easily created and passed to Java objects.  A Java interface
+@@ -2001,6 +2003,11 @@
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td&gt;@&lt;/td&gt;
++  &lt;td&gt;splice(@array, @insert, [n], [m])&lt;/td&gt;
++  &lt;td&gt;removes m characters at position n from @array and splices in the contents of @insert.  @insert can be null.  default value of n is 0; default value of m is the length of @insert.&lt;/td&gt;
++ &lt;/tr&gt;
++ &lt;tr&gt;
++  &lt;td&gt;@&lt;/td&gt;
+   &lt;td&gt;subarray(@array, n, [m])&lt;/td&gt;
+   &lt;td&gt;extracts a subarray of range n-m from @array&lt;/td&gt;
+  &lt;/tr&gt;
+
+Modified: sleep/src/sleep/runtime/SleepUtils.java
+===================================================================
+--- sleep/src/sleep/runtime/SleepUtils.java	2007-03-21 02:05:58 UTC (rev 233)
++++ sleep/src/sleep/runtime/SleepUtils.java	2007-03-23 23:50:57 UTC (rev 234)
+@@ -26,7 +26,7 @@
+ public class SleepUtils
+ {
+    /** A date stamp of this Sleep release in YYYYMMDD format */
+-   public static final int    SLEEP_RELEASE = 20070318;
++   public static final int    SLEEP_RELEASE = 20070323;
+ 
+    /** A string description of this Sleep release */
+    public static final String SLEEP_VERSION = &quot;Sleep 2.1&quot;;
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2007-03-21 02:05:58 UTC (rev 233)
++++ sleep/whatsnew.txt	2007-03-23 23:50:57 UTC (rev 234)
+@@ -1,4 +1,4 @@
+-2.1-beta 14
++2.1-beta 14  (23 Mar 07)
+ ===========
+ - added splice(@array, @insertme, position, n) for modifying an array.  
+   works a lot like replaceAt, i.e. up to n elements at the specified
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000212.html">[Sleep-svn] r233 - in sleep: . src/sleep/parser
+</A></li>
+	<LI>Next message: <A HREF="000214.html">[Sleep-svn] r235 - in sleep: . src/sleep/bridges src/sleep/runtime	tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#213">[ date ]</a>
+              <a href="thread.html#213">[ thread ]</a>
+              <a href="subject.html#213">[ subject ]</a>
+              <a href="author.html#213">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

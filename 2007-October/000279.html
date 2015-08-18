@@ -1,0 +1,358 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r300 - in sleep: . src/sleep/bridges	src/sleep/bridges/io
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2007-October/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r300%20-%20in%20sleep%3A%20.%20src/sleep/bridges%0A%09src/sleep/bridges/io&In-Reply-To=%3C200710110213.l9B2DXKK028030%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000278.html">
+   <LINK REL="Next"  HREF="000280.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r300 - in sleep: . src/sleep/bridges	src/sleep/bridges/io</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r300%20-%20in%20sleep%3A%20.%20src/sleep/bridges%0A%09src/sleep/bridges/io&In-Reply-To=%3C200710110213.l9B2DXKK028030%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r300 - in sleep: . src/sleep/bridges	src/sleep/bridges/io">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Thu Oct 11 04:13:33 CEST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000278.html">[Sleep-svn] r299 - in sleep: . src/sleep/bridges	src/sleep/engine/types src/sleep/runtime tests tests/output
+</A></li>
+        <LI>Next message: <A HREF="000280.html">[Sleep-svn] r301 - in sleep: . src/sleep/bridges src/sleep/engine	src/sleep/engine/atoms src/sleep/runtime tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#279">[ date ]</a>
+              <a href="thread.html#279">[ thread ]</a>
+              <a href="subject.html#279">[ subject ]</a>
+              <a href="author.html#279">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2007-10-11 04:13:33 +0200 (Thu, 11 Oct 2007)
+New Revision: 300
+
+Modified:
+   sleep/src/sleep/bridges/BasicIO.java
+   sleep/src/sleep/bridges/io/SocketObject.java
+   sleep/whatsnew.txt
+Log:
+updates to allow additional socket parameters... may add some more yet :)
+
+
+Modified: sleep/src/sleep/bridges/BasicIO.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicIO.java	2007-10-11 01:32:36 UTC (rev 299)
++++ sleep/src/sleep/bridges/BasicIO.java	2007-10-11 02:13:33 UTC (rev 300)
+@@ -486,17 +486,24 @@
+     {
+        public Scalar evaluate(String n, ScriptInstance i, Stack l)
+        {
+-          SocketHandler handler = new SocketHandler();
++          Map options = BridgeUtilities.extractNamedParameters(l);
++
++          SocketObject.SocketHandler handler = new SocketObject.SocketHandler();
+           handler.socket        = new SocketObject();
+           handler.script        = i;
+ 
++          handler.lport    = options.containsKey(&quot;lport&quot;) ? ((Scalar)options.get(&quot;lport&quot;)).intValue() : 0; /* 0 means use any free port */
++          handler.laddr    = options.containsKey(&quot;laddr&quot;) ? ((Scalar)options.get(&quot;laddr&quot;)).toString() : null;
++          handler.linger   = options.containsKey(&quot;linger&quot;) ? ((Scalar)options.get(&quot;linger&quot;)).intValue() : 5; /* 5ms is the default linger */
++          handler.backlog  = options.containsKey(&quot;backlog&quot;) ? ((Scalar)options.get(&quot;backlog&quot;)).intValue() : 0; /* backlog of 0 means use default */
++
+           if (n.equals(&quot;&amp;listen&quot;))
+           {
+              handler.port     = BridgeUtilities.getInt(l, -1);          // port
+              handler.timeout  = BridgeUtilities.getInt(l, 60 * 1000);   // timeout
+              handler.callback = BridgeUtilities.getScalar(l);           // scalar to put info in to
+ 
+-             handler.type     = LISTEN_FUNCTION;
++             handler.type     = SocketObject.LISTEN_FUNCTION;
+           }
+           else
+           {
+@@ -504,7 +511,7 @@
+              handler.port     = BridgeUtilities.getInt(l, 1);
+              handler.timeout  = BridgeUtilities.getInt(l, 60 * 1000);   // timeout
+ 
+-             handler.type     = CONNECT_FUNCTION;
++             handler.type     = SocketObject.CONNECT_FUNCTION;
+           }
+           
+           if (!l.isEmpty())
+@@ -1433,53 +1440,4 @@
+           }
+        }
+     }
+-
+-    private static final int LISTEN_FUNCTION  = 1;
+-    private static final int CONNECT_FUNCTION = 2;
+-
+-    private static class SocketHandler implements Runnable
+-    {
+-       public ScriptInstance script;
+-       public SleepClosure   function;
+-       public SocketObject   socket;
+-
+-       public int            port;
+-       public int            timeout;
+-       public String         host;
+-       public Scalar         callback;
+-
+-       public int            type;
+-
+-       public void start()
+-       {
+-          if (function != null)
+-          {
+-             socket.setThread(new Thread(this));
+-             socket.getThread().start();
+-          }
+-          else
+-          {
+-             run();
+-          }
+-       }
+-
+-       public void run()
+-       {
+-          if (type == LISTEN_FUNCTION)
+-          {
+-             socket.listen(port, timeout, callback, script.getScriptEnvironment());
+-          }
+-          else
+-          {
+-             socket.open(host, port, timeout, script.getScriptEnvironment());
+-          }
+-
+-          if (function != null)
+-          {
+-             Stack  args  = new Stack();
+-             args.push(SleepUtils.getScalar(socket));
+-             function.callClosure(&quot;&amp;callback&quot;, script, args);
+-          }
+-       }
+-    }
+ }
+
+Modified: sleep/src/sleep/bridges/io/SocketObject.java
+===================================================================
+--- sleep/src/sleep/bridges/io/SocketObject.java	2007-10-11 01:32:36 UTC (rev 299)
++++ sleep/src/sleep/bridges/io/SocketObject.java	2007-10-11 02:13:33 UTC (rev 300)
+@@ -3,6 +3,7 @@
+ import java.io.*;
+ import java.net.*;
+ import sleep.runtime.*;
++import sleep.bridges.SleepClosure;
+ 
+ import java.util.*;
+ 
+@@ -16,15 +17,21 @@
+       return socket;
+    }
+ 
+-   public void open(String server, int port, int timeout, ScriptEnvironment env)
++   public void open(SocketHandler params, ScriptEnvironment env)
+    {
+       try
+       {
+          socket = new Socket();
++         
++         if (params.laddr != null)
++         {
++            socket.bind(new InetSocketAddress(params.laddr, params.lport));
++         }
+ 
+-         socket.connect(new InetSocketAddress(server, port), timeout);
+-         socket.setSoLinger(true, 5);
++         socket.connect(new InetSocketAddress(params.host, params.port), params.timeout);
+ 
++         socket.setSoLinger(true, params.linger);
++
+          openRead(socket.getInputStream());
+          openWrite(socket.getOutputStream());
+       }
+@@ -58,7 +65,7 @@
+ 
+    private static Map servers;
+ 
+-   private static ServerSocket getServerSocket(int port) throws Exception
++   private static ServerSocket getServerSocket(int port, SocketHandler params) throws Exception
+    {
+       String key = port + &quot;&quot;;
+ 
+@@ -75,32 +82,27 @@
+       }
+       else
+       {
+-         server = new ServerSocket(port);
++         server = new ServerSocket(port, params.backlog, params.laddr != null ? InetAddress.getByName(params.laddr) : null);
+          servers.put(key, server);
+       }
+ 
+       return server;
+    }
+  
+-   public void listen(int port, int timeout, Scalar data, ScriptEnvironment env)
++   public void listen(SocketHandler params, ScriptEnvironment env)
+    {
+       ServerSocket server = null;
+ 
+       try
+       {
+-//         server = new ServerSocket(port);
+-         server = getServerSocket(port);
+-         server.setSoTimeout(timeout);
++         server = getServerSocket(params.port, params);
++         server.setSoTimeout(params.timeout);
+         
+          socket = server.accept();
+-         socket.setSoLinger(true, 5);
++         socket.setSoLinger(true, params.linger);
+ 
+-  //       server.close();
+- /* releases the bound and listening port, probably not a good idea for a massive server but for a scripting
+-                            lang API who cares */
++         params.callback.setValue(SleepUtils.getScalar(socket.getInetAddress().getHostAddress()));
+ 
+-         data.setValue(SleepUtils.getScalar(socket.getInetAddress().getHostAddress()));
+-
+          openRead(socket.getInputStream());
+          openWrite(socket.getOutputStream());
+ 
+@@ -110,12 +112,6 @@
+       {
+          env.flagError(ex);
+       }
+-
+-      try
+-      {
+-//         if (server != null) { server.close(); }
+-      }
+-      catch (Exception ex) { }
+    }
+ 
+    public void close()
+@@ -128,4 +124,57 @@
+ 
+       super.close();
+    }
++
++    public static final int LISTEN_FUNCTION  = 1;
++    public static final int CONNECT_FUNCTION = 2;
++
++    public static class SocketHandler implements Runnable
++    {
++       public ScriptInstance script;
++       public SleepClosure   function;
++       public SocketObject   socket;
++
++       public int            port;
++       public int            timeout;
++       public String         host;
++       public Scalar         callback;
++
++       public int            type;
++       public String         laddr;
++       public int            lport;
++       public int            linger;
++       public int            backlog;
++
++       public void start()
++       {
++          if (function != null)
++          {
++             socket.setThread(new Thread(this));
++             socket.getThread().start();
++          }
++          else
++          {
++             run();
++          }
++       }
++
++       public void run()
++       {
++          if (type == LISTEN_FUNCTION)
++          {
++             socket.listen(this, script.getScriptEnvironment());
++          }
++          else
++          {
++             socket.open(this, script.getScriptEnvironment());
++          }
++
++          if (function != null)
++          {
++             Stack  args  = new Stack();
++             args.push(SleepUtils.getScalar(socket));
++             function.callClosure(&quot;&amp;callback&quot;, script, args);
++          }
++       }
++    }
+ }
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2007-10-11 01:32:36 UTC (rev 299)
++++ sleep/whatsnew.txt	2007-10-11 02:13:33 UTC (rev 300)
+@@ -9,7 +9,27 @@
+   loops) is no longer serialized with the closure...  beware of this.
+ - added &amp;ohash(...) to initialize a Sleep hash that keeps track of
+   key insertion order.  requested by Marty.
++- updated the sleep listen(...) and connect(...) functions to accept a
++  number of key/value options.  options include:
++     linger  =&gt; the value of SO_LINGER (how long (ms) the socket waits 
++               for a TCP reset before actually closing.
++     lport   =&gt; the local port to bind to
++     laddr   =&gt; the local address to bind to
++     backlog =&gt; the number of connections to queue while waiting for
++                a subsequent call of listen(...) to accept a 
++                connection.
+ 
++   for example, to listen on port 8888 of 192.168.1.1 while allowing
++   only 1 connection:
++ 
++   $handle = listen(8888, laddr =&gt; &quot;192.168.1.1&quot;, backlog =&gt; 1)
++   
++   listen will only honor the extra parameters the first time the 
++   port is intialized.  the extra params will have no effect on 
++   subsequent calls to listen.  to fix this call closef(port) to
++   unbind the specified port.
++
++
+ 2.1-beta 18  (5 Jul 07)
+ ===========
+ - added scalar references: \$x is equivalent to $x =&gt; $x.  this sugar
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000278.html">[Sleep-svn] r299 - in sleep: . src/sleep/bridges	src/sleep/engine/types src/sleep/runtime tests tests/output
+</A></li>
+	<LI>Next message: <A HREF="000280.html">[Sleep-svn] r301 - in sleep: . src/sleep/bridges src/sleep/engine	src/sleep/engine/atoms src/sleep/runtime tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#279">[ date ]</a>
+              <a href="thread.html#279">[ thread ]</a>
+              <a href="subject.html#279">[ subject ]</a>
+              <a href="author.html#279">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

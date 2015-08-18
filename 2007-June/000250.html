@@ -1,0 +1,370 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r271 - in sleep: . src/sleep/console src/sleep/parser
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2007-June/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r271%20-%20in%20sleep%3A%20.%20src/sleep/console%20src/sleep/parser&In-Reply-To=%3C200706150208.l5F281VR006054%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000249.html">
+   <LINK REL="Next"  HREF="000251.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r271 - in sleep: . src/sleep/console src/sleep/parser</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r271%20-%20in%20sleep%3A%20.%20src/sleep/console%20src/sleep/parser&In-Reply-To=%3C200706150208.l5F281VR006054%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r271 - in sleep: . src/sleep/console src/sleep/parser">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Fri Jun 15 04:08:01 CEST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000249.html">[Sleep-svn] r270 - in sleep: . src/sleep/bridges src/sleep/engine	tests tests/output
+</A></li>
+        <LI>Next message: <A HREF="000251.html">[Sleep-svn] r272 - in sleep/tests: . output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#250">[ date ]</a>
+              <a href="thread.html#250">[ thread ]</a>
+              <a href="subject.html#250">[ subject ]</a>
+              <a href="author.html#250">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2007-06-15 04:08:00 +0200 (Fri, 15 Jun 2007)
+New Revision: 271
+
+Added:
+   sleep/src/sleep/parser/ImportManager.java
+Modified:
+   sleep/src/sleep/console/TextConsole.java
+   sleep/src/sleep/parser/Parser.java
+   sleep/whatsnew.txt
+Log:
+..
+
+
+Modified: sleep/src/sleep/console/TextConsole.java
+===================================================================
+--- sleep/src/sleep/console/TextConsole.java	2007-06-12 03:47:38 UTC (rev 270)
++++ sleep/src/sleep/console/TextConsole.java	2007-06-15 02:08:00 UTC (rev 271)
+@@ -103,6 +103,7 @@
+             }
+ 
+             script.getScriptVariables().putScalar(&quot;@ARGV&quot;, array);  // set @ARGV to be our array of command line arguments
++            script.getScriptVariables().putScalar(&quot;$__SCRIPT__&quot;, SleepUtils.getScalar(script.getName()));
+ 
+             if (System.getProperty(&quot;sleep.debug&quot;) != null)
+             {
+
+Added: sleep/src/sleep/parser/ImportManager.java
+===================================================================
+--- sleep/src/sleep/parser/ImportManager.java	2007-06-12 03:47:38 UTC (rev 270)
++++ sleep/src/sleep/parser/ImportManager.java	2007-06-15 02:08:00 UTC (rev 271)
+@@ -0,0 +1,119 @@
++package sleep.parser;
++
++import java.util.*;
++import java.lang.reflect.*;
++import java.net.*;
++import java.io.*;
++
++/** This class mantains a cache of imported package names and resolve classes for a Sleep parser.
++    The existence of this class also allows these imports to be shared between parser instances.  Value is allowing
++    dynamically parsed code like eval, expr, compile_clousre etc.. to inherit their parents imported class
++    information. */
++public class ImportManager
++{
++   protected Map        imports   = new LinkedHashMap();
++   protected HashMap    classes   = new HashMap();
++   protected HashMap    jars      = new HashMap(); /* resolved jar files, key=jar name value=ClassLoader */  
++
++   /** Used by Sleep to import statement to save an imported package name. */
++   public File importPackage(String packagez, String from)
++   {
++       File returnValue = null;
++
++       String pack, clas;
++       clas = packagez.substring(packagez.lastIndexOf(&quot;.&quot;) + 1, packagez.length());
++       pack = packagez.substring(0, packagez.lastIndexOf(&quot;.&quot;));
++
++       /* resolve and setup our class loader for the specified jar file */
++
++       if (from != null)
++       {
++          try
++          {
++             returnValue = ParserConfig.findJarFile(from);
++ 
++             if (!jars.containsKey(from))
++             {
++                URLClassLoader loader = new URLClassLoader(new URL[] { returnValue.toURL() }, Thread.currentThread().getContextClassLoader());
++                jars.put(from, loader);
++             }
++          }
++          catch (Exception ex) { ex.printStackTrace(); }
++       }
++
++       /* handle importing our package */
++
++       if (clas.equals(&quot;*&quot;))
++       {
++          imports.put(pack, from);
++       }
++       else
++       {
++          imports.put(packagez, from);
++         
++          Class found = findImportedClass(packagez);
++          classes.put(clas, found);
++       }
++
++       return returnValue;
++   }
++
++   /** This method is used by Sleep to resolve a specific class (or at least try) */
++   private Class resolveClass(String pack, String clas, String jar)
++   {
++       try
++       {
++          if (jar != null)
++          {
++             ClassLoader cl = (ClassLoader)jars.get(jar);
++             return Class.forName(pack + &quot;.&quot; + clas, true, cl);
++          }
++          else
++          {
++             return Class.forName(pack + &quot;.&quot; + clas);
++          }
++       }
++       catch (Exception ex) { }
++
++       return null;
++   }
++
++   /** Attempts to find a class, starts out with the passed in string itself, if that doesn't resolve then the string is 
++       appended to each imported package to see where the class might exist */
++   public Class findImportedClass(String name)
++   {
++       if (classes.get(name) == null)
++       {
++          Class rv = null;
++          String clas, pack;
++
++          if (name.indexOf(&quot;.&quot;) &gt; -1)
++          {
++             clas = name.substring(name.lastIndexOf(&quot;.&quot;) + 1, name.length());
++             pack = name.substring(0, name.lastIndexOf(&quot;.&quot;));
++
++	     rv   = resolveClass(pack, clas, (String)imports.get(name));
++          }
++          else
++          {
++             Iterator i = imports.entrySet().iterator();
++             while (i.hasNext() &amp;&amp; rv == null)
++             {
++                Map.Entry en = (Map.Entry)i.next();
++                rv = resolveClass((String)en.getKey(), name, (String)en.getValue());
++             }
++          }
++
++          if (rv == null)
++          {
++             System.err.println(&quot;Argh: &quot; + name + &quot; is not an imported class&quot;);
++             Thread.dumpStack();
++          }
++
++          classes.put(name, rv);
++       }
++     
++       return (Class)classes.get(name);
++   }
++}
++
+
+Modified: sleep/src/sleep/parser/Parser.java
+===================================================================
+--- sleep/src/sleep/parser/Parser.java	2007-06-12 03:47:38 UTC (rev 270)
++++ sleep/src/sleep/parser/Parser.java	2007-06-15 02:08:00 UTC (rev 271)
+@@ -71,107 +71,25 @@
+ 
+    public    char       EndOfTerm  = ';';
+ 
+-   protected Map        imports   = new LinkedHashMap();
+-   protected HashMap    classes   = new HashMap();
++   protected ImportManager imports;
+ 
+-   protected HashMap    jars      = new HashMap(); /* resolved jar files, key=jar name value=ClassLoader */
+-
+-   /** Used by hoes to import package names... */
+-   public File importPackage(String packagez, String from)
++   /** obtain the import manager, used for managing imported packages. */
++   public ImportManager getImportManager()
+    {
+-       File returnValue = null;
+-
+-       String pack, clas;
+-       clas = packagez.substring(packagez.lastIndexOf(&quot;.&quot;) + 1, packagez.length());
+-       pack = packagez.substring(0, packagez.lastIndexOf(&quot;.&quot;));
+-
+-       /* resolve and setup our class loader for the specified jar file */
+-
+-       if (from != null)
+-       {
+-          try
+-          {
+-             returnValue = ParserConfig.findJarFile(from);
+- 
+-             if (!jars.containsKey(from))
+-             {
+-                URLClassLoader loader = new URLClassLoader(new URL[] { returnValue.toURL() }, Thread.currentThread().getContextClassLoader());
+-                jars.put(from, loader);
+-             }
+-          }
+-          catch (Exception ex) { ex.printStackTrace(); }
+-       }
+-
+-       /* handle importing our package */
+-
+-       if (clas.equals(&quot;*&quot;))
+-       {
+-          imports.put(pack, from);
+-       }
+-       else
+-       {
+-          imports.put(packagez, from);
+-         
+-          Class found = findImportedClass(packagez);
+-          classes.put(clas, found);
+-       }
+-
+-       return returnValue;
++      return imports;
+    }
+ 
+-   private Class resolveClass(String pack, String clas, String jar)
++   /** Used by Sleep to import statement to save an imported package name. */
++   public File importPackage(String packagez, String from)
+    {
+-       try
+-       {
+-          if (jar != null)
+-          {
+-             ClassLoader cl = (ClassLoader)jars.get(jar);
+-             return Class.forName(pack + &quot;.&quot; + clas, true, cl);
+-          }
+-          else
+-          {
+-             return Class.forName(pack + &quot;.&quot; + clas);
+-          }
+-       }
+-       catch (Exception ex) { }
++      return imports.importPackage(packagez, from);
++   }   
+ 
+-       return null;
+-   }
+-
++   /** Attempts to find a class, starts out with the passed in string itself, if that doesn't resolve then the string is
++       appended to each imported package to see where the class might exist */
+    public Class findImportedClass(String name)
+    {
+-       if (classes.get(name) == null)
+-       {
+-          Class rv = null;
+-          String clas, pack;
+-
+-          if (name.indexOf(&quot;.&quot;) &gt; -1)
+-          {
+-             clas = name.substring(name.lastIndexOf(&quot;.&quot;) + 1, name.length());
+-             pack = name.substring(0, name.lastIndexOf(&quot;.&quot;));
+-
+-	     rv   = resolveClass(pack, clas, (String)imports.get(name));
+-          }
+-          else
+-          {
+-             Iterator i = imports.entrySet().iterator();
+-             while (i.hasNext() &amp;&amp; rv == null)
+-             {
+-                Map.Entry en = (Map.Entry)i.next();
+-                rv = resolveClass((String)en.getKey(), name, (String)en.getValue());
+-             }
+-          }
+-
+-          if (rv == null)
+-          {
+-             System.err.println(&quot;Argh: &quot; + name + &quot; is not an imported class&quot;);
+-             Thread.dumpStack();
+-          }
+-
+-          classes.put(name, rv);
+-       }
+-     
+-       return (Class)classes.get(name);
++      return imports.findImportedClass(name);
+    }
+ 
+    public void setEndOfTerm(char c)
+@@ -188,6 +106,18 @@
+    /** initialize the parser with the code you want me to work with */
+    public Parser(String _name, String _code)
+    {
++      this(_name, _code, null);
++   }
++
++   /** initialize the parser with the code you want me to work with plus a shared import manager */
++   public Parser(String _name, String _code, ImportManager imps)
++   {
++      if (imps == null)
++      {
++         imps = new ImportManager();
++      }
++      imports = imps;
++
+       importPackage(&quot;java.lang.*&quot;, null);
+       importPackage(&quot;java.util.*&quot;, null);
+       importPackage(&quot;sleep.runtime.*&quot;, null);
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2007-06-12 03:47:38 UTC (rev 270)
++++ sleep/whatsnew.txt	2007-06-15 02:08:00 UTC (rev 271)
+@@ -10,6 +10,8 @@
+   instance of a specific class i.e.:  &quot;string&quot; isa ^String
+ - added a better error message for class cast exceptions caught w/i
+   the interpreter.
++- added a $__SCRIPT__ variable to indicate the name of the executed
++  script when running a Sleep script from the command line.
+ 
+ 2.1-beta 16  (11 Jun 07)
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000249.html">[Sleep-svn] r270 - in sleep: . src/sleep/bridges src/sleep/engine	tests tests/output
+</A></li>
+	<LI>Next message: <A HREF="000251.html">[Sleep-svn] r272 - in sleep/tests: . output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#250">[ date ]</a>
+              <a href="thread.html#250">[ thread ]</a>
+              <a href="subject.html#250">[ subject ]</a>
+              <a href="author.html#250">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

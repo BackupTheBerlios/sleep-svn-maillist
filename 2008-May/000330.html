@@ -1,0 +1,559 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r353 - in sleep: . src/sleep/bridges	src/sleep/engine/atoms src/sleep/taint tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2008-May/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r353%20-%20in%20sleep%3A%20.%20src/sleep/bridges%0A%09src/sleep/engine/atoms%20src/sleep/taint%20tests%20tests/output&In-Reply-To=%3C200805082016.m48KGTa7007923%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000329.html">
+   <LINK REL="Next"  HREF="000331.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r353 - in sleep: . src/sleep/bridges	src/sleep/engine/atoms src/sleep/taint tests tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r353%20-%20in%20sleep%3A%20.%20src/sleep/bridges%0A%09src/sleep/engine/atoms%20src/sleep/taint%20tests%20tests/output&In-Reply-To=%3C200805082016.m48KGTa7007923%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r353 - in sleep: . src/sleep/bridges	src/sleep/engine/atoms src/sleep/taint tests tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Thu May  8 22:16:29 CEST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000329.html">[Sleep-svn] r352 - in sleep: . src/sleep/bridges	src/sleep/bridges/io tests tests/output
+</A></li>
+        <LI>Next message: <A HREF="000331.html">[Sleep-svn] r355 - in sleep: . docs src/sleep/runtime tests	tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#330">[ date ]</a>
+              <a href="thread.html#330">[ thread ]</a>
+              <a href="subject.html#330">[ subject ]</a>
+              <a href="author.html#330">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2008-05-08 22:16:28 +0200 (Thu, 08 May 2008)
+New Revision: 353
+
+Added:
+   sleep/src/sleep/taint/TaintArray.java
+   sleep/src/sleep/taint/TaintHash.java
+   sleep/tests/fe_ohash.sl
+   sleep/tests/output/fe_ohash.sl
+   sleep/tests/output/setField2.sl
+   sleep/tests/output/taint10.sl
+   sleep/tests/setField2.sl
+   sleep/tests/taint10.sl
+Modified:
+   sleep/runtests.sl
+   sleep/src/sleep/bridges/BasicUtilities.java
+   sleep/src/sleep/engine/atoms/Iterate.java
+   sleep/src/sleep/taint/TaintUtils.java
+   sleep/tests/forker.sl
+   sleep/tests/output/forker.sl
+   sleep/whatsnew.txt
+Log:
+some changes to foreach and implemented taint wrappers for read-only arrays and hashes
+
+
+Modified: sleep/runtests.sl
+===================================================================
+--- sleep/runtests.sl	2008-05-08 19:00:43 UTC (rev 352)
++++ sleep/runtests.sl	2008-05-08 20:16:28 UTC (rev 353)
+@@ -108,7 +108,7 @@
+    chdir(&quot;tests&quot;);
+ 
+    # some special scripts that require command line execution to test out some stuff...
+-   for ($x = 0; $x &lt; 10; $x++)
++   for ($x = 0; $x &lt; 11; $x++)
+    {
+       %special[&quot;taint $+ $x $+ .sl&quot;]  = &quot;java -Dsleep.taint=true -jar ../sleep.jar taint $+ $x $+ .sl&quot;;
+    }
+@@ -141,7 +141,7 @@
+       else
+       {
+          print(&quot;  X &quot;);
+-         $value = runScript(iff(%special[$script] is $null, $script, %special[$script]));
++         $value = runScript(iff(%special[$script] is $null, &quot;java -jar ../sleep.jar $script&quot;, %special[$script]));
+       }
+ 
+       if (!-exists &quot;output/ $+ $script&quot;)
+
+Modified: sleep/src/sleep/bridges/BasicUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicUtilities.java	2008-05-08 19:00:43 UTC (rev 352)
++++ sleep/src/sleep/bridges/BasicUtilities.java	2008-05-08 20:16:28 UTC (rev 353)
+@@ -825,7 +825,7 @@
+           }
+           else
+           {
+-             sleep.engine.atoms.Iterate.IteratorData d = (sleep.engine.atoms.Iterate.IteratorData)iterators.peek();
++             sleep.engine.atoms.Iterate.IteratorData d = (sleep.engine.atoms.Iterate.IteratorData)iterators.peek();  
+              d.iterator.remove();
+              d.count = d.count - 1;
+              return d.source;
+
+Modified: sleep/src/sleep/engine/atoms/Iterate.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/Iterate.java	2008-05-08 19:00:43 UTC (rev 352)
++++ sleep/src/sleep/engine/atoms/Iterate.java	2008-05-08 20:16:28 UTC (rev 353)
+@@ -115,7 +115,7 @@
+       //
+       if (data.source.getHash() != null)
+       {
+-         data.iterator = data.source.getHash().keys().scalarIterator();
++         data.iterator = data.source.getHash().getData().entrySet().iterator();
+       }
+       else if (data.source.getArray() != null)
+       {
+@@ -150,11 +150,8 @@
+       Stack iterators   = (Stack)(e.getContextMetadata(&quot;iterators&quot;));
+       IteratorData data = (IteratorData)(iterators.peek());
+ 
+-      Scalar next       = null;
+-
+       if (data.iterator != null &amp;&amp; data.iterator.hasNext())
+       {
+-         next = (Scalar)(data.iterator.next());
+          e.getCurrentFrame().push(SleepUtils.getScalar(true));
+       }
+       else
+@@ -163,22 +160,31 @@
+          return;
+       }
+ 
+-      if (data.key != null)
++      Object next = data.iterator.next();
++
++      if (data.source.getHash() != null)
+       {
+-         if (data.source.getHash() != null)
+-         {
+-            data.kenv.putScalar(data.key, next);
+-            data.venv.putScalar(data.value, data.source.getHash().getAt(next));
++         if (data.key != null)
++         {  
++            data.kenv.putScalar(data.key, SleepUtils.getScalar(((Map.Entry)next).getKey()));
++            data.venv.putScalar(data.value, (Scalar)((Map.Entry)next).getValue());
+          }
+          else
+          {
+-            data.kenv.putScalar(data.key, SleepUtils.getScalar(data.count));
+-            data.venv.putScalar(data.value, next);
++            data.venv.putScalar(data.value, SleepUtils.getScalar(((Map.Entry)next).getKey()));
+          }
+       }
+       else
+       {
+-         data.venv.putScalar(data.value, next);
++         if (data.key != null)
++         {
++            data.kenv.putScalar(data.key, SleepUtils.getScalar(data.count));
++            data.venv.putScalar(data.value, (Scalar)next);
++         }
++         else
++         {
++            data.venv.putScalar(data.value, (Scalar)next);
++         }
+       }
+ 
+       data.count++;
+
+Added: sleep/src/sleep/taint/TaintArray.java
+===================================================================
+--- sleep/src/sleep/taint/TaintArray.java	2008-05-08 19:00:43 UTC (rev 352)
++++ sleep/src/sleep/taint/TaintArray.java	2008-05-08 20:16:28 UTC (rev 353)
+@@ -0,0 +1,91 @@
++package sleep.taint;
++
++import sleep.runtime.*;
++import java.util.*;
++import sleep.engine.ObjectUtilities;
++
++/** Used to wrap read-only arrays so values are only converted on an as-needed basis */
++public class TaintArray implements ScalarArray
++{
++   protected ScalarArray source;
++
++   public TaintArray(ScalarArray src)
++   {
++      source = src;;
++   }
++
++   public String toString()
++   {
++      return source.toString();
++   }
++
++   public Scalar pop()
++   {
++      return TaintUtils.taintAll(source.pop());
++   }
++
++   public void sort(Comparator compare)
++   {
++      source.sort(compare);
++   }
++
++   public Scalar push(Scalar value)
++   {
++      return TaintUtils.taintAll(source.push(value));
++   }
++
++   public int size()
++   {
++      return source.size();
++   }
++
++   public Scalar remove(int index)
++   {
++      return TaintUtils.taintAll(source.remove(index));
++   }
++
++   public Scalar getAt(int index)
++   {
++      return TaintUtils.taintAll(source.getAt(index));
++   }
++
++   public Iterator scalarIterator()
++   {
++      return new TaintIterator(source.scalarIterator());
++   }
++
++   public Scalar add(Scalar value, int index)
++   {
++      return TaintUtils.taintAll(source.add(value, index));
++   }
++
++   public void remove(Scalar value)
++   {
++      source.remove(value);
++   }
++
++   protected class TaintIterator implements Iterator
++   {
++      protected Iterator realIterator;
++
++      public TaintIterator(Iterator iter)
++      {
++         realIterator = iter;
++      }
++
++      public boolean hasNext()
++      {
++         return realIterator.hasNext(); 
++      }
++
++      public Object next()
++      {
++         return TaintUtils.taintAll((Scalar)realIterator.next());
++      }
++
++      public void remove()
++      {
++         realIterator.remove();
++      }
++   }
++}
+
+Added: sleep/src/sleep/taint/TaintHash.java
+===================================================================
+--- sleep/src/sleep/taint/TaintHash.java	2008-05-08 19:00:43 UTC (rev 352)
++++ sleep/src/sleep/taint/TaintHash.java	2008-05-08 20:16:28 UTC (rev 353)
+@@ -0,0 +1,55 @@
++package sleep.taint;
++
++import sleep.runtime.*;
++import java.util.*;
++import sleep.engine.ObjectUtilities;
++
++/** This class is used to wrap read-only hashes */
++public class TaintHash implements ScalarHash
++{
++   protected ScalarHash source;
++
++   public TaintHash(ScalarHash src)
++   {
++      source = src;
++   }
++
++   public Scalar getAt(Scalar key)
++   {
++      return TaintUtils.taintAll(source.getAt(key));
++   }
++
++   /** this operation is kind of expensive... should be fixed up to take care of that */
++   public ScalarArray keys()
++   {
++      return source.keys();
++   }
++
++   public void remove(Scalar key)
++   {
++      source.remove(key);
++   }
++
++   public Map getData()
++   {
++      Map temp = source.getData();
++
++      Iterator i = temp.entrySet().iterator();
++      while (i.hasNext())
++      {
++         Map.Entry next = (Map.Entry)i.next();
++
++         if (next.getValue() != null &amp;&amp; next.getKey() != null)
++         {
++            next.setValue(TaintUtils.taintAll((Scalar)next.getValue())); 
++         }
++      } 
++
++      return temp;
++   }
++
++   public String toString()
++   {
++      return source.toString();
++   }
++}
+
+Modified: sleep/src/sleep/taint/TaintUtils.java
+===================================================================
+--- sleep/src/sleep/taint/TaintUtils.java	2008-05-08 19:00:43 UTC (rev 352)
++++ sleep/src/sleep/taint/TaintUtils.java	2008-05-08 20:16:28 UTC (rev 353)
+@@ -71,17 +71,25 @@
+        return value;
+     }
+ 
+-    /** taints the specified scalar.  recurses on hashes and arrays.  returns the original container.  If tainting is disabled the original bridge is returned. */
++    /** taints the specified scalar (bridge writers should call this on their scalars).  recurses on hashes and arrays.  returns the original container.  If tainting is disabled the original bridge is returned. not safe for circular data structures. */
+     public static Scalar taintAll(Scalar value)
+     {
+-       if (value.getArray() != null)
++       if (value.getArray() != null &amp;&amp; value.getArray().getClass() == CollectionWrapper.class)
+        {
++          value.setValue(new TaintArray(value.getArray()));
++       }
++       else if (value.getArray() != null)
++       {
+           Iterator i = value.getArray().scalarIterator();
+           while (i.hasNext())
+           {
+              taintAll((Scalar)i.next());
+           }
+        }
++       else if (value.getHash() != null &amp;&amp; value.getHash().getClass() == MapWrapper.class)
++       {
++          value.setValue(new TaintHash(value.getHash()));
++       }
+        else if (value.getHash() != null)
+        {
+           Iterator i = value.getHash().getData().entrySet().iterator();
+
+Added: sleep/tests/fe_ohash.sl
+===================================================================
+--- sleep/tests/fe_ohash.sl	2008-05-08 19:00:43 UTC (rev 352)
++++ sleep/tests/fe_ohash.sl	2008-05-08 20:16:28 UTC (rev 353)
+@@ -0,0 +1,14 @@
++%data = ohasha(a =&gt; &quot;apple&quot;, b =&gt; &quot;bat&quot;, c =&gt; &quot;cat&quot;, d =&gt; &quot;dog&quot;);
++
++println(%data[&quot;c&quot;]);
++
++foreach $key =&gt; $value (%data)
++{
++   println(&quot;$key and $value&quot;);
++   if ($key eq &quot;b&quot;)
++   {
++      remove();
++   }
++}
++
++println(%data);
+
+Modified: sleep/tests/forker.sl
+===================================================================
+--- sleep/tests/forker.sl	2008-05-08 19:00:43 UTC (rev 352)
++++ sleep/tests/forker.sl	2008-05-08 20:16:28 UTC (rev 353)
+@@ -5,10 +5,9 @@
+ 
+ debug(15);
+ 
+-fork({
++wait(fork({
++   sleep(1000);
+    check(&quot;within fork&quot;);
+-});
++}), 5000);
+ 
+-sleep(1000);
+-
+ check(&quot;outside of fork&quot;);
+
+Added: sleep/tests/output/fe_ohash.sl
+===================================================================
+--- sleep/tests/output/fe_ohash.sl	2008-05-08 19:00:43 UTC (rev 352)
++++ sleep/tests/output/fe_ohash.sl	2008-05-08 20:16:28 UTC (rev 353)
+@@ -0,0 +1,6 @@
++cat
++a and apple
++b and bat
++d and dog
++c and cat
++%(a =&gt; 'apple', d =&gt; 'dog', c =&gt; 'cat')
+
+Modified: sleep/tests/output/forker.sl
+===================================================================
+--- sleep/tests/output/forker.sl	2008-05-08 19:00:43 UTC (rev 352)
++++ sleep/tests/output/forker.sl	2008-05-08 20:16:28 UTC (rev 353)
+@@ -1,4 +1,5 @@
+-Trace: &amp;fork(&amp;closure[forker.sl:9]#X) = sleep.bridges.io.IOObject@###### at forker.sl:8
+-Trace: &amp;check('within fork') at forker.sl:9
+-Trace: &amp;sleep(1000) at forker.sl:12
+-Trace: &amp;check('outside of fork') at forker.sl:14
++Trace: &amp;fork(&amp;closure[forker.sl:9-10]#2) = <A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">sleep.bridges.io.IOObject at d5eb7</A> at forker.sl:8
++Trace: &amp;sleep(1000) at forker.sl:9
++Trace: &amp;check('within fork') at forker.sl:10
++Trace: &amp;wait(<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">sleep.bridges.io.IOObject at d5eb7</A>, 5000) at forker.sl:8
++Trace: &amp;check('outside of fork') at forker.sl:13
+
+Added: sleep/tests/output/setField2.sl
+===================================================================
+--- sleep/tests/output/setField2.sl	2008-05-08 19:00:43 UTC (rev 352)
++++ sleep/tests/output/setField2.sl	2008-05-08 20:16:28 UTC (rev 353)
+@@ -0,0 +1 @@
++java.awt.Point[x=33,y=45]
+
+Added: sleep/tests/output/taint10.sl
+===================================================================
+--- sleep/tests/output/taint10.sl	2008-05-08 19:00:43 UTC (rev 352)
++++ sleep/tests/output/taint10.sl	2008-05-08 20:16:28 UTC (rev 353)
+@@ -0,0 +1,25 @@
++before expr: a
++Warning: tainted value: 'after  expr: a' from: 'a' at taint10.sl:16
++after  expr: a
++Warning: tainted value: '... a :)' from: 'a' at taint10.sl:20
++... a :)
++Warning: tainted value: '... b :)' from: 'b' at taint10.sl:20
++... b :)
++Warning: tainted value: '... c :)' from: 'c' at taint10.sl:20
++... c :)
++Warning: tainted value: '... d :)' from: 'd' at taint10.sl:20
++... d :)
++Warning: tainted value: '... e :)' from: 'e' at taint10.sl:20
++... e :)
++Before: apple
++Warning: tainted value: 'After: cat' from: 'cat' at taint10.sl:34
++After: cat
++&gt;&gt;&gt; a - should be ok
++Warning: tainted value: '... apple :)' from: 'apple' at taint10.sl:39
++... apple :)
++&gt;&gt;&gt; c - should be ok
++Warning: tainted value: '... cat :)' from: 'cat' at taint10.sl:39
++... cat :)
++&gt;&gt;&gt; b - should be ok
++Warning: tainted value: '... barracuda :)' from: 'barracuda' at taint10.sl:39
++... barracuda :)
+
+Added: sleep/tests/setField2.sl
+===================================================================
+--- sleep/tests/setField2.sl	2008-05-08 19:00:43 UTC (rev 352)
++++ sleep/tests/setField2.sl	2008-05-08 20:16:28 UTC (rev 353)
+@@ -0,0 +1,5 @@
++import java.awt.Point;
++
++$p = [new Point];
++setField($p, x =&gt; 33, y =&gt; 45);
++println($p);
+
+Added: sleep/tests/taint10.sl
+===================================================================
+--- sleep/tests/taint10.sl	2008-05-08 19:00:43 UTC (rev 352)
++++ sleep/tests/taint10.sl	2008-05-08 20:16:28 UTC (rev 353)
+@@ -0,0 +1,40 @@
++#
++# invasion of the wrappers :)
++#
++
++debug(7 | 128);
++
++# array fun
++global('$list $ds $var');
++
++$list = [new LinkedList];
++map(let({ [$list add: $1]; }, \$list), @(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;, &quot;d&quot;, &quot;e&quot;));
++
++$ds = [SleepUtils getArrayWrapper: $list];
++println(&quot;before expr: $ds[0]&quot;);
++taint($ds);
++println(&quot;after  expr: $ds[0]&quot;);
++
++foreach $var ($ds)
++{
++   println(&quot;... $var :)&quot;);
++}
++
++# hash fun
++global('$key $map');
++
++$map = [new HashMap];
++[$map put: &quot;a&quot;, &quot;apple&quot;];
++[$map put: &quot;b&quot;, &quot;barracuda&quot;];
++[$map put: &quot;c&quot;, &quot;cat&quot;];
++
++$ds = [SleepUtils getHashWrapper: $map];
++println(&quot;Before: &quot; . $ds[&quot;a&quot;]);
++taint($ds);
++println(&quot;After: &quot; . $ds[&quot;c&quot;]);
++
++foreach $key =&gt; $var ($ds)
++{
++   println(&quot;&gt;&gt;&gt; $key - should be ok&quot;);
++   println(&quot;... $var :)&quot;);
++}
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2008-05-08 19:00:43 UTC (rev 352)
++++ sleep/whatsnew.txt	2008-05-08 20:16:28 UTC (rev 353)
+@@ -11,6 +11,12 @@
+ - replaced test.pl regression tester with a Sleep version.
+   The Sleep version is much faster and it is forgiving of 
+   address and installation path differences.  
++- implemented taint wrappers for the Map-&gt;Hash and Collection to
++  Array wrappers obtain with SleepUtils.  The TaintUtils.taintAll
++  method is intelligent enough to employ these against wrapped
++  data structures when necessary.
++- changed implementation of foreach to more efficiently iterate
++  over hashes.  remove() w/i a foreach loop now works with hashes.
+ 
+ 2.1-beta 24  (30 Apr 08)
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000329.html">[Sleep-svn] r352 - in sleep: . src/sleep/bridges	src/sleep/bridges/io tests tests/output
+</A></li>
+	<LI>Next message: <A HREF="000331.html">[Sleep-svn] r355 - in sleep: . docs src/sleep/runtime tests	tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#330">[ date ]</a>
+              <a href="thread.html#330">[ thread ]</a>
+              <a href="subject.html#330">[ subject ]</a>
+              <a href="author.html#330">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

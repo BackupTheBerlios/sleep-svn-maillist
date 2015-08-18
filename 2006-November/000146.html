@@ -1,0 +1,193 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r164 - in sleep: . src/sleep/engine tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2006-November/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r164%20-%20in%20sleep%3A%20.%20src/sleep/engine%20tests%20tests/output&In-Reply-To=%3C200611060054.kA60ssJg012570%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000145.html">
+   <LINK REL="Next"  HREF="000147.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r164 - in sleep: . src/sleep/engine tests tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r164%20-%20in%20sleep%3A%20.%20src/sleep/engine%20tests%20tests/output&In-Reply-To=%3C200611060054.kA60ssJg012570%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r164 - in sleep: . src/sleep/engine tests tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Mon Nov  6 01:54:54 CET 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000145.html">[Sleep-svn] r163 - in sleep: . src/sleep/bridges tests
+</A></li>
+        <LI>Next message: <A HREF="000147.html">[Sleep-svn] r165 - in sleep: . src/sleep/console src/sleep/engine	src/sleep/engine/atoms src/sleep/parser tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#146">[ date ]</a>
+              <a href="thread.html#146">[ thread ]</a>
+              <a href="subject.html#146">[ subject ]</a>
+              <a href="author.html#146">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2006-11-06 01:54:54 +0100 (Mon, 06 Nov 2006)
+New Revision: 164
+
+Added:
+   sleep/tests/charcheck.sl
+   sleep/tests/output/charcheck.sl
+Modified:
+   sleep/src/sleep/engine/ObjectUtilities.java
+   sleep/whatsnew.txt
+Log:
+(:
+
+
+
+Modified: sleep/src/sleep/engine/ObjectUtilities.java
+===================================================================
+--- sleep/src/sleep/engine/ObjectUtilities.java	2006-11-06 00:34:18 UTC (rev 163)
++++ sleep/src/sleep/engine/ObjectUtilities.java	2006-11-06 00:54:54 UTC (rev 164)
+@@ -192,6 +192,10 @@
+          {
+             return ARG_MATCH_YES;
+          }
++         else if (check == Character.TYPE &amp;&amp; stemp == STRING_SCALAR &amp;&amp; scalar.getValue().toString().length() == 1)
++         {
++            return ARG_MATCH_YES;
++         }
+          else if (stemp == OBJECT_SCALAR)
+          {
+             check = normalizePrimitive(check);
+
+Added: sleep/tests/charcheck.sl
+===================================================================
+--- sleep/tests/charcheck.sl	2006-11-06 00:34:18 UTC (rev 163)
++++ sleep/tests/charcheck.sl	2006-11-06 00:54:54 UTC (rev 164)
+@@ -0,0 +1,44 @@
++#
++# ensure that characters are matched properly and double check the semantics of boolean
++#
++
++println(iff([Character isLetter: &quot;a&quot;], &quot;true&quot;, &quot;false&quot;));
++println(iff([Character isLetter: &quot;abc&quot;], &quot;true&quot;, &quot;false&quot;));
++println(iff([Character isLetter: &quot;7&quot;], &quot;true&quot;, &quot;false&quot;));
++println(iff([Character isLetter: 7], &quot;true&quot;, &quot;false&quot;));
++println(iff([Character isDigit: 7], &quot;true&quot;, &quot;false&quot;));
++println(iff([Character isDigit: &quot;7&quot;], &quot;true&quot;, &quot;false&quot;));
++
++println(&quot;- &quot; x 20);
++
++println([Boolean toString: 1]);
++println([Boolean toString: 0]);
++
++println(&quot;-&quot; x 10);
++
++println([Boolean toString: &quot;true&quot;]);
++println([Boolean toString: &quot;false&quot;]);
++
++println(&quot;-&quot; x 10);
++
++println([Boolean toString: $null]);
++
++println(&quot;-&quot; x 10);
++
++println([Boolean toString: &quot;dsfdsfsf&quot;]);
++
++println(&quot;-&quot; x 10);
++
++println([Boolean toString: 1.0]);
++println([Boolean toString: 0.0]);
++
++println(&quot;-&quot; x 10);
++
++println([Boolean toString: &quot;test&quot;]);
++println([Boolean toString: &quot;not truth&quot;]);
++
++println(&quot;-&quot; x 10);
++
++println([Boolean TRUE]);
++println([Boolean FALSE]);
++
+
+Added: sleep/tests/output/charcheck.sl
+===================================================================
+--- sleep/tests/output/charcheck.sl	2006-11-06 00:34:18 UTC (rev 163)
++++ sleep/tests/output/charcheck.sl	2006-11-06 00:54:54 UTC (rev 164)
+@@ -0,0 +1,31 @@
++true
++Warning: there is no method that matches isLetter('abc') in java.lang.Character at line 6
++false
++false
++false
++false
++true
++- - - - - - - - - - - - - - - - - - - - 
++true
++false
++----------
++Warning: there is no method that matches toString('true') in java.lang.Boolean at line 19
++
++Warning: there is no method that matches toString('false') in java.lang.Boolean at line 20
++
++----------
++false
++----------
++Warning: there is no method that matches toString('dsfdsfsf') in java.lang.Boolean at line 28
++
++----------
++true
++false
++----------
++Warning: there is no method that matches toString('test') in java.lang.Boolean at line 37
++
++Warning: there is no method that matches toString('not truth') in java.lang.Boolean at line 38
++
++----------
++1
++0
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-11-06 00:34:18 UTC (rev 163)
++++ sleep/whatsnew.txt	2006-11-06 00:54:54 UTC (rev 164)
+@@ -25,6 +25,8 @@
+   should be parsed and checked for syntax errors but not run.
+ - &amp;add now behaves as documented, if no index is specified then the value
+   is added to the beginning of the array (and not the end as in push).
++- HOES method resolution now matches 1 character sleep strings as Java 
++  characters.
+ 
+ 2.1-beta 8  (29 Oct 06)
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000145.html">[Sleep-svn] r163 - in sleep: . src/sleep/bridges tests
+</A></li>
+	<LI>Next message: <A HREF="000147.html">[Sleep-svn] r165 - in sleep: . src/sleep/console src/sleep/engine	src/sleep/engine/atoms src/sleep/parser tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#146">[ date ]</a>
+              <a href="thread.html#146">[ thread ]</a>
+              <a href="subject.html#146">[ subject ]</a>
+              <a href="author.html#146">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

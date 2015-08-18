@@ -1,0 +1,932 @@
+From rsmudge at berlios.de  Sat May 20 22:38:01 2006
+From: rsmudge at berlios.de (rsmudge at BerliOS)
+Date: Sat, 20 May 2006 22:38:01 +0200
+Subject: [Sleep-svn] r49 - sleep/src/sleep/engine/atoms
+Message-ID: <200605202038.k4KKc1cU002105@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-05-20 22:38:01 +0200 (Sat, 20 May 2006)
+New Revision: 49
+
+Removed:
+   sleep/src/sleep/engine/atoms/Break.java
+Log:
+Part of the aforementioned refactoring.
+
+
+
+Deleted: sleep/src/sleep/engine/atoms/Break.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/Break.java	2006-05-20 20:37:29 UTC (rev 48)
++++ sleep/src/sleep/engine/atoms/Break.java	2006-05-20 20:38:01 UTC (rev 49)
+@@ -1,44 +0,0 @@
+-/*
+-   SLEEP - Simple Language for Environment Extension Purposes
+- .-------------------------.
+- | sleep.engine.atoms.Return |__________________________________________________
+- |                                                                            |
+-   Author: Raphael Mudge (rsmudge at mtu.edu)
+-           http://www.csl.mtu.edu/~rsmudge/
+-
+-   Description: This class contains an implementation of an atomic Step for
+-     the sleep scripting.  
+-
+-   Documentation:
+-
+-   Changelog:
+-   11/17/2002 - this class was refactored out of Step and put in its own file.
+-
+-   * This software is distributed under the artistic license, see license.txt
+-     for more information. *
+-
+- |____________________________________________________________________________|
+- */
+-
+-package sleep.engine.atoms;
+-
+-import java.util.*;
+-import sleep.interfaces.*;
+-import sleep.engine.*;
+-import sleep.runtime.*;
+-
+-public class Break extends Step
+-{
+-   public String toString()
+-   {
+-      return "[Break] \n";
+-   }
+-
+-   public Scalar evaluate(ScriptEnvironment e)
+-   {
+-      e.flagBreak(true);
+-      return null;
+-   }
+-}
+-
+-
+
+
+
+From rsmudge at berlios.de  Sun May 21 00:25:33 2006
+From: rsmudge at berlios.de (rsmudge at BerliOS)
+Date: Sun, 21 May 2006 00:25:33 +0200
+Subject: [Sleep-svn] r50 - in sleep: . src/sleep/engine src/sleep/engine/atoms src/sleep/parser src/sleep/runtime tests tests/output
+Message-ID: <200605202225.k4KMPXuY014031@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-05-21 00:25:33 +0200 (Sun, 21 May 2006)
+New Revision: 50
+
+Added:
+   sleep/tests/continue.sl
+   sleep/tests/output/continue.sl
+Modified:
+   sleep/src/sleep/engine/GeneratedSteps.java
+   sleep/src/sleep/engine/atoms/Foreach.java
+   sleep/src/sleep/engine/atoms/Goto.java
+   sleep/src/sleep/parser/Checkers.java
+   sleep/src/sleep/parser/CodeGenerator.java
+   sleep/src/sleep/runtime/ScriptEnvironment.java
+   sleep/whatsnew.txt
+Log:
+Added a continue keyword to the sleep language..  
+closing out:
+http://jircii.hick.org/cgi-bin/sleep/bitch.cgi/view.html?4324683
+
+
+
+Modified: sleep/src/sleep/engine/GeneratedSteps.java
+===================================================================
+--- sleep/src/sleep/engine/GeneratedSteps.java	2006-05-20 20:38:01 UTC (rev 49)
++++ sleep/src/sleep/engine/GeneratedSteps.java	2006-05-20 22:25:33 UTC (rev 50)
+@@ -58,11 +58,11 @@
+        return temp;
+     }
+ 
+-    public static Step Goto(Check conditionForGoto, Block ifTrue, Block ifFalse, boolean shouldLoop)
++    public static Step Goto(Check conditionForGoto, Block ifTrue, Block ifFalse, Block increment, boolean shouldLoop)
+     {
+        Goto temp = new Goto(conditionForGoto);
+        temp.setChoices(ifTrue, ifFalse);
+-       temp.setLoop(shouldLoop);
++       temp.setLoop(shouldLoop, increment);
+        return temp;
+     }
+  
+
+Modified: sleep/src/sleep/engine/atoms/Foreach.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/Foreach.java	2006-05-20 20:38:01 UTC (rev 49)
++++ sleep/src/sleep/engine/atoms/Foreach.java	2006-05-20 22:25:33 UTC (rev 50)
+@@ -126,6 +126,11 @@
+                e.clearReturn();
+                break;
+             }
++            else if (e.getFlowControlRequest() == ScriptEnvironment.FLOW_CONTROL_CONTINUE)
++            {
++               e.clearReturn();
++               continue;
++            }
+             else
+             {
+                return e.getReturnValue();
+
+Modified: sleep/src/sleep/engine/atoms/Goto.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/Goto.java	2006-05-20 20:38:01 UTC (rev 49)
++++ sleep/src/sleep/engine/atoms/Goto.java	2006-05-20 22:25:33 UTC (rev 50)
+@@ -31,10 +31,12 @@
+ {
+    public Block iftrue;
+    public Block iffalse;
++
+    public Check start;
+  
+    public String name;
+    public boolean isLoop;
++   public Block increment;
+ 
+    public Goto (Check s)
+    {
+@@ -64,12 +66,20 @@
+          temp.append(iffalse.toString(prefix+"      "));
+       }
+ 
++      if (increment != null)
++      {
++         temp.append(prefix); 
++         temp.append("  [Increment]:   \n");      
++         temp.append(increment.toString(prefix+"      "));
++      }
++
+       return temp.toString();
+    }
+ 
+-   public void setLoop(boolean l)
++   public void setLoop(boolean l, Block i)
+    {
+-      isLoop = l;
++      isLoop    = l;
++      increment = i;
+    }
+ 
+    public void setChoices(Block t, Block f)
+@@ -93,16 +103,39 @@
+           temp = iffalse.evaluate(e);
+       }
+ 
+-      while (!e.isReturn() && isLoop && start.check(e))
++      if (isLoop)
+       {
+-          temp = iftrue.evaluate(e);
+-          env.clear();
+-      }
++          if (e.getFlowControlRequest() == ScriptEnvironment.FLOW_CONTROL_CONTINUE)
++          {
++             e.clearReturn();
++          }
+ 
+-      if (isLoop && e.getFlowControlRequest() == ScriptEnvironment.FLOW_CONTROL_BREAK)
+-      {
+-          e.clearReturn();
+-          env.clear();
++          if (increment != null)
++          {
++             increment.evaluate(e);
++          }
++
++          while (!e.isReturn() && start.check(e))
++          {
++             temp = iftrue.evaluate(e);
++             env.clear();
++
++             if (e.getFlowControlRequest() == ScriptEnvironment.FLOW_CONTROL_CONTINUE)
++             {
++                e.clearReturn();
++             }
++
++             if (increment != null)
++             {
++                increment.evaluate(e);
++             }
++         }
++
++         if (e.getFlowControlRequest() == ScriptEnvironment.FLOW_CONTROL_BREAK)
++         {
++             e.clearReturn();
++             env.clear();
++         }
+       }
+ 
+       return temp;
+
+Modified: sleep/src/sleep/parser/Checkers.java
+===================================================================
+--- sleep/src/sleep/parser/Checkers.java	2006-05-20 20:38:01 UTC (rev 49)
++++ sleep/src/sleep/parser/Checkers.java	2006-05-20 22:25:33 UTC (rev 50)
+@@ -230,7 +230,7 @@
+    {
+        // halt and done are kind of jIRC related... when you write the scripting language you
+        // can do whatever you want...
+-       return  (temp.equals("return") || temp.equals("done") || temp.equals("halt") || temp.equals("break") || temp.equals("yield"));
++       return  (temp.equals("return") || temp.equals("done") || temp.equals("halt") || temp.equals("break") || temp.equals("yield") || temp.equals("continue"));
+    }
+ 
+    public static final boolean isString (String item)
+
+Modified: sleep/src/sleep/parser/CodeGenerator.java
+===================================================================
+--- sleep/src/sleep/parser/CodeGenerator.java	2006-05-20 20:38:01 UTC (rev 49)
++++ sleep/src/sleep/parser/CodeGenerator.java	2006-05-20 22:25:33 UTC (rev 50)
+@@ -786,7 +786,7 @@
+               parseIdea(termsAr[2]);
+               b = restore();
+ 
+-              atom = GeneratedSteps.Goto(parsePredicate(termsAr[0]), a, b, false);
++              atom = GeneratedSteps.Goto(parsePredicate(termsAr[0]), a, b, null, false);
+               add(atom, tokens[0]); 
+            }
+            else if (tokens.length > 1)
+@@ -807,7 +807,7 @@
+          case EXPR_WHILE:                                        // done
+            backup();
+            parseBlock(tokens[2]);    
+-           atom = GeneratedSteps.Goto(parsePredicate(ParserUtilities.extract(tokens[1])), restore(), null, true);
++           atom = GeneratedSteps.Goto(parsePredicate(ParserUtilities.extract(tokens[1])), restore(), null, null, true);
+            add(atom, tokens[1]);
+            break;
+          case EXPR_ASSIGNMENT_T:                                  // implemented
+@@ -864,7 +864,7 @@
+            }
+            b = restore();
+ 
+-           atom = GeneratedSteps.Goto(parsePredicate(ParserUtilities.extract(tokens[1])), a, b, false);
++           atom = GeneratedSteps.Goto(parsePredicate(ParserUtilities.extract(tokens[1])), a, b, null, false);
+            add(atom, tokens[1]); 
+            break;
+          case EXPR_FOREACH_SPECIAL:
+@@ -909,8 +909,12 @@
+            // |for
+            // |($x = 0; $x < 100; $x++)
+            // |{ &printf("hi"); }
++
+            Token extracted_terms[] = ParserUtilities.groupByBlockTerm(parser, ParserUtilities.extract(tokens[1])).getTokens();
+ 
++           //
++           // evaluate initial terms...           
++           //
+            StringBuffer doThis = new StringBuffer();
+ 
+            TokenList initial_terms = ParserUtilities.groupByParameterTerm(parser, extracted_terms[0]);
+@@ -924,8 +928,19 @@
+ 
+            parseBlock(tokens[0].copy(doThis.toString()));
+ 
++           //
++           // parse the loop body and save it
++           //
++           backup();
++
++           parseBlock(tokens[2]);    
++           b = restore();
++
++           //
++           // parse the final terms and save them...
++           //
++           backup();
+            doThis = new StringBuffer();
+-           doThis.append(ParserUtilities.extract(strings[2]));
+ 
+            TokenList final_terms = ParserUtilities.groupByParameterTerm(parser, extracted_terms[2]);
+ 
+@@ -933,10 +948,17 @@
+            while (i.hasNext())
+            {
+               doThis.append(i.next().toString());
+-              doThis.append(";\n");
++              doThis.append("; ");
+            }
+ 
+-           parseBlock(tokens[0].copy("while ("+extracted_terms[1].toString()+")\n{\n" + doThis.toString() + "}"));
++           parseBlock(tokens[0].copy(doThis.toString()));
++           a = restore();
++
++           //
++           // setup our goto object..
++           // 
++           atom = GeneratedSteps.Goto(parsePredicate(extracted_terms[1]), b, null, a, true);
++           add(atom, tokens[1]);
+            break;
+          case OBJECT_IMPORT:
+            parser.importPackage(strings[0]);
+@@ -964,6 +986,11 @@
+               atom = GeneratedSteps.Return(ScriptEnvironment.FLOW_CONTROL_BREAK);
+               add(atom, tokens[0]);
+            }
++           else if (strings[0].equals("continue"))
++           {
++              atom = GeneratedSteps.Return(ScriptEnvironment.FLOW_CONTROL_CONTINUE);
++              add(atom, tokens[0]);
++           }
+            else
+            {
+               atom = GeneratedSteps.Return(ScriptEnvironment.FLOW_CONTROL_RETURN);
+
+Modified: sleep/src/sleep/runtime/ScriptEnvironment.java
+===================================================================
+--- sleep/src/sleep/runtime/ScriptEnvironment.java	2006-05-20 20:38:01 UTC (rev 49)
++++ sleep/src/sleep/runtime/ScriptEnvironment.java	2006-05-20 22:25:33 UTC (rev 50)
+@@ -210,13 +210,16 @@
+     //
+ 
+     /** currently no flow contrl change has been requested */
+-    public static final int FLOW_CONTROL_NONE   = 0;
++    public static final int FLOW_CONTROL_NONE     = 0;
+ 
+     /** request a return from the current function */
+-    public static final int FLOW_CONTROL_RETURN = 1;
++    public static final int FLOW_CONTROL_RETURN   = 1;
+ 
+     /** request a break out of the current loop */
+-    public static final int FLOW_CONTROL_BREAK  = 2;
++    public static final int FLOW_CONTROL_BREAK    = 2;
++
++    /** adding a continue keyword as people keep demanding it */
++    public static final int FLOW_CONTROL_CONTINUE = 3;
+     
+     protected Scalar rv      = null;
+     protected int    request = 0;
+
+Added: sleep/tests/continue.sl
+===================================================================
+--- sleep/tests/continue.sl	2006-05-20 20:38:01 UTC (rev 49)
++++ sleep/tests/continue.sl	2006-05-20 22:25:33 UTC (rev 50)
+@@ -0,0 +1,63 @@
++sub test1
++{
++   for ($x = 0; $x < 100; $x++)
++   {
++      if ($x > 10 && $x < 90)
++      {
++         continue;
++      }
++
++      println($x);
++   }
++
++   println("Done!@#$");
++}
++
++sub test2
++{
++   for ($x = 0; $x < 100; $x++)
++   {
++      println("X:    $x");
++      for ($y = 0; $y < 100; $y++)
++      {
++          if ($y > 10 && $y < 90)
++          {
++             continue;
++          }
++
++          println("   Y: $y");
++      }
++
++      if ($x == 2)
++      {
++          if (3 == 3) # just testing, nesting the break several blocks deep, used to break only out of the current loop!
++          {
++             break;
++          }
++      }
++   }
++
++   println("Done Again!@#$");
++}
++
++sub test3
++{
++   @temp = array("a", "b", "c", "d", "e", "f", "g", "h");
++   foreach $var (@temp)
++   {
++      if ($var eq "c" || $var eq "d")
++      {
++         println("Skipping: $var");
++         continue;
++      }
++
++      println($var);
++   }
++
++
++   println("Done for the third time...");
++}
++
++test1();
++test2();
++test3();
+
+Added: sleep/tests/output/continue.sl
+===================================================================
+--- sleep/tests/output/continue.sl	2006-05-20 20:38:01 UTC (rev 49)
++++ sleep/tests/output/continue.sl	2006-05-20 22:25:33 UTC (rev 50)
+@@ -0,0 +1,98 @@
++0
++1
++2
++3
++4
++5
++6
++7
++8
++9
++10
++90
++91
++92
++93
++94
++95
++96
++97
++98
++99
++Done!@#
++X:    0
++   Y: 0
++   Y: 1
++   Y: 2
++   Y: 3
++   Y: 4
++   Y: 5
++   Y: 6
++   Y: 7
++   Y: 8
++   Y: 9
++   Y: 10
++   Y: 90
++   Y: 91
++   Y: 92
++   Y: 93
++   Y: 94
++   Y: 95
++   Y: 96
++   Y: 97
++   Y: 98
++   Y: 99
++X:    1
++   Y: 0
++   Y: 1
++   Y: 2
++   Y: 3
++   Y: 4
++   Y: 5
++   Y: 6
++   Y: 7
++   Y: 8
++   Y: 9
++   Y: 10
++   Y: 90
++   Y: 91
++   Y: 92
++   Y: 93
++   Y: 94
++   Y: 95
++   Y: 96
++   Y: 97
++   Y: 98
++   Y: 99
++X:    2
++   Y: 0
++   Y: 1
++   Y: 2
++   Y: 3
++   Y: 4
++   Y: 5
++   Y: 6
++   Y: 7
++   Y: 8
++   Y: 9
++   Y: 10
++   Y: 90
++   Y: 91
++   Y: 92
++   Y: 93
++   Y: 94
++   Y: 95
++   Y: 96
++   Y: 97
++   Y: 98
++   Y: 99
++Done Again!@#
++a
++b
++Skipping: c
++Skipping: d
++e
++f
++g
++h
++Done for the third time...
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-05-20 20:38:01 UTC (rev 49)
++++ sleep/whatsnew.txt	2006-05-20 22:25:33 UTC (rev 50)
+@@ -1,6 +1,8 @@
+ 2.1-beta 1
+ ===========
+ - fixed the clean target in the sleep build.xml file
++- added a continue keyword for flow control of while/for/foreach
++  loops.  My arm hath been twisted.
+ 
+ 2.0-release
+ ===========
+
+
+
+From rsmudge at berlios.de  Sat May 20 22:37:30 2006
+From: rsmudge at berlios.de (rsmudge at BerliOS)
+Date: Sat, 20 May 2006 22:37:30 +0200
+Subject: [Sleep-svn] r48 - in sleep: . src/sleep/engine src/sleep/engine/atoms src/sleep/parser src/sleep/runtime
+Message-ID: <200605202037.k4KKbUWk002041@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2006-05-20 22:37:29 +0200 (Sat, 20 May 2006)
+New Revision: 48
+
+Modified:
+   sleep/build.xml
+   sleep/src/sleep/engine/GeneratedSteps.java
+   sleep/src/sleep/engine/atoms/Foreach.java
+   sleep/src/sleep/engine/atoms/Goto.java
+   sleep/src/sleep/engine/atoms/Return.java
+   sleep/src/sleep/parser/Checkers.java
+   sleep/src/sleep/parser/CodeGenerator.java
+   sleep/src/sleep/parser/TokenParser.java
+   sleep/src/sleep/runtime/ScriptEnvironment.java
+   sleep/whatsnew.txt
+Log:
+Refactored the flow control code for handling breaks, returns, etc.. to bring
+them under the logical flow (will make it easier to add new flow control in
+the future).
+
+
+
+Modified: sleep/build.xml
+===================================================================
+--- sleep/build.xml	2006-02-13 07:30:20 UTC (rev 47)
++++ sleep/build.xml	2006-05-20 20:37:29 UTC (rev 48)
+@@ -16,7 +16,7 @@
+            destdir="${project.build}"
+            nowarn="yes"
+            depend="yes"
+-           debug="no"
++           debug="yes"
+            optimize="yes"
+     >
+     </javac>
+@@ -66,7 +66,7 @@
+   </target>
+ 
+   <target name="clean" description="clean up" >
+-    <delete dir="${build}"/>
++    <delete dir="${project.build}"/>
+   </target>
+ </project>
+ 
+
+Modified: sleep/src/sleep/engine/GeneratedSteps.java
+===================================================================
+--- sleep/src/sleep/engine/GeneratedSteps.java	2006-02-13 07:30:20 UTC (rev 47)
++++ sleep/src/sleep/engine/GeneratedSteps.java	2006-05-20 20:37:29 UTC (rev 48)
+@@ -34,18 +34,12 @@
+        return temp;
+     }
+ 
+-    public static Step Return()
++    public static Step Return(int type)
+     {
+-       Step temp = new Return();
++       Step temp = new Return(type);
+        return temp;
+     }
+ 
+-    public static Step Break()
+-    {
+-       Step temp = new Break();
+-       return temp;
+-    }
+-
+     public static Step Push()
+     {
+        Step temp = new Push();
+
+Modified: sleep/src/sleep/engine/atoms/Foreach.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/Foreach.java	2006-02-13 07:30:20 UTC (rev 47)
++++ sleep/src/sleep/engine/atoms/Foreach.java	2006-05-20 20:37:29 UTC (rev 48)
+@@ -119,20 +119,22 @@
+ 
+          code.evaluate(e);
+ 
+-         if (e.isBreak())
+-         {
+-            break;
+-         }
+-
+          if (e.isReturn())
+          {
+-            return e.getReturnValue();
++            if (e.getFlowControlRequest() == ScriptEnvironment.FLOW_CONTROL_BREAK)
++            {
++               e.clearReturn();
++               break;
++            }
++            else
++            {
++               return e.getReturnValue();
++            }
+          }
+ 
+          x++;
+       }
+ 
+-      e.flagBreak(false);
+       env.clear();
+ //      env.push(valueHolder);
+       return null;
+
+Modified: sleep/src/sleep/engine/atoms/Goto.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/Goto.java	2006-02-13 07:30:20 UTC (rev 47)
++++ sleep/src/sleep/engine/atoms/Goto.java	2006-05-20 20:37:29 UTC (rev 48)
+@@ -99,13 +99,12 @@
+           env.clear();
+       }
+ 
+-      if (isLoop)
++      if (isLoop && e.getFlowControlRequest() == ScriptEnvironment.FLOW_CONTROL_BREAK)
+       {
+-          e.flagBreak(false);
++          e.clearReturn();
+           env.clear();
+       }
+ 
+-//      env.push(temp);
+       return temp;
+    }
+ }
+
+Modified: sleep/src/sleep/engine/atoms/Return.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/Return.java	2006-02-13 07:30:20 UTC (rev 47)
++++ sleep/src/sleep/engine/atoms/Return.java	2006-05-20 20:37:29 UTC (rev 48)
+@@ -29,22 +29,34 @@
+ 
+ public class Return extends Step
+ {
++   protected int return_type;
++
++   /** See ScriptEnvironment.FLOW_CONTROL_* for the type constants */
++   public Return(int type)
++   {
++      return_type = type;
++   }
++
+    public String toString()
+    {
+-      return "[Return] \n";
++      return "[Return]: " + return_type + " \n";
+    }
+ 
+    public Scalar evaluate(ScriptEnvironment e)
+    {
+       Stack env = e.getEnvironmentStack();   
+ 
+-      if (env.isEmpty())
++      if (return_type == ScriptEnvironment.FLOW_CONTROL_BREAK)
+       {
+-         e.flagReturn(SleepUtils.getEmptyScalar());
++         e.flagReturn(null, return_type);
+       }
++      else if (env.isEmpty())
++      {
++         e.flagReturn(SleepUtils.getEmptyScalar(), return_type);
++      }
+       else
+       {
+-         e.flagReturn((Scalar)env.pop());
++         e.flagReturn((Scalar)env.pop(), return_type);
+       }
+ 
+       return e.getReturnValue();
+
+Modified: sleep/src/sleep/parser/Checkers.java
+===================================================================
+--- sleep/src/sleep/parser/Checkers.java	2006-02-13 07:30:20 UTC (rev 47)
++++ sleep/src/sleep/parser/Checkers.java	2006-05-20 20:37:29 UTC (rev 48)
+@@ -43,18 +43,20 @@
+    {
+       keywords = new Hashtable();
+ 
+-      keywords.put("if",      Boolean.TRUE);
+-      keywords.put("for",     Boolean.TRUE);
+-      keywords.put("while",   Boolean.TRUE);
+-      keywords.put("foreach", Boolean.TRUE);
+-      keywords.put("&&",      Boolean.TRUE);
+-      keywords.put("||",      Boolean.TRUE);
+-      keywords.put("EOT",     Boolean.TRUE);
+-      keywords.put("EOL",     Boolean.TRUE);
+-      keywords.put("return",  Boolean.TRUE);
+-      keywords.put("halt",    Boolean.TRUE);
+-      keywords.put("done",    Boolean.TRUE);
+-      keywords.put("break",   Boolean.TRUE);
++      keywords.put("if",       Boolean.TRUE);
++      keywords.put("for",      Boolean.TRUE);
++      keywords.put("while",    Boolean.TRUE);
++      keywords.put("foreach",  Boolean.TRUE);
++      keywords.put("&&",       Boolean.TRUE);
++      keywords.put("||",       Boolean.TRUE);
++      keywords.put("EOT",      Boolean.TRUE);
++      keywords.put("EOL",      Boolean.TRUE);
++      keywords.put("return",   Boolean.TRUE);
++      keywords.put("halt",     Boolean.TRUE);
++      keywords.put("done",     Boolean.TRUE);
++      keywords.put("break",    Boolean.TRUE);
++      keywords.put("continue", Boolean.TRUE);
++      keywords.put("yield",    Boolean.TRUE);
+    }
+ 
+    public static boolean isIfStatement(String a, String b, String c)
+@@ -228,14 +230,9 @@
+    {
+        // halt and done are kind of jIRC related... when you write the scripting language you
+        // can do whatever you want...
+-       return  (temp.equals("return") || temp.equals("done") || temp.equals("halt"));
++       return  (temp.equals("return") || temp.equals("done") || temp.equals("halt") || temp.equals("break") || temp.equals("yield"));
+    }
+ 
+-   public static final boolean isBreak (String temp)
+-   {
+-       return  temp.equals("break");
+-   }
+-
+    public static final boolean isString (String item)
+    {
+       return (item.charAt(0) == '\"' && item.charAt(item.length()-1) == '\"');
+
+Modified: sleep/src/sleep/parser/CodeGenerator.java
+===================================================================
+--- sleep/src/sleep/parser/CodeGenerator.java	2006-02-13 07:30:20 UTC (rev 47)
++++ sleep/src/sleep/parser/CodeGenerator.java	2006-05-20 20:37:29 UTC (rev 48)
+@@ -941,10 +941,6 @@
+          case OBJECT_IMPORT:
+            parser.importPackage(strings[0]);
+            break;           
+-         case EXPR_BREAK:
+-           atom = GeneratedSteps.Break();
+-           add(atom, tokens[0]);
+-           break;
+          case EXPR_RETURN:                     // implemented
+            if (strings[0].equals("done"))
+            {
+@@ -963,8 +959,16 @@
+               parseIdea(tokens[0].copy("$null"));
+            }
+ 
+-           atom = GeneratedSteps.Return();
+-           add(atom, tokens[0]);
++           if (strings[0].equals("break"))
++           {
++              atom = GeneratedSteps.Return(ScriptEnvironment.FLOW_CONTROL_BREAK);
++              add(atom, tokens[0]);
++           }
++           else
++           {
++              atom = GeneratedSteps.Return(ScriptEnvironment.FLOW_CONTROL_RETURN);
++              add(atom, tokens[0]);
++           }
+            break;
+          default:
+       }     
+
+Modified: sleep/src/sleep/parser/TokenParser.java
+===================================================================
+--- sleep/src/sleep/parser/TokenParser.java	2006-02-13 07:30:20 UTC (rev 47)
++++ sleep/src/sleep/parser/TokenParser.java	2006-05-20 20:37:29 UTC (rev 48)
+@@ -652,11 +652,6 @@
+             myToken.setType(IDEA_FUNC);
+             myToken.add(tokens[x]);
+          }
+-         else if (Checkers.isBreak(strings[x]))
+-         {
+-            myToken.setType(EXPR_BREAK);
+-            myToken.add(tokens[x]);
+-         }
+          else if (strings[x].equals("EOT"))
+          {
+             // do nothing.
+
+Modified: sleep/src/sleep/runtime/ScriptEnvironment.java
+===================================================================
+--- sleep/src/sleep/runtime/ScriptEnvironment.java	2006-02-13 07:30:20 UTC (rev 47)
++++ sleep/src/sleep/runtime/ScriptEnvironment.java	2006-05-20 20:37:29 UTC (rev 48)
+@@ -206,10 +206,21 @@
+     }
+ 
+     //
+-    // Stuff related to returning from a block.
++    // ******** Flow Control **********
+     //
+-    Scalar rv = null;
+ 
++    /** currently no flow contrl change has been requested */
++    public static final int FLOW_CONTROL_NONE   = 0;
++
++    /** request a return from the current function */
++    public static final int FLOW_CONTROL_RETURN = 1;
++
++    /** request a break out of the current loop */
++    public static final int FLOW_CONTROL_BREAK  = 2;
++    
++    protected Scalar rv      = null;
++    protected int    request = 0;
++
+     public Scalar getReturnValue()
+     {
+        return rv;
+@@ -217,18 +228,25 @@
+ 
+     public boolean isReturn()
+     {
+-       return (rv != null) || isBreak;
++       return request != FLOW_CONTROL_NONE;
+     }
+ 
+-    public void flagReturn(Scalar value)
++    public int getFlowControlRequest()
+     {
++       return request;
++    }
++
++    public void flagReturn(Scalar value, int type_of_flow)
++    {
+        if (value == null) { value = SleepUtils.getEmptyScalar(); }
+-       rv = value;
++       rv      = value;
++       request = type_of_flow;
+     }
+ 
+     public void clearReturn()
+     {
+-       rv = null;
++       request = FLOW_CONTROL_NONE;
++       rv      = null;
+     }
+ 
+     //
+@@ -258,26 +276,6 @@
+        findex++;
+     }
+ 
+-
+-    //
+-    // stuff related to breaking out of a loop
+-    //
+-   
+-    /** value that determines if we are breaking out of the current loop or not */
+-    protected boolean isBreak = false;
+-
+-    /** determine wether or not we want to break out of the current loop */
+-    public void flagBreak(boolean flag)
+-    {
+-        isBreak = flag;
+-    }
+-
+-    /** checks wether or not we want to break out of the current loop */
+-    public boolean isBreak()
+-    {
+-        return isBreak;
+-    }
+-
+     /** evaluate a full blown statement... probably best to just load a script at this point */
+     public Scalar evaluateStatement(String code) throws YourCodeSucksException
+     {
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-02-13 07:30:20 UTC (rev 47)
++++ sleep/whatsnew.txt	2006-05-20 20:37:29 UTC (rev 48)
+@@ -1,3 +1,7 @@
++2.1-beta 1
++===========
++- fixed the clean target in the sleep build.xml file
++
+ 2.0-release
+ ===========
+ - added a -version, -v, --version command line switch to see what
+
+
+

@@ -1,0 +1,336 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r361 - in sleep: . src/sleep/bridges	src/sleep/engine/types src/sleep/runtime src/sleep/taint	tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2008-May/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r361%20-%20in%20sleep%3A%20.%20src/sleep/bridges%0A%09src/sleep/engine/types%20src/sleep/runtime%20src/sleep/taint%0A%09tests%20tests/output&In-Reply-To=%3C200805140551.m4E5pnTw008497%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000336.html">
+   <LINK REL="Next"  HREF="000338.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r361 - in sleep: . src/sleep/bridges	src/sleep/engine/types src/sleep/runtime src/sleep/taint	tests tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r361%20-%20in%20sleep%3A%20.%20src/sleep/bridges%0A%09src/sleep/engine/types%20src/sleep/runtime%20src/sleep/taint%0A%09tests%20tests/output&In-Reply-To=%3C200805140551.m4E5pnTw008497%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r361 - in sleep: . src/sleep/bridges	src/sleep/engine/types src/sleep/runtime src/sleep/taint	tests tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Wed May 14 07:51:49 CEST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000336.html">[Sleep-svn] r360 - in sleep: . src/sleep/bridges	src/sleep/engine/types src/sleep/runtime src/sleep/taint	tests tests/output
+</A></li>
+        <LI>Next message: <A HREF="000338.html">[Sleep-svn] r362 - in sleep: . src/sleep/bridges tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#337">[ date ]</a>
+              <a href="thread.html#337">[ thread ]</a>
+              <a href="subject.html#337">[ subject ]</a>
+              <a href="author.html#337">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2008-05-14 07:51:46 +0200 (Wed, 14 May 2008)
+New Revision: 361
+
+Removed:
+   sleep/tests/output/rehash.sl
+   sleep/tests/rehash.sl
+Modified:
+   sleep/src/sleep/bridges/BasicUtilities.java
+   sleep/src/sleep/engine/types/HashContainer.java
+   sleep/src/sleep/engine/types/OrderedHashContainer.java
+   sleep/src/sleep/runtime/ScalarHash.java
+   sleep/src/sleep/runtime/SleepUtils.java
+   sleep/src/sleep/taint/TaintHash.java
+   sleep/src/sleep/taint/TaintUtils.java
+   sleep/whatsnew.txt
+Log:
+removed &amp;rehash and updated the taint API
+
+
+Modified: sleep/src/sleep/bridges/BasicUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicUtilities.java	2008-05-12 23:13:13 UTC (rev 360)
++++ sleep/src/sleep/bridges/BasicUtilities.java	2008-05-14 05:51:46 UTC (rev 361)
+@@ -72,7 +72,6 @@
+         temp.put(&quot;&amp;%&quot;, f_hash);  
+ 
+         // array &amp; hashtable related
+-        temp.put(&quot;&amp;rehash&quot;, this);
+         temp.put(&quot;&amp;keys&quot;,  this);      // &amp;keys(%hash) = @array
+         temp.put(&quot;&amp;size&quot;,  this);      // &amp;size(@array) = &lt;int&gt;
+         temp.put(&quot;&amp;push&quot;,  this);      // &amp;push(@array, $value) = $scalar
+@@ -1234,14 +1233,6 @@
+ 
+           return value;
+        }
+-       else if (n.equals(&quot;&amp;rehash&quot;))
+-       {
+-          if (value.getHash() != null)
+-          {
+-             value.getHash().rehash(BridgeUtilities.getInt(l, 32), (float)BridgeUtilities.getDouble(l, 0.50));
+-             return value;
+-          }
+-       }
+        else if (n.equals(&quot;&amp;keys&quot;)) // &amp;keys(%hash)
+        {
+           if (value.getHash() != null)
+
+Modified: sleep/src/sleep/engine/types/HashContainer.java
+===================================================================
+--- sleep/src/sleep/engine/types/HashContainer.java	2008-05-12 23:13:13 UTC (rev 360)
++++ sleep/src/sleep/engine/types/HashContainer.java	2008-05-14 05:51:46 UTC (rev 361)
+@@ -17,14 +17,6 @@
+       values = container;
+    }
+ 
+-   public void rehash(int capacity, float load)
+-   {
+-      HashMap temp = new HashMap(capacity, load);
+-      temp.putAll(values);
+-
+-      values = temp;
+-   }
+-
+    /* constructs this hash container backed by a HashMap data structure */
+    public HashContainer()
+    {
+@@ -33,12 +25,13 @@
+ 
+    public Scalar getAt(Scalar key)
+    {
+-      Scalar value = (Scalar)values.get(key.getValue().toString());
++      String temp = key.getValue().toString();
++      Scalar value = (Scalar)values.get(temp);
+ 
+       if (value == null)
+       {
+          value = SleepUtils.getEmptyScalar();
+-         values.put(key.getValue().toString(), value);
++         values.put(temp, value);
+       }
+ 
+       return value;
+
+Modified: sleep/src/sleep/engine/types/OrderedHashContainer.java
+===================================================================
+--- sleep/src/sleep/engine/types/OrderedHashContainer.java	2008-05-12 23:13:13 UTC (rev 360)
++++ sleep/src/sleep/engine/types/OrderedHashContainer.java	2008-05-14 05:51:46 UTC (rev 361)
+@@ -15,33 +15,17 @@
+ 
+    private class OrderedHash extends LinkedHashMap
+    {
+-      protected boolean ordered;
+-
+       public OrderedHash(int c, float l, boolean b)
+       {
+          super(c, l, b);
+-         ordered = b;
+       }
+ 
+-      public OrderedHash recreate(int capacity, float load)
+-      {
+-         OrderedHash temp = new OrderedHash(capacity, load, ordered);
+-         temp.putAll(this);
+-
+-         return temp;
+-      }
+-
+       protected boolean removeEldestEntry(Map.Entry eldest)
+       {
+          return removeEldestEntryCheck(eldest); 
+       }
+    }
+ 
+-   public void rehash(int capacity, float load)
+-   {
+-       values = ((OrderedHash)values).recreate(capacity, load);
+-   }
+-
+    /** constructs an ordered hash container based on the specified items */
+    public OrderedHashContainer(int capacity, float loadfactor, boolean type)
+    {
+
+Modified: sleep/src/sleep/runtime/ScalarHash.java
+===================================================================
+--- sleep/src/sleep/runtime/ScalarHash.java	2008-05-12 23:13:13 UTC (rev 360)
++++ sleep/src/sleep/runtime/ScalarHash.java	2008-05-14 05:51:46 UTC (rev 361)
+@@ -33,8 +33,4 @@
+ 
+    /** Return the data structure backing this hash please */
+    public Map getData();
+-
+-   /** request a rehash of the underlying data structure to the specified capacity and loadFactor parameters.  This functionality
+-       allows scripters to tune the performance of their Hash scalars.  This can make a difference with large data sets */
+-   public void rehash(int capacity, float loadFactor);
+ }
+
+Modified: sleep/src/sleep/runtime/SleepUtils.java
+===================================================================
+--- sleep/src/sleep/runtime/SleepUtils.java	2008-05-12 23:13:13 UTC (rev 360)
++++ sleep/src/sleep/runtime/SleepUtils.java	2008-05-14 05:51:46 UTC (rev 361)
+@@ -521,7 +521,7 @@
+    public static Scalar getOrderedHashScalar()
+    {
+       Scalar temp = new Scalar();
+-      temp.setValue(new OrderedHashContainer(16, 0.75f, false));
++      temp.setValue(new OrderedHashContainer(11, 0.75f, false));
+ 
+       return temp;
+    }
+@@ -530,7 +530,7 @@
+    public static Scalar getAccessOrderedHashScalar()
+    {
+       Scalar temp = new Scalar();
+-      temp.setValue(new OrderedHashContainer(16, 0.75f, true));
++      temp.setValue(new OrderedHashContainer(11, 0.75f, true));
+ 
+       return temp;
+    }
+
+Modified: sleep/src/sleep/taint/TaintHash.java
+===================================================================
+--- sleep/src/sleep/taint/TaintHash.java	2008-05-12 23:13:13 UTC (rev 360)
++++ sleep/src/sleep/taint/TaintHash.java	2008-05-14 05:51:46 UTC (rev 361)
+@@ -9,11 +9,6 @@
+ {
+    protected ScalarHash source;
+ 
+-   public void rehash(int capacity, float load)
+-   {
+-      source.rehash(capacity, load);
+-   }
+-
+    public TaintHash(ScalarHash src)
+    {
+       source = src;
+
+Modified: sleep/src/sleep/taint/TaintUtils.java
+===================================================================
+--- sleep/src/sleep/taint/TaintUtils.java	2008-05-12 23:13:13 UTC (rev 360)
++++ sleep/src/sleep/taint/TaintUtils.java	2008-05-14 05:51:46 UTC (rev 361)
+@@ -4,6 +4,9 @@
+ import sleep.interfaces.*;
+ import sleep.runtime.*;
+ 
++import sleep.bridges.*;
++import sleep.engine.types.*;
++
+ import java.util.*;
+ 
+ /** &lt;p&gt;Sleep supports a mode where variables received from external sources are considered tainted.  This is a security mechanism to help educate
+@@ -71,6 +74,16 @@
+        return value;
+     }
+ 
++    /** taints all of the Scalar values in the specified stack.  More fun that a barrel full of monkeys */
++    public static void taint(Stack values)
++    {
++       Iterator i = values.iterator();
++       while (i.hasNext())
++       {
++          taintAll((Scalar)i.next());
++       }
++    }
++
+     /** taints the specified scalar (bridge writers should call this on their scalars).  recurses on hashes and arrays.  returns the original container.  If tainting is disabled the original bridge is returned. not safe for circular data structures. */
+     public static Scalar taintAll(Scalar value)
+     {
+@@ -98,6 +111,11 @@
+              taintAll((Scalar)i.next());
+           }
+        }
++       else if (value.getActualValue().getType() == ObjectValue.class &amp;&amp; value.objectValue().getClass() == KeyValuePair.class)
++       {
++          KeyValuePair kvp = (KeyValuePair)value.objectValue();
++          value.setValue(SleepUtils.getScalar(new KeyValuePair(kvp.getKey(), TaintUtils.taintAll(kvp.getValue()))));
++       }
+        else if (value.getActualValue() != null)
+        {
+           value.setValue(new TaintedValue(value.getActualValue()));
+
+Deleted: sleep/tests/output/rehash.sl
+===================================================================
+--- sleep/tests/output/rehash.sl	2008-05-12 23:13:13 UTC (rev 360)
++++ sleep/tests/output/rehash.sl	2008-05-14 05:51:46 UTC (rev 361)
+@@ -1,5 +0,0 @@
+-%(a =&gt; 'apple', c =&gt; 'cat', d =&gt; 'dog', b =&gt; 'blah')
+-%(a =&gt; 'apple', c =&gt; 'cat', d =&gt; 'dog', b =&gt; 'blah')
+-%(a =&gt; 'apple', d =&gt; 'dog', b =&gt; 'blah', c =&gt; 'car')
+-Didn't find: ee
+-33
+
+Deleted: sleep/tests/rehash.sl
+===================================================================
+--- sleep/tests/rehash.sl	2008-05-12 23:13:13 UTC (rev 360)
++++ sleep/tests/rehash.sl	2008-05-14 05:51:46 UTC (rev 361)
+@@ -1,14 +0,0 @@
+-debug(7);
+-
+-global('%hash');
+-
+-%hash = ohasha(a =&gt; &quot;apple&quot;, b =&gt; &quot;bat&quot;, c =&gt; &quot;cat&quot;, d =&gt; &quot;dog&quot;);
+-setMissPolicy(%hash, { println(&quot;Didn't find: $2&quot;); return 33; });
+-%hash['b'] = 'blah';
+-println(%hash);
+-
+-rehash(%hash, 100, 0.2);
+-println(%hash);
+-%hash['c'] = 'car';
+-println(%hash);
+-println(%hash['ee']);
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2008-05-12 23:13:13 UTC (rev 360)
++++ sleep/whatsnew.txt	2008-05-14 05:51:46 UTC (rev 361)
+@@ -1,12 +1,12 @@
+ 2.1-beta 26
+ ===========
+-- added rehash(%hash, capacity, load factor) to request a hash
+-  to recreate itself with the specified parameters.  This
+-  functionality allows you to tune hashes for better performance
+-  when working with many keys.  &amp;rehash will not affect miss
+-  and removal policies of ordered hashes.
+ - removed extra key string conversion within ordered hashes.  
+   may offer a performance speedup in some cases.
++- changed default capacity of ordered hashes to 11 (previous
++  value was 16 which is bad for random distribution of values)
++- TaintUtils.taintAll now handles KeyValuePair objects
++- added TaintUtils.taint(Stack) as another shortcut for bridge
++  writers / integrators.
+ 
+ 2.1-beta 25  (8 May 08) [will this beta process ever end?]
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000336.html">[Sleep-svn] r360 - in sleep: . src/sleep/bridges	src/sleep/engine/types src/sleep/runtime src/sleep/taint	tests tests/output
+</A></li>
+	<LI>Next message: <A HREF="000338.html">[Sleep-svn] r362 - in sleep: . src/sleep/bridges tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#337">[ date ]</a>
+              <a href="thread.html#337">[ thread ]</a>
+              <a href="subject.html#337">[ subject ]</a>
+              <a href="author.html#337">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

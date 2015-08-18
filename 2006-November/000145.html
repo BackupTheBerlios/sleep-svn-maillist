@@ -1,0 +1,116 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r163 - in sleep: . src/sleep/bridges tests
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2006-November/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r163%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20tests&In-Reply-To=%3C200611060034.kA60YIcc010994%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000144.html">
+   <LINK REL="Next"  HREF="000146.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r163 - in sleep: . src/sleep/bridges tests</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r163%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20tests&In-Reply-To=%3C200611060034.kA60YIcc010994%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r163 - in sleep: . src/sleep/bridges tests">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Mon Nov  6 01:34:18 CET 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000144.html">[Sleep-svn] r162 - in sleep: . src/sleep/console
+</A></li>
+        <LI>Next message: <A HREF="000146.html">[Sleep-svn] r164 - in sleep: . src/sleep/engine tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#145">[ date ]</a>
+              <a href="thread.html#145">[ thread ]</a>
+              <a href="subject.html#145">[ subject ]</a>
+              <a href="author.html#145">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2006-11-06 01:34:18 +0100 (Mon, 06 Nov 2006)
+New Revision: 163
+
+Modified:
+   sleep/src/sleep/bridges/BasicUtilities.java
+   sleep/tests/fpfuncs.sl
+   sleep/whatsnew.txt
+Log:
+fixed &amp;add to behave as documented, this is going to break some backwards compatability.
+
+
+
+Modified: sleep/src/sleep/bridges/BasicUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicUtilities.java	2006-11-06 00:28:06 UTC (rev 162)
++++ sleep/src/sleep/bridges/BasicUtilities.java	2006-11-06 00:34:18 UTC (rev 163)
+@@ -822,7 +822,7 @@
+        else if (n.equals(&quot;&amp;add&quot;) &amp;&amp; value.getArray() != null)
+        {
+           Scalar item = BridgeUtilities.getScalar(l);
+-          int index = BridgeUtilities.getInt(l, value.getArray().size());  
++          int index = BridgeUtilities.getInt(l, 0);  
+           return value.getArray().add(SleepUtils.getScalar(item), index);
+        }
+        else if (n.equals(&quot;&amp;pop&quot;))
+
+Modified: sleep/tests/fpfuncs.sl
+===================================================================
+--- sleep/tests/fpfuncs.sl	2006-11-06 00:28:06 UTC (rev 162)
++++ sleep/tests/fpfuncs.sl	2006-11-06 00:34:18 UTC (rev 163)
+@@ -33,7 +33,7 @@
+ println(&quot;Check: $val&quot;);
+ 
+ println(&quot;Test 5&quot;);
+-add(@array, &quot;test&quot;);
++push(@array, &quot;test&quot;);
+ add(@array, &quot;test 2&quot;, 3);
+ printAll(@array);
+ 
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-11-06 00:28:06 UTC (rev 162)
++++ sleep/whatsnew.txt	2006-11-06 00:34:18 UTC (rev 163)
+@@ -23,6 +23,8 @@
+   had a syntax error.
+ - added a -c/--check option to the sleep interpreter to specify the script
+   should be parsed and checked for syntax errors but not run.
++- &amp;add now behaves as documented, if no index is specified then the value
++  is added to the beginning of the array (and not the end as in push).
+ 
+ 2.1-beta 8  (29 Oct 06)
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000144.html">[Sleep-svn] r162 - in sleep: . src/sleep/console
+</A></li>
+	<LI>Next message: <A HREF="000146.html">[Sleep-svn] r164 - in sleep: . src/sleep/engine tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#145">[ date ]</a>
+              <a href="thread.html#145">[ thread ]</a>
+              <a href="subject.html#145">[ subject ]</a>
+              <a href="author.html#145">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

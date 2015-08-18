@@ -1,0 +1,369 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r341 - in sleep: . src/sleep/console	src/sleep/engine/types tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2008-April/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r341%20-%20in%20sleep%3A%20.%20src/sleep/console%0A%09src/sleep/engine/types%20tests%20tests/output&In-Reply-To=%3C200804182219.m3IMJPvp031470%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000318.html">
+   <LINK REL="Next"  HREF="000320.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r341 - in sleep: . src/sleep/console	src/sleep/engine/types tests tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r341%20-%20in%20sleep%3A%20.%20src/sleep/console%0A%09src/sleep/engine/types%20tests%20tests/output&In-Reply-To=%3C200804182219.m3IMJPvp031470%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r341 - in sleep: . src/sleep/console	src/sleep/engine/types tests tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Sat Apr 19 00:19:25 CEST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000318.html">[Sleep-svn] r340 - in sleep: . src/sleep/bridges src/sleep/console	src/sleep/interfaces tests tests/data	tests/data/src/org/hick/tests tests/output
+</A></li>
+        <LI>Next message: <A HREF="000320.html">[Sleep-svn] r342 - in sleep: . src/sleep/parser
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#319">[ date ]</a>
+              <a href="thread.html#319">[ thread ]</a>
+              <a href="subject.html#319">[ subject ]</a>
+              <a href="author.html#319">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2008-04-19 00:19:24 +0200 (Sat, 19 Apr 2008)
+New Revision: 341
+
+Added:
+   sleep/tests/memoize.sl
+   sleep/tests/output/memoize.sl
+Modified:
+   sleep/src/sleep/console/TextConsole.java
+   sleep/src/sleep/engine/types/OrderedHashContainer.java
+   sleep/tests/output/cast.sl
+   sleep/tests/output/trace.sl
+   sleep/whatsnew.txt
+Log:
+more crap. :)
+
+
+Modified: sleep/src/sleep/console/TextConsole.java
+===================================================================
+--- sleep/src/sleep/console/TextConsole.java	2008-04-18 18:13:15 UTC (rev 340)
++++ sleep/src/sleep/console/TextConsole.java	2008-04-18 22:19:24 UTC (rev 341)
+@@ -24,54 +24,70 @@
+          boolean ast   = false;
+          boolean eval  = false;
+          boolean expr  = false;
++         boolean prof  = false;
++         boolean time  = false;
+          int     start = 0;
+ 
+-         if (args[0].equals(&quot;-version&quot;) || args[0].equals(&quot;--version&quot;) || args[0].equals(&quot;-v&quot;))
++         while (start &lt; args.length &amp;&amp; (args[start].startsWith(&quot;--&quot;) || (args[start].length() &gt;= 2 &amp;&amp; args[start].charAt(0) == '-')))
+          {
+-             System.out.println(SleepUtils.SLEEP_VERSION + &quot; (&quot; + SleepUtils.SLEEP_RELEASE + &quot;)&quot;);
+-             return;
+-         } 
+-         else if (args[0].equals(&quot;-help&quot;) || args[0].equals(&quot;--help&quot;) || args[0].equals(&quot;-h&quot;))
+-         {
+-             System.out.println(SleepUtils.SLEEP_VERSION + &quot; (&quot; + SleepUtils.SLEEP_RELEASE + &quot;)&quot;);
+-             System.out.println(&quot;Usage: java [properties] -jar sleep.jar [options] [-|file|expression]&quot;);
+-             System.out.println(&quot;       properties:&quot;);
+-             System.out.println(&quot;         -Dsleep.assert=&lt;true|false&gt;&quot;);
+-             System.out.println(&quot;         -Dsleep.classpath=&lt;path to locate 3rd party jars from&gt;&quot;);
+-             System.out.println(&quot;         -Dsleep.debug=&lt;debug level&gt;&quot;);
+-             System.out.println(&quot;       options:&quot;);
+-             System.out.println(&quot;         -a --ast       display the abstract syntax tree of the specified script&quot;);
+-             System.out.println(&quot;         -c --check     check the syntax of the specified file&quot;);
+-             System.out.println(&quot;         -e --eval      evaluate a script as specified on command line&quot;);
+-             System.out.println(&quot;         -h --help      display this help message&quot;);
+-             System.out.println(&quot;         -v --version   display version information&quot;);
+-             System.out.println(&quot;         -x --expr      evaluate an expression as specified on the command line&quot;);
+-             System.out.println(&quot;       file:&quot;);
+-             System.out.println(&quot;         specify a '-' to read script from STDIN&quot;);
+-             return;
+-         }
+-         else if (args[0].equals(&quot;--check&quot;) || args[0].equals(&quot;-c&quot;))
+-         {
+-             start = 1;
+-             check = true;
+-         }
+-         else if (args[0].equals(&quot;--ast&quot;) || args[0].equals(&quot;-a&quot;))
+-         {
+-             start = 1;
+-             ast   = true;
+-         }
++            if (args[start].equals(&quot;-version&quot;) || args[start].equals(&quot;--version&quot;) || args[start].equals(&quot;-v&quot;))
++            {
++                System.out.println(SleepUtils.SLEEP_VERSION + &quot; (&quot; + SleepUtils.SLEEP_RELEASE + &quot;)&quot;);
++                return;
++            } 
++            else if (args[start].equals(&quot;-help&quot;) || args[start].equals(&quot;--help&quot;) || args[start].equals(&quot;-h&quot;))
++            {
++                System.out.println(SleepUtils.SLEEP_VERSION + &quot; (&quot; + SleepUtils.SLEEP_RELEASE + &quot;)&quot;);
++                System.out.println(&quot;Usage: java [properties] -jar sleep.jar [options] [-|file|expression]&quot;);
++                System.out.println(&quot;       properties:&quot;);
++                System.out.println(&quot;         -Dsleep.assert=&lt;true|false&gt;&quot;);
++                System.out.println(&quot;         -Dsleep.classpath=&lt;path to locate 3rd party jars from&gt;&quot;);
++                System.out.println(&quot;         -Dsleep.debug=&lt;debug level&gt;&quot;);
++                System.out.println(&quot;       options:&quot;);
++                System.out.println(&quot;         -a --ast       display the abstract syntax tree of the specified script&quot;);
++                System.out.println(&quot;         -c --check     check the syntax of the specified file&quot;);
++                System.out.println(&quot;         -e --eval      evaluate a script as specified on command line&quot;);
++                System.out.println(&quot;         -h --help      display this help message&quot;);
++                System.out.println(&quot;         -p --profile   collect and display runtime profile statistics&quot;);
++                System.out.println(&quot;         -t --time      display total script runtime&quot;);
++                System.out.println(&quot;         -v --version   display version information&quot;);
++                System.out.println(&quot;         -x --expr      evaluate an expression as specified on the command line&quot;);
++                System.out.println(&quot;       file:&quot;);
++                System.out.println(&quot;         specify a '-' to read script from STDIN&quot;);
++                return;
++             }
++             else if (args[start].equals(&quot;--check&quot;) || args[start].equals(&quot;-c&quot;))
++             {
++                check = true;
++             }
++             else if (args[start].equals(&quot;--ast&quot;) || args[start].equals(&quot;-a&quot;))
++             {
++                ast   = true;
++             }
++             else if (args[start].equals(&quot;--profile&quot;) || args[start].equals(&quot;-p&quot;))
++             {
++                prof  = true;
++             }
++             else if (args[start].equals(&quot;--time&quot;) || args[start].equals(&quot;-t&quot;))
++             {
++                time  = true;
++             }
++             else if (args[start].equals(&quot;--eval&quot;) || args[start].equals(&quot;-e&quot;))
++             {
++                eval  = true;
++             }
++             else if (args[start].equals(&quot;--expr&quot;) || args[start].equals(&quot;-x&quot;))
++             {
++                expr  = true;
++             }
++             else
++             {
++                System.err.println(&quot;Unknown argument: &quot; + args[start]);
++                return;
++             }
+ 
+-         if (args[start].equals(&quot;--eval&quot;) || args[start].equals(&quot;-e&quot;))
+-         {
+              start++;
+-             eval  = true;
+          }
+-         else if (args[start].equals(&quot;--expr&quot;) || args[start].equals(&quot;-x&quot;))
+-         {
+-             start++;
+-             expr  = true;
+-         }
+-         
+          //
+          // put all of our command line arguments into an array scalar
+          //
+@@ -110,6 +126,11 @@
+             {
+                script.setDebugFlags(Integer.parseInt(System.getProperty(&quot;sleep.debug&quot;)));
+             }
++          
++            if (prof)
++            {
++               script.setDebugFlags(script.getDebugFlags() | 24);
++            }
+ 
+             if (check)
+             {
+@@ -121,7 +142,20 @@
+             } 
+             else
+             {
++               long beganAt = System.currentTimeMillis();
++
+                script.runScript();                                     // run the script...
++
++               if (prof)
++               {
++                  script.printProfileStatistics(System.out);
++               }
++
++               if (time)
++               {
++                   long difference = System.currentTimeMillis() - beganAt;
++                   System.out.println(&quot;time: &quot; + (difference / 1000.0) + &quot;s&quot;);
++               }
+             }
+          }
+          catch (YourCodeSucksException yex)
+
+Modified: sleep/src/sleep/engine/types/OrderedHashContainer.java
+===================================================================
+--- sleep/src/sleep/engine/types/OrderedHashContainer.java	2008-04-18 18:13:15 UTC (rev 340)
++++ sleep/src/sleep/engine/types/OrderedHashContainer.java	2008-04-18 22:19:24 UTC (rev 341)
+@@ -113,7 +113,7 @@
+          cleanup();
+ 
+          Stack locals = new Stack();
+-         locals.push(SleepUtils.getScalar(key.toString()));
++         locals.push(key);
+          locals.push(SleepUtils.getHashScalar(this));
+ 
+          value = missPolicy.callClosure(&quot;miss&quot;, null, locals);
+
+Added: sleep/tests/memoize.sl
+===================================================================
+--- sleep/tests/memoize.sl	2008-04-18 18:13:15 UTC (rev 340)
++++ sleep/tests/memoize.sl	2008-04-18 22:19:24 UTC (rev 341)
+@@ -0,0 +1,36 @@
++# create a memoize'd version of the specified function:
++sub memoize
++{
++   local('%cache');   
++
++   %cache = ohash();
++
++   setMissPolicy(%cache,
++      lambda({
++                println(&quot;Cacheing: $2&quot;);
++                return invoke($function, $2);
++             }, $function =&gt; function($1)));
++
++   setf($1, lambda({ return %cache[@_]; }, \%cache));
++}
++
++sub fib
++{
++   if ($1 == 0)
++   {
++      return 0L;
++   }
++   else if ($1 == 1)
++   {
++      return 1L;
++   }
++   else
++   {
++      return fib($1 - 1) + fib($1 - 2);
++   }
++}
++
++# implement memomizing rewTINEZ
++memoize('&amp;fib');
++
++println(&quot;(Memoized) Fib no. &quot; . fib(25L));
+
+Modified: sleep/tests/output/cast.sl
+===================================================================
+--- sleep/tests/output/cast.sl	2008-04-18 18:13:15 UTC (rev 340)
++++ sleep/tests/output/cast.sl	2008-04-18 22:19:24 UTC (rev 341)
+@@ -1,2 +1,2 @@
+-[Ljava.lang.CharSequence;@124746 class [Ljava.lang.CharSequence;
++[Ljava.lang.CharSequence;@6dc861 class [Ljava.lang.CharSequence;
+ [Ljava.util.List;@8b8914 class [Ljava.util.List;
+
+Added: sleep/tests/output/memoize.sl
+===================================================================
+--- sleep/tests/output/memoize.sl	2008-04-18 18:13:15 UTC (rev 340)
++++ sleep/tests/output/memoize.sl	2008-04-18 22:19:24 UTC (rev 341)
+@@ -0,0 +1,27 @@
++Cacheing: @(25L)
++Cacheing: @(23L)
++Cacheing: @(21L)
++Cacheing: @(19L)
++Cacheing: @(17L)
++Cacheing: @(15L)
++Cacheing: @(13L)
++Cacheing: @(11L)
++Cacheing: @(9L)
++Cacheing: @(7L)
++Cacheing: @(5L)
++Cacheing: @(3L)
++Cacheing: @(1L)
++Cacheing: @(2L)
++Cacheing: @(0L)
++Cacheing: @(4L)
++Cacheing: @(6L)
++Cacheing: @(8L)
++Cacheing: @(10L)
++Cacheing: @(12L)
++Cacheing: @(14L)
++Cacheing: @(16L)
++Cacheing: @(18L)
++Cacheing: @(20L)
++Cacheing: @(22L)
++Cacheing: @(24L)
++(Memoized) Fib no. 75025
+
+Modified: sleep/tests/output/trace.sl
+===================================================================
+--- sleep/tests/output/trace.sl	2008-04-18 18:13:15 UTC (rev 340)
++++ sleep/tests/output/trace.sl	2008-04-18 22:19:24 UTC (rev 341)
+@@ -1,13 +1,13 @@
+ this is a test
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 716cb7</A> println: 'this is a test'] at trace.sl:6
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 648016</A> println: 'this is a test'] at trace.sl:6
+ Trace: [java.lang.Math pow: 3, 4] = 81.0 at trace.sl:7
+ 81.0
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 716cb7</A> println: 81.0] at trace.sl:7
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 648016</A> println: 81.0] at trace.sl:7
+ Trace: [java.lang.Math pow: 3, 5] = 243.0 at trace.sl:8
+ 243.0
+ Trace: &amp;println(243.0) at trace.sl:8
+ testing again...
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 716cb7</A> println: 'testing again...'] at trace.sl:10
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 648016</A> println: 'testing again...'] at trace.sl:10
+ Trace: [sleep.runtime.SleepUtils getListFromArray: @('a', 'b', 'c')] = [a, b, c] at trace.sl:12
+ Trace: [new java.util.LinkedList: [a, b, c]] = [a, b, c] at trace.sl:12
+ Warning: variable '$list' not declared at trace.sl:12
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2008-04-18 18:13:15 UTC (rev 340)
++++ sleep/whatsnew.txt	2008-04-18 22:19:24 UTC (rev 341)
+@@ -5,6 +5,14 @@
+ - API CHANGE: Loadable interface methods now have a return 
+   type of void instead of boolean.  This is an API wart I
+   couldn't live with any longer.  
++- added command line option -p/--profile to collect and print
++  profiler statistics for the specified script.  
++- added command line option -t/--time to print out the total
++  running time of the specified script
++- ordered hash miss policy now receives the passed in key
++  as-is prior to the string conversion.
++- Sleep now parses command line arguments in a more flexible
++  manner allowing different orders/combinations of switches.
+ 
+ 2.1-beta 22  (17 Apr 08)
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000318.html">[Sleep-svn] r340 - in sleep: . src/sleep/bridges src/sleep/console	src/sleep/interfaces tests tests/data	tests/data/src/org/hick/tests tests/output
+</A></li>
+	<LI>Next message: <A HREF="000320.html">[Sleep-svn] r342 - in sleep: . src/sleep/parser
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#319">[ date ]</a>
+              <a href="thread.html#319">[ thread ]</a>
+              <a href="subject.html#319">[ subject ]</a>
+              <a href="author.html#319">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

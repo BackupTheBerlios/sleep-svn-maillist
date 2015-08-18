@@ -1,0 +1,221 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r419 - in sleep: . src/sleep/parser
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2008-August/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r419%20-%20in%20sleep%3A%20.%20src/sleep/parser&In-Reply-To=%3C200808010509.m7159LWQ022338%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   
+   <LINK REL="Next"  HREF="000396.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r419 - in sleep: . src/sleep/parser</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r419%20-%20in%20sleep%3A%20.%20src/sleep/parser&In-Reply-To=%3C200808010509.m7159LWQ022338%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r419 - in sleep: . src/sleep/parser">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Fri Aug  1 07:09:21 CEST 2008</I>
+    <P><UL>
+        
+        <LI>Next message: <A HREF="000396.html">[Sleep-svn] r420 - in sleep: . src/sleep/bridges
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#395">[ date ]</a>
+              <a href="thread.html#395">[ thread ]</a>
+              <a href="subject.html#395">[ subject ]</a>
+              <a href="author.html#395">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2008-08-01 07:09:18 +0200 (Fri, 01 Aug 2008)
+New Revision: 419
+
+Modified:
+   sleep/src/sleep/parser/ImportManager.java
+   sleep/whatsnew.txt
+Log:
+classpath hack for import from
+
+
+
+Modified: sleep/src/sleep/parser/ImportManager.java
+===================================================================
+--- sleep/src/sleep/parser/ImportManager.java	2008-07-01 23:43:03 UTC (rev 418)
++++ sleep/src/sleep/parser/ImportManager.java	2008-08-01 05:09:18 UTC (rev 419)
+@@ -11,9 +11,8 @@
+     information. */
+ public class ImportManager
+ {
+-   protected Map        imports   = new LinkedHashMap();
++   protected List       imports   = new LinkedList();
+    protected HashMap    classes   = new HashMap();
+-   protected HashMap    jars      = new HashMap(); /* resolved jar files, key=jar name value=ClassLoader */  
+ 
+    /** Used by Sleep to import statement to save an imported package name. */
+    public void importPackage(String packagez, String from)
+@@ -40,27 +39,19 @@
+ 
+           if (returnValue == null || !returnValue.exists()) { throw new RuntimeException(&quot;jar file to import package from was not found!&quot;); }
+ 
+-          try
+-          {
+-             if (!jars.containsKey(from))
+-             {
+-                URLClassLoader loader = new URLClassLoader(new URL[] { returnValue.toURL() }, Thread.currentThread().getContextClassLoader());
+-                jars.put(from, loader);
+-             }
+-          }
+-          catch (Exception ex) { ex.printStackTrace(); }
++          addFile(returnValue);
+        }
+ 
+        /* handle importing our package */
+ 
+        if (clas.equals(&quot;*&quot;))
+        {
+-          imports.put(pack, from);
++          imports.add(pack);
+        }
+        else if (pack == null)
+        {
+-          imports.put(packagez, from);
+-          Class found = resolveClass(null, packagez, (String)imports.get(packagez)); /* try with no package to see if we have an anonymous class */
++          imports.add(packagez);
++          Class found = resolveClass(null, packagez); /* try with no package to see if we have an anonymous class */
+           classes.put(packagez, found);
+ 
+           if (found == null)
+@@ -68,7 +59,7 @@
+        }
+        else
+        {
+-          imports.put(packagez, from);
++          imports.add(packagez);
+          
+           Class found = findImportedClass(packagez);
+           classes.put(clas, found);
+@@ -79,7 +70,7 @@
+    }
+ 
+    /** This method is used by Sleep to resolve a specific class (or at least try) */
+-   private Class resolveClass(String pack, String clas, String jar)
++   private Class resolveClass(String pack, String clas)
+    {
+        StringBuffer name = new StringBuffer();
+        if (pack != null) { name.append(pack); name.append(&quot;.&quot;); }
+@@ -87,21 +78,34 @@
+ 
+        try
+        {
+-          if (jar != null)
+-          {
+-             ClassLoader cl = (ClassLoader)jars.get(jar);
+-             return Class.forName(name.toString(), true, cl);
+-          }
+-          else
+-          {
+-             return Class.forName(name.toString());
+-          }
++          return Class.forName(name.toString());
+        }
+        catch (Exception ex) { }
+ 
+        return null;
+    }
+ 
++   /** A hack to add a jar to the system classpath courtesy of Ralph Becker. */
++   private void addFile(File f)
++   {
++        try
++        {
++            URL url = f.toURL();
++
++            URLClassLoader sysloader = (URLClassLoader) ClassLoader.getSystemClassLoader();
++            Class sysclass = java.net.URLClassLoader.class;
++
++            Method method = sysclass.getDeclaredMethod( &quot;addURL&quot;, new Class[] { URL.class } );
++            method.setAccessible( true );
++            method.invoke( sysloader, new Object[] { url } );
++        }    
++        catch(Throwable t)
++        {    
++            t.printStackTrace();
++            throw new RuntimeException(&quot;Error, could not add &quot;+f+&quot; to system classloader - &quot; + t.getMessage());
++        }
++   }
++
+    /** Attempts to find a class, starts out with the passed in string itself, if that doesn't resolve then the string is 
+        appended to each imported package to see where the class might exist */
+    public Class findImportedClass(String name)
+@@ -116,17 +120,16 @@
+              clas = name.substring(name.lastIndexOf(&quot;.&quot;) + 1, name.length());
+              pack = name.substring(0, name.lastIndexOf(&quot;.&quot;));
+ 
+-	     rv   = resolveClass(pack, clas, (String)imports.get(name));
++	     rv   = resolveClass(pack, clas);
+           }
+           else
+           {
+-             rv = resolveClass(null, name, (String)imports.get(name)); /* try with no package to see if we have an anonymous class */
++             rv = resolveClass(null, name); /* try with no package to see if we have an anonymous class */
+ 
+-             Iterator i = imports.entrySet().iterator();
++             Iterator i = imports.iterator();
+              while (i.hasNext() &amp;&amp; rv == null)
+              {
+-                Map.Entry en = (Map.Entry)i.next();
+-                rv = resolveClass((String)en.getKey(), name, (String)en.getValue());
++                rv = resolveClass((String)i.next(), name);
+              }
+           }
+ 
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2008-07-01 23:43:03 UTC (rev 418)
++++ sleep/whatsnew.txt	2008-08-01 05:09:18 UTC (rev 419)
+@@ -1,3 +1,12 @@
++2.1-release  (???)
++===========
++- modified import from to add jar file to system classpath.  This
++  uses a reflection hack but it now means you can add multiple jars
++  and they can find resources from eachother, all at runtime.
++
++  This hack came from Ralph Becker's Classpath extension for Sleep.  
++- 
++
+ 2.1-release  (1 Jul 08)
+ ===========
+ - splice() no longer corrupts sublists.
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	
+	<LI>Next message: <A HREF="000396.html">[Sleep-svn] r420 - in sleep: . src/sleep/bridges
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#395">[ date ]</a>
+              <a href="thread.html#395">[ thread ]</a>
+              <a href="subject.html#395">[ subject ]</a>
+              <a href="author.html#395">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,116 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r400 - in sleep: . src/sleep/bridges
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2008-May/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r400%20-%20in%20sleep%3A%20.%20src/sleep/bridges&In-Reply-To=%3C200805301854.m4UIs4GK022084%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000375.html">
+   <LINK REL="Next"  HREF="000377.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r400 - in sleep: . src/sleep/bridges</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r400%20-%20in%20sleep%3A%20.%20src/sleep/bridges&In-Reply-To=%3C200805301854.m4UIs4GK022084%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r400 - in sleep: . src/sleep/bridges">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Fri May 30 20:54:04 CEST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000375.html">[Sleep-svn] r399 - in sleep: . src/sleep/bridges tests tests/output
+</A></li>
+        <LI>Next message: <A HREF="000377.html">[Sleep-svn] r401 - in sleep/jsr223: . src/org/dashnine/sleep
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#376">[ date ]</a>
+              <a href="thread.html#376">[ thread ]</a>
+              <a href="subject.html#376">[ subject ]</a>
+              <a href="author.html#376">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2008-05-30 20:54:03 +0200 (Fri, 30 May 2008)
+New Revision: 400
+
+Modified:
+   sleep/runtests.sl
+   sleep/src/sleep/bridges/BasicIO.java
+   sleep/whatsnew.txt
+Log:
+..
+
+
+Modified: sleep/runtests.sl
+===================================================================
+--- sleep/runtests.sl	2008-05-30 18:37:32 UTC (rev 399)
++++ sleep/runtests.sl	2008-05-30 18:54:03 UTC (rev 400)
+@@ -97,6 +97,7 @@
+    $1 = replace($1, '/Users/raffi/sleepdev/sleep', '==CWD==');
+    $1 = replace($1, getFileParent(cwd()), '==CWD==');
+    $1 = replace($1, '([\.\[][a-zA-Z_0-9;]+@)[0-9a-f]{4,6}', '$1######');
++   $1 = replace($1, '(asc@)[0-9a-f]{4,6}', '$1######');
+    $1 = replace($1, '\$Proxy\d+?', '\$Proxy#');
+    return $1;
+ }
+
+Modified: sleep/src/sleep/bridges/BasicIO.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicIO.java	2008-05-30 18:37:32 UTC (rev 399)
++++ sleep/src/sleep/bridges/BasicIO.java	2008-05-30 18:54:03 UTC (rev 400)
+@@ -142,8 +142,9 @@
+           try
+           { 
+              Process proc  = Runtime.getRuntime().exec(BridgeUtilities.getString(l, &quot;&quot;), null, i.cwd());
+-             BufferedReader reader    = new BufferedReader(new InputStreamReader(proc.getInputStream()));
+ 
++             IOObject reader = SleepUtils.getIOHandle(proc.getInputStream(), null);
++
+              String text = null;
+              while ((text = reader.readLine()) != null)
+              {
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2008-05-30 18:37:32 UTC (rev 399)
++++ sleep/whatsnew.txt	2008-05-30 18:54:03 UTC (rev 400)
+@@ -37,6 +37,8 @@
+   value on the stack is not an iterator.
+ - BridgeUtilities.getFunction() throws an exception if the  
+   value on the stack is not a closure.
++- Backtick expressions now use an IOObject to read in process
++  output. 
+ 
+ 2.1-beta 26  (15 May 08)
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000375.html">[Sleep-svn] r399 - in sleep: . src/sleep/bridges tests tests/output
+</A></li>
+	<LI>Next message: <A HREF="000377.html">[Sleep-svn] r401 - in sleep/jsr223: . src/org/dashnine/sleep
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#376">[ date ]</a>
+              <a href="thread.html#376">[ thread ]</a>
+              <a href="subject.html#376">[ subject ]</a>
+              <a href="author.html#376">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

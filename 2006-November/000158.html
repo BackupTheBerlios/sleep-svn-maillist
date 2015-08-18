@@ -1,0 +1,294 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r176 - in sleep: src/sleep/bridges/io tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2006-November/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r176%20-%20in%20sleep%3A%20src/sleep/bridges/io%20tests/output&In-Reply-To=%3C200611182103.kAIL3aMX023799%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000157.html">
+   <LINK REL="Next"  HREF="000159.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r176 - in sleep: src/sleep/bridges/io tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r176%20-%20in%20sleep%3A%20src/sleep/bridges/io%20tests/output&In-Reply-To=%3C200611182103.kAIL3aMX023799%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r176 - in sleep: src/sleep/bridges/io tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Sat Nov 18 22:03:36 CET 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000157.html">[Sleep-svn] r175 - sleep
+</A></li>
+        <LI>Next message: <A HREF="000159.html">[Sleep-svn] r177 - in sleep: . src/sleep/bridges	src/sleep/bridges/io
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#158">[ date ]</a>
+              <a href="thread.html#158">[ thread ]</a>
+              <a href="subject.html#158">[ subject ]</a>
+              <a href="author.html#158">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2006-11-18 22:03:36 +0100 (Sat, 18 Nov 2006)
+New Revision: 176
+
+Modified:
+   sleep/src/sleep/bridges/io/IOObject.java
+   sleep/tests/output/forker.sl
+Log:
+fixed println, readln, and friends to use default platform unicode encoding... more on these
+changes soon...
+
+
+
+Modified: sleep/src/sleep/bridges/io/IOObject.java
+===================================================================
+--- sleep/src/sleep/bridges/io/IOObject.java	2006-11-18 16:15:16 UTC (rev 175)
++++ sleep/src/sleep/bridges/io/IOObject.java	2006-11-18 21:03:36 UTC (rev 176)
+@@ -13,26 +13,30 @@
+  *
+  *  &lt;p&gt;The pipeline for reading data looks like this:&lt;/p&gt;
+  *
+- *  &lt;pre&gt;DataInputStream &lt;- BufferedInputStream &lt;- Original Input Stream&lt;/pre&gt;
++ *  &lt;pre&gt;... &lt;- DataInputStream &lt;- BufferedInputStream &lt;- Original Input Stream&lt;/pre&gt;
+  *
+  *  &lt;p&gt;The pipeline for writing data is:&lt;/p&gt;
+  *
+- *  &lt;pre&gt;DataOutputStream -&gt; Original Output Stream&lt;/pre&gt;
++ *  &lt;pre&gt;... -&gt; DataOutputStream -&gt; Original Output Stream&lt;/pre&gt;
+  */
+ 
+ public class IOObject
+ {
+    /* input pipeline */ 
+ 
++   protected InputStreamReader   readeru = null; /* a buffered reader, pHEAR */
+    protected DataInputStream     readerb = null; /* used to support the binary read/write stuffz */
+    protected BufferedInputStream reader  = null; /* used to support mark and reset functionality y0 */
+    protected InputStream         in      = null; /* the original stream, love it, hold it... yeah right */
+ 
+    /* output pipeline */
+ 
+-   protected DataOutputStream writerb = null; /* high level method for writing stuff out, fun fun fun */
+-   protected OutputStream     out     = null; /* original output stream */
++   protected OutputStreamWriter  writeru = null;
++   protected DataOutputStream    writerb = null; /* high level method for writing stuff out, fun fun fun */
++   protected OutputStream        out     = null; /* original output stream */
+ 
++   /* other fun stuff &lt;3 */  
++
+    protected Thread           thread  = null;
+    protected Scalar           token   = null;
+ 
+@@ -54,6 +58,31 @@
+       return null;
+    }
+ 
++   /** set the charset to be used for all unicode aware reads/writes from/to this stream */
++   public void setEncoding(String name) throws UnsupportedEncodingException
++   {
++      if (name == null)
++      {
++         if (writerb != null)
++         {
++            writeru = new OutputStreamWriter(writerb, name);
++         }
++      }
++      else
++      {
++         if (writerb != null)
++         {
++            writeru = new OutputStreamWriter(writerb, name);
++         }
++
++         if (readerb != null)
++         {
++            readeru = new InputStreamReader(readerb, name);
++         }
++      }
++   }
++
++
+    /** set the thread used for this IOObject (currently used to allow a script to wait() on the threads completion) */
+    public void setThread(Thread t)
+    {
+@@ -142,6 +171,7 @@
+       {
+          reader  = new BufferedInputStream(in);
+          readerb = new DataInputStream(reader);
++         readeru = new InputStreamReader(readerb);
+       }
+    }
+ 
+@@ -153,6 +183,7 @@
+       if (out != null)
+       {
+          writerb = new DataOutputStream(out);
++         writeru = new OutputStreamWriter(writerb);
+       }
+    }
+ 
+@@ -168,6 +199,12 @@
+                                   the lock from this thread... in that case we move on with our lives */
+       try
+       {
++         if (readeru != null)
++           readeru.close();
++
++         if (writeru != null)
++           writeru.close();
++
+          if (reader != null)
+            reader.close();
+ 
+@@ -190,21 +227,69 @@
+       }
+       finally
+       {
+-         in     = null;
+-         out    = null;
+-         reader = null;
++         in      = null;
++         out     = null;
++         reader  = null;
+          readerb = null;
+          writerb = null;
++         readeru = null;
++         writeru = null;
+       }
+    }
+ 
++   private boolean stripTheLineSeparator = false;
++
+    /** Reads in a line of text */
+    public String readLine()
+    {
+       try
+       {
+-         if (readerb != null)
++         if (readeru != null)
+          {
++            StringBuffer rv = new StringBuffer(8192);
++            
++            int temp = readeru.read();
++         
++            /* remember a line can terminate with any of the following: \r, \n, or \r\n */
++            if (stripTheLineSeparator &amp;&amp; temp == '\n') 
++            {
++               temp = readeru.read();
++            }
++   
++            stripTheLineSeparator = false;
++
++            while (temp != -1)
++            {
++               if (temp == '\n')
++               {
++                  return rv.toString();
++               }
++               else if (temp == '\r')
++               {
++                  stripTheLineSeparator = true;
++                  return rv.toString();
++               }
++               else
++               { 
++                  rv.append((char)temp);
++               }
++ 
++               temp = readeru.read();
++            }
++
++            close();
++
++            if (rv.length() &gt; 0)
++            {
++               return rv.toString();
++            }
++            else
++            {
++               return null;
++            }
++         }
++         else if (readerb != null)
++         {
+             String temp = readerb.readLine(); /* deprecated, I know, but it has the behavior I want */
+ 
+             if (temp == null)
+@@ -273,22 +358,27 @@
+    /** Prints out a line of text with no newline character appended */
+    public void print(String text)
+    {
+-      if (writerb != null)
++      try
+       {
+-         try
++         if (writeru != null)
+          {
++            writeru.write(text, 0, text.length());
++            writeru.flush();
++         }
++         else if (writerb != null)
++         {
+             for (int x = 0; x &lt; text.length(); x++)
+             {
+                writerb.writeByte((byte)text.charAt(x));
+             }
+ 
+-            writerb.flush(); /* we don't know if the underlying stream does this or not, so we'll force it */
++            writerb.flush(); 
+          }
+-         catch (Exception ex)
+-         {
+-            close();
+-         }
+       }
++      catch (Exception ex)
++      {
++         close();
++      }
+    }
+ }
+ 
+
+Modified: sleep/tests/output/forker.sl
+===================================================================
+--- sleep/tests/output/forker.sl	2006-11-18 16:15:16 UTC (rev 175)
++++ sleep/tests/output/forker.sl	2006-11-18 21:03:36 UTC (rev 176)
+@@ -1,3 +1,3 @@
+ Trace: &amp;check('within fork') at line 9
+-Trace: &amp;fork(&amp;closure2:9) = <A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">sleep.bridges.io.IOObject at ba0f36</A> at line 8
++Trace: &amp;fork(&amp;closure2:9) = <A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">sleep.bridges.io.IOObject at a19458</A> at line 8
+ Trace: &amp;check('outside of fork') at line 12
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000157.html">[Sleep-svn] r175 - sleep
+</A></li>
+	<LI>Next message: <A HREF="000159.html">[Sleep-svn] r177 - in sleep: . src/sleep/bridges	src/sleep/bridges/io
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#158">[ date ]</a>
+              <a href="thread.html#158">[ thread ]</a>
+              <a href="subject.html#158">[ subject ]</a>
+              <a href="author.html#158">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

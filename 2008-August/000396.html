@@ -1,0 +1,270 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r420 - in sleep: . src/sleep/bridges
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2008-August/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r420%20-%20in%20sleep%3A%20.%20src/sleep/bridges&In-Reply-To=%3C200808010517.m715HOX5025733%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000395.html">
+   <LINK REL="Next"  HREF="000397.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r420 - in sleep: . src/sleep/bridges</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r420%20-%20in%20sleep%3A%20.%20src/sleep/bridges&In-Reply-To=%3C200808010517.m715HOX5025733%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r420 - in sleep: . src/sleep/bridges">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Fri Aug  1 07:17:24 CEST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000395.html">[Sleep-svn] r419 - in sleep: . src/sleep/parser
+</A></li>
+        <LI>Next message: <A HREF="000397.html">[Sleep-svn] r421 - in sleep: . src/sleep/bridges tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#396">[ date ]</a>
+              <a href="thread.html#396">[ thread ]</a>
+              <a href="subject.html#396">[ subject ]</a>
+              <a href="author.html#396">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2008-08-01 07:17:22 +0200 (Fri, 01 Aug 2008)
+New Revision: 420
+
+Removed:
+   sleep/src/sleep/bridges/BasicSubroutine.java
+Modified:
+   sleep/src/sleep/bridges/DefaultEnvironment.java
+   sleep/whatsnew.txt
+Log:
+removed unload cleanup mechanism from sub keyword 
+
+
+
+Deleted: sleep/src/sleep/bridges/BasicSubroutine.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicSubroutine.java	2008-08-01 05:09:18 UTC (rev 419)
++++ sleep/src/sleep/bridges/BasicSubroutine.java	2008-08-01 05:17:22 UTC (rev 420)
+@@ -1,48 +0,0 @@
+-/*
+-   SLEEP - Simple Language for Environment Extension Purposes
+- .-----------------------.
+- | sleep.bridges.BasicIO |____________________________________________________
+- |                                                                            |
+-   Author: Raphael Mudge (<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">raffi at hick.org</A>)
+-           <A HREF="http://www.hick.org/~raffi/">http://www.hick.org/~raffi/</A>
+-
+-   Description:
+-       Implementation of the subroutine concept.
+-
+-   Documentation:
+-
+-   Changelog:
+-
+-   * This software is distributed under the artistic license, see license.txt
+-     for more information. *
+-
+- |____________________________________________________________________________|
+- */
+-
+-package sleep.bridges;
+- 
+-import java.util.*;
+-import java.io.*;
+-
+-import sleep.engine.*;
+-import sleep.interfaces.*;
+-import sleep.runtime.*;
+-
+-/** The actual implementation of each subroutine declared with the sub keyword.
+-    @see sleep.bridges.DefaultEnvironment     */
+-public class BasicSubroutine extends SleepClosure
+-{
+-    Stack          unload; // stack for other subroutines with the same name.
+-
+-    public BasicSubroutine(ScriptInstance si, Block _code, Stack _unload)
+-    {
+-       super(si, _code);
+-       unload = _unload;
+-    }
+-
+-    public Stack getUnloadStack()
+-    {
+-       return unload;
+-    }
+-}
+-
+
+Modified: sleep/src/sleep/bridges/DefaultEnvironment.java
+===================================================================
+--- sleep/src/sleep/bridges/DefaultEnvironment.java	2008-08-01 05:09:18 UTC (rev 419)
++++ sleep/src/sleep/bridges/DefaultEnvironment.java	2008-08-01 05:17:22 UTC (rev 420)
+@@ -9,112 +9,24 @@
+ 
+ public class DefaultEnvironment implements Loadable, Environment
+ {
+-    public HashMap   func; // table to store the actual block associated with the function.
+-
+     public void scriptUnloaded (ScriptInstance si)
+     {
+-        // My apoligies in advance.  It appears this code for unloading scripts is really ugly.
+-        // Indeed it is.  However it accomplishes my goals of reverting to a previously defined version of a
+-        // subroutine and purging out of memory code we don't want.
+-
+-        Hashtable env = si.getScriptEnvironment().getEnvironment();
+-
+-        String key;
+-
+-        Enumeration en = env.keys();
+-        while (en.hasMoreElements())
+-        {
+-           key = (String)en.nextElement();
+-           if (key.charAt(0) == '&amp;')
+-           {
+-              if (env.get(key) instanceof BasicSubroutine)
+-              {
+-                 //
+-                 // check if the sub routine inside of the environment is owned by this script
+-                 //
+-                 BasicSubroutine function = (BasicSubroutine)env.get(key);
+-                 if (!function.getOwner().isLoaded())
+-                 {
+-                     BasicSubroutine nextRoutine = getNextSafeSubroutine( function );
+-
+-                     if (nextRoutine == null)
+-                     { 
+-                         // no other functions waiting to take its place
+-                         env.remove(key);
+-                     }
+-                     else
+-                     {
+-                         // the unload stack keeps track of the last version of this subroutine loaded into memory
+-                         env.put(key, nextRoutine);
+-                     }
+-                 }
+-              }
+-           }
+-        }
+     }
+ 
+-    // It's a remote possibility that a script might have the following:
+-    // sub myfunc 
+-    // {
+-    //    if (someCondition)
+-    //    {
+-    //       sub myfunc
+-    //       {
+-    //          # replaces myfunc in the environment
+-    //       }
+-    //    }
+-    // }
+-    //
+-    // This code is kind of a work around for that condition.  Better safe than sorry, right?
+-    //
+-    protected BasicSubroutine getNextSafeSubroutine(BasicSubroutine function)
+-    {
+-        if (function.getOwner().isLoaded())
+-        {
+-           return function;
+-        }
+-
+-        if (!function.getUnloadStack().isEmpty())
+-        {
+-           BasicSubroutine temp = (BasicSubroutine)function.getUnloadStack().pop();
+-           return getNextSafeSubroutine(temp);
+-        }
+-
+-        return null;
+-    }
+-
+     public void scriptLoaded (ScriptInstance si)
+     {
+-        Hashtable env = si.getScriptEnvironment().getEnvironment(); // assuming the environment is shared. hah right
+-
+-        //
+-        // tell the environment that we want subroutine's to be bound here
+-        //
++        Hashtable env = si.getScriptEnvironment().getEnvironment(); 
+         env.put(&quot;sub&quot;,    this);
+         env.put(&quot;inline&quot;, this);
+     }
+ 
+     public void bindFunction(ScriptInstance si, String type, String name, Block code)
+     {
+-        Hashtable env = si.getScriptEnvironment().getEnvironment(); // assuming the environment is shared. hah right
++        Hashtable env = si.getScriptEnvironment().getEnvironment(); 
+ 
+         if (type.equals(&quot;sub&quot;))
+         {
+-           Stack unloadStack;
+-
+-           if (env.get(&quot;&amp;&quot;+name) != null &amp;&amp; env.get(&quot;&amp;&quot;+name) instanceof BasicSubroutine)
+-           {
+-               BasicSubroutine temp = (BasicSubroutine)env.get(&quot;&amp;&quot;+name);
+-               unloadStack = temp.getUnloadStack();
+-
+-               unloadStack.push(temp); // make this instance of BasicSubroutine available in case the main one gets unloaded
+-           }
+-           else
+-           {
+-               unloadStack = new Stack();
+-           }
+-
+-           env.put(&quot;&amp;&quot;+name, new BasicSubroutine(si, code, unloadStack));
++           env.put(&quot;&amp;&quot;+name, new SleepClosure(si, code));
+         }
+         else if (type.equals(&quot;inline&quot;))
+         {
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2008-08-01 05:09:18 UTC (rev 419)
++++ sleep/whatsnew.txt	2008-08-01 05:17:22 UTC (rev 420)
+@@ -5,7 +5,13 @@
+   and they can find resources from eachother, all at runtime.
+ 
+   This hack came from Ralph Becker's Classpath extension for Sleep.  
+-- 
++- Sleep 2.1 default implementation no longer manages cleanup of
++  subroutines from unloaded scripts.  The old mechanism for this
++  was complex and resulted in an unnecessary memory leak in 
++  shared environments with no awareness of this feature.  jIRCii
++  depends on this behavior and so I am moving the code for this
++  to the jIRCii source tree (where it manages similar cleanup
++  for events, aliases, and other things).
+ 
+ 2.1-release  (1 Jul 08)
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000395.html">[Sleep-svn] r419 - in sleep: . src/sleep/parser
+</A></li>
+	<LI>Next message: <A HREF="000397.html">[Sleep-svn] r421 - in sleep: . src/sleep/bridges tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#396">[ date ]</a>
+              <a href="thread.html#396">[ thread ]</a>
+              <a href="subject.html#396">[ subject ]</a>
+              <a href="author.html#396">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

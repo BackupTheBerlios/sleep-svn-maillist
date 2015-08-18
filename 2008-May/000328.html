@@ -1,0 +1,1179 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r351 - in sleep: . src/sleep/bridges	src/sleep/bridges/io src/sleep/runtime tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2008-May/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r351%20-%20in%20sleep%3A%20.%20src/sleep/bridges%0A%09src/sleep/bridges/io%20src/sleep/runtime%20tests%20tests/output&In-Reply-To=%3C200805081645.m48Gj3H5022256%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   
+   <LINK REL="Next"  HREF="000329.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r351 - in sleep: . src/sleep/bridges	src/sleep/bridges/io src/sleep/runtime tests tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r351%20-%20in%20sleep%3A%20.%20src/sleep/bridges%0A%09src/sleep/bridges/io%20src/sleep/runtime%20tests%20tests/output&In-Reply-To=%3C200805081645.m48Gj3H5022256%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r351 - in sleep: . src/sleep/bridges	src/sleep/bridges/io src/sleep/runtime tests tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Thu May  8 18:45:03 CEST 2008</I>
+    <P><UL>
+        
+        <LI>Next message: <A HREF="000329.html">[Sleep-svn] r352 - in sleep: . src/sleep/bridges	src/sleep/bridges/io tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#328">[ date ]</a>
+              <a href="thread.html#328">[ thread ]</a>
+              <a href="subject.html#328">[ subject ]</a>
+              <a href="author.html#328">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2008-05-08 18:45:00 +0200 (Thu, 08 May 2008)
+New Revision: 351
+
+Added:
+   sleep/runtests.sl
+   sleep/tests/chdir.sl
+   sleep/tests/output/chdir.sl
+   sleep/tests/output/readb2.sl
+   sleep/tests/readb2.sl
+Modified:
+   sleep/build.xml
+   sleep/readme.txt
+   sleep/src/sleep/bridges/BasicIO.java
+   sleep/src/sleep/bridges/BasicUtilities.java
+   sleep/src/sleep/bridges/BridgeUtilities.java
+   sleep/src/sleep/bridges/FileSystemBridge.java
+   sleep/src/sleep/bridges/io/FileObject.java
+   sleep/src/sleep/runtime/ScriptInstance.java
+   sleep/tests/callccfork.sl
+   sleep/tests/dataio.sl
+   sleep/tests/forkof.sl
+   sleep/tests/forkshare.sl
+   sleep/tests/megaio.sl
+   sleep/tests/output/callccfork.sl
+   sleep/tests/output/cast.sl
+   sleep/tests/output/convertds3.sl
+   sleep/tests/output/debugce.sl
+   sleep/tests/output/forker.sl
+   sleep/tests/output/include.sl
+   sleep/tests/output/scalar.sl
+   sleep/tests/output/taint7.sl
+   sleep/tests/output/trace.sl
+   sleep/tests/output/warn2.sl
+   sleep/tests/output/wrong.sl
+   sleep/tests/test.pl
+   sleep/whatsnew.txt
+Log:
+..
+
+
+Modified: sleep/build.xml
+===================================================================
+--- sleep/build.xml	2008-04-30 04:20:44 UTC (rev 350)
++++ sleep/build.xml	2008-05-08 16:45:00 UTC (rev 351)
+@@ -16,7 +16,7 @@
+            destdir=&quot;${project.build}&quot;
+            nowarn=&quot;yes&quot;
+            depend=&quot;yes&quot;
+-           debug=&quot;false&quot;
++           debug=&quot;true&quot;
+            source=&quot;1.4&quot;
+            target=&quot;1.4&quot;
+            optimize=&quot;yes&quot;
+
+Modified: sleep/readme.txt
+===================================================================
+--- sleep/readme.txt	2008-04-30 04:20:44 UTC (rev 350)
++++ sleep/readme.txt	2008-05-08 16:45:00 UTC (rev 351)
+@@ -73,11 +73,13 @@
+ [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">raffi at beardsley</A> ~/sleep]$ rm -rf bin
+ [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">raffi at beardsley</A> ~/sleep]$ ant all
+ 
+-If you made any changes or just want to make sure nothing got broken you can
++If you made any changes or just want to make sure nothing is broken you can
+ run a series of regression tests on sleep.
+ 
+-[<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">raffi at beardsley</A> ~/sleep/tests]$ perl test.pl
++[<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">raffi at beardsley</A> ~/sleep]$ java -jar sleep.jar runtests.sl
+ 
++If the runtests.so script won't run then you're really in trouble.
++
+ To Build JavaDoc for Sleep (dumped to the docs/api/ directory):
+ 
+ [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">raffi at beardsley</A> ~/sleep]$ ant docs
+
+Added: sleep/runtests.sl
+===================================================================
+--- sleep/runtests.sl	2008-04-30 04:20:44 UTC (rev 350)
++++ sleep/runtests.sl	2008-05-08 16:45:00 UTC (rev 351)
+@@ -0,0 +1,191 @@
++#
++# Regression test perl script.  A quick way to make sure my crazy changes aren't
++# breaking my precious language.
++#
++# Runs each sleep script in the tests/ directory, compares the results to the file with the
++# same name w/i the tests/output directory.
++#
++# If they match - congratulations the script worked okay.
++#
++# If they don't match - something is broken.
++#
++# Executing the regression test:
++# (from within the top level Sleep directory type)
++#
++# [user ~/sleep/]$ java -jar sleep.jar runtests.sl
++#
++# Advantages over the original test.pl Perl script
++# ----------
++# 1) most scripts are executed within one Java instance avoiding costly process creation overhead
++#   translation: much faster
++# 2) script output is sanitized for file/directory paths and object addresses, things that change
++#    compile to compile and system to system.
++
++debug(7 | 34);
++
++import sleep.error.RuntimeWarningWatcher;
++import sleep.error.YourCodeSucksException;
++import sleep.runtime.ScriptLoader;
++import sleep.bridges.io.IOObject; 
++import sleep.parser.ParserConfig;
++
++sub runScript
++{
++   local('@args $value $handle $read');
++   @args = split(' ', $1);
++   push(@args, &quot;2 + 2&quot;);
++
++   $handle = exec(@args, $null, cwd());
++   while $read (readb($handle, 1))
++   {
++      $value .= $read;
++   }
++
++   closef($handle);
++
++   return $value;
++}
++
++sub executeScript
++{
++   local('$loader $script $buffer $error $watcher');
++
++   $buffer = allocate();
++
++   # this is a hack to get around Sleep's synchronization model with the runtime warning watcher.
++   # an isolated (i.e. not used anywhere else) script environment is created by fork, within it we generate an anonymous
++   # function proxying the Java object we wish to emulate.  We then return that Java object.  When a method is called on
++   # this object it will not block for the test script running in the main thread (this was causing some fork test cases
++   # to freeze).
++
++   $watcher = wait(fork({ return newInstance(^RuntimeWarningWatcher, lambda({ println($buffer, $1); }, \$buffer)); }, \$buffer));
++
++   try
++   {
++      $loader = [new ScriptLoader];
++
++      [ParserConfig setSleepClasspath: cwd()];
++
++      $script = [$loader loadScript: getFileProper($1)];
++      [$script chdir: cwd()];
++      [$script addWarningWatcher: $watcher];
++   }
++   catch $error
++   {
++      return [$error formatErrors];
++   }
++ 
++   [IOObject setConsole: [$script getScriptEnvironment], $buffer];
++
++   [$script runScript];
++
++   closef($buffer);
++ 
++   return readb($buffer, available($buffer));
++}
++
++#
++# fix stuff that is ambiguous between tests i.e. file paths, addresses in object string representations, and closure numbers
++#
++sub sanitize
++{
++   $1 = replace($1, '(\&amp;closure\[.*?\]\#)\d+', '$1X');
++   $1 = replace($1, '/Users/raffi/sleepdev/sleep/', '==CWD==');
++   $1 = replace($1, getFileParent(cwd()), '==CWD==');
++   $1 = replace($1, '([\.\[][a-zA-Z_0-9;]+@)[0-9a-f]{5,6}', '$1######');
++   $1 = replace($1, '\$Proxy\d+?', '\$Proxy#');
++   return $1;
++}
++
++sub runTests
++{
++   local('$script $value @scripts @errors $handle $compare %special $x $read');
++
++   chdir(&quot;tests&quot;);
++
++   # some special scripts that require command line execution to test out some stuff...
++   for ($x = 0; $x &lt; 10; $x++)
++   {
++      %special[&quot;taint $+ $x $+ .sl&quot;]  = &quot;java -Dsleep.taint=true -jar ../sleep.jar taint $+ $x $+ .sl&quot;;
++   }
++   %special[&quot;debugce.sl&quot;] = &quot;java -Dsleep.debug=3 -jar ../sleep.jar debugce.sl&quot;; 
++   %special[&quot;tcatchex.sl&quot;] = &quot;java -jar ../sleep.jar tcatchex.sl&quot;;     # calls System.out
++   %special[&quot;odd.sl&quot;]      = &quot;java -jar ../sleep.jar odd.sl&quot;;          # calls System.out  
++   %special[&quot;objects.sl&quot;]  = &quot;java -jar ../sleep.jar objects.sl&quot;;      # calls System.out
++   %special[&quot;trace.sl&quot;]    = &quot;java -jar ../sleep.jar trace.sl&quot;;        # calls System.out
++   %special[&quot;wrong.sl&quot;]    = &quot;java -jar ../sleep.jar wrong.sl&quot;;        # calls System.out
++   %special[&quot;cmdline.sl&quot;]  = &quot;java -jar ../sleep.jar cmdline.sl&quot;;      # evaluates $__SCRIPT__ created by TextConsole.main
++   %special[&quot;multih.sl&quot;]   = &quot;java -jar ../sleep.jar multih.sl&quot;;       # calls System.out
++   %special[&quot;use.sl&quot;]      = &quot;java -jar ../sleep.jar use.sl&quot;;          # calls System.out
++   %special[&quot;use2.sl&quot;]     = &quot;java -jar ../sleep.jar use2.sl&quot;;         # calls System.out
++   %special[&quot;convertds2.sl&quot;] = &quot;java -jar ../sleep.jar convertds2.sl&quot;; # calls System.out
++   %special[&quot;convertds3.sl&quot;] = &quot;java -jar ../sleep.jar convertds3.sl&quot;; # calls System.out
++   %special[&quot;convertds4.sl&quot;] = &quot;java -jar ../sleep.jar convertds4.sl&quot;; # calls System.out
++   %special[&quot;setfield.sl&quot;]   = &quot;java -jar ../sleep.jar setfield.sl&quot;;   # calls System.out
++   %special[&quot;process.sl&quot;]    = &quot;java -jar ../sleep.jar process.sl&quot;;    # instantiates ScriptLoader which is immune to current working directory.
++
++   @scripts = filter({ return iff(&quot;*.sl&quot; iswm $1, getFileName($1)); }, ls());
++   foreach $script (@scripts)
++   {
++      print(&quot;$[25]script&quot;);
++
++      if (%special[$script] is $null &amp;&amp; -exists &quot;output/ $+ $script&quot;)
++      {
++         print(&quot;  . &quot;);
++         $value = executeScript($script);
++      }
++      else
++      {
++         print(&quot;  X &quot;);
++         $value = runScript(%special[$script]);
++      }
++
++      if (!-exists &quot;output/ $+ $script&quot;)
++      {
++         $handle = openf(&quot;&gt;output/ $+ $script&quot;);
++         writeb($handle, $value);
++         closef($handle);
++
++         println(&quot; - did not exist, creating output&quot;);
++      }
++      else 
++      { 
++         $handle = openf(&quot;output/ $+ $script&quot;);
++         $compare = readb($handle, -1);
++         closef($handle);
++
++         sanitize($compare);
++         sanitize($value);
++
++         if ($compare eq $value)
++         {
++            println();
++         }
++         else
++         {
++            println(&quot; - did not match expected output&quot;);
++            push(@errors, &quot;$script - did not match expected output&quot;);
++  
++            $handle = openf(&quot;&gt;../ $+ $script $+ .broken&quot;);
++            writeb($handle, $value);
++            closef($handle);
++
++            $handle = openf(&quot;&gt;../ $+ $script $+ .compare&quot;);
++            writeb($handle, $compare);
++            closef($handle);
++         }
++      }
++   }
++
++   if (size(@errors) == 0)
++   {
++      println(&quot;*** All tests passed! :) ***&quot;);
++   }
++   else
++   {
++      println(&quot;*** ERRORS Detected ***&quot;);
++      printAll(@errors);
++   }
++}
++
++runTests();
+
+Modified: sleep/src/sleep/bridges/BasicIO.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicIO.java	2008-04-30 04:20:44 UTC (rev 350)
++++ sleep/src/sleep/bridges/BasicIO.java	2008-05-08 16:45:00 UTC (rev 351)
+@@ -141,7 +141,7 @@
+ 
+           try
+           { 
+-             Process proc  = Runtime.getRuntime().exec(BridgeUtilities.getString(l, &quot;&quot;));
++             Process proc  = Runtime.getRuntime().exec(BridgeUtilities.getString(l, &quot;&quot;), null, i.cwd());
+              BufferedReader reader    = new BufferedReader(new InputStreamReader(proc.getInputStream()));
+ 
+              String text = null;
+@@ -415,7 +415,7 @@
+              }
+              else
+              {
+-                start = BridgeUtilities.getFile(l); 
++                start = BridgeUtilities.getFile(l, i); 
+              }
+           }
+ 
+@@ -649,9 +649,17 @@
+ 
+     private static IOObject chooseSource(Stack l, int args, ScriptInstance i)
+     {
+-       IOObject a;
++       if (l.size() &lt; args &amp;&amp; !l.isEmpty())
++       {
++          Scalar temp = (Scalar)l.peek();
+ 
+-       if (l.size() &gt;= args)
++          if (temp.getActualValue() != null &amp;&amp; temp.getActualValue().getType() == ObjectValue.class &amp;&amp; temp.objectValue() instanceof IOObject)
++          {
++             l.pop();
++             return (IOObject)temp.objectValue();
++          }
++       }
++       else if (l.size() &gt;= args)
+        {
+           Scalar b = (Scalar)l.pop();
+ 
+@@ -660,14 +668,10 @@
+              throw new IllegalArgumentException(&quot;expected I/O handle argument, received: &quot; + SleepUtils.describe(b));
+           }
+ 
+-          a = (IOObject)b.objectValue();
++          return (IOObject)b.objectValue();
+        }
+-       else
+-       {
+-          a = IOObject.getConsole(i.getScriptEnvironment());
+-       }  
+ 
+-       return a;
++       return IOObject.getConsole(i.getScriptEnvironment());
+     }
+ 
+     private static class getConsoleObject implements Function
+@@ -1152,6 +1156,12 @@
+        public Scalar evaluate(String n, ScriptInstance i, Stack l)
+        {
+           IOObject        a = chooseSource(l, 2, i);
++
++          if (a.getInputBuffer() == null)
++          {
++             throw new RuntimeException(&quot;&amp;mark: input buffer for &quot; + SleepUtils.describe(SleepUtils.getScalar(a)) + &quot; is closed&quot;);
++          }
++
+           a.getInputBuffer().mark(BridgeUtilities.getInt(l, 1024 * 10 * 10));
+ 
+           return SleepUtils.getEmptyScalar();
+@@ -1280,12 +1290,18 @@
+ 
+           if (a.getReader() != null)
+           {
+-             byte[] temp = a.getBuffer(to);
++             byte[] temp = to &gt; -1 ? a.getBuffer(to) : new byte[0];
+    
+              int read = 0;
+ 
+              try
+              {
++                if (to == -1)
++                {
++                   to = a.getInputStream().available();
++                   temp = a.getBuffer(to);
++                }
++
+                 while (read &lt; to)
+                 {
+                    last = a.getReader().read(temp, read, to - read);
+
+Modified: sleep/src/sleep/bridges/BasicUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicUtilities.java	2008-04-30 04:20:44 UTC (rev 350)
++++ sleep/src/sleep/bridges/BasicUtilities.java	2008-05-08 16:45:00 UTC (rev 351)
+@@ -351,7 +351,7 @@
+                 }
+                 else
+                 {
+-                   istream = new FileInputStream(new File(className));
++                   istream = new FileInputStream(BridgeUtilities.toSleepFile(className, si));
+                 }
+ 
+                 if (istream != null)
+
+Modified: sleep/src/sleep/bridges/BridgeUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BridgeUtilities.java	2008-04-30 04:20:44 UTC (rev 350)
++++ sleep/src/sleep/bridges/BridgeUtilities.java	2008-05-08 16:45:00 UTC (rev 351)
+@@ -240,22 +240,36 @@
+ 
+    private static final boolean doReplace = File.separatorChar != '/';
+ 
+-   /** returns a File object from a string argument, the path in the string argument is transformed such 
+-       that the character / will refer to the correct path separator for the current OS.  Returns null if
+-       no file is specified as an argument. */
+-   public static File getFile(Stack arguments)
++   /** adjusts the file argument to accomodate for the current working directory */
++   public static File toSleepFile(String text, ScriptInstance i)
+    {
+-      if (arguments.isEmpty())
+-         return null;
++      if (text == null)
++      {
++         return i.cwd();
++      }
++      else if (doReplace)
++      {
++         text = text.replace('/', File.separatorChar); 
++      }
+ 
+-      String temp = arguments.pop().toString();
++      File f = new File(text);
+ 
+-      if (doReplace)
++      if (!f.isAbsolute())
+       {
+-         temp = temp.replace('/', File.separatorChar); 
++         return new File(i.cwd(), text);
+       }
++      else
++      {
++         return f;
++      }
++   }
+ 
+-      return new File(temp);
++   /** returns a File object from a string argument, the path in the string argument is transformed such 
++       that the character / will refer to the correct path separator for the current OS.  Returns null if
++       no file is specified as an argument. */
++   public static File getFile(Stack arguments, ScriptInstance i)
++   {
++      return toSleepFile(arguments.isEmpty() ? null : arguments.pop().toString(), i);
+    }
+  
+    /** Pops a Key/Value pair object off of the argument stack.  A Key/Value pair is created using
+
+Modified: sleep/src/sleep/bridges/FileSystemBridge.java
+===================================================================
+--- sleep/src/sleep/bridges/FileSystemBridge.java	2008-04-30 04:20:44 UTC (rev 350)
++++ sleep/src/sleep/bridges/FileSystemBridge.java	2008-05-08 16:45:00 UTC (rev 351)
+@@ -12,7 +12,7 @@
+ import java.io.*;
+ 
+ /** provides a bridge for accessing the local file system */
+-public class FileSystemBridge implements Loadable, Function
++public class FileSystemBridge implements Loadable, Function, Predicate
+ {
+     public void scriptUnloaded(ScriptInstance aScript)
+     {
+@@ -23,17 +23,21 @@
+         Hashtable temp = aScript.getScriptEnvironment().getEnvironment();
+ 
+         // predicates
+-        temp.put(&quot;-exists&quot;,   new _exists());
+-        temp.put(&quot;-canread&quot;,   new _canread());
+-        temp.put(&quot;-canwrite&quot;,   new _canwrite());
+-        temp.put(&quot;-isDir&quot;,   new _isDirectory());
+-        temp.put(&quot;-isFile&quot;,   new _isFile());
+-        temp.put(&quot;-isHidden&quot;,   new _isHidden());
++        temp.put(&quot;-exists&quot;,   this);
++        temp.put(&quot;-canread&quot;,  this);
++        temp.put(&quot;-canwrite&quot;, this);
++        temp.put(&quot;-isDir&quot;,    this);
++        temp.put(&quot;-isFile&quot;,   this);
++        temp.put(&quot;-isHidden&quot;, this);
+ 
+         // functions
+         temp.put(&quot;&amp;createNewFile&quot;,   this);
+         temp.put(&quot;&amp;deleteFile&quot;,      this);
+-        temp.put(&quot;&amp;getCurrentDirectory&quot;,     new getActiveDir());
++
++        temp.put(&quot;&amp;chdir&quot;,               this);
++        temp.put(&quot;&amp;cwd&quot;,                 this);
++        temp.put(&quot;&amp;getCurrentDirectory&quot;, this);
++
+         temp.put(&quot;&amp;getFileName&quot;,     new getFileName());
+         temp.put(&quot;&amp;getFileProper&quot;,   new getFileProper());
+         temp.put(&quot;&amp;getFileParent&quot;,   new getFileParent());
+@@ -53,7 +57,7 @@
+         {
+            try
+            {
+-              File a = BridgeUtilities.getFile(l);
++              File a = BridgeUtilities.getFile(l, i);
+               if (a.createNewFile())
+               {
+                  return SleepUtils.getScalar(1);
+@@ -61,9 +65,17 @@
+            }
+            catch (Exception ex) { i.getScriptEnvironment().flagError(ex); }
+         }
++        else if (n.equals(&quot;&amp;cwd&quot;) || n.equals(&quot;&amp;getCurrentDirectory&quot;))
++        {
++           return SleepUtils.getScalar(i.cwd());
++        }
++        else if (n.equals(&quot;&amp;chdir&quot;))
++        {
++           i.chdir(BridgeUtilities.getFile(l, i));
++        }
+         else if (n.equals(&quot;&amp;deleteFile&quot;))
+         {
+-           File a = BridgeUtilities.getFile(l);
++           File a = BridgeUtilities.getFile(l, i);
+            if (a.delete())
+            {
+               return SleepUtils.getScalar(1);
+@@ -71,7 +83,7 @@
+         }
+         else if (n.equals(&quot;&amp;mkdir&quot;))
+         {
+-           File a = BridgeUtilities.getFile(l);
++           File a = BridgeUtilities.getFile(l, i);
+            if (a.mkdirs())
+            {
+               return SleepUtils.getScalar(1);
+@@ -79,8 +91,8 @@
+         }
+         else if (n.equals(&quot;&amp;rename&quot;))
+         {
+-           File a = BridgeUtilities.getFile(l);
+-           File b = BridgeUtilities.getFile(l);
++           File a = BridgeUtilities.getFile(l, i);
++           File b = BridgeUtilities.getFile(l, i);
+            if (a.renameTo(b))
+            {
+               return SleepUtils.getScalar(1);
+@@ -88,7 +100,7 @@
+         }
+         else if (n.equals(&quot;&amp;setLastModified&quot;))
+         {
+-           File a = BridgeUtilities.getFile(l);
++           File a = BridgeUtilities.getFile(l, i);
+            long b = BridgeUtilities.getLong(l);
+ 
+            if (a.setLastModified(b))
+@@ -98,7 +110,7 @@
+         }
+         else if (n.equals(&quot;&amp;setReadOnly&quot;))
+         {
+-           File a = BridgeUtilities.getFile(l);
++           File a = BridgeUtilities.getFile(l, i);
+ 
+            if (a.setReadOnly())
+            {
+@@ -110,20 +122,11 @@
+         return SleepUtils.getEmptyScalar();
+     }
+ 
+-    private static class getActiveDir implements Function
+-    {
+-       public Scalar evaluate(String n, ScriptInstance i, Stack l)
+-       {
+-           File a = new File(&quot;&quot;);
+-           return SleepUtils.getScalar(a.getAbsolutePath());
+-       }
+-    }
+-
+     private static class getFileName implements Function
+     {
+        public Scalar evaluate(String n, ScriptInstance i, Stack l)
+        {
+-           File a = BridgeUtilities.getFile(l);
++           File a = BridgeUtilities.getFile(l, i);
+            return SleepUtils.getScalar(a.getName());
+        }
+     }
+@@ -132,7 +135,7 @@
+     {
+        public Scalar evaluate(String n, ScriptInstance i, Stack l)
+        {
+-           File start = BridgeUtilities.getFile(l);
++           File start = BridgeUtilities.getFile(l, i);
+ 
+            while (!l.isEmpty())
+            {
+@@ -147,7 +150,7 @@
+     {
+        public Scalar evaluate(String n, ScriptInstance i, Stack l)
+        {
+-           File a = BridgeUtilities.getFile(l);
++           File a = BridgeUtilities.getFile(l, i);
+            return SleepUtils.getScalar(a.getParent());
+        }
+     }
+@@ -156,7 +159,7 @@
+     {
+        public Scalar evaluate(String n, ScriptInstance i, Stack l)
+        {
+-           File a = BridgeUtilities.getFile(l);
++           File a = BridgeUtilities.getFile(l, i);
+            return SleepUtils.getScalar(a.lastModified());
+        }
+     }
+@@ -165,7 +168,7 @@
+     {
+        public Scalar evaluate(String n, ScriptInstance i, Stack l)
+        {
+-           File a = BridgeUtilities.getFile(l);
++           File a = BridgeUtilities.getFile(l, i);
+            return SleepUtils.getScalar(a.length());
+        }
+     }
+@@ -180,16 +183,12 @@
+            {
+               files = File.listRoots();
+            }
+-           else if (l.isEmpty() &amp;&amp; n.equals(&quot;&amp;ls&quot;))
++           else 
+            {
+-              File a = new File(&quot;&quot;).getAbsoluteFile();
++              File a = BridgeUtilities.getFile(l, i);
+               files = a.listFiles();
+            }
+-           else
+-           {
+-              File a = BridgeUtilities.getFile(l);
+-              files = a.listFiles();
+-           }
++
+            LinkedList temp = new LinkedList();
+ 
+            if (files != null)
+@@ -204,57 +203,17 @@
+        }
+     }
+ 
+-    private static class _canread implements Predicate
++    public boolean decide(String n, ScriptInstance i, Stack l)
+     {
+-       public boolean decide(String n, ScriptInstance i, Stack l)
+-       {
+-          File a = BridgeUtilities.getFile(l);
+-          return a.canRead();
+-       }
+-    }
++       File a = BridgeUtilities.getFile(l, i);
+ 
+-    private static class _isDirectory implements Predicate
+-    {
+-       public boolean decide(String n, ScriptInstance i, Stack l)
+-       {
+-          File a = BridgeUtilities.getFile(l);
+-          return a.isDirectory();
+-       }
+-    }
++       if (n.equals(&quot;-canread&quot;)) { return a.canRead(); }
++       else if (n.equals(&quot;-canwrite&quot;)) { return a.canWrite(); }
++       else if (n.equals(&quot;-exists&quot;)) { return a.exists(); }
++       else if (n.equals(&quot;-isDir&quot;)) { return a.isDirectory(); }
++       else if (n.equals(&quot;-isFile&quot;)) { return a.isFile(); }
++       else if (n.equals(&quot;-isHidden&quot;)) { return a.isHidden(); }
+ 
+-    private static class _isFile implements Predicate
+-    {
+-       public boolean decide(String n, ScriptInstance i, Stack l)
+-       {
+-          File a = BridgeUtilities.getFile(l);
+-          return a.isFile();
+-       }
++       return false;
+     }
+-
+-    private static class _isHidden implements Predicate
+-    {
+-       public boolean decide(String n, ScriptInstance i, Stack l)
+-       {
+-          File a = BridgeUtilities.getFile(l);
+-          return a.isHidden();
+-       }
+-    }
+-
+-    private static class _exists implements Predicate
+-    {
+-       public boolean decide(String n, ScriptInstance i, Stack l)
+-       {
+-          File a = BridgeUtilities.getFile(l);
+-          return a.exists();
+-       }
+-    }
+-
+-    private static class _canwrite implements Predicate
+-    {
+-       public boolean decide(String n, ScriptInstance i, Stack l)
+-       {
+-          File a = BridgeUtilities.getFile(l);
+-          return a.canWrite();
+-       }
+-    }
+ }
+
+Modified: sleep/src/sleep/bridges/io/FileObject.java
+===================================================================
+--- sleep/src/sleep/bridges/io/FileObject.java	2008-04-30 04:20:44 UTC (rev 350)
++++ sleep/src/sleep/bridges/io/FileObject.java	2008-05-08 16:45:00 UTC (rev 351)
+@@ -21,17 +21,17 @@
+       {
+          if (descriptor.charAt(0) == '&gt;' &amp;&amp; descriptor.charAt(1) == '&gt;')
+          {
+-            file = new File(descriptor.substring(2, descriptor.length()).trim().replace('/', File.separatorChar));
++            file = BridgeUtilities.toSleepFile(descriptor.substring(2, descriptor.length()).trim(), env.getScriptInstance());
+             openWrite(new FileOutputStream(file, true));
+          }
+          else if (descriptor.charAt(0) == '&gt;')
+          {
+-            file = new File(descriptor.substring(1, descriptor.length()).trim().replace('/', File.separatorChar));
++            file = BridgeUtilities.toSleepFile(descriptor.substring(1, descriptor.length()).trim(), env.getScriptInstance());
+             openWrite(new FileOutputStream(file, false));
+          }
+          else
+          {
+-            file = new File(descriptor.replace('/', File.separatorChar));
++            file = BridgeUtilities.toSleepFile(descriptor, env.getScriptInstance());
+             openRead(new FileInputStream(file));
+          }
+       }
+
+Modified: sleep/src/sleep/runtime/ScriptInstance.java
+===================================================================
+--- sleep/src/sleep/runtime/ScriptInstance.java	2008-04-30 04:20:44 UTC (rev 350)
++++ sleep/src/sleep/runtime/ScriptInstance.java	2008-05-08 16:45:00 UTC (rev 351)
+@@ -229,6 +229,28 @@
+        strace.add(0, stat);
+     }
+ 
++    /** return the current working directory value associated with this script. */
++    public File cwd()
++    {
++       if (!getMetadata().containsKey(&quot;__CWD__&quot;))
++       {
++          chdir(null);
++       }
++
++       return (File)getMetadata().get(&quot;__CWD__&quot;);
++    }
++
++    /** sets the current working directory value for this script */
++    public void chdir(File f)
++    {
++       if (f == null)
++       {
++           f = new File(&quot;&quot;);
++       }
++
++       getMetadata().put(&quot;__CWD__&quot;, f.getAbsoluteFile());
++    }
++
+     /** Records a stack frame into this environments stack trace tracker thingie. */
+     public void recordStackFrame(String description, int lineNumber)
+     {
+
+Modified: sleep/tests/callccfork.sl
+===================================================================
+--- sleep/tests/callccfork.sl	2008-04-30 04:20:44 UTC (rev 350)
++++ sleep/tests/callccfork.sl	2008-05-08 16:45:00 UTC (rev 351)
+@@ -18,5 +18,5 @@
+ global('$handle $value');
+ 
+ $handle = fork(&amp;func);
+-$value  = wait($handle);
++$value  = wait($handle, 5000);
+ println($value);
+
+Added: sleep/tests/chdir.sl
+===================================================================
+--- sleep/tests/chdir.sl	2008-04-30 04:20:44 UTC (rev 350)
++++ sleep/tests/chdir.sl	2008-05-08 16:45:00 UTC (rev 351)
+@@ -0,0 +1,13 @@
++#
++
++chdir(&quot;data&quot;);
++printAll(ls());
++
++chdir(&quot;../data2&quot;);
++
++if (!-exists &quot;test.pl&quot;)
++{
++   println(&quot;So far so good...&quot;);
++}
++
++printAll(`ls -1`);
+
+Modified: sleep/tests/dataio.sl
+===================================================================
+--- sleep/tests/dataio.sl	2008-04-30 04:20:44 UTC (rev 350)
++++ sleep/tests/dataio.sl	2008-05-08 16:45:00 UTC (rev 351)
+@@ -31,7 +31,7 @@
+ 
+ sleep(2000);
+ 
+-fork({
++wait(fork({
+   local('$data $z');
+ 
+ #  $handle = connect(&quot;127.0.0.1&quot;, 8888);
+@@ -46,4 +46,4 @@
+   println(&quot;Read in $z bytes&quot;);
+ 
+   closef($handle);
+-}, $handle =&gt; $src);
++}, $handle =&gt; $src), 5000);
+
+Modified: sleep/tests/forkof.sl
+===================================================================
+--- sleep/tests/forkof.sl	2008-04-30 04:20:44 UTC (rev 350)
++++ sleep/tests/forkof.sl	2008-05-08 16:45:00 UTC (rev 351)
+@@ -2,6 +2,6 @@
+ # 
+ #
+ 
+-fork({
++wait(fork({
+   println([Thread currentThread]);
+-});
++}), 5000);
+
+Modified: sleep/tests/forkshare.sl
+===================================================================
+--- sleep/tests/forkshare.sl	2008-04-30 04:20:44 UTC (rev 350)
++++ sleep/tests/forkshare.sl	2008-05-08 16:45:00 UTC (rev 351)
+@@ -4,7 +4,7 @@
+ 
+ $counter = 90;
+ 
+-fork({
++$a = fork({
+   while ($counter &lt; 100)
+   {
+      $counter++;
+@@ -14,7 +14,7 @@
+ 
+ }, \$counter);
+ 
+-fork({
++$b = fork({
+   sleep(500); # I hate time kludges...
+ 
+   while ($counter &lt; 100)
+@@ -24,3 +24,6 @@
+      [Thread yield];
+   }
+ }, \$counter);
++
++wait($a);
++wait($b);
+
+Modified: sleep/tests/megaio.sl
+===================================================================
+--- sleep/tests/megaio.sl	2008-04-30 04:20:44 UTC (rev 350)
++++ sleep/tests/megaio.sl	2008-05-08 16:45:00 UTC (rev 351)
+@@ -37,7 +37,7 @@
+ 
+ sleep(2000);
+ 
+-fork({
++wait(fork({
+   local('$data $z');
+ 
+   while $data (readb($handle, 603))
+@@ -49,4 +49,4 @@
+   println(&quot;Read in $z bytes&quot;);
+ 
+   closef($handle);
+-}, $handle =&gt; $src);
++}, $handle =&gt; $src), 5000);
+
+Modified: sleep/tests/output/callccfork.sl
+===================================================================
+--- sleep/tests/output/callccfork.sl	2008-04-30 04:20:44 UTC (rev 350)
++++ sleep/tests/output/callccfork.sl	2008-05-08 16:45:00 UTC (rev 351)
+@@ -4,7 +4,7 @@
+ Inside of callcc function
+ Trace: &amp;println('Inside of callcc function') at callccfork.sl:12
+ Trace: [&amp;closure[callccfork.sl:12-13]#3 CALLCC: &amp;closure[callccfork.sl:9-15]#2] = 'pHEAR' at callccfork.sl:10
+-Trace: &amp;fork(&amp;closure[callccfork.sl:9-15]#1) = <A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">sleep.bridges.io.IOObject at 7a4489</A> at callccfork.sl:20
+-Trace: &amp;wait(<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">sleep.bridges.io.IOObject at 7a4489</A>) = 'pHEAR' at callccfork.sl:21
++Trace: &amp;fork(&amp;closure[callccfork.sl:9-15]#1) = <A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">sleep.bridges.io.IOObject at dec8b3</A> at callccfork.sl:20
++Trace: &amp;wait(<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">sleep.bridges.io.IOObject at dec8b3</A>, 5000) = 'pHEAR' at callccfork.sl:21
+ pHEAR
+ Trace: &amp;println('pHEAR') at callccfork.sl:22
+
+Modified: sleep/tests/output/cast.sl
+===================================================================
+--- sleep/tests/output/cast.sl	2008-04-30 04:20:44 UTC (rev 350)
++++ sleep/tests/output/cast.sl	2008-05-08 16:45:00 UTC (rev 351)
+@@ -1,2 +1,2 @@
+-[Ljava.lang.CharSequence;@716cb7 class [Ljava.lang.CharSequence;
+-[Ljava.util.List;@d4d66b class [Ljava.util.List;
++[Ljava.lang.CharSequence;@264eab class [Ljava.lang.CharSequence;
++[Ljava.util.List;@8f7386 class [Ljava.util.List;
+
+Added: sleep/tests/output/chdir.sl
+===================================================================
+--- sleep/tests/output/chdir.sl	2008-04-30 04:20:44 UTC (rev 350)
++++ sleep/tests/output/chdir.sl	2008-05-08 16:45:00 UTC (rev 351)
+@@ -0,0 +1,10 @@
++/Users/raffi/sleepdev/sleep/tests/data/.svn
++/Users/raffi/sleepdev/sleep/tests/data/build.xml
++/Users/raffi/sleepdev/sleep/tests/data/readme.txt
++/Users/raffi/sleepdev/sleep/tests/data/scripts.jar
++/Users/raffi/sleepdev/sleep/tests/data/src
++/Users/raffi/sleepdev/sleep/tests/data/test.jar
++So far so good...
++build.xml
++src
++test.jar
+
+Modified: sleep/tests/output/convertds3.sl
+===================================================================
+--- sleep/tests/output/convertds3.sl	2008-04-30 04:20:44 UTC (rev 350)
++++ sleep/tests/output/convertds3.sl	2008-05-08 16:45:00 UTC (rev 351)
+@@ -32,9 +32,9 @@
+ int[] a
+ Collection a
+ Collection a
+-Warning: there is no method that matches mar([<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">Z at 8e261d</A>) in sleep.ArrayTest1 at convertds3.sl:36
+-Warning: there is no method that matches mar([<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">F at 684706</A>) in sleep.ArrayTest1 at convertds3.sl:37
+-Warning: there is no method that matches mar([Ljava.lang.Object;@efd7c) in sleep.ArrayTest1 at convertds3.sl:38
++Warning: there is no method that matches mar([<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">Z at ce16ad</A>) in sleep.ArrayTest1 at convertds3.sl:36
++Warning: there is no method that matches mar([<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">F at 32bd65</A>) in sleep.ArrayTest1 at convertds3.sl:37
++Warning: there is no method that matches mar([Ljava.lang.Object;@30633a) in sleep.ArrayTest1 at convertds3.sl:38
+ int[] a
+ Collection a
+ Collection a
+
+Modified: sleep/tests/output/debugce.sl
+===================================================================
+--- sleep/tests/output/debugce.sl	2008-04-30 04:20:44 UTC (rev 350)
++++ sleep/tests/output/debugce.sl	2008-05-08 16:45:00 UTC (rev 351)
+@@ -1,3 +1,3 @@
+ Warning: checkError(): YourCodeSucksException: 2 error(s): Mismatched Parentheses - missing close paren at 1; Runaway string at 1 at debugce.sl:5
+-Warning: checkError(): java.io.FileNotFoundException: fjasjkfajskfjasfjksakjfsjkfjksafjk.txt (No such file or directory) at debugce.sl:9
++Warning: checkError(): java.io.FileNotFoundException: /Users/raffi/sleepdev/sleep/tests/fjasjkfajskfjasfjksakjfsjkfjksafjk.txt (No such file or directory) at debugce.sl:9
+ I should be doing more stuff here...
+
+Modified: sleep/tests/output/forker.sl
+===================================================================
+--- sleep/tests/output/forker.sl	2008-04-30 04:20:44 UTC (rev 350)
++++ sleep/tests/output/forker.sl	2008-05-08 16:45:00 UTC (rev 351)
+@@ -1,4 +1,4 @@
++Trace: &amp;fork(&amp;closure[forker.sl:9]#X) = sleep.bridges.io.IOObject@###### at forker.sl:8
+ Trace: &amp;check('within fork') at forker.sl:9
+-Trace: &amp;fork(&amp;closure[forker.sl:9]#2) = <A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">sleep.bridges.io.IOObject at f1f051</A> at forker.sl:8
+ Trace: &amp;sleep(1000) at forker.sl:12
+ Trace: &amp;check('outside of fork') at forker.sl:14
+
+Modified: sleep/tests/output/include.sl
+===================================================================
+--- sleep/tests/output/include.sl	2008-04-30 04:20:44 UTC (rev 350)
++++ sleep/tests/output/include.sl	2008-05-08 16:45:00 UTC (rev 351)
+@@ -11,4 +11,4 @@
+ Trace: &amp;debug(7) = 7 at include.sl:19
+ Eh?!? Hello from injar.sl
+ Warning: checkError(): YourCodeSucksException: 3 error(s): Mismatched Parentheses - missing close paren at 9; Mismatched Braces - missing close brace at 6; Runaway string at 9 at include.sl:24
+-Warning: checkError(): java.io.IOException: unable to locate scripts/does_not_exist.sl from: data/scripts.jar at include.sl:27
++Warning: checkError(): java.io.IOException: unable to locate scripts/does_not_exist.sl from: ==CWD==tests/data/scripts.jar at include.sl:27
+
+Added: sleep/tests/output/readb2.sl
+===================================================================
+--- sleep/tests/output/readb2.sl	2008-04-30 04:20:44 UTC (rev 350)
++++ sleep/tests/output/readb2.sl	2008-05-08 16:45:00 UTC (rev 351)
+@@ -0,0 +1,8 @@
++150 vs. 150
++$handle = openf(&quot;readb2.sl&quot;);
++println(available($handle) . &quot; vs. &quot; . lof(&quot;readb2.sl&quot;));
++$data = readb($handle, -1);
++closef($handle);
++
++println($data);
++
+
+Modified: sleep/tests/output/scalar.sl
+===================================================================
+--- sleep/tests/output/scalar.sl	2008-04-30 04:20:44 UTC (rev 350)
++++ sleep/tests/output/scalar.sl	2008-05-08 16:45:00 UTC (rev 351)
+@@ -1,4 +1,4 @@
+ 3
+ 6.4567
+-[<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">B at d0220c</A> and class [B
++[<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">B at 2e323</A> and class [B
+ this is a test and class java.lang.String
+
+Modified: sleep/tests/output/taint7.sl
+===================================================================
+--- sleep/tests/output/taint7.sl	2008-04-30 04:20:44 UTC (rev 350)
++++ sleep/tests/output/taint7.sl	2008-05-08 16:45:00 UTC (rev 351)
+@@ -1,4 +1,4 @@
+ Warning: tainted value: '2 + 2' from: @('2 + 2') at taint7.sl:3
+ Warning: tainted value: 'Hello 2 + 2' from: '2 + 2' at taint7.sl:4
+-Warning: tainted object: <A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 7aece8</A> from: 'Hello 2 + 2' at taint7.sl:4
++Warning: tainted object: <A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 1db5ec</A> from: 'Hello 2 + 2' at taint7.sl:4
+ Hello 2 + 2
+
+Modified: sleep/tests/output/trace.sl
+===================================================================
+--- sleep/tests/output/trace.sl	2008-04-30 04:20:44 UTC (rev 350)
++++ sleep/tests/output/trace.sl	2008-05-08 16:45:00 UTC (rev 351)
+@@ -1,13 +1,13 @@
+ this is a test
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 6ed322</A> println: 'this is a test'] at trace.sl:6
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 2ab653</A> println: 'this is a test'] at trace.sl:6
+ Trace: [java.lang.Math pow: 3, 4] = 81.0 at trace.sl:7
+ 81.0
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 6ed322</A> println: 81.0] at trace.sl:7
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 2ab653</A> println: 81.0] at trace.sl:7
+ Trace: [java.lang.Math pow: 3, 5] = 243.0 at trace.sl:8
+ 243.0
+ Trace: &amp;println(243.0) at trace.sl:8
+ testing again...
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 6ed322</A> println: 'testing again...'] at trace.sl:10
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 2ab653</A> println: 'testing again...'] at trace.sl:10
+ Trace: [sleep.runtime.SleepUtils getListFromArray: @('a', 'b', 'c')] = [a, b, c] at trace.sl:12
+ Trace: [new java.util.LinkedList: [a, b, c]] = [a, b, c] at trace.sl:12
+ Warning: variable '$list' not declared at trace.sl:12
+
+Modified: sleep/tests/output/warn2.sl
+===================================================================
+--- sleep/tests/output/warn2.sl	2008-04-30 04:20:44 UTC (rev 350)
++++ sleep/tests/output/warn2.sl	2008-05-08 16:45:00 UTC (rev 351)
+@@ -1,2 +1,2 @@
+-Warning: Couldn't open file: java.io.FileNotFoundException: jdfjsjkfjksfjksafjk (No such file or directory) at warn2.sl:15
++Warning: Couldn't open file: java.io.FileNotFoundException: /Users/raffi/sleepdev/sleep/tests/jdfjsjkfjksfjksafjk (No such file or directory) at warn2.sl:15
+ This is me acting really kewlios
+
+Modified: sleep/tests/output/wrong.sl
+===================================================================
+--- sleep/tests/output/wrong.sl	2008-04-30 04:20:44 UTC (rev 350)
++++ sleep/tests/output/wrong.sl	2008-05-08 16:45:00 UTC (rev 351)
+@@ -1,32 +1,32 @@
+ Trace: [java.lang.Math pow: 3, 4] = 81.0 at wrong.sl:6
+ 81.0
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 884a40</A> println: 81.0] at wrong.sl:6
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 8f7386</A> println: 81.0] at wrong.sl:6
+ Trace: &amp;casti(1, 'z') = true at wrong.sl:9
+ true
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 884a40</A> println: true] at wrong.sl:9
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 8f7386</A> println: true] at wrong.sl:9
+ Trace: &amp;casti(0, 'z') = false at wrong.sl:10
+ false
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 884a40</A> println: false] at wrong.sl:10
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 8f7386</A> println: false] at wrong.sl:10
+ Trace: &amp;casti(1, 'd') = 1.0 at wrong.sl:13
+ 1.0
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 884a40</A> println: 1.0] at wrong.sl:13
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 8f7386</A> println: 1.0] at wrong.sl:13
+ Trace: &amp;casti(1, 'b') = 1 at wrong.sl:16
+ 1
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 884a40</A> println: 1] at wrong.sl:16
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 8f7386</A> println: 1] at wrong.sl:16
+ Trace: &amp;casti(100, 'f') = 100.0 at wrong.sl:19
+ 100.0
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 884a40</A> println: 100.0] at wrong.sl:19
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 8f7386</A> println: 100.0] at wrong.sl:19
+ Trace: &amp;casti('b', 'c') = b at wrong.sl:22
+ b
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 884a40</A> println: b] at wrong.sl:22
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 8f7386</A> println: b] at wrong.sl:22
+ Trace: &amp;casti(63, 'i') = 63 at wrong.sl:25
+ 63
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 884a40</A> println: 63] at wrong.sl:25
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 8f7386</A> println: 63] at wrong.sl:25
+ this is a string y0
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 884a40</A> println: 'this is a string y0'] at wrong.sl:28
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 8f7386</A> println: 'this is a string y0'] at wrong.sl:28
+ Trace: [new java.lang.StringBuilder: 'test'] = test at wrong.sl:31
+ test
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 884a40</A> println: test] at wrong.sl:31
+-Trace: &amp;cast(@('a', 'b', 'c', 'd'), 'c') = [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">C at caf6c1</A> at wrong.sl:34
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 8f7386</A> println: test] at wrong.sl:31
++Trace: &amp;cast(@('a', 'b', 'c', 'd'), 'c') = [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">C at 8ae45a</A> at wrong.sl:34
+ abcd
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 884a40</A> println: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">C at caf6c1</A>] at wrong.sl:34
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 8f7386</A> println: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">C at 8ae45a</A>] at wrong.sl:34
+
+Added: sleep/tests/readb2.sl
+===================================================================
+--- sleep/tests/readb2.sl	2008-04-30 04:20:44 UTC (rev 350)
++++ sleep/tests/readb2.sl	2008-05-08 16:45:00 UTC (rev 351)
+@@ -0,0 +1,6 @@
++$handle = openf(&quot;readb2.sl&quot;);
++println(available($handle) . &quot; vs. &quot; . lof(&quot;readb2.sl&quot;));
++$data = readb($handle, -1);
++closef($handle);
++
++println($data);
+
+Modified: sleep/tests/test.pl
+===================================================================
+--- sleep/tests/test.pl	2008-04-30 04:20:44 UTC (rev 350)
++++ sleep/tests/test.pl	2008-05-08 16:45:00 UTC (rev 351)
+@@ -50,6 +50,8 @@
+             print &quot;\njava $PROPS -jar ../sleep.jar ./$var\n&quot;;
+             print &quot;\n&quot;.$script_value.&quot;\n&quot;;
+          }
++
++         print &quot;$var -- broken!\n&quot;;
+       }  
+       else
+       {
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2008-04-30 04:20:44 UTC (rev 350)
++++ sleep/whatsnew.txt	2008-05-08 16:45:00 UTC (rev 351)
+@@ -1,3 +1,19 @@
++2.1-beta 25  (8 May 08) [will this beta process ever end?]
++===========
++- added &amp;chdir() to change the current working directory of the
++  active script instance.  This value is inherited by (but not
++  shared) fork().  All I/O and File System bridge functions that
++  manipulate files (including exec) utilize the current working
++  directory.  Use &amp;cwd() to obtain the current working 
++  directory value.
++- -1 specified to &amp;readb will attempt to read in all of the 
++  bytes currently available for reading.  This is most useful
++  for grabbing the contents of a file easily.
++- I/O functions are now smarter about checking their arguments.
++- replaced test.pl regression tester with a Sleep version.
++  The Sleep version is much faster and it is forgiving of 
++  address and installation path differences.  
++
+ 2.1-beta 24  (30 Apr 08)
+ ===========
+ - refactored Parser/CodeGenerator to use a factory pattern for
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	
+	<LI>Next message: <A HREF="000329.html">[Sleep-svn] r352 - in sleep: . src/sleep/bridges	src/sleep/bridges/io tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#328">[ date ]</a>
+              <a href="thread.html#328">[ thread ]</a>
+              <a href="subject.html#328">[ subject ]</a>
+              <a href="author.html#328">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,314 @@
+From rsmudge at mail.berlios.de  Mon Sep 17 07:57:38 2007
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Mon, 17 Sep 2007 07:57:38 +0200
+Subject: [Sleep-svn] r297 - in sleep/tests: . output
+Message-ID: <200709170557.l8H5vcdw008722@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2007-09-17 07:57:38 +0200 (Mon, 17 Sep 2007)
+New Revision: 297
+
+Added:
+   sleep/tests/output/process.sl
+   sleep/tests/process.sl
+Log:
+..
+
+
+Added: sleep/tests/output/process.sl
+===================================================================
+--- sleep/tests/output/process.sl	2007-07-09 01:42:19 UTC (rev 296)
++++ sleep/tests/output/process.sl	2007-09-17 05:57:38 UTC (rev 297)
+@@ -0,0 +1,101 @@
++Test: 0
++Test: 1
++Test: 2
++Test: 3
++Test: 4
++Test: 5
++Test: 6
++Test: 7
++Test: 8
++Test: 9
++Test: 10
++Test: 11
++Test: 12
++Test: 13
++Test: 14
++Test: 15
++Test: 16
++Test: 17
++Test: 18
++Test: 19
++Test: 20
++Test: 21
++Test: 22
++Test: 23
++Test: 24
++Test: 25
++Test: 26
++Test: 27
++Test: 28
++Test: 29
++Test: 30
++Test: 31
++Test: 32
++Test: 33
++Test: 34
++Test: 35
++Test: 36
++Test: 37
++Test: 38
++Test: 39
++Test: 40
++Test: 41
++Test: 42
++Test: 43
++Test: 44
++Test: 45
++Test: 46
++Test: 47
++Test: 48
++Test: 49
++Test: 50
++Test: 51
++Test: 52
++Test: 53
++Test: 54
++Test: 55
++Test: 56
++Test: 57
++Test: 58
++Test: 59
++Test: 60
++Test: 61
++Test: 62
++Test: 63
++Test: 64
++Test: 65
++Test: 66
++Test: 67
++Test: 68
++Test: 69
++Test: 70
++Test: 71
++Test: 72
++Test: 73
++Test: 74
++Test: 75
++Test: 76
++Test: 77
++Test: 78
++Test: 79
++Test: 80
++Test: 81
++Test: 82
++Test: 83
++Test: 84
++Test: 85
++Test: 86
++Test: 87
++Test: 88
++Test: 89
++Test: 90
++Test: 91
++Test: 92
++Test: 93
++Test: 94
++Test: 95
++Test: 96
++Test: 97
++Test: 98
++Test: 99
++Size of output is: 890
+
+Added: sleep/tests/process.sl
+===================================================================
+--- sleep/tests/process.sl	2007-07-09 01:42:19 UTC (rev 296)
++++ sleep/tests/process.sl	2007-09-17 05:57:38 UTC (rev 297)
+@@ -0,0 +1,30 @@
++import sleep.error.YourCodeSucksException;
++import sleep.runtime.ScriptLoader; 
++
++sub executeScript
++{
++   local('$loader $script $buffer $error');
++    
++   $loader = [new ScriptLoader];
++   $script = [$loader loadScript: $1];
++   [$script addWarningWatcher: { println("*** $1"); }];
++
++   checkError($error);
++   if ($error && $error isa ^YourCodeSucksException)
++   {
++      return [$error formatErrors];
++   }
++ 
++   $buffer = allocate();
++   [[[$script getScriptEnvironment] getEnvironment] 
++                                    put: "%console%", $buffer];
++   [$script runScript];
++
++   closef($buffer);
++ 
++   return readb($buffer, available($buffer));
++}
++
++$output = executeScript("for.sl");
++print($output);
++println("Size of output is: " . strlen($output));
+
+
+
+From rsmudge at mail.berlios.de  Mon Sep 24 00:30:58 2007
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Mon, 24 Sep 2007 00:30:58 +0200
+Subject: [Sleep-svn] r298 - in sleep: . src/sleep/bridges src/sleep/runtime
+	tests tests/output
+Message-ID: <200709232230.l8NMUwZv020164@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2007-09-24 00:30:57 +0200 (Mon, 24 Sep 2007)
+New Revision: 298
+
+Added:
+   sleep/tests/output/ser_closure.sl
+   sleep/tests/ser_closure.sl
+Modified:
+   sleep/src/sleep/bridges/SleepClosure.java
+   sleep/src/sleep/runtime/ScriptEnvironment.java
+   sleep/whatsnew.txt
+Log:
+context metadata is no longer serialized with a closure (reason: iterator data and matcher data are not
+serializable... hence breaking mobile code with Sleep at times)
+
+
+
+Modified: sleep/src/sleep/bridges/SleepClosure.java
+===================================================================
+--- sleep/src/sleep/bridges/SleepClosure.java	2007-09-17 05:57:38 UTC (rev 297)
++++ sleep/src/sleep/bridges/SleepClosure.java	2007-09-23 22:30:57 UTC (rev 298)
+@@ -1,24 +1,3 @@
+-/*
+-   SLEEP - Simple Language for Environment Extension Purposes
+- .----------------------------.
+- | sleep.bridges.SleepClosure |_______________________________________________
+- |                                                                            |
+-   Author: Raphael Mudge (raffi at hick.org)
+-           http://www.hick.org/~raffi/
+-
+-   Description:
+-        Implementation of a Sleep Closure.
+-
+-   Documentation:
+-
+-   Changelog:
+-
+-   * This software is distributed under the artistic license, see license.txt
+-     for more information. *
+-
+- |____________________________________________________________________________|
+- */
+-
+ package sleep.bridges;
+  
+ import java.util.*;
+@@ -272,7 +251,7 @@
+        out.writeInt(id);
+        out.writeObject(code);
+        out.writeObject(context);
+-       out.writeObject(metadata);
++/*       out.writeObject(metadata); */
+        out.writeObject(variables);
+     }
+ 
+@@ -281,7 +260,8 @@
+        id        = in.readInt();
+        code      = (Block)in.readObject();
+        context   = (Stack)in.readObject();
+-       metadata  = (HashMap)in.readObject();
++       metadata  = new HashMap();
++/*       metadata  = (HashMap)in.readObject(); */
+        variables = (Variable)in.readObject();
+        owner     = null;
+     }
+
+Modified: sleep/src/sleep/runtime/ScriptEnvironment.java
+===================================================================
+--- sleep/src/sleep/runtime/ScriptEnvironment.java	2007-09-17 05:57:38 UTC (rev 297)
++++ sleep/src/sleep/runtime/ScriptEnvironment.java	2007-09-23 22:30:57 UTC (rev 298)
+@@ -245,7 +245,10 @@
+     }
+ 
+     /** Use this function to save some meta data for this particular closure context, passing null for value will
+-        remove the key from the metadata for this context */
++        remove the key from the metadata for this context.
++       
++        Note: context metadata is *not* serialized when the closure is serialized.
++    */
+     public void setContextMetadata(Object key, Object value)
+     {
+        if (value == null) 
+
+Added: sleep/tests/output/ser_closure.sl
+===================================================================
+
+Added: sleep/tests/ser_closure.sl
+===================================================================
+--- sleep/tests/ser_closure.sl	2007-09-17 05:57:38 UTC (rev 297)
++++ sleep/tests/ser_closure.sl	2007-09-23 22:30:57 UTC (rev 298)
+@@ -0,0 +1,32 @@
++#
++# some fun serializing closure metadata...
++#
++
++debug(7 | 34);
++
++global('$buffer $ex');
++$buffer = allocate();
++
++sub foo
++{
++   if ($1 ismatch '.*')
++   {
++   }
++   yield;
++}
++
++foo("blah");
++writeObject($buffer, &foo);
++
++sub bar
++{
++   local('$iter');
++
++   foreach $iter (@(1, 2, 3, 4, 5, 6, 7))
++   {
++      yield;
++   }
++}
++
++bar();
++writeObject($buffer, &bar);
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2007-09-17 05:57:38 UTC (rev 297)
++++ sleep/whatsnew.txt	2007-09-23 22:30:57 UTC (rev 298)
+@@ -1,10 +1,12 @@
+-2.1-beta 19  (8 Jul 07)
++2.1-beta 19 
+ ===========
+ - sleep interpreter now performs better stack hygeine to prevent 
+   exceptions and errors from corrupting the stack inadvertently.
+ - $null now deserializes as its singleton value.  this fixes a lot of
+   potential pitfalls for scripts that rely heavily on serializing and
+   deserializing Sleep functions.  
++- closure context metadata (regex matcher and iterator for foreach 
++  loops) is no longer serialized with the closure...  beware of this.
+ 
+ 2.1-beta 18  (5 Jul 07)
+ ===========
+
+
+

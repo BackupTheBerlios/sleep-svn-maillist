@@ -1,0 +1,168 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r427 - in sleep: . src/sleep/taint tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2008-August/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r427%20-%20in%20sleep%3A%20.%20src/sleep/taint%20tests%20tests/output&In-Reply-To=%3C200808042346.m74Nkq0c008155%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000402.html">
+   <LINK REL="Next"  HREF="000404.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r427 - in sleep: . src/sleep/taint tests tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r427%20-%20in%20sleep%3A%20.%20src/sleep/taint%20tests%20tests/output&In-Reply-To=%3C200808042346.m74Nkq0c008155%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r427 - in sleep: . src/sleep/taint tests tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Tue Aug  5 01:46:52 CEST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000402.html">[Sleep-svn] r426 - in sleep: . src/sleep/bridges	src/sleep/engine/atoms src/sleep/runtime tests tests/output
+</A></li>
+        <LI>Next message: <A HREF="000404.html">[Sleep-svn] r428 - in sleep: . src/sleep/engine/atoms tests	tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#403">[ date ]</a>
+              <a href="thread.html#403">[ thread ]</a>
+              <a href="subject.html#403">[ subject ]</a>
+              <a href="author.html#403">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2008-08-05 01:46:52 +0200 (Tue, 05 Aug 2008)
+New Revision: 427
+
+Added:
+   sleep/tests/output/taint11.sl
+   sleep/tests/taint11.sl
+Modified:
+   sleep/build.xml
+   sleep/runtests.sl
+   sleep/src/sleep/taint/TaintUtils.java
+   sleep/whatsnew.txt
+Log:
+fixed taint problem.
+
+
+
+Modified: sleep/build.xml
+===================================================================
+--- sleep/build.xml	2008-08-04 22:59:56 UTC (rev 426)
++++ sleep/build.xml	2008-08-04 23:46:52 UTC (rev 427)
+@@ -16,7 +16,7 @@
+            destdir=&quot;${project.build}&quot;
+            nowarn=&quot;yes&quot;
+            depend=&quot;yes&quot;
+-           debug=&quot;false&quot;
++           debug=&quot;true&quot;
+            source=&quot;1.4&quot;
+            target=&quot;1.4&quot;
+            optimize=&quot;yes&quot;
+
+Modified: sleep/runtests.sl
+===================================================================
+--- sleep/runtests.sl	2008-08-04 22:59:56 UTC (rev 426)
++++ sleep/runtests.sl	2008-08-04 23:46:52 UTC (rev 427)
+@@ -109,7 +109,7 @@
+    chdir(&quot;tests&quot;);
+ 
+    # some special scripts that require command line execution to test out some stuff...
+-   for ($x = 0; $x &lt; 11; $x++)
++   for ($x = 0; $x &lt; 12; $x++)
+    {
+       %special[&quot;taint $+ $x $+ .sl&quot;]  = &quot;java -Dsleep.taint=true -jar ../sleep.jar taint $+ $x $+ .sl&quot;;
+    }
+
+Modified: sleep/src/sleep/taint/TaintUtils.java
+===================================================================
+--- sleep/src/sleep/taint/TaintUtils.java	2008-08-04 22:59:56 UTC (rev 426)
++++ sleep/src/sleep/taint/TaintUtils.java	2008-08-04 23:46:52 UTC (rev 427)
+@@ -112,7 +112,8 @@
+           Iterator i = value.getHash().getData().entrySet().iterator();
+           while (i.hasNext())
+           {
+-             taintAll((Scalar)i.next());
++             Map.Entry tempe = (Map.Entry)i.next();
++             taintAll((Scalar)tempe.getValue());
+           }
+        }
+        else if (value.getActualValue().getType() == ObjectValue.class &amp;&amp; value.objectValue().getClass() == KeyValuePair.class)
+
+Added: sleep/tests/output/taint11.sl
+===================================================================
+--- sleep/tests/output/taint11.sl	2008-08-04 22:59:56 UTC (rev 426)
++++ sleep/tests/output/taint11.sl	2008-08-04 23:46:52 UTC (rev 427)
+@@ -0,0 +1,3 @@
++%(a =&gt; 'apple', c =&gt; 'cats', b =&gt; 'bats')
++@('a', 'c', 'b')
++@('apple', 'cats', 'bats')
+
+Added: sleep/tests/taint11.sl
+===================================================================
+--- sleep/tests/taint11.sl	2008-08-04 22:59:56 UTC (rev 426)
++++ sleep/tests/taint11.sl	2008-08-04 23:46:52 UTC (rev 427)
+@@ -0,0 +1,18 @@
++#
++# test out taint mode with serialization
++#
++
++debug(7);
++
++local('$buffer %hash $temp');
++
++%hash   = %(a =&gt; &quot;apple&quot;, b =&gt; &quot;bats&quot;, c =&gt; &quot;cats&quot;);
++$buffer = allocate();
++writeObject($buffer, %hash);
++closef($buffer);
++
++$temp = readObject($buffer);
++println($temp);
++println(keys($temp));
++println(values($temp));
++
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2008-08-04 22:59:56 UTC (rev 426)
++++ sleep/whatsnew.txt	2008-08-04 23:46:52 UTC (rev 427)
+@@ -25,6 +25,8 @@
+ - Sleep functions (map, reduce, filter, etc.) that support 
+   iterating over a closure or array and foreach loops can now
+   iterate over Java iterators.  
++- fixed a bug with taintAll causing a class cast exception with
++  hash scalars
+ 
+ 2.1-release  (1 Jul 08)
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000402.html">[Sleep-svn] r426 - in sleep: . src/sleep/bridges	src/sleep/engine/atoms src/sleep/runtime tests tests/output
+</A></li>
+	<LI>Next message: <A HREF="000404.html">[Sleep-svn] r428 - in sleep: . src/sleep/engine/atoms tests	tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#403">[ date ]</a>
+              <a href="thread.html#403">[ thread ]</a>
+              <a href="subject.html#403">[ subject ]</a>
+              <a href="author.html#403">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

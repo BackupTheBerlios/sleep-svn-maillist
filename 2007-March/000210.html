@@ -1,0 +1,360 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r231 - in sleep: . src/sleep/bridges tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2007-March/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r231%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20tests%20tests/output&In-Reply-To=%3C200703200330.l2K3U9xR023659%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000209.html">
+   <LINK REL="Next"  HREF="000211.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r231 - in sleep: . src/sleep/bridges tests tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r231%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20tests%20tests/output&In-Reply-To=%3C200703200330.l2K3U9xR023659%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r231 - in sleep: . src/sleep/bridges tests tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Tue Mar 20 04:30:09 CET 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000209.html">[Sleep-svn] r230 - in sleep: . docs src/sleep/runtime tests/output
+</A></li>
+        <LI>Next message: <A HREF="000211.html">[Sleep-svn] r232 - in sleep: . src/sleep/bridges src/sleep/engine	tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#210">[ date ]</a>
+              <a href="thread.html#210">[ thread ]</a>
+              <a href="subject.html#210">[ subject ]</a>
+              <a href="author.html#210">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2007-03-20 04:30:08 +0100 (Tue, 20 Mar 2007)
+New Revision: 231
+
+Added:
+   sleep/tests/arrmods.sl
+   sleep/tests/output/arrmods.sl
+Modified:
+   sleep/src/sleep/bridges/BasicStrings.java
+   sleep/src/sleep/bridges/BasicUtilities.java
+   sleep/src/sleep/bridges/BridgeUtilities.java
+   sleep/whatsnew.txt
+Log:
+..
+
+
+Modified: sleep/src/sleep/bridges/BasicStrings.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicStrings.java	2007-03-18 16:07:55 UTC (rev 230)
++++ sleep/src/sleep/bridges/BasicStrings.java	2007-03-20 03:30:08 UTC (rev 231)
+@@ -401,7 +401,7 @@
+         {
+            StringBuffer work    = new StringBuffer(BridgeUtilities.getString(l, &quot;&quot;));
+            String       nstr    = BridgeUtilities.getString(l, &quot;&quot;);
+-           int          index   = normalize(BridgeUtilities.getInt(l, 0), work.length());
++           int          index   = BridgeUtilities.normalize(BridgeUtilities.getInt(l, 0), work.length());
+            int          nchar   = BridgeUtilities.getInt(l, nstr.length());
+ 
+            work.delete(index, index + nchar);
+@@ -439,7 +439,7 @@
+         {
+            String value = l.pop().toString();
+            String item  = l.pop().toString();
+-           int    start = normalize(BridgeUtilities.getInt(l, 0), value.length());
++           int    start = BridgeUtilities.normalize(BridgeUtilities.getInt(l, 0), value.length());
+                   
+            return SleepUtils.getScalar(value.indexOf(item, start));
+         }
+@@ -645,7 +645,7 @@
+       int length = str.length();
+       int start, end;
+ 
+-      start = (_start &lt; 0 ? _start + length : _start) % length;
++      start = BridgeUtilities.normalize(_start, length);
+       end   = (_end &lt; 0 ? _end + length : _end);
+       end   = end &lt;= length ? end : length;
+ 
+@@ -657,19 +657,10 @@
+       return str.substring(start, end);
+    }
+ 
+-   /** normalizes the value based on the string length */
+-   private static final int normalize(int value, int length)
+-   {
+-      return (value &lt; 0 ? value + length : value) % length;
+-   }
+-
+    /** Normalizes the start parameter based on the length of the string and returns a character.  Functions with
+        parameters normalized in this way will be able to accept nagative indices for their parameters */
+    private static final char charAt(String str, int start)
+    {
+-      int length = str.length();
+-
+-      start = (start &lt; 0 ? start + length : start) % length;
+-      return str.charAt(start);
++      return str.charAt(BridgeUtilities.normalize(start, str.length()));
+    }
+ }
+
+Modified: sleep/src/sleep/bridges/BasicUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicUtilities.java	2007-03-18 16:07:55 UTC (rev 230)
++++ sleep/src/sleep/bridges/BasicUtilities.java	2007-03-20 03:30:08 UTC (rev 231)
+@@ -68,6 +68,7 @@
+         temp.put(&quot;&amp;add&quot;,   this);      // &amp;pop(@array) = $scalar
+         temp.put(&quot;&amp;flatten&quot;,   this);      // &amp;pop(@array) = $scalar
+         temp.put(&quot;&amp;clear&quot;, this);
++        temp.put(&quot;&amp;splice&quot;, this);
+         temp.put(&quot;&amp;subarray&quot;, this);
+         temp.put(&quot;&amp;copy&quot;,  new copy());
+  
+@@ -579,7 +580,7 @@
+        public Scalar evaluate(String n, ScriptInstance si, Stack l)
+        {
+           ScalarArray value = BridgeUtilities.getArray(l);
+-          return value.remove(BridgeUtilities.getInt(l, 0));
++          return value.remove(BridgeUtilities.normalize(BridgeUtilities.getInt(l, 0), value.size()));
+        }
+     }
+ 
+@@ -832,6 +833,8 @@
+           return SleepUtils.getScalar(i.getDebugFlags());
+        }
+ 
++       /** Start of many array functions */
++
+        Scalar value = BridgeUtilities.getScalar(l);
+ 
+        if (n.equals(&quot;&amp;push&quot;))
+@@ -895,9 +898,32 @@
+        else if (n.equals(&quot;&amp;add&quot;) &amp;&amp; value.getArray() != null)
+        {
+           Scalar item = BridgeUtilities.getScalar(l);
+-          int index = BridgeUtilities.getInt(l, 0);  
++          int index   = BridgeUtilities.normalize(BridgeUtilities.getInt(l, 0), value.getArray().size());
+           return value.getArray().add(SleepUtils.getScalar(item), index);
+        }
++       else if (n.equals(&quot;&amp;splice&quot;) &amp;&amp; value.getArray() != null)
++       {
++          // splice(@old, @stuff, start, n to remove)
++          ScalarArray insert = BridgeUtilities.getArray(l);
++          int         start  = BridgeUtilities.normalize(BridgeUtilities.getInt(l, 0), value.getArray().size());
++          int         torem  = BridgeUtilities.getInt(l, insert.size()) + start;
++
++          for (int z = start; z &lt; torem; z++)
++          {
++             value.getArray().remove(start);
++          }
++ 
++          int count = 0;
++          Iterator j = insert.scalarIterator();
++          while (j.hasNext())
++          {
++             Scalar ins = (Scalar)j.next();
++             value.getArray().add(SleepUtils.getScalar(ins), start + count);
++             count++;
++          }
++
++          return value;
++       }
+        else if (n.equals(&quot;&amp;pop&quot;))
+        {
+           return value.getArray().pop();
+@@ -924,7 +950,7 @@
+        else if (n.equals(&quot;&amp;search&quot;) &amp;&amp; value.getArray() != null)
+        {
+           SleepClosure f = BridgeUtilities.getFunction(l, i); 
+-          int start      = BridgeUtilities.getInt(l, 0);
++          int start      = BridgeUtilities.normalize(BridgeUtilities.getInt(l, 0), value.getArray().size());
+           int count      = 0;
+           Stack locals   = new Stack();
+ 
+@@ -990,21 +1016,13 @@
+        }
+        else if (n.equals(&quot;&amp;subarray&quot;))
+        {
+-          if (value.getArray() != null)
+-          {
+-             int begin = BridgeUtilities.getInt(l, 0);
+-             int end   = BridgeUtilities.getInt(l, value.getArray().size());
+-
+-             Scalar rv = SleepUtils.getArrayScalar();
+-             while (begin &lt; end)
+-             {
+-                rv.getArray().push(SleepUtils.getScalar(value.getArray().getAt(begin)));
+-                begin++;
+-             }
+-
+-             return rv;
+-          }
++          return subarray(value, BridgeUtilities.getInt(l, 0), BridgeUtilities.getInt(l, value.getArray().size()));
+        }
++       else if (n.equals(&quot;&amp;splice&quot;))
++       {
++          // splice(@old, @new, start, nchars)
++          
++       }
+        else if (n.equals(&quot;&amp;remove&quot;))
+        {
+           while (!l.isEmpty())
+@@ -1130,4 +1148,32 @@
+ 
+        return SleepUtils.getEmptyScalar();
+     }
++
++    private static final Scalar subarray(Scalar value, int _start, int _end)
++    { 
++       Scalar rv = SleepUtils.getArrayScalar();
++
++       if (value.getArray() != null)
++       {
++          int length = value.getArray().size();
++          int start, end;
++
++          start = (_start &lt; 0 ? _start + length : _start) % length;
++          end   = (_end &lt; 0 ? _end + length : _end);
++          end   = end &lt;= length ? end : length;
++
++          if (start &gt;= end)
++          {
++             throw new IllegalArgumentException(&quot;illegal subarray(&quot; + SleepUtils.describe(value) + &quot;, &quot; + _start + &quot; -&gt; &quot; + start + &quot;, &quot; + _end + &quot; -&gt; &quot; + end + &quot;)&quot;);
++          }
++  
++          while (start &lt; end)
++          {
++             rv.getArray().push(SleepUtils.getScalar(value.getArray().getAt(start)));
++             start++;
++          }
++       }
++
++       return rv;
++    }
+ }
+
+Modified: sleep/src/sleep/bridges/BridgeUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BridgeUtilities.java	2007-03-18 16:07:55 UTC (rev 230)
++++ sleep/src/sleep/bridges/BridgeUtilities.java	2007-03-20 03:30:08 UTC (rev 231)
+@@ -136,10 +136,11 @@
+    /** grab a sleep array, if the stack is empty a scalar array with no elements will be returned. */
+    public static ScalarArray getArray(Stack arguments)
+    {
+-      if (arguments.isEmpty())
++      Scalar s = getScalar(arguments);
++      if (s.getArray() == null)
+          return SleepUtils.getArrayScalar().getArray();
+ 
+-      return ((Scalar)arguments.pop()).getArray();
++      return s.getArray();
+    }
+ 
+    /** grab a sleep hash, if the stack is empty a scalar hash with no members will be returned. */
+@@ -298,4 +299,11 @@
+ 
+       return toValue;
+    }
++
++   /** normalizes the index value based on the specified length */
++   public static final int normalize(int value, int length)
++   {
++      if (length == 0) { return 0; }
++      return (value &lt; 0 ? value + length : value) % length;
++   }
+ }
+
+Added: sleep/tests/arrmods.sl
+===================================================================
+--- sleep/tests/arrmods.sl	2007-03-18 16:07:55 UTC (rev 230)
++++ sleep/tests/arrmods.sl	2007-03-20 03:30:08 UTC (rev 231)
+@@ -0,0 +1,26 @@
++#
++# test of array functions...
++#
++
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">+ at a</A> = @(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;, &quot;d&quot;, &quot;e&quot;, &quot;f&quot;, &quot;g&quot;, &quot;h&quot;, &quot;i&quot;, &quot;j&quot;);
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">+ at b</A> = @(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14);
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">+ at c</A> = copy(@b);
++
++println(splice(@c, subarray(@a, -4), 3));
++
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">+ at c</A> = copy(@b);
++println(splice(@c, subarray(@a, -4), 3, 0));
++
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">+ at c</A> = copy(@b);
++println(splice(@c, subarray(@a, -4, -2), 3, 0));
++
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">+ at c</A> = copy(@b);
++println(removeAt(@c, -3));
++println(@c);
++
++add(@c, &quot;test!!!&quot;, 0);
++println(@c);
++
++add(@c, &quot;zzzz&quot;, -1);
++println(@c);
++
+
+Added: sleep/tests/output/arrmods.sl
+===================================================================
+--- sleep/tests/output/arrmods.sl	2007-03-18 16:07:55 UTC (rev 230)
++++ sleep/tests/output/arrmods.sl	2007-03-20 03:30:08 UTC (rev 231)
+@@ -0,0 +1,7 @@
++@(1, 2, 3, 'g', 'h', 'i', 'j', 8, 9, 10, 11, 12, 13, 14)
++@(1, 2, 3, 'g', 'h', 'i', 'j', 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14)
++@(1, 2, 3, 'g', 'h', 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14)
++12
++@(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 14)
++@('test!!!', 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 14)
++@('test!!!', 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 'zzzz', 14)
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2007-03-18 16:07:55 UTC (rev 230)
++++ sleep/whatsnew.txt	2007-03-20 03:30:08 UTC (rev 231)
+@@ -1,3 +1,13 @@
++2.1-beta 14
++===========
++- added splice(@array, @insertme, position, n) for modifying an array.  
++  works a lot like replaceAt, i.e. up to n elements at the specified
++  position are removed and the elements of @insertme are put in their
++  place.  @array is modified in place.
++- array functions now normalize negative parameters as offsets from the
++  total length of the array.  updated functions include:
++  &amp;add, &amp;removeAt, &amp;search, and &amp;subarray.
++
+ 2.1-beta 13  (18 Mar 07)
+ ===========
+ - trace debug option now reports the parameters for a HOES call even if an
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000209.html">[Sleep-svn] r230 - in sleep: . docs src/sleep/runtime tests/output
+</A></li>
+	<LI>Next message: <A HREF="000211.html">[Sleep-svn] r232 - in sleep: . src/sleep/bridges src/sleep/engine	tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#210">[ date ]</a>
+              <a href="thread.html#210">[ thread ]</a>
+              <a href="subject.html#210">[ subject ]</a>
+              <a href="author.html#210">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

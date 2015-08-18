@@ -1,0 +1,184 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r362 - in sleep: . src/sleep/bridges tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2008-May/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r362%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20tests%20tests/output&In-Reply-To=%3C200805140615.m4E6FTHc010202%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000337.html">
+   <LINK REL="Next"  HREF="000339.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r362 - in sleep: . src/sleep/bridges tests tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r362%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20tests%20tests/output&In-Reply-To=%3C200805140615.m4E6FTHc010202%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r362 - in sleep: . src/sleep/bridges tests tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Wed May 14 08:15:29 CEST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000337.html">[Sleep-svn] r361 - in sleep: . src/sleep/bridges	src/sleep/engine/types src/sleep/runtime src/sleep/taint	tests tests/output
+</A></li>
+        <LI>Next message: <A HREF="000339.html">[Sleep-svn] r363 - in sleep: . src/sleep/bridges tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#338">[ date ]</a>
+              <a href="thread.html#338">[ thread ]</a>
+              <a href="subject.html#338">[ subject ]</a>
+              <a href="author.html#338">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2008-05-14 08:15:20 +0200 (Wed, 14 May 2008)
+New Revision: 362
+
+Added:
+   sleep/tests/indexit.sl
+   sleep/tests/output/indexit.sl
+Modified:
+   sleep/src/sleep/bridges/BasicStrings.java
+   sleep/tests/output/strmods.sl
+   sleep/whatsnew.txt
+Log:
+updated &amp;indexOf/&amp;lindexOf to return $null on failure (rather than -1)
+
+
+Modified: sleep/src/sleep/bridges/BasicStrings.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicStrings.java	2008-05-14 05:51:46 UTC (rev 361)
++++ sleep/src/sleep/bridges/BasicStrings.java	2008-05-14 06:15:20 UTC (rev 362)
+@@ -442,16 +442,21 @@
+            String value = l.pop().toString();
+            String item  = l.pop().toString();
+                   
++           int rv;
++           
+            if (n.equals(&quot;&amp;lindexOf&quot;))
+            {
+               int start = BridgeUtilities.normalize(BridgeUtilities.getInt(l, value.length()), value.length());
+-              return SleepUtils.getScalar(value.lastIndexOf(item, start));
++              rv = value.lastIndexOf(item, start);
+            }
+            else
+            {
+               int start = BridgeUtilities.normalize(BridgeUtilities.getInt(l, 0), value.length());
+-              return SleepUtils.getScalar(value.indexOf(item, start));
++              rv = value.indexOf(item, start);
+            }
++
++           if (rv == -1) { return SleepUtils.getEmptyScalar(); }
++           return SleepUtils.getScalar(rv);
+         }
+     }
+ 
+
+Added: sleep/tests/indexit.sl
+===================================================================
+--- sleep/tests/indexit.sl	2008-05-14 05:51:46 UTC (rev 361)
++++ sleep/tests/indexit.sl	2008-05-14 06:15:20 UTC (rev 362)
+@@ -0,0 +1,10 @@
++$string = &quot;this is a test really it is and I love it like McDonalds ketucky fried chicken and a pizza hut&quot;;
++$start = 0;
++
++while $idx (indexOf($string, 'a', $start))
++{
++   println(&quot;$start and $idx $+ : &quot; . substr($string, $start, $idx + 1));
++   $start = $idx + 1;
++}
++
++println(&quot;finish it: &quot; . substr($string, $start));
+
+Added: sleep/tests/output/indexit.sl
+===================================================================
+--- sleep/tests/output/indexit.sl	2008-05-14 05:51:46 UTC (rev 361)
++++ sleep/tests/output/indexit.sl	2008-05-14 06:15:20 UTC (rev 362)
+@@ -0,0 +1,8 @@
++0 and 8: this is a
++9 and 17:  test rea
++18 and 28: lly it is a
++29 and 52: nd I love it like McDona
++53 and 79: lds ketucky fried chicken a
++80 and 83: nd a
++84 and 89:  pizza
++finish it:  hut
+
+Modified: sleep/tests/output/strmods.sl
+===================================================================
+--- sleep/tests/output/strmods.sl	2008-05-14 05:51:46 UTC (rev 361)
++++ sleep/tests/output/strmods.sl	2008-05-14 06:15:20 UTC (rev 362)
+@@ -15,11 +15,11 @@
+ 5
+ 5
+ 5
+--1
+--1
+--1
+--1
+--1
+--1
+--1
+--1
++
++
++
++
++
++
++
++
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2008-05-14 05:51:46 UTC (rev 361)
++++ sleep/whatsnew.txt	2008-05-14 06:15:20 UTC (rev 362)
+@@ -7,7 +7,18 @@
+ - TaintUtils.taintAll now handles KeyValuePair objects
+ - added TaintUtils.taint(Stack) as another shortcut for bridge
+   writers / integrators.
++- BACKWARDS COMPAT WARNING: updated &amp;indexOf and &amp;lindexOf to
++  return $null when no match is found.  This is a change from
++  their original return value of -1.  $null is == to 0.  However
++  this does enable a cleaner means for iterating with indexOf.
+ 
++  $index = -1;
++  while $index (indexOf($string, &quot;token&quot;, $index + 1))
++  {
++     # ...
++  }
++  # do something with substr($string, $start + 1) 
++
+ 2.1-beta 25  (8 May 08) [will this beta process ever end?]
+ ===========
+ - added &amp;chdir() to change the current working directory of the
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000337.html">[Sleep-svn] r361 - in sleep: . src/sleep/bridges	src/sleep/engine/types src/sleep/runtime src/sleep/taint	tests tests/output
+</A></li>
+	<LI>Next message: <A HREF="000339.html">[Sleep-svn] r363 - in sleep: . src/sleep/bridges tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#338">[ date ]</a>
+              <a href="thread.html#338">[ thread ]</a>
+              <a href="subject.html#338">[ subject ]</a>
+              <a href="author.html#338">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

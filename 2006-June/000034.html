@@ -1,0 +1,1265 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r51 - in sleep: . src/sleep/engine src/sleep/engine/atoms src/sleep/parser src/sleep/runtime tests
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2006-June/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r51%20-%20in%20sleep%3A%20.%20src/sleep/engine%20src/sleep/engine/atoms%20src/sleep/parser%20src/sleep/runtime%20tests&In-Reply-To=%3C200606042225.k54MPqU8000666%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000033.html">
+   <LINK REL="Next"  HREF="000035.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r51 - in sleep: . src/sleep/engine src/sleep/engine/atoms src/sleep/parser src/sleep/runtime tests</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r51%20-%20in%20sleep%3A%20.%20src/sleep/engine%20src/sleep/engine/atoms%20src/sleep/parser%20src/sleep/runtime%20tests&In-Reply-To=%3C200606042225.k54MPqU8000666%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r51 - in sleep: . src/sleep/engine src/sleep/engine/atoms src/sleep/parser src/sleep/runtime tests">rsmudge at berlios.de
+       </A><BR>
+    <I>Mon Jun  5 00:25:52 CEST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000033.html">[Sleep-svn] Re: Boosting online _ 066129
+</A></li>
+        <LI>Next message: <A HREF="000035.html">[Sleep-svn] r52 - in sleep: src/sleep/bridges src/sleep/engine src/sleep/engine/atoms src/sleep/parser src/sleep/runtime tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#34">[ date ]</a>
+              <a href="thread.html#34">[ thread ]</a>
+              <a href="subject.html#34">[ subject ]</a>
+              <a href="author.html#34">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2006-06-05 00:25:51 +0200 (Mon, 05 Jun 2006)
+New Revision: 51
+
+Added:
+   sleep/tests/elfbug.sl
+Removed:
+   sleep/src/sleep/engine/atoms/Push.java
+Modified:
+   sleep/build.xml
+   sleep/src/sleep/engine/Block.java
+   sleep/src/sleep/engine/GeneratedSteps.java
+   sleep/src/sleep/engine/atoms/Assign.java
+   sleep/src/sleep/engine/atoms/AssignT.java
+   sleep/src/sleep/engine/atoms/Bind.java
+   sleep/src/sleep/engine/atoms/BindFilter.java
+   sleep/src/sleep/engine/atoms/BindPredicate.java
+   sleep/src/sleep/engine/atoms/Call.java
+   sleep/src/sleep/engine/atoms/Check.java
+   sleep/src/sleep/engine/atoms/CreateClosure.java
+   sleep/src/sleep/engine/atoms/Foreach.java
+   sleep/src/sleep/engine/atoms/Get.java
+   sleep/src/sleep/engine/atoms/Goto.java
+   sleep/src/sleep/engine/atoms/Index.java
+   sleep/src/sleep/engine/atoms/ObjectAccess.java
+   sleep/src/sleep/engine/atoms/ObjectNew.java
+   sleep/src/sleep/engine/atoms/Operate.java
+   sleep/src/sleep/engine/atoms/PLiteral.java
+   sleep/src/sleep/engine/atoms/Return.java
+   sleep/src/sleep/engine/atoms/SValue.java
+   sleep/src/sleep/parser/CodeGenerator.java
+   sleep/src/sleep/runtime/ScriptEnvironment.java
+   sleep/whatsnew.txt
+Log:
+Did some massive retooling of the sleep interpreter to force calculations to happen
+within the stack &quot;frames&quot; instead of a single environment stack for all things.
+
+Benefits, a small performance boost (noticeable somewhat in microbenchmarks), throwing
+out tons of tested code, and fixed a small bug blue-elf complained about.
+
+On the bright side this will help make some other things possible i.e. coroutines (this
+is but one of many major steps required to put coroutines in place).
+
+
+
+Modified: sleep/build.xml
+===================================================================
+--- sleep/build.xml	2006-05-20 22:25:33 UTC (rev 50)
++++ sleep/build.xml	2006-06-04 22:25:51 UTC (rev 51)
+@@ -16,7 +16,7 @@
+            destdir=&quot;${project.build}&quot;
+            nowarn=&quot;yes&quot;
+            depend=&quot;yes&quot;
+-           debug=&quot;yes&quot;
++           debug=&quot;no&quot;
+            optimize=&quot;yes&quot;
+     &gt;
+     &lt;/javac&gt;
+
+Modified: sleep/src/sleep/engine/Block.java
+===================================================================
+--- sleep/src/sleep/engine/Block.java	2006-05-20 22:25:33 UTC (rev 50)
++++ sleep/src/sleep/engine/Block.java	2006-06-04 22:25:51 UTC (rev 51)
+@@ -124,6 +124,11 @@
+         code.  don't call this method yourself.  okay? */
+     public Scalar evaluate(ScriptEnvironment environment)
+     {
++        if (environment.isReturn())
++        {
++           return environment.getReturnValue();
++        }
++
+         Step temp = first;
+         while (temp != null)
+         {
+@@ -148,7 +153,7 @@
+ 
+               return SleepUtils.getEmptyScalar();
+            }
+-     
++
+            if (environment.isReturn())
+            {
+               return environment.getReturnValue();
+@@ -157,20 +162,6 @@
+            temp = temp.next;
+         }
+ 
+-        // it looks tempting to remove this bit of code here, doesn't it?  You are 
+-        // probably thinking &quot;I yAM THe OpTIMizATiON PrIME MaSTeR&quot;... well guess 
+-        // what, you're not.  Don't remove this stuff here.  
+-        //
+-        // Basically this forces a function that doesn't return anything to return $null.
+-        //
+-        Stack env = environment.getEnvironmentStack();
+-
+-        if (env.isEmpty())
+-        {
+-           return SleepUtils.getEmptyScalar(); 
+-        }
+-
+-        return null;
+-//        return (Scalar)(env.peek());
++        return SleepUtils.getEmptyScalar(); 
+     }
+ }
+
+Modified: sleep/src/sleep/engine/GeneratedSteps.java
+===================================================================
+--- sleep/src/sleep/engine/GeneratedSteps.java	2006-05-20 22:25:33 UTC (rev 50)
++++ sleep/src/sleep/engine/GeneratedSteps.java	2006-06-04 22:25:51 UTC (rev 51)
+@@ -40,12 +40,6 @@
+        return temp;
+     }
+ 
+-    public static Step Push()
+-    {
+-       Step temp = new Push();
+-       return temp;
+-    }
+-
+     public static Step SValue(Scalar value)
+     {
+        Step temp = new SValue(value);
+
+Modified: sleep/src/sleep/engine/atoms/Assign.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/Assign.java	2006-05-20 22:25:33 UTC (rev 50)
++++ sleep/src/sleep/engine/atoms/Assign.java	2006-06-04 22:25:51 UTC (rev 51)
+@@ -49,17 +49,28 @@
+       return temp.toString();
+    }
+ 
++   // Pre condition:
++   //   actual right hand side value is on &quot;current stack&quot;
++   //
++   // Post condition:
++   //   &quot;current stack&quot; is killed.
++   
+    public Scalar evaluate(ScriptEnvironment e)
+    {
+-      Stack env = e.getEnvironmentStack();
+-      variable.evaluate(e);
++      Scalar putv, value;
++
++      // evaluate our left hand side (assign to) value
++
++      e.CreateFrame();
++         variable.evaluate(e);
++         putv  = (Scalar)(e.getCurrentFrame().pop());
++      e.KillFrame();
+  
+-      Scalar putv  = (Scalar)env.pop();
+-      Scalar value = (Scalar)env.pop();
+-
++      value = (Scalar)(e.getCurrentFrame().pop());
+       putv.setValue(value);    
+ 
+-      return putv;
++      e.FrameResult(value);
++      return null;
+    }
+ }
+ 
+
+Modified: sleep/src/sleep/engine/atoms/AssignT.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/AssignT.java	2006-05-20 22:25:33 UTC (rev 50)
++++ sleep/src/sleep/engine/atoms/AssignT.java	2006-06-04 22:25:51 UTC (rev 51)
+@@ -39,16 +39,22 @@
+       return temp.toString();
+    }
+ 
++   // Pre Condition:
++   //   top value of &quot;current frame&quot; is the array value
++   //   n values on &quot;current frame&quot; represent our assign to scalars
++   //
++   // Post Condition:
++   //   &quot;current frame&quot; is dissolved.
++   // 
++
+    public Scalar evaluate(ScriptEnvironment e)
+    {
+-      Stack env = e.getEnvironmentStack();
+-
+-      Scalar   scalar = (Scalar)env.pop();
+-
+       Scalar   putv;
+       Scalar   value;
+       Stack    variables = e.getCurrentFrame();
+ 
++      Scalar   scalar = (Scalar)variables.pop();
++
+       if (scalar.getArray() == null)
+       {
+          Iterator i = variables.iterator();
+@@ -57,7 +63,7 @@
+             ((Scalar)i.next()).setValue(scalar.getValue()); // copying of value or ref handled by Scalar class
+          }          
+          e.KillFrame();
+-         return SleepUtils.getEmptyScalar();
++         return null;
+       }
+ 
+       Iterator values = scalar.getArray().scalarIterator();
+@@ -79,8 +85,8 @@
+          putv.setValue(value);
+       }
+ 
+-      e.KillFrame();
+-      return SleepUtils.getEmptyScalar();
++      e.FrameResult(scalar);
++      return null;
+    }
+ }
+ 
+
+Modified: sleep/src/sleep/engine/atoms/Bind.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/Bind.java	2006-05-20 22:25:33 UTC (rev 50)
++++ sleep/src/sleep/engine/atoms/Bind.java	2006-06-04 22:25:51 UTC (rev 51)
+@@ -62,17 +62,21 @@
+       code = c;
+    }
+ 
++   //
++   // no stack pre/post conditions for this step
++   //
++
+    public Scalar evaluate(ScriptEnvironment e)
+    {
+       Environment temp = e.getFunctionEnvironment(funcenv);
+       
+       if (temp != null)
+       { 
+-         Stack env = e.getEnvironmentStack();   
++         e.CreateFrame();
++            name.evaluate(e);
++            Scalar funcname = (Scalar)e.getCurrentFrame().pop();
++         e.KillFrame();
+ 
+-         name.evaluate(e);
+-         Scalar funcname = (Scalar)env.pop();
+-
+          temp.bindFunction(e.getScriptInstance(), funcenv, funcname.getValue().toString(), code);
+       }
+       else
+@@ -80,8 +84,7 @@
+          e.getScriptInstance().fireWarning(&quot;Attempting to bind code to non-existent environment: &quot; + funcenv, getLineNumber());
+       }
+ 
+-      Scalar ts = SleepUtils.getScalar(code);
+-      return ts;
++      return null;
+    }
+ }
+ 
+
+Modified: sleep/src/sleep/engine/atoms/BindFilter.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/BindFilter.java	2006-05-20 22:25:33 UTC (rev 50)
++++ sleep/src/sleep/engine/atoms/BindFilter.java	2006-06-04 22:25:51 UTC (rev 51)
+@@ -67,8 +67,7 @@
+          e.getScriptInstance().fireWarning(&quot;Attempting to bind code to non-existent predicate environment: &quot; + funcenv, getLineNumber());
+       }
+ 
+-      Scalar ts = SleepUtils.getScalar(code);
+-      return ts;
++      return null;
+    }
+ }
+ 
+
+Modified: sleep/src/sleep/engine/atoms/BindPredicate.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/BindPredicate.java	2006-05-20 22:25:33 UTC (rev 50)
++++ sleep/src/sleep/engine/atoms/BindPredicate.java	2006-06-04 22:25:51 UTC (rev 51)
+@@ -65,8 +65,7 @@
+          e.getScriptInstance().fireWarning(&quot;Attempting to bind code to non-existent predicate environment: &quot; + funcenv, getLineNumber());
+       }
+ 
+-      Scalar ts = SleepUtils.getScalar(code);
+-      return ts;
++      return null;
+    }
+ }
+ 
+
+Modified: sleep/src/sleep/engine/atoms/Call.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/Call.java	2006-05-20 22:25:33 UTC (rev 50)
++++ sleep/src/sleep/engine/atoms/Call.java	2006-06-04 22:25:51 UTC (rev 51)
+@@ -40,13 +40,17 @@
+    {
+       return &quot;[Function Call]: &quot;+function+&quot;\n&quot;;
+    }
++  
++   // Pre Condition:
++   //  arguments on the current stack (to allow stack to be passed0
++   //
++   // Post Condition:
++   //  current frame will be dissolved and return value will be placed on parent frame
+ 
++
+    public Scalar evaluate(ScriptEnvironment e)
+    {
+-      Stack env   = e.getEnvironmentStack();
+-
+       Scalar temp = null;
+-
+       Function callme = e.getFunction(function);
+ 
+       if (callme != null)
+@@ -60,9 +64,8 @@
+           temp = SleepUtils.getEmptyScalar();
+       }
+ 
+-      e.KillFrame();
+-      env.clear();
+-      env.push(temp);
+-      return temp;
++      e.FrameResult(temp);
++
++      return null;
+    }
+ }
+
+Modified: sleep/src/sleep/engine/atoms/Check.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/Check.java	2006-05-20 22:25:33 UTC (rev 50)
++++ sleep/src/sleep/engine/atoms/Check.java	2006-06-04 22:25:51 UTC (rev 51)
+@@ -156,6 +156,7 @@
+    /** Performs this &quot;check&quot;.  Returns the value of the condition that is checked. */
+    public boolean check(ScriptEnvironment env)
+    {
++      env.CreateFrame();
+       setup.evaluate(env);
+       Predicate choice = env.getPredicate(name);
+  
+
+Modified: sleep/src/sleep/engine/atoms/CreateClosure.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/CreateClosure.java	2006-05-20 22:25:33 UTC (rev 50)
++++ sleep/src/sleep/engine/atoms/CreateClosure.java	2006-06-04 22:25:51 UTC (rev 51)
+@@ -32,24 +32,28 @@
+ {
+    Block  block = null;
+ 
++   public String toString()
++   {
++      return &quot;[Create Closure]\n&quot; + block.toString(&quot;   &quot;);
++   }
++
+    public CreateClosure(Block _block)
+    {
+       block = _block;
+    }
+ 
++   // 
++   // no stack pre condition.
++   //
++   // post condition:
++   //   pushes closure onto current frame
++
+    public Scalar evaluate(ScriptEnvironment e)
+    {
+-      Stack env = e.getEnvironmentStack();   
+-
+       Scalar value = SleepUtils.getScalar(new SleepClosure(e.getScriptInstance(), block));
++      e.getCurrentFrame().push(value);
+ 
+-      env.push(value);
+-      return value;
++      return null;
+    }
+-
+-   public String toString()
+-   {
+-      return &quot;[Create Closure]\n&quot; + block.toString(&quot;   &quot;);
+-   }
+ }
+ 
+
+Modified: sleep/src/sleep/engine/atoms/Foreach.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/Foreach.java	2006-05-20 22:25:33 UTC (rev 50)
++++ sleep/src/sleep/engine/atoms/Foreach.java	2006-06-04 22:25:51 UTC (rev 51)
+@@ -66,8 +66,6 @@
+ 
+    public Scalar evaluate(ScriptEnvironment e)
+    {
+-      Stack env = e.getEnvironmentStack();   
+-
+       Variable venv = e.getScriptVariables().getScalarLevel(value, e.getScriptInstance());
+ 
+       if (venv == null)
+@@ -75,9 +73,12 @@
+          venv = e.getScriptVariables().getGlobalVariables();
+       }
+ 
++      e.CreateFrame();
+       source.evaluate(e);
+  
+-      Scalar src = (Scalar)env.pop();
++      Scalar src = (Scalar)e.getCurrentFrame().pop();
++      e.KillFrame();
++
+       Iterator i;
+ 
+       if (src.getHash() != null)
+@@ -117,7 +118,9 @@
+             venv.putScalar(value, out);
+          }
+ 
++         e.CreateFrame();
+          code.evaluate(e);
++         e.KillFrame();
+ 
+          if (e.isReturn())
+          {
+@@ -140,8 +143,6 @@
+          x++;
+       }
+ 
+-      env.clear();
+-//      env.push(valueHolder);
+       return null;
+    }
+ }
+
+Modified: sleep/src/sleep/engine/atoms/Get.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/Get.java	2006-05-20 22:25:33 UTC (rev 50)
++++ sleep/src/sleep/engine/atoms/Get.java	2006-06-04 22:25:51 UTC (rev 51)
+@@ -43,37 +43,33 @@
+ 
+    public Scalar evaluate(ScriptEnvironment e)
+    {
+-      Stack env = e.getEnvironmentStack();
+-
+       if (value.charAt(0) == '&amp;')
+       {
+          Function func = e.getFunction(value);
+ 
+          Scalar blah = SleepUtils.getScalar(func); 
+-
+-         env.push(blah);
+-         return blah;
++         e.getCurrentFrame().push(blah);
+       }
+-
+-      Scalar structure = e.getScalar(value);
+-
+-      if (structure != null)
++      else
+       {
+-         env.push(structure);
+-         return structure;
+-      }
++         Scalar structure = e.getScalar(value);
+ 
+-      if (value.charAt(0) == '@')
+-         structure = SleepUtils.getArrayScalar();
+-      else if (value.charAt(0) == '%')
+-         structure = SleepUtils.getHashScalar();
+-      else
+-         structure = SleepUtils.getEmptyScalar();
++         if (structure == null)
++         {
++            if (value.charAt(0) == '@')
++               structure = SleepUtils.getArrayScalar();
++            else if (value.charAt(0) == '%')
++               structure = SleepUtils.getHashScalar();
++            else
++               structure = SleepUtils.getEmptyScalar();
+ 
+-      e.putScalar(value, structure);
+-      env.push(structure);
++            e.putScalar(value, structure);
++         }
+ 
+-      return structure;
++         e.getCurrentFrame().push(structure);
++      }
++
++      return null;
+    }
+ }
+ 
+
+Modified: sleep/src/sleep/engine/atoms/Goto.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/Goto.java	2006-05-20 22:25:33 UTC (rev 50)
++++ sleep/src/sleep/engine/atoms/Goto.java	2006-06-04 22:25:51 UTC (rev 51)
+@@ -90,17 +90,15 @@
+ 
+    public Scalar evaluate(ScriptEnvironment e)
+    {
+-      Stack env = e.getEnvironmentStack();   
+-
+       Scalar temp = null;
+ 
+       if (start.check(e))
+       {
+-          temp = iftrue.evaluate(e);
++          iftrue.evaluate(e);
+       }
+       else if (iffalse != null)
+       {
+-          temp = iffalse.evaluate(e);
++          iffalse.evaluate(e);
+       }
+ 
+       if (isLoop)
+@@ -117,8 +115,7 @@
+ 
+           while (!e.isReturn() &amp;&amp; start.check(e))
+           {
+-             temp = iftrue.evaluate(e);
+-             env.clear();
++             iftrue.evaluate(e);
+ 
+              if (e.getFlowControlRequest() == ScriptEnvironment.FLOW_CONTROL_CONTINUE)
+              {
+@@ -134,11 +131,10 @@
+          if (e.getFlowControlRequest() == ScriptEnvironment.FLOW_CONTROL_BREAK)
+          {
+              e.clearReturn();
+-             env.clear();
+          }
+       }
+ 
+-      return temp;
++      return null;
+    }
+ }
+ 
+
+Modified: sleep/src/sleep/engine/atoms/Index.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/Index.java	2006-05-20 22:25:33 UTC (rev 50)
++++ sleep/src/sleep/engine/atoms/Index.java	2006-06-04 22:25:51 UTC (rev 51)
+@@ -57,12 +57,19 @@
+       index = i;
+    }
+ 
++   //
++   // Pre Condition:
++   //   previous data structure is top item on current frame
++   //
++   // Post Condition:
++   //   current frame is dissolved
++   //   current data data structure is top item on parent frame
++
+    public Scalar evaluate(ScriptEnvironment e)
+    {
+-      Stack  env       = e.getEnvironmentStack();
+       Scalar pos, rv = null;
+ 
+-      Scalar structure = (Scalar)env.pop();
++      Scalar structure = (Scalar)e.getCurrentFrame().pop();
+ 
+       if (SleepUtils.isEmptyScalar(structure))
+       {
+@@ -76,16 +83,16 @@
+           }
+       }
+ 
+-      index.evaluate(e);
+-      pos = (Scalar)(env.pop());
++      e.CreateFrame();
++         index.evaluate(e);
++         pos = (Scalar)(e.getCurrentFrame().pop());
++      e.KillFrame();
+ 
+       if (structure.getArray() != null) { rv = structure.getArray().getAt(pos.getValue().intValue()); }
+       else if (structure.getHash() != null) { rv = structure.getHash().getAt(pos); }
+       else { rv = SleepUtils.getEmptyScalar(); } // always return an empty scalar if we are not referencing a hash or an array
+ 
+-      return (Scalar)(env.push(rv));
++      e.FrameResult(rv);
++      return null;
+    }
+ }
+-
+-
+-
+
+Modified: sleep/src/sleep/engine/atoms/ObjectAccess.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/ObjectAccess.java	2006-05-20 22:25:33 UTC (rev 50)
++++ sleep/src/sleep/engine/atoms/ObjectAccess.java	2006-06-04 22:25:51 UTC (rev 51)
+@@ -46,9 +46,17 @@
+       return &quot;[Object Access]: &quot;+classRef+&quot;#&quot;+name+&quot;\n&quot;;
+    }
+ 
++   //
++   // Pre Condition:
++   //   object we're accessing is top item on current frame
++   //   arguments consist of the rest of the current frame...
++   //
++   // Post Condition:
++   //   current frame is dissolved
++   //   result is top item on parent frame
++
+    public Scalar evaluate(ScriptEnvironment e)
+    {
+-      Stack  env    = e.getEnvironmentStack();
+       Scalar result = SleepUtils.getEmptyScalar();
+ 
+       Object accessMe = null;
+@@ -58,15 +66,17 @@
+ 
+       if (classRef == null)
+       {
+-         scalar    = (Scalar)env.pop();
++         scalar    = (Scalar)e.getCurrentFrame().pop();
+          accessMe  = scalar.objectValue();
+ 
+          if (accessMe == null)
+          {
+-            e.getScriptInstance().fireWarning(&quot;Attempted to call a method on a null reference&quot;, getLineNumber());
+-            env.push(SleepUtils.getEmptyScalar());
++            e.getScriptInstance().fireWarning(&quot;Attempted to call a non-static method on a null reference&quot;, getLineNumber());
+             e.KillFrame();
+-            return SleepUtils.getEmptyScalar();
++
++            e.getCurrentFrame().push(SleepUtils.getEmptyScalar());
++
++            return null;
+          }
+ 
+          theClass  = accessMe.getClass();
+@@ -84,19 +94,21 @@
+          Function func = SleepUtils.getFunctionFromScalar(scalar, e.getScriptInstance());
+ 
+          result = func.evaluate(name, e.getScriptInstance(), e.getCurrentFrame());
++
+          e.clearReturn(); // this has to be done or else bad things will happen when the closure returns stuff
++         // ^-- evaluate, is this really necessary or are closures smart enough to clear the return themselves? // RSM
+ 
+-         env.push(result);
+-         e.KillFrame();
+-         return result;
++         e.FrameResult(result);
++         return null;
+       }
+ 
+       if (name == null)
+       {
+          e.getScriptInstance().fireWarning(&quot;Attempted to query an object with no method/field&quot;, getLineNumber());
+-         env.push(result);
+          e.KillFrame();
+-         return result;
++         e.getCurrentFrame().push(result);
++
++         return null;
+       }
+ 
+       //
+@@ -175,8 +187,7 @@
+          e.getScriptInstance().fireWarning(&quot;cannot access &quot; + name + &quot; in &quot; + theClass + &quot;: &quot; + iax.getMessage(), getLineNumber());
+       }
+ 
+-      e.KillFrame();
+-      env.push(result);
+-      return result;
++      e.FrameResult(result);
++      return null;
+    }
+ }
+
+Modified: sleep/src/sleep/engine/atoms/ObjectNew.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/ObjectNew.java	2006-05-20 22:25:33 UTC (rev 50)
++++ sleep/src/sleep/engine/atoms/ObjectNew.java	2006-06-04 22:25:51 UTC (rev 51)
+@@ -43,9 +43,16 @@
+       return &quot;[Object New]: &quot;+name+&quot;\n&quot;;
+    }
+ 
++   //
++   // Pre Condition:
++   //   arguments are on the current frame
++   //
++   // Post Condition:
++   //   current frame dissolved
++   //   new object is placed on parent frame
++
+    public Scalar evaluate(ScriptEnvironment e)
+    {
+-      Stack  env    = e.getEnvironmentStack();
+       Scalar result = SleepUtils.getEmptyScalar();
+ 
+       Object[]    parameters     = null;
+@@ -99,8 +106,7 @@
+          e.getScriptInstance().fireWarning(iax.toString(), getLineNumber());
+       }
+ 
+-      e.KillFrame();
+-      env.push(result);
+-      return result;
++      e.FrameResult(result);
++      return null;
+    }
+ }
+
+Modified: sleep/src/sleep/engine/atoms/Operate.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/Operate.java	2006-05-20 22:25:33 UTC (rev 50)
++++ sleep/src/sleep/engine/atoms/Operate.java	2006-06-04 22:25:51 UTC (rev 51)
+@@ -41,26 +41,33 @@
+        return &quot;[Operator]: &quot;+oper+&quot;\n&quot;;
+    }
+ 
++   //
++   // Pre Condition:
++   //   lhs, rhs are both on current frame
++   //
++   // Post Condition:
++   //   current frame is dissolved
++   //   return value of operation placed on parent frame
++   //
++
+    public Scalar evaluate(ScriptEnvironment e)
+    {
+-      Stack env = e.getEnvironmentStack();   
+-
+       Operator callme = e.getOperator(oper);
+ 
+       if (callme != null)
+       {
+          Scalar temp = callme.operate(oper, e.getScriptInstance(), e.getCurrentFrame());
+-         env.push(temp);
+          e.KillFrame();
+-         return temp;
++         e.getCurrentFrame().push(temp);
+       }
+       else
+       {
+          e.getScriptInstance().fireWarning(&quot;Attempting to use non-existent operator: '&quot; + oper + &quot;'&quot;, getLineNumber());
++         e.KillFrame();
++         e.getCurrentFrame().push(SleepUtils.getEmptyScalar());
+       }
+-      e.KillFrame();
+ 
+-      return SleepUtils.getEmptyScalar();
++      return null;
+    }
+ }
+ 
+
+Modified: sleep/src/sleep/engine/atoms/PLiteral.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/PLiteral.java	2006-05-20 22:25:33 UTC (rev 50)
++++ sleep/src/sleep/engine/atoms/PLiteral.java	2006-06-04 22:25:51 UTC (rev 51)
+@@ -78,8 +78,7 @@
+ 
+    public Scalar evaluate(ScriptEnvironment e)
+    {
+-      Stack  env   = e.getEnvironmentStack();
+-      String value = buildString(e, env);
++      String value = buildString(e);
+       Scalar rv;
+ 
+       if (evaluator != null &amp;&amp; e.getEnvironment().get(evaluator) != null)
+@@ -92,12 +91,14 @@
+          rv = SleepUtils.getScalar(value);
+       }
+ 
+-      env.push(rv);
++      e.getCurrentFrame().push(rv);
+       return rv;
+    }
+ 
+-   protected String buildString(ScriptEnvironment e, Stack env)
++   protected String buildString(ScriptEnvironment e)
+    {
++      e.CreateFrame();
++
+       StringBuffer value = new StringBuffer();
+       for (int x = 0; x &lt; fragments.length; x++) 
+       {
+@@ -107,9 +108,9 @@
+              code[x].evaluate(e);
+              if (align[x] != null)
+              {
+-                String temp = ((Scalar)env.pop()).getValue().toString();
++                String temp = ((Scalar)e.getCurrentFrame().pop()).getValue().toString();
+                 align[x].evaluate(e);
+-                int al = ((Scalar)env.pop()).getValue().intValue();
++                int al = ((Scalar)e.getCurrentFrame().pop()).getValue().intValue();
+                 if (temp != null)
+                 {
+                    for (int z = 0 - temp.length(); z &gt; al; z--)
+@@ -125,11 +126,13 @@
+              }
+              else
+              {
+-                value = value.append(((Scalar)env.pop()).getValue().toString());
++                value = value.append(((Scalar)e.getCurrentFrame().pop()).getValue().toString());
+              }
+           }
+       }
+ 
++      e.KillFrame();
++
+       return value.toString();
+    }
+ }
+
+Deleted: sleep/src/sleep/engine/atoms/Push.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/Push.java	2006-05-20 22:25:33 UTC (rev 50)
++++ sleep/src/sleep/engine/atoms/Push.java	2006-06-04 22:25:51 UTC (rev 51)
+@@ -1,45 +0,0 @@
+-/*
+-   SLEEP - Simple Language for Environment Extension Purposes
+- .-------------------------.
+- | sleep.engine.atoms.Push |__________________________________________________
+- |                                                                            |
+-   Author: Raphael Mudge (<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">rsmudge at mtu.edu</A>)
+-           <A HREF="http://www.csl.mtu.edu/~rsmudge/">http://www.csl.mtu.edu/~rsmudge/</A>
+-
+-   Description: This class contains an implementation of an atomic Step for
+-     the sleep scripting.  
+-
+-   Documentation:
+-
+-   Changelog:
+-   11/17/2002 - this class was refactored out of Step and put in its own file.
+-
+-   * This software is distributed under the artistic license, see license.txt
+-     for more information. *
+-
+- |____________________________________________________________________________|
+- */
+-
+-package sleep.engine.atoms;
+-
+-import java.util.*;
+-import sleep.interfaces.*;
+-import sleep.engine.*;
+-import sleep.runtime.*;
+-
+-public class Push extends Step
+-{
+-   public String toString()
+-   {
+-      return &quot;[Push]\n&quot;;
+-   } 
+-
+-   public Scalar evaluate(ScriptEnvironment e)
+-   {
+-      Stack env = e.getEnvironmentStack();   
+-
+-      e.getCurrentFrame().push(env.pop());
+-
+-      return null;
+-   }
+-}
+
+Modified: sleep/src/sleep/engine/atoms/Return.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/Return.java	2006-05-20 22:25:33 UTC (rev 50)
++++ sleep/src/sleep/engine/atoms/Return.java	2006-06-04 22:25:51 UTC (rev 51)
+@@ -44,22 +44,21 @@
+ 
+    public Scalar evaluate(ScriptEnvironment e)
+    {
+-      Stack env = e.getEnvironmentStack();   
+-
+       if (return_type == ScriptEnvironment.FLOW_CONTROL_BREAK)
+       {
+          e.flagReturn(null, return_type);
+       }
+-      else if (env.isEmpty())
++      else if (e.getCurrentFrame().isEmpty())
+       {
+          e.flagReturn(SleepUtils.getEmptyScalar(), return_type);
+       }
+       else
+       {
+-         e.flagReturn((Scalar)env.pop(), return_type);
++         e.flagReturn((Scalar)e.getCurrentFrame().pop(), return_type);
+       }
+ 
+-      return e.getReturnValue();
++      e.KillFrame();
++      return null;
+    }
+ }
+ 
+
+Modified: sleep/src/sleep/engine/atoms/SValue.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/SValue.java	2006-05-20 22:25:33 UTC (rev 50)
++++ sleep/src/sleep/engine/atoms/SValue.java	2006-06-04 22:25:51 UTC (rev 51)
+@@ -43,8 +43,7 @@
+ 
+    public Scalar evaluate(ScriptEnvironment e)
+    {
+-      Stack env = e.getEnvironmentStack();   
+-      env.push(value);
++      e.getCurrentFrame().push(value);
+       return value;
+    }
+ }
+
+Modified: sleep/src/sleep/parser/CodeGenerator.java
+===================================================================
+--- sleep/src/sleep/parser/CodeGenerator.java	2006-05-20 22:25:33 UTC (rev 50)
++++ sleep/src/sleep/parser/CodeGenerator.java	2006-06-04 22:25:51 UTC (rev 51)
+@@ -139,16 +139,8 @@
+            // &lt;idea&gt; &lt;string&gt; &lt;idea&gt;
+            backup();
+ 
+-           atom = GeneratedSteps.CreateFrame();
+-           add(atom, tokens[0]);
+-
+            parseIdea(tokens[0]);
+-           atom = GeneratedSteps.Push();
+-           add(atom, tokens[0]);
+-
+            parseIdea(tokens[2]);
+-           atom = GeneratedSteps.Push();
+-           add(atom, tokens[2]);
+ 
+            tempc = GeneratedSteps.Check(strings[1], restore()); // a KillFrame is implied here
+            tempc.setInfo(tokens[1].getHint());
+@@ -157,14 +149,8 @@
+          case PRED_UNI:
+            backup();
+ 
+-           atom = GeneratedSteps.CreateFrame();
+-           add(atom, tokens[1]);
+-
+            parseIdea(tokens[1]);
+              
+-           atom = GeneratedSteps.Push();
+-           add(atom, tokens[1]);
+-
+            tempc = GeneratedSteps.Check(strings[0], restore());
+            tempc.setInfo(tokens[0].getHint());
+ 
+@@ -246,15 +232,13 @@
+        switch (datum.getType())
+        {
+          case OBJECT_NEW:
++           atom = GeneratedSteps.CreateFrame();
++           add(atom, tokens[0]);
++
+            if (tokens.length &gt; 1)
+            {
+               parseParameters(tokens[1]);
+            }
+-           else
+-           {
+-              atom = GeneratedSteps.CreateFrame();
+-              add(atom, tokens[0]);
+-           }
+ 
+            aClass = parser.findImportedClass(strings[0]);
+ 
+@@ -265,15 +249,13 @@
+            add(atom, tokens[0]);
+            break;
+         case OBJECT_CL_CALL: 
++           atom = GeneratedSteps.CreateFrame();
++           add(atom, tokens[0]);
++
+            if (tokens.length &gt; 1)
+            {
+               parseParameters(tokens[1]);
+            }
+-           else
+-           {
+-              atom = GeneratedSteps.CreateFrame();
+-              add(atom, tokens[0]);
+-           }
+ 
+            parseIdea(tokens[0]);
+ 
+@@ -281,15 +263,13 @@
+            add(atom, tokens[0]);
+            break;
+         case OBJECT_ACCESS:
++           atom = GeneratedSteps.CreateFrame();
++           add(atom, tokens[0]);
++
+            if (tokens.length &gt; 2)
+            {
+               parseParameters(tokens[2]);
+            }
+-           else
+-           {
+-              atom = GeneratedSteps.CreateFrame();
+-              add(atom, tokens[0]);
+-           }
+ 
+            parseIdea(tokens[0]);
+ 
+@@ -297,22 +277,20 @@
+            add(atom, tokens[0]);
+            break;
+          case OBJECT_ACCESS_S:
++           atom = GeneratedSteps.CreateFrame();
++           add(atom, tokens[0]);
++
+            if (tokens.length &gt; 2)
+            {
+               parseParameters(tokens[2]);
+            }
+-           else
+-           {
+-              atom = GeneratedSteps.CreateFrame();
+-              add(atom, tokens[0]);
+-           }
+- 
++
+            aClass = parser.findImportedClass(strings[0]);
+ 
+            if (aClass == null)
+               parser.reportError(&quot;Class &quot; + strings[0] + &quot; was not found&quot;, tokens[0]);
+            
+-           atom    = GeneratedSteps.ObjectAccessStatic(aClass, strings[1]);
++           atom = GeneratedSteps.ObjectAccessStatic(aClass, strings[1]);
+            add(atom, tokens[0]);
+            break;
+        }
+@@ -383,8 +361,6 @@
+            // parse B
+            //
+            parseIdea(tokens[2]);
+-           atom = GeneratedSteps.Push();
+-           add(atom, tokens[2]);
+ 
+            //
+            // parse A - or just push it onto the stack as a literal token :)
+@@ -393,9 +369,6 @@
+            atom    = GeneratedSteps.SValue(ascalar);
+            add(atom, tokens[0]);
+ 
+-           atom = GeneratedSteps.Push();
+-           add(atom, tokens[2]);
+-
+            //
+            // parse operator
+            //
+@@ -413,14 +386,12 @@
+            // parse B
+            //
+            parseIdea(tokens[2]);
+-           atom = GeneratedSteps.Push();
+-           add(atom, tokens[2]);
++
+            //
+            // parse A
+            //
+            parseIdea(tokens[0]);
+-           atom = GeneratedSteps.Push();
+-           add(atom, tokens[2]);
++
+            //
+            // parse operator
+            //
+@@ -487,13 +458,16 @@
+            }
+            break;
+          case VALUE_INDEXED:
+-
+            parseIdea(tokens[0]); // parse the thing we're going to index stuff off of..
+ 
+            for (int z = 1; z &lt; tokens.length; z++)
+            {         
+               backup();
++
++              atom = GeneratedSteps.CreateFrame();
++              add(atom, tokens[0]);
+               parseIdea(ParserUtilities.extract(tokens[z]));
++
+               atom = GeneratedSteps.Index(strings[0], restore());
+               add(atom, tokens[0]);
+            }
+@@ -791,6 +765,9 @@
+            }
+            else if (tokens.length &gt; 1)
+            {
++              atom = GeneratedSteps.CreateFrame();
++              add(atom, tokens[0]);
++
+               parseParameters(ParserUtilities.extract(tokens[1]));
+ 
+               atom = GeneratedSteps.Call(strings[0]);
+@@ -820,8 +797,6 @@
+            for (int x = 0; x &lt; termsAr2.length; x++)
+            {
+               parseIdea(termsAr2[x]);
+-              atom = GeneratedSteps.Push();
+-              add(atom, termsAr2[x]);
+            }
+ 
+            parseIdea(tokens[2]);
+@@ -830,13 +805,15 @@
+            add(atom, tokens[0]);
+            break;
+          case EXPR_ASSIGNMENT:                                  // implemented
+-           backup();
++           atom = GeneratedSteps.CreateFrame();
++           add(atom, tokens[2]);
+ 
+-           parseIdea(tokens[0]);
+-           atom = GeneratedSteps.Assign(restore());
+-
+            parseIdea(tokens[2]);
+ 
++           backup();
++           parseIdea(tokens[0]);
++
++           atom = GeneratedSteps.Assign(restore());
+            add(atom, tokens[2]);
+            break;
+          case EXPR_IF_ELSE:                                // done
+@@ -964,6 +941,9 @@
+            parser.importPackage(strings[0]);
+            break;           
+          case EXPR_RETURN:                     // implemented
++           atom = GeneratedSteps.CreateFrame();
++           add(atom, tokens[0]);
++
+            if (strings[0].equals(&quot;done&quot;))
+            {
+               parseIdea(tokens[0].copy(&quot;1&quot;));  // in jIRC speak this means just plain old return
+@@ -1003,17 +983,12 @@
+ 
+    public void parseParameters(Token token)
+    {
+-      Step atom = GeneratedSteps.CreateFrame();
+-      add(atom, token);
+-
+       TokenList terms   = ParserUtilities.groupByParameterTerm(parser, token);
+       Token[]   termsAr = terms.getTokens();
+ 
+       for (int x = termsAr.length - 1; x &gt;= 0; x--)
+       {
+          parseIdea(termsAr[x]);
+-         atom = GeneratedSteps.Push();
+-         add(atom, termsAr[x]);
+       }
+    }
+ }
+
+Modified: sleep/src/sleep/runtime/ScriptEnvironment.java
+===================================================================
+--- sleep/src/sleep/runtime/ScriptEnvironment.java	2006-05-20 22:25:33 UTC (rev 50)
++++ sleep/src/sleep/runtime/ScriptEnvironment.java	2006-06-04 22:25:51 UTC (rev 51)
+@@ -263,6 +263,17 @@
+        return (Stack)frames.get(findex);    
+     }
+ 
++    public void FrameResult(Scalar value)
++    {
++       KillFrame();
++       if (findex &gt;= 0)
++       {
++          getCurrentFrame().push(value);
++       }
++    }
++
++    public boolean hasFrame() { return findex &gt;= 0; }
++
+     public void KillFrame()
+     {
+        getCurrentFrame().clear();
+
+Added: sleep/tests/elfbug.sl
+===================================================================
+--- sleep/tests/elfbug.sl	2006-05-20 22:25:33 UTC (rev 50)
++++ sleep/tests/elfbug.sl	2006-06-04 22:25:51 UTC (rev 51)
+@@ -0,0 +1,7 @@
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">+ at array</A> = array(&quot;abc&quot;, &quot;def&quot;, &quot;ghi&quot;, &quot;jkl&quot;, &quot;mno&quot;, &quot;pqr&quot;, &quot;stu&quot;, &quot;vwx&quot;, &quot;yz&quot;);
++
++foreach $c (@array) 
++{
++   %hash[lc($c)] = 1;
++   println(&quot;This will echo the first one only: $c&quot;);
++}
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-05-20 22:25:33 UTC (rev 50)
++++ sleep/whatsnew.txt	2006-06-04 22:25:51 UTC (rev 51)
+@@ -3,6 +3,11 @@
+ - fixed the clean target in the sleep build.xml file
+ - added a continue keyword for flow control of while/for/foreach
+   loops.  My arm hath been twisted.
++- rewrote the interpreter to use stack frames instead of a single
++  environment stack for all temporary calculations...  this could 
++  create bugs and needs lots and lots of testing.
++- fixed bug related to using a function call within an array/hash 
++  index
+ 
+ 2.0-release
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000033.html">[Sleep-svn] Re: Boosting online _ 066129
+</A></li>
+	<LI>Next message: <A HREF="000035.html">[Sleep-svn] r52 - in sleep: src/sleep/bridges src/sleep/engine src/sleep/engine/atoms src/sleep/parser src/sleep/runtime tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#34">[ date ]</a>
+              <a href="thread.html#34">[ thread ]</a>
+              <a href="subject.html#34">[ subject ]</a>
+              <a href="author.html#34">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

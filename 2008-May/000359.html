@@ -1,0 +1,156 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r383 - in sleep: . src/sleep/bridges	src/sleep/engine/atoms tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2008-May/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r383%20-%20in%20sleep%3A%20.%20src/sleep/bridges%0A%09src/sleep/engine/atoms%20tests%20tests/output&In-Reply-To=%3C200805192139.m4JLd2XN008740%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000358.html">
+   <LINK REL="Next"  HREF="000360.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r383 - in sleep: . src/sleep/bridges	src/sleep/engine/atoms tests tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r383%20-%20in%20sleep%3A%20.%20src/sleep/bridges%0A%09src/sleep/engine/atoms%20tests%20tests/output&In-Reply-To=%3C200805192139.m4JLd2XN008740%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r383 - in sleep: . src/sleep/bridges	src/sleep/engine/atoms tests tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Mon May 19 23:39:02 CEST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000358.html">[Sleep-svn] r382 - in sleep: . src/sleep/engine
+</A></li>
+        <LI>Next message: <A HREF="000360.html">[Sleep-svn] r384 - in sleep: . src/sleep/engine
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#359">[ date ]</a>
+              <a href="thread.html#359">[ thread ]</a>
+              <a href="subject.html#359">[ subject ]</a>
+              <a href="author.html#359">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2008-05-19 23:39:01 +0200 (Mon, 19 May 2008)
+New Revision: 383
+
+Added:
+   sleep/tests/assertcompare.sl
+   sleep/tests/output/assertcompare.sl
+Modified:
+   sleep/src/sleep/bridges/SleepClosure.java
+   sleep/src/sleep/engine/atoms/Decide.java
+   sleep/whatsnew.txt
+Log:
+bug feexes
+
+
+Modified: sleep/src/sleep/bridges/SleepClosure.java
+===================================================================
+--- sleep/src/sleep/bridges/SleepClosure.java	2008-05-17 00:16:17 UTC (rev 382)
++++ sleep/src/sleep/bridges/SleepClosure.java	2008-05-19 21:39:01 UTC (rev 383)
+@@ -9,7 +9,7 @@
+ import sleep.runtime.*;
+ 
+ /** The Sleep Closure class.  This class represents a Function object that is also a self contained closure */
+-public class SleepClosure implements Function
++public class SleepClosure implements Function, Runnable
+ {
+     private static int ccount = -1;
+     private int id;
+@@ -159,6 +159,12 @@
+        variables = _variables; 
+     }
+ 
++    /** &quot;Safely&quot; calls this closure. */
++    public void run()
++    {
++       callClosure(&quot;run&quot;, null, null);
++    }
++
+     /** &quot;Safely&quot; calls this closure.  Use this if you are evaluating this closure from your own code. 
+ 
+         @param message the message to pass to this closure (available as $0)
+
+Modified: sleep/src/sleep/engine/atoms/Decide.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/Decide.java	2008-05-17 00:16:17 UTC (rev 382)
++++ sleep/src/sleep/engine/atoms/Decide.java	2008-05-19 21:39:01 UTC (rev 383)
+@@ -66,6 +66,14 @@
+ 
+    public int getHighLineNumber()
+    {
++      if (iftrue == null)
++      {
++         return iffalse.getHighLineNumber();
++      }
++      else if (iffalse == null)
++      {
++         return iftrue.getHighLineNumber();
++      }
+       int x = iftrue.getHighLineNumber(); 
+       int y = iffalse.getHighLineNumber();
+       return x &gt; y ? x : y;
+
+Added: sleep/tests/assertcompare.sl
+===================================================================
+--- sleep/tests/assertcompare.sl	2008-05-17 00:16:17 UTC (rev 382)
++++ sleep/tests/assertcompare.sl	2008-05-19 21:39:01 UTC (rev 383)
+@@ -0,0 +1,5 @@
++# this program will quit early when
++# assertions are enabled
++
++assert 2 + 2 : &quot;eh, assertions are enabled&quot;;
++println(&quot;Whee...&quot;);
+
+Added: sleep/tests/output/assertcompare.sl
+===================================================================
+--- sleep/tests/output/assertcompare.sl	2008-05-17 00:16:17 UTC (rev 382)
++++ sleep/tests/output/assertcompare.sl	2008-05-19 21:39:01 UTC (rev 383)
+@@ -0,0 +1 @@
++Warning: eh, assertions are enabled at assertcompare.sl:4
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2008-05-17 00:16:17 UTC (rev 382)
++++ sleep/whatsnew.txt	2008-05-19 21:39:01 UTC (rev 383)
+@@ -3,6 +3,9 @@
+ - Virtual machine errors (stack overflow, out of memory) etc.
+   are now caught within the interpreter and used to coerce
+   a printout of the location of each Sleep stack frame.
++- SleepClosure now implements the Runnable interface.
++- fixed a null pointer exception for assertions triggered
++  with no preceeding statements.
+ 
+ 2.1-beta 26  (15 May 08)
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000358.html">[Sleep-svn] r382 - in sleep: . src/sleep/engine
+</A></li>
+	<LI>Next message: <A HREF="000360.html">[Sleep-svn] r384 - in sleep: . src/sleep/engine
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#359">[ date ]</a>
+              <a href="thread.html#359">[ thread ]</a>
+              <a href="subject.html#359">[ subject ]</a>
+              <a href="author.html#359">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

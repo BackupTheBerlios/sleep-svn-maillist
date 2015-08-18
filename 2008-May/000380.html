@@ -1,0 +1,107 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r404 - in sleep/tests: . output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2008-May/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r404%20-%20in%20sleep/tests%3A%20.%20output&In-Reply-To=%3C200805302041.m4UKfB0G031718%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000379.html">
+   <LINK REL="Next"  HREF="000381.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r404 - in sleep/tests: . output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r404%20-%20in%20sleep/tests%3A%20.%20output&In-Reply-To=%3C200805302041.m4UKfB0G031718%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r404 - in sleep/tests: . output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Fri May 30 22:41:11 CEST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000379.html">[Sleep-svn] r403 - in sleep: src/sleep/bridges tests tests/output
+</A></li>
+        <LI>Next message: <A HREF="000381.html">[Sleep-svn] r405 - in sleep: . src/sleep/parser src/sleep/runtime	tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#380">[ date ]</a>
+              <a href="thread.html#380">[ thread ]</a>
+              <a href="subject.html#380">[ subject ]</a>
+              <a href="author.html#380">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2008-05-30 22:41:11 +0200 (Fri, 30 May 2008)
+New Revision: 404
+
+Modified:
+   sleep/tests/inlinelocalcallcc.sl
+   sleep/tests/output/inlinelocalcallcc.sl
+Log:
+one more change to go and we have a release...  yay.
+
+
+Modified: sleep/tests/inlinelocalcallcc.sl
+===================================================================
+--- sleep/tests/inlinelocalcallcc.sl	2008-05-30 20:39:35 UTC (rev 403)
++++ sleep/tests/inlinelocalcallcc.sl	2008-05-30 20:41:11 UTC (rev 404)
+@@ -12,14 +12,14 @@
+       [$1: &quot;c&quot;, &quot;d&quot;];
+    };
+ 
+-   println(&quot;What fun fruit rollups will callcc roll out with next? &quot; . @_);
++   println(&quot;What fun fruit rollups will callcc roll out with next? &quot; . @_ . &quot; $1 and $2&quot;);
+ }
+ 
+ sub bar
+ {
+    println(&quot;In the bar: &quot; . @_);
+    foo(&quot;a&quot;, &quot;b&quot;);
+-   println(&quot;Out of the bar: &quot; . @_);
++   println(&quot;Out of the bar: &quot; . @_ . &quot; $1 and $2&quot;);
+ }
+ 
+ bar(&quot;toplevel&quot;, &quot;argument&quot;);
+
+Modified: sleep/tests/output/inlinelocalcallcc.sl
+===================================================================
+--- sleep/tests/output/inlinelocalcallcc.sl	2008-05-30 20:39:35 UTC (rev 403)
++++ sleep/tests/output/inlinelocalcallcc.sl	2008-05-30 20:41:11 UTC (rev 404)
+@@ -1,5 +1,5 @@
+ In the bar: @('toplevel', 'argument')
+ Welcome to foo: @('a', 'b')
+ This is within callcc: &amp;closure[inlinelocalcallcc.sl:20-22]#1 and @(&amp;closure[inlinelocalcallcc.sl:20-22]#1)
+-What fun fruit rollups will callcc roll out with next? @('c', 'd')
+-Out of the bar: @('c', 'd')
++What fun fruit rollups will callcc roll out with next? @('c', 'd') c and d
++Out of the bar: @('c', 'd') c and d
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000379.html">[Sleep-svn] r403 - in sleep: src/sleep/bridges tests tests/output
+</A></li>
+	<LI>Next message: <A HREF="000381.html">[Sleep-svn] r405 - in sleep: . src/sleep/parser src/sleep/runtime	tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#380">[ date ]</a>
+              <a href="thread.html#380">[ thread ]</a>
+              <a href="subject.html#380">[ subject ]</a>
+              <a href="author.html#380">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

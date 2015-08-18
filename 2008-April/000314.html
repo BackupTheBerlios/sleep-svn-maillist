@@ -1,0 +1,900 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r336 - in sleep: . docs src/sleep/bridges	src/sleep/bridges/io src/sleep/engine src/sleep/engine/types	src/sleep/runtime tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2008-April/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r336%20-%20in%20sleep%3A%20.%20docs%20src/sleep/bridges%0A%09src/sleep/bridges/io%20src/sleep/engine%20src/sleep/engine/types%0A%09src/sleep/runtime%20tests%20tests/output&In-Reply-To=%3C200804170556.m3H5uFwM003874%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000313.html">
+   <LINK REL="Next"  HREF="000315.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r336 - in sleep: . docs src/sleep/bridges	src/sleep/bridges/io src/sleep/engine src/sleep/engine/types	src/sleep/runtime tests tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r336%20-%20in%20sleep%3A%20.%20docs%20src/sleep/bridges%0A%09src/sleep/bridges/io%20src/sleep/engine%20src/sleep/engine/types%0A%09src/sleep/runtime%20tests%20tests/output&In-Reply-To=%3C200804170556.m3H5uFwM003874%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r336 - in sleep: . docs src/sleep/bridges	src/sleep/bridges/io src/sleep/engine src/sleep/engine/types	src/sleep/runtime tests tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Thu Apr 17 07:56:15 CEST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000313.html">[Sleep-svn] r335 - in sleep: . src/sleep/runtime
+</A></li>
+        <LI>Next message: <A HREF="000315.html">[Sleep-svn] r337 - sleep/src/sleep/engine/types
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#314">[ date ]</a>
+              <a href="thread.html#314">[ thread ]</a>
+              <a href="subject.html#314">[ subject ]</a>
+              <a href="author.html#314">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2008-04-17 07:56:13 +0200 (Thu, 17 Apr 2008)
+New Revision: 336
+
+Added:
+   sleep/tests/cache.sl
+   sleep/tests/fob.sl
+   sleep/tests/output/cache.sl
+   sleep/tests/output/fob.sl
+Modified:
+   sleep/build.xml
+   sleep/docs/sleeplang.html
+   sleep/src/sleep/bridges/BasicStrings.java
+   sleep/src/sleep/bridges/BasicUtilities.java
+   sleep/src/sleep/bridges/io/IOObject.java
+   sleep/src/sleep/engine/CallRequest.java
+   sleep/src/sleep/engine/types/HashContainer.java
+   sleep/src/sleep/runtime/MapWrapper.java
+   sleep/src/sleep/runtime/ScriptInstance.java
+   sleep/src/sleep/runtime/SleepUtils.java
+   sleep/tests/output/callccfork.sl
+   sleep/tests/output/forker.sl
+   sleep/tests/output/ohash.sl
+   sleep/tests/output/trace.sl
+   sleep/tests/output/wrong.sl
+   sleep/tests/process.sl
+   sleep/whatsnew.txt
+Log:
+almost there...
+
+
+Modified: sleep/build.xml
+===================================================================
+--- sleep/build.xml	2008-04-16 18:34:37 UTC (rev 335)
++++ sleep/build.xml	2008-04-17 05:56:13 UTC (rev 336)
+@@ -16,7 +16,7 @@
+            destdir=&quot;${project.build}&quot;
+            nowarn=&quot;yes&quot;
+            depend=&quot;yes&quot;
+-           debug=&quot;false&quot;
++           debug=&quot;true&quot;
+            source=&quot;1.4&quot;
+            target=&quot;1.4&quot;
+            optimize=&quot;yes&quot;
+
+Modified: sleep/docs/sleeplang.html
+===================================================================
+--- sleep/docs/sleeplang.html	2008-04-16 18:34:37 UTC (rev 335)
++++ sleep/docs/sleeplang.html	2008-04-17 05:56:13 UTC (rev 336)
+@@ -1127,6 +1127,33 @@
+ scope of &lt;code&gt;&amp;bar&lt;/code&gt; you would have to use &lt;code&gt;$name =&gt; $name&lt;/code&gt;.  The scalar reference &lt;code&gt;\$name&lt;/code&gt;
+ is equivalent to that expression.&lt;/p&gt;
+ 
++&lt;h3&gt;Ordered Hashes&lt;/h3&gt;
++
++&lt;p&gt;Sleep has a special class of hashes that keep their keys in a certain order.  These are ordered hashes.  Ordered hashes created
++with &lt;code&gt;&amp;ohash&lt;/code&gt; keep track of insertion order.  The oldest key is at the beginning of the list while the newest key is
++kept at the end.  The &lt;code&gt;&amp;ohasha&lt;/code&gt; keeps track of access order.  As keys are accessed they are moved to the end of the
++key list.  This type of hash keeps the least recently used key at the beginning.&lt;/p&gt;
++
++&lt;p&gt;Ordered hashes may have hit and/or removal policies associated with them.  The removal policy is called every time a new key is
++about to be added.  The purpose of the removal policy is to decide if the key at the beginning of the list should be removed from
++the hash.  Likewise the miss policy is used to respond when a key with no associated value is accessed.&lt;/p&gt;
++
++&lt;p&gt;The following example shows a hash acting as a cache for data stored on the file system.  As the cache gets big, the least
++recently used data is flushed to the disk.  When the data is requested later it is loaded again.&lt;/p&gt;
++
++&lt;pre&gt;&lt;/pre&gt;
++
++&lt;p&gt;Ordered hashes and their policies are not used just as caches.  They also enable the dynamic programming method for solving certain
++classes of problems.  The following program calculates the Fibonnaci numbers in a very fast way:&lt;/p&gt;
++
++&lt;pre&gt;&lt;/pre&gt;
++
++&lt;p&gt;This program takes ... on my computer.  For comparison, the following program calculates Fibonnaci numbers in a naive way.&lt;/p&gt;
++
++&lt;pre&gt;&lt;/pre&gt;
++
++&lt;p&gt;Same result, except this program takes ...&lt;/p&gt;
++
+ &lt;h3&gt;Multidimensional Hashes/Arrays&lt;/h3&gt;
+ 
+ &lt;p&gt;Multidimensional hashes work exactly the same as Sleep arrays.  It is also possible to have an array of hashes, or a hash of 
+@@ -2395,10 +2422,15 @@
+  &lt;tr&gt;
+   &lt;td&gt;%&lt;/td&gt;
+   &lt;td&gt;ohash(blah =&gt; &quot;value&quot;, ...)&lt;/td&gt;
+-  &lt;td&gt;instantiates an ordered hash with the specified values.  ordered hashes mantain key insertion order.  keys can be updated without changing order.&lt;/td&gt;
++  &lt;td&gt;instantiates an ordered hash with the specified values.  ordered hashes mantain key insertion order.&lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td&gt;%&lt;/td&gt;
++  &lt;td&gt;ohasha(blah =&gt; &quot;value&quot;, ...)&lt;/td&gt;
++  &lt;td&gt;instantiates an access-time ordered hash with the specified values.  these ordered hashes mantain order based on element access.&lt;/td&gt;
++ &lt;/tr&gt;  
++ &lt;tr&gt;
++  &lt;td&gt;%&lt;/td&gt;
+   &lt;td&gt;putAll(%hash, @|&amp;, [@|&amp;])&lt;/td&gt;
+   &lt;td&gt;populates the hash with the specified iterators.  If only one iterator is specified then the second argument
+   is assumed to be the same as the first.  The first iterator is iterated over to obtain the keys for the hash
+@@ -2415,6 +2447,19 @@
+   &lt;td&gt;removes the specified keys from the hash.&lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
++  &lt;td&gt;&lt;/td&gt;
++  &lt;td&gt;setMissPolicy(%ohash, &amp;closure)&lt;/td&gt;
++  &lt;td&gt;sets the specified function as the miss policy for the specified ordered hash.  The miss policy is called when the hash encounters a key request
++  with no associated value.  The function is called with $1 = the hash scalar and $2 = the key.  The return value is used as the new value for the key.&lt;/td&gt;
++ &lt;/tr&gt;
++ &lt;tr&gt;
++  &lt;td&gt;&lt;/td&gt;
++  &lt;td&gt;setRemovalPolicy(%ohash, &amp;closure)&lt;/td&gt;
++  &lt;td&gt;sets the specified function as the removal policy for the specified ordered hash.  The removal policy is called when a new value is added to the hash.
++  The function is called with $1 = the hash scalar and $2 = the key and $3 = the value of the last item in the ordered hash.  A non-$null return value 
++  with no associated value.  The function is called with $1 = the hash scalar and $2 = the key.  The return value is used as the new value for the key.&lt;/td&gt;
++ &lt;/tr&gt;
++ &lt;tr&gt;
+   &lt;td&gt;$&lt;/td&gt;
+   &lt;td&gt;size(%hash)&lt;/td&gt;
+   &lt;td&gt;returns the number of elements in %hash&lt;/td&gt;
+
+Modified: sleep/src/sleep/bridges/BasicStrings.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicStrings.java	2008-04-16 18:34:37 UTC (rev 335)
++++ sleep/src/sleep/bridges/BasicStrings.java	2008-04-17 05:56:13 UTC (rev 336)
+@@ -523,13 +523,13 @@
+ 
+     private static class CompareFunction implements Comparator
+     {
+-        protected Function       func;
++        protected SleepClosure   func;
+         protected ScriptInstance script;
+         protected Stack          locals;
+ 
+         public CompareFunction(Function _func, ScriptInstance _script)
+         {
+-           func     = _func;
++           func     = (SleepClosure)_func;
+            script   = _script;
+            locals   = new Stack();
+         }
+@@ -539,9 +539,7 @@
+            locals.push(b);
+            locals.push(a);
+ 
+-           Scalar temp = func.evaluate(&quot;&amp;sort&quot;, script, locals);
+-           script.getScriptEnvironment().clearReturn();
+-
++           Scalar temp = func.callClosure(&quot;&amp;sort&quot;, script, locals);
+            return temp.intValue();
+         }
+     }
+
+Modified: sleep/src/sleep/bridges/BasicUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicUtilities.java	2008-04-16 18:34:37 UTC (rev 335)
++++ sleep/src/sleep/bridges/BasicUtilities.java	2008-04-17 05:56:13 UTC (rev 336)
+@@ -32,6 +32,7 @@
+ import java.net.URL;
+ import java.net.URLClassLoader;
+ 
++import sleep.engine.types.*;
+ import java.lang.reflect.*; // for array casting stuff
+ 
+ import sleep.parser.*;
+@@ -65,6 +66,7 @@
+         temp.put(&quot;&amp;array&quot;, f_array); 
+         temp.put(&quot;&amp;hash&quot;, f_hash);
+         temp.put(&quot;&amp;ohash&quot;, f_hash);
++        temp.put(&quot;&amp;ohasha&quot;, f_hash);
+         temp.put(&quot;&amp;@&quot;, f_array);
+         temp.put(&quot;&amp;%&quot;, f_hash);  
+ 
+@@ -79,6 +81,8 @@
+         temp.put(&quot;&amp;splice&quot;, this);
+         temp.put(&quot;&amp;subarray&quot;, this);
+         temp.put(&quot;&amp;copy&quot;,  new copy());
++        temp.put(&quot;&amp;setRemovalPolicy&quot;, this);
++        temp.put(&quot;&amp;setMissPolicy&quot;, this);
+  
+         map map_f = new map();
+ 
+@@ -246,8 +250,7 @@
+        //   
+        if (predName.equals(&quot;-istrue&quot;))
+        {
+-          return (value.getArray() != null || value.getHash() != null) || (
+-                  value.getActualValue().toString().length() != 0 &amp;&amp; !(&quot;0&quot;.equals(value.getActualValue().toString())));
++          return SleepUtils.isTrueScalar(value);
+        }
+ 
+        if (predName.equals(&quot;-isfunction&quot;))
+@@ -531,7 +534,19 @@
+     {
+        public Scalar evaluate(String n, ScriptInstance si, Stack l)
+        {
+-          Scalar value = n.equals(&quot;&amp;ohash&quot;) ? SleepUtils.getOrderedHashScalar() : SleepUtils.getHashScalar();
++          Scalar value = null; 
++          if (n.equals(&quot;&amp;ohash&quot;))
++          {
++              value = SleepUtils.getOrderedHashScalar();
++          }
++          else if (n.equals(&quot;&amp;ohasha&quot;))
++          {
++              value = SleepUtils.getAccessOrderedHashScalar();
++          }
++          else
++          {
++              value = SleepUtils.getHashScalar();
++          }
+            
+           while (!l.isEmpty())
+           {
+@@ -1211,6 +1226,24 @@
+              return temp;
+           }
+        }
++       else if (n.equals(&quot;&amp;setRemovalPolicy&quot;) || n.equals(&quot;&amp;setMissPolicy&quot;))
++       { 
++          if (value.getHash() == null || !(value.getHash() instanceof OrderedHashContainer))
++          {
++             throw new IllegalArgumentException(n + &quot;: expected an ordered hash, received: &quot; + SleepUtils.describe(value));
++          }
++          
++          SleepClosure function  = BridgeUtilities.getFunction(l, i);           
++          OrderedHashContainer blah = (OrderedHashContainer)(value.getHash());
++          if (n.equals(&quot;&amp;setMissPolicy&quot;))
++          {
++             blah.setMissPolicy(function);
++          }
++          else
++          {
++             blah.setRemovalPolicy(function);
++          }       
++       }
+        else if (n.equals(&quot;&amp;putAll&quot;))
+        {
+           if (value.getHash() != null)
+
+Modified: sleep/src/sleep/bridges/io/IOObject.java
+===================================================================
+--- sleep/src/sleep/bridges/io/IOObject.java	2008-04-16 18:34:37 UTC (rev 335)
++++ sleep/src/sleep/bridges/io/IOObject.java	2008-04-17 05:56:13 UTC (rev 336)
+@@ -123,18 +123,23 @@
+       token = t;
+    }
+ 
++   public static void setConsole(ScriptEnvironment environment, IOObject object)
++   {
++      environment.getScriptInstance().getMetadata().put(&quot;%console%&quot;, object);
++   }
++
+    /** returns an IOObject that represents stdin/stdout to Sleep's I/O API.  To set a script's console
+        object install an IOObject into a script environment under the variable name %console% */
+    public static IOObject getConsole(ScriptEnvironment environment)
+    {
+-      IOObject console = (IOObject)environment.getEnvironment().get(&quot;%console%&quot;);
++      IOObject console = (IOObject)environment.getScriptInstance().getMetadata().get(&quot;%console%&quot;);
+ 
+       if (console == null)
+       {
+          console = new IOObject();
+          console.openRead(System.in);
+          console.openWrite(System.out);
+-         environment.getEnvironment().put(&quot;%console%&quot;, console);
++         setConsole(environment, console);
+       }
+ 
+       return console;
+
+Modified: sleep/src/sleep/engine/CallRequest.java
+===================================================================
+--- sleep/src/sleep/engine/CallRequest.java	2008-04-16 18:34:37 UTC (rev 335)
++++ sleep/src/sleep/engine/CallRequest.java	2008-04-17 05:56:13 UTC (rev 336)
+@@ -72,9 +72,10 @@
+          {
+              try
+              {
+-                long stat = System.currentTimeMillis();
+-                temp = execute();
+-                stat = System.currentTimeMillis() - stat;
++                long total = e.getScriptInstance().total();
++                long stat  = System.currentTimeMillis();
++                temp       = execute();
++                stat       = (System.currentTimeMillis() - stat) - (e.getScriptInstance().total() - total);
+                 e.getScriptInstance().collect(getFunctionName(), getLineNumber(), stat);
+              }
+              catch (RuntimeException rex)
+@@ -95,9 +96,10 @@
+ 
+              try
+              {
++                long total = e.getScriptInstance().total();
+                 long stat = System.currentTimeMillis();
+                 temp = execute();
+-                stat = System.currentTimeMillis() - stat;
++                stat       = (System.currentTimeMillis() - stat) - (e.getScriptInstance().total() - total);
+                 e.getScriptInstance().collect(getFunctionName(), getLineNumber(), stat);
+ 
+                 if (e.isThrownValue())
+
+Modified: sleep/src/sleep/engine/types/HashContainer.java
+===================================================================
+--- sleep/src/sleep/engine/types/HashContainer.java	2008-04-16 18:34:37 UTC (rev 335)
++++ sleep/src/sleep/engine/types/HashContainer.java	2008-04-17 05:56:13 UTC (rev 336)
+@@ -61,6 +61,6 @@
+ 
+    public String toString()
+    {
+-      return values.toString();
++      return SleepUtils.describeEntries(&quot;%&quot;, values.entrySet());
+    }
+ }
+
+Modified: sleep/src/sleep/runtime/MapWrapper.java
+===================================================================
+--- sleep/src/sleep/runtime/MapWrapper.java	2008-04-16 18:34:37 UTC (rev 335)
++++ sleep/src/sleep/runtime/MapWrapper.java	2008-04-17 05:56:13 UTC (rev 336)
+@@ -33,6 +33,28 @@
+ 
+    public String toString()
+    {
+-      return &quot;(read-only hash &quot; + values.toString() + &quot;)&quot;;
++      StringBuffer buffer = new StringBuffer(&quot;%(&quot;);
++
++      Iterator i = values.entrySet().iterator();
++      while (i.hasNext())
++      {
++         Map.Entry next = (Map.Entry)i.next();
++
++         if (next.getValue() != null &amp;&amp; next.getKey() != null)
++         {
++            if (buffer.length() &gt; 2)
++            {
++               buffer.append(&quot;, &quot;);      
++            }
++
++            buffer.append(next.getKey());
++            buffer.append(&quot; =&gt; &quot;);
++  
++            buffer.append(SleepUtils.describe(ObjectUtilities.BuildScalar(true, next.getValue()))); 
++         }
++      }
++      buffer.append(&quot;)&quot;);
++
++      return buffer.toString();
+    }
+ }
+
+Modified: sleep/src/sleep/runtime/ScriptInstance.java
+===================================================================
+--- sleep/src/sleep/runtime/ScriptInstance.java	2008-04-16 18:34:37 UTC (rev 335)
++++ sleep/src/sleep/runtime/ScriptInstance.java	2008-04-17 05:56:13 UTC (rev 336)
+@@ -278,16 +278,27 @@
+         }
+     }
+ 
++    /** return the total number of ticks this script has spent processing */
++    public long total()
++    {
++        Long total = (Long)getMetadata().get(&quot;%total%&quot;);
++        return total == null ? 0L : total.longValue();
++    }
++
+     /** this function is used internally by the sleep interpreter to collect profiler statistics
+         when DEBUG_TRACE_CALLS or DEBUG_TRACE_PROFILE_ONLY is enabled */
+     public void collect(String function, int lineNo, long ticks)
+     {
+-       Map statistics = (Map)getScriptEnvironment().getEnvironment().get(&quot;%statistics%&quot;);
++       Map    statistics = (Map)getMetadata().get(&quot;%statistics%&quot;);
++       Long   total      = (Long)getMetadata().get(&quot;%total%&quot;);
+ 
+        if (statistics == null) 
+        {
+           statistics = new HashMap();
+-          getScriptEnvironment().getEnvironment().put(&quot;%statistics%&quot;, statistics);
++          total      = new Long(0L);
++
++          getMetadata().put(&quot;%statistics%&quot;, statistics);
++          getMetadata().put(&quot;%total%&quot;, total);
+        }
+ 
+        ProfilerStatistic stats = (ProfilerStatistic)statistics.get(function);
+@@ -300,8 +311,12 @@
+           statistics.put(function, stats);
+        }
+ 
++       /** updated individual statistics */
+        stats.ticks += ticks;
+        stats.calls ++;
++
++       /** update global statistic */
++       getMetadata().put(&quot;%total%&quot;, new Long(total.longValue() + ticks));
+     }
+ 
+     /** a quick way to check if we are profiling and not tracing the script steps */
+@@ -315,7 +330,7 @@
+         Note!!! For Sleep to provide profiler statistics, DEBUG_TRACE_CALLS or DEBUG_TRACE_PROFILE_ONLY must be enabled! */
+     public List getProfilerStatistics()
+     {
+-        Map statistics = (Map)getScriptEnvironment().getEnvironment().get(&quot;%statistics%&quot;);
++        Map statistics = (Map)getMetadata().get(&quot;%statistics%&quot;);
+ 
+         if (statistics != null)
+         {
+@@ -330,6 +345,25 @@
+         }
+     }
+ 
++    /** retrieves script meta data for you to update */
++    public Map getMetadata()
++    {
++       Scalar container = getScriptVariables().getGlobalVariables().getScalar(&quot;__meta__&quot;);
++       Map    meta      = null;
++
++       if (container == null)
++       {
++          meta = Collections.synchronizedMap(new HashMap()); /* we do this because this metadata may be shared between multiple threads */
++          getScriptVariables().getGlobalVariables().putScalar(&quot;__meta__&quot;, SleepUtils.getScalar((Object)meta));
++       }
++       else
++       {
++          meta = (Map)container.objectValue();
++       }
++
++       return meta;
++    }
++
+     /** Dumps the profiler statistics to the specified stream */
+     public void printProfileStatistics(OutputStream out)
+     {
+@@ -351,6 +385,9 @@
+         si.setName(getName());
+         si.setDebugFlags(getDebugFlags());
+         si.watchers = watchers;
++
++        /* make sure things like profiler statistics and metadata are shared between threads. */
++        si.getScriptVariables().getGlobalVariables().putScalar(&quot;__meta__&quot;, SleepUtils.getScalar((Object)getMetadata()));
+  
+         return si;
+     }
+
+Modified: sleep/src/sleep/runtime/SleepUtils.java
+===================================================================
+--- sleep/src/sleep/runtime/SleepUtils.java	2008-04-16 18:34:37 UTC (rev 335)
++++ sleep/src/sleep/runtime/SleepUtils.java	2008-04-17 05:56:13 UTC (rev 336)
+@@ -400,6 +400,34 @@
+       return values.toString();
+    }
+ 
++   /** describe the entries in a Sleep hash */
++   public static String describeEntries(String sigil, Set entries)
++   {
++      StringBuffer buffer = new StringBuffer(sigil + &quot;(&quot;);
++
++      Iterator i = entries.iterator();
++      while (i.hasNext())
++      {
++         Map.Entry next = (Map.Entry)i.next();
++
++         if (!SleepUtils.isEmptyScalar((Scalar)next.getValue()))
++         {
++            if (buffer.length() &gt; 2)
++            {
++               buffer.append(&quot;, &quot;);
++            }
++
++            buffer.append(next.getKey());
++            buffer.append(&quot; =&gt; &quot;);
++  
++            buffer.append(describe((Scalar)next.getValue()));
++         }
++      }
++      buffer.append(&quot;)&quot;);
++
++      return buffer.toString();
++   }
++
+    /** returns a string description of the specified scalar. Used by debugging mechanism to
+        format scalars based on their value type, i.e. strings are enclosed in single quotes,
+        objects in brackets, $null is displayed as $null, etc. */
+@@ -425,27 +453,7 @@
+       }
+       if (scalar.getHash() != null)
+       {
+-         StringBuffer buffer = new StringBuffer(&quot;%(&quot;);
+-         Iterator i = scalar.getHash().keys().scalarIterator();
+-         while (i.hasNext())
+-         {
+-            Scalar next = (Scalar)i.next();
+-            buffer.append(next.toString());
+-
+-            buffer.append(&quot; =&gt; &quot;);
+-
+-            Scalar nval = scalar.getHash().getAt(next);
+-
+-            buffer.append(describe(nval));
+-
+-            if (i.hasNext())
+-            {
+-               buffer.append(&quot;, &quot;);
+-            }
+-         }
+-        
+-         buffer.append(&quot;)&quot;);
+-         return buffer.toString();
++         return scalar.getHash().toString();
+       }
+       else
+       {
+@@ -490,15 +498,24 @@
+       return temp;
+    }
+ 
+-   /** returns an empty ordered hashmap scalar */
++   /** returns an empty insertion ordered hashmap scalar */
+    public static Scalar getOrderedHashScalar()
+    {
+       Scalar temp = new Scalar();
+-      temp.setValue(new HashContainer(new LinkedHashMap()));
++      temp.setValue(new OrderedHashContainer(16, 0.75f, false));
+ 
+       return temp;
+    }
+ 
++   /** returns an empty access ordered hashmap scalar */
++   public static Scalar getAccessOrderedHashScalar()
++   {
++      Scalar temp = new Scalar();
++      temp.setValue(new OrderedHashContainer(16, 0.75f, true));
++
++      return temp;
++   }
++
+    /** returns an int scalar with value x */
+    public static Scalar getScalar(int x)
+    {
+@@ -616,4 +633,10 @@
+ 
+       return SleepUtils.getEmptyScalar();
+    }
++
++   /** check if the scalar is true using Sleep's definition of truth.  A scalar is considered true if it is not $null and it is not equal to a representation of 0 */
++   public static boolean isTrueScalar(Scalar value)
++   {
++      return (value.getArray() != null || value.getHash() != null) || (value.getActualValue().toString().length() != 0 &amp;&amp; !(&quot;0&quot;.equals(value.getActualValue().toString())));
++   }
+ }
+
+Added: sleep/tests/cache.sl
+===================================================================
+--- sleep/tests/cache.sl	2008-04-16 18:34:37 UTC (rev 335)
++++ sleep/tests/cache.sl	2008-04-17 05:56:13 UTC (rev 336)
+@@ -0,0 +1,38 @@
++debug(7);
++
++global('$hash');
++
++sub tryit
++{
++   setRemovalPolicy($hash, { return iff(size($1) &gt;= 4); });
++
++   add($hash, a =&gt; &quot;apple&quot;, b =&gt; &quot;boy&quot;, c =&gt; &quot;cat&quot;);
++   println($hash);
++
++   add($hash, d =&gt; &quot;dog&quot;);
++   println($hash);
++
++   println(&quot;Access 'a' &quot; . $hash[&quot;a&quot;]);
++   println($hash);
++
++   add($hash, e =&gt; &quot;emu&quot;);
++   println($hash);
++
++   add($hash, m =&gt; &quot;night elf mohawk&quot;);
++   println($hash);
++
++   println(&quot;Remove 'm'&quot;);
++   $hash[&quot;m&quot;] = $null;
++   println($hash);
++
++   add($hash, n =&gt; &quot;nerf&quot;);
++   println($hash);
++
++   add($hash, x =&gt; &quot;XXX&quot;);
++   println($hash);
++}
++
++println(&quot;Insertion Ordered Hash ----------&quot;);
++tryit($hash =&gt; ohash());
++println(&quot;Access Ordered Hash    ----------&quot;);
++tryit($hash =&gt; ohasha());
+
+Added: sleep/tests/fob.sl
+===================================================================
+--- sleep/tests/fob.sl	2008-04-16 18:34:37 UTC (rev 335)
++++ sleep/tests/fob.sl	2008-04-17 05:56:13 UTC (rev 336)
+@@ -0,0 +1,17 @@
++debug(7);
++
++# phearsome Fibonacci sequence implementation.
++
++sub fob
++{
++   local('%fhash');
++   %fhash = ohash(0 =&gt; 0L, 1 =&gt; 1L);
++   setMissPolicy(%fhash,
++   {
++      return long($1[$2 - 1]) + long($1[$2 - 2]);
++   });
++   return %fhash[$1];
++}
++
++println(&quot;Fib no. &quot; . fob(90L));
++
+
+Added: sleep/tests/output/cache.sl
+===================================================================
+--- sleep/tests/output/cache.sl	2008-04-16 18:34:37 UTC (rev 335)
++++ sleep/tests/output/cache.sl	2008-04-17 05:56:13 UTC (rev 336)
+@@ -0,0 +1,22 @@
++Insertion Ordered Hash ----------
++%(a =&gt; 'apple', b =&gt; 'boy', c =&gt; 'cat')
++%(a =&gt; 'apple', b =&gt; 'boy', c =&gt; 'cat', d =&gt; 'dog')
++Access 'a' apple
++%(a =&gt; 'apple', b =&gt; 'boy', c =&gt; 'cat', d =&gt; 'dog')
++%(b =&gt; 'boy', c =&gt; 'cat', d =&gt; 'dog', e =&gt; 'emu')
++%(c =&gt; 'cat', d =&gt; 'dog', e =&gt; 'emu', m =&gt; 'night elf mohawk')
++Remove 'm'
++%(c =&gt; 'cat', d =&gt; 'dog', e =&gt; 'emu')
++%(c =&gt; 'cat', d =&gt; 'dog', e =&gt; 'emu', n =&gt; 'nerf')
++%(d =&gt; 'dog', e =&gt; 'emu', n =&gt; 'nerf', x =&gt; 'XXX')
++Access Ordered Hash    ----------
++%(a =&gt; 'apple', b =&gt; 'boy', c =&gt; 'cat')
++%(a =&gt; 'apple', b =&gt; 'boy', c =&gt; 'cat', d =&gt; 'dog')
++Access 'a' apple
++%(b =&gt; 'boy', c =&gt; 'cat', d =&gt; 'dog', a =&gt; 'apple')
++%(c =&gt; 'cat', d =&gt; 'dog', a =&gt; 'apple', e =&gt; 'emu')
++%(d =&gt; 'dog', a =&gt; 'apple', e =&gt; 'emu', m =&gt; 'night elf mohawk')
++Remove 'm'
++%(d =&gt; 'dog', a =&gt; 'apple', e =&gt; 'emu')
++%(d =&gt; 'dog', a =&gt; 'apple', e =&gt; 'emu', n =&gt; 'nerf')
++%(a =&gt; 'apple', e =&gt; 'emu', n =&gt; 'nerf', x =&gt; 'XXX')
+
+Modified: sleep/tests/output/callccfork.sl
+===================================================================
+--- sleep/tests/output/callccfork.sl	2008-04-16 18:34:37 UTC (rev 335)
++++ sleep/tests/output/callccfork.sl	2008-04-17 05:56:13 UTC (rev 336)
+@@ -4,7 +4,7 @@
+ Inside of callcc function
+ Trace: &amp;println('Inside of callcc function') at callccfork.sl:12
+ Trace: [&amp;closure[callccfork.sl:12-13]#3 CALLCC: &amp;closure[callccfork.sl:9-15]#2] = 'pHEAR' at callccfork.sl:10
+-Trace: &amp;fork(&amp;closure[callccfork.sl:9-15]#1) = <A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">sleep.bridges.io.IOObject at d88db7</A> at callccfork.sl:20
+-Trace: &amp;wait(<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">sleep.bridges.io.IOObject at d88db7</A>) = 'pHEAR' at callccfork.sl:21
++Trace: &amp;fork(&amp;closure[callccfork.sl:9-15]#1) = <A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">sleep.bridges.io.IOObject at 31c89c</A> at callccfork.sl:20
++Trace: &amp;wait(<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">sleep.bridges.io.IOObject at 31c89c</A>) = 'pHEAR' at callccfork.sl:21
+ pHEAR
+ Trace: &amp;println('pHEAR') at callccfork.sl:22
+
+Added: sleep/tests/output/fob.sl
+===================================================================
+--- sleep/tests/output/fob.sl	2008-04-16 18:34:37 UTC (rev 335)
++++ sleep/tests/output/fob.sl	2008-04-17 05:56:13 UTC (rev 336)
+@@ -0,0 +1 @@
++Fib no. 2880067194370816120
+
+Modified: sleep/tests/output/forker.sl
+===================================================================
+--- sleep/tests/output/forker.sl	2008-04-16 18:34:37 UTC (rev 335)
++++ sleep/tests/output/forker.sl	2008-04-17 05:56:13 UTC (rev 336)
+@@ -1,4 +1,4 @@
+ Trace: &amp;check('within fork') at forker.sl:9
+-Trace: &amp;fork(&amp;closure[forker.sl:9]#2) = <A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">sleep.bridges.io.IOObject at 41fab6</A> at forker.sl:8
++Trace: &amp;fork(&amp;closure[forker.sl:9]#2) = <A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">sleep.bridges.io.IOObject at c9e67a</A> at forker.sl:8
+ Trace: &amp;sleep(1000) at forker.sl:12
+ Trace: &amp;check('outside of fork') at forker.sl:14
+
+Modified: sleep/tests/output/ohash.sl
+===================================================================
+--- sleep/tests/output/ohash.sl	2008-04-16 18:34:37 UTC (rev 335)
++++ sleep/tests/output/ohash.sl	2008-04-17 05:56:13 UTC (rev 336)
+@@ -7,7 +7,7 @@
+ b          is 56
+ %(a =&gt; 'ordered insert...', c =&gt; 'cat', d =&gt; 'dog', p =&gt; 'pHEAR', aa =&gt; 33, b =&gt; 56L)
+ %(c =&gt; 'cat', d =&gt; 'dog', p =&gt; 'pHEAR', aa =&gt; 33, b =&gt; 56L)
+-%(c =&gt; 'cat', d =&gt; 'dog', p =&gt; 'pHEAR', aa =&gt; 33, b =&gt; 56L, a =&gt; 'at the end')
+-%(c =&gt; 'cat', d =&gt; 'dog', p =&gt; 'pHEAR', aa =&gt; 33, b =&gt; 56L, a =&gt; 'at the end', zzz =&gt; 'this is at the end of phear')
+-%(begin =&gt; 'front end', c =&gt; 'cat', d =&gt; 'dog', p =&gt; 'pHEAR', aa =&gt; 33, b =&gt; 56L, a =&gt; 'at the end', zzz =&gt; 'this is at the end of phear')
+-%(c =&gt; 'cat', d =&gt; 'dog', p =&gt; 'pHEAR', aa =&gt; 33, b =&gt; 56L, a =&gt; 'at the end', zzz =&gt; 'this is at the end of phear')
++%(a =&gt; 'at the end', c =&gt; 'cat', d =&gt; 'dog', p =&gt; 'pHEAR', aa =&gt; 33, b =&gt; 56L)
++%(a =&gt; 'at the end', c =&gt; 'cat', d =&gt; 'dog', p =&gt; 'pHEAR', aa =&gt; 33, b =&gt; 56L, zzz =&gt; 'this is at the end of phear')
++%(begin =&gt; 'front end', a =&gt; 'at the end', c =&gt; 'cat', d =&gt; 'dog', p =&gt; 'pHEAR', aa =&gt; 33, b =&gt; 56L, zzz =&gt; 'this is at the end of phear')
++%(a =&gt; 'at the end', c =&gt; 'cat', d =&gt; 'dog', p =&gt; 'pHEAR', aa =&gt; 33, b =&gt; 56L, zzz =&gt; 'this is at the end of phear')
+
+Modified: sleep/tests/output/trace.sl
+===================================================================
+--- sleep/tests/output/trace.sl	2008-04-16 18:34:37 UTC (rev 335)
++++ sleep/tests/output/trace.sl	2008-04-17 05:56:13 UTC (rev 336)
+@@ -1,13 +1,13 @@
+ this is a test
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at e29820</A> println: 'this is a test'] at trace.sl:6
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 716cb7</A> println: 'this is a test'] at trace.sl:6
+ Trace: [java.lang.Math pow: 3, 4] = 81.0 at trace.sl:7
+ 81.0
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at e29820</A> println: 81.0] at trace.sl:7
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 716cb7</A> println: 81.0] at trace.sl:7
+ Trace: [java.lang.Math pow: 3, 5] = 243.0 at trace.sl:8
+ 243.0
+ Trace: &amp;println(243.0) at trace.sl:8
+ testing again...
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at e29820</A> println: 'testing again...'] at trace.sl:10
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 716cb7</A> println: 'testing again...'] at trace.sl:10
+ Trace: [sleep.runtime.SleepUtils getListFromArray: @('a', 'b', 'c')] = [a, b, c] at trace.sl:12
+ Trace: [new java.util.LinkedList: [a, b, c]] = [a, b, c] at trace.sl:12
+ Warning: variable '$list' not declared at trace.sl:12
+
+Modified: sleep/tests/output/wrong.sl
+===================================================================
+--- sleep/tests/output/wrong.sl	2008-04-16 18:34:37 UTC (rev 335)
++++ sleep/tests/output/wrong.sl	2008-04-17 05:56:13 UTC (rev 336)
+@@ -1,32 +1,32 @@
+ Trace: [java.lang.Math pow: 3, 4] = 81.0 at wrong.sl:6
+ 81.0
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at f1916f</A> println: 81.0] at wrong.sl:6
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 8330bf</A> println: 81.0] at wrong.sl:6
+ Trace: &amp;casti(1, 'z') = true at wrong.sl:9
+ true
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at f1916f</A> println: true] at wrong.sl:9
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 8330bf</A> println: true] at wrong.sl:9
+ Trace: &amp;casti(0, 'z') = false at wrong.sl:10
+ false
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at f1916f</A> println: false] at wrong.sl:10
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 8330bf</A> println: false] at wrong.sl:10
+ Trace: &amp;casti(1, 'd') = 1.0 at wrong.sl:13
+ 1.0
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at f1916f</A> println: 1.0] at wrong.sl:13
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 8330bf</A> println: 1.0] at wrong.sl:13
+ Trace: &amp;casti(1, 'b') = 1 at wrong.sl:16
+ 1
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at f1916f</A> println: 1] at wrong.sl:16
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 8330bf</A> println: 1] at wrong.sl:16
+ Trace: &amp;casti(100, 'f') = 100.0 at wrong.sl:19
+ 100.0
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at f1916f</A> println: 100.0] at wrong.sl:19
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 8330bf</A> println: 100.0] at wrong.sl:19
+ Trace: &amp;casti('b', 'c') = b at wrong.sl:22
+ b
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at f1916f</A> println: b] at wrong.sl:22
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 8330bf</A> println: b] at wrong.sl:22
+ Trace: &amp;casti(63, 'i') = 63 at wrong.sl:25
+ 63
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at f1916f</A> println: 63] at wrong.sl:25
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 8330bf</A> println: 63] at wrong.sl:25
+ this is a string y0
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at f1916f</A> println: 'this is a string y0'] at wrong.sl:28
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 8330bf</A> println: 'this is a string y0'] at wrong.sl:28
+ Trace: [new java.lang.StringBuilder: 'test'] = test at wrong.sl:31
+ test
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at f1916f</A> println: test] at wrong.sl:31
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 8330bf</A> println: test] at wrong.sl:31
+ Trace: &amp;cast(@('a', 'b', 'c', 'd'), 'c') = [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">C at 608760</A> at wrong.sl:34
+ abcd
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at f1916f</A> println: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">C at 608760</A>] at wrong.sl:34
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 8330bf</A> println: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">C at 608760</A>] at wrong.sl:34
+
+Modified: sleep/tests/process.sl
+===================================================================
+--- sleep/tests/process.sl	2008-04-16 18:34:37 UTC (rev 335)
++++ sleep/tests/process.sl	2008-04-17 05:56:13 UTC (rev 336)
+@@ -16,8 +16,8 @@
+    }
+  
+    $buffer = allocate();
+-   [[[$script getScriptEnvironment] getEnvironment] 
+-                                    put: &quot;%console%&quot;, $buffer];
++   [sleep.bridges.io.IOObject setConsole: [$script getScriptEnvironment], $buffer];
++
+    [$script runScript];
+ 
+    closef($buffer);
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2008-04-16 18:34:37 UTC (rev 335)
++++ sleep/whatsnew.txt	2008-04-17 05:56:13 UTC (rev 336)
+@@ -1,4 +1,4 @@
+-2.1-beta 22  (16 Apr 08)
++2.1-beta 22  (17 Apr 08)
+ ===========
+ - added a new API to SleepUtils to generate a variable stack 
+   from a java.util.Map.
+@@ -13,8 +13,45 @@
+ - SleepUtils.runCode(Block, ...) now creates (and assumes the 
+   responsibility for destroying) a local scope if none currently
+   exists.
+-- 
++- extended the ordered hash (&amp;ohash) concept to allow the
++  implementation of a cache with a Sleep hash interface:
+ 
++  -- &amp;ohash orders keys in insertion order (no surprise here)
++  -- added &amp;ohasha to create a hash with keys kept in access order
++  -- added setRemovalPolicy(%hash, &amp;closure) to set a closure that
++     determines wether the last element of the specified hash
++     should be removed or not.  Arguments to the closure are:
++     $1 = the hash, $2 = the key, and $3 = the value.
++  -- added setMissPolicy(%hash, &amp;closure) to a set closure that
++     determines what value to use when a hash access misses.
++     The closure is called with $1 = the hash and $2 = the key
++
++  These features should enable better management of massive data 
++  structures within Sleep.  Someone *cough*Marty*cough* will
++  benefit greatly from this.
++- sleep.runtime.ScalarHash implementations are now responsible 
++  for creating their own toString representation.  This is 
++  necessary as some hash implementations (i.e. &amp;ohasha) are
++  sensitive to access order.  Added a helper function to assist
++  with creating a String representation from a java.util.Set of
++  java.util.Map$Entry.  SleepUtils.describeEntries(String, Set)
++- profiler now reflects time spent in current function sans
++  child function calls.  avoids numbers getting out of whack
++  due to recursion.
++- created a new means for storing script metadata information.
++  the java.util.Map obtained by ScriptInstance.getMetadata()
++  is stored in the global variables for a script and it is 
++  passed on to child forks.   The script &quot;environment&quot; where
++  functions and such are stored should not be used for 
++  keeping state.
++
++  This breaks backwards compatability if you install a new
++  Sleep console as %console% or if you manipulate script
++  statistics directly by accessing %statistics%
++
++  To set the Sleep console use the static method in
++  sleep.bridges.io.IOObject#setConsole(ScriptEnvironment, IOObject)
++
+ 2.1-beta 21  (28 Mar 08)
+ ===========
+ - assignment loops now record proper line number information for
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000313.html">[Sleep-svn] r335 - in sleep: . src/sleep/runtime
+</A></li>
+	<LI>Next message: <A HREF="000315.html">[Sleep-svn] r337 - sleep/src/sleep/engine/types
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#314">[ date ]</a>
+              <a href="thread.html#314">[ thread ]</a>
+              <a href="subject.html#314">[ subject ]</a>
+              <a href="author.html#314">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,110 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r255 - in sleep: . src/sleep/runtime
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2007-June/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r255%20-%20in%20sleep%3A%20.%20src/sleep/runtime&In-Reply-To=%3C200706102103.l5AL38ka015569%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000233.html">
+   <LINK REL="Next"  HREF="000235.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r255 - in sleep: . src/sleep/runtime</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r255%20-%20in%20sleep%3A%20.%20src/sleep/runtime&In-Reply-To=%3C200706102103.l5AL38ka015569%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r255 - in sleep: . src/sleep/runtime">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Sun Jun 10 23:03:08 CEST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000233.html">[Sleep-svn] r254 - in sleep: . src/sleep/bridges tests tests/output
+</A></li>
+        <LI>Next message: <A HREF="000235.html">[Sleep-svn] r256 - in sleep: . src/sleep/bridges tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#234">[ date ]</a>
+              <a href="thread.html#234">[ thread ]</a>
+              <a href="subject.html#234">[ subject ]</a>
+              <a href="author.html#234">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2007-06-10 23:03:07 +0200 (Sun, 10 Jun 2007)
+New Revision: 255
+
+Modified:
+   sleep/src/sleep/runtime/SleepUtils.java
+   sleep/whatsnew.txt
+Log:
+..
+
+
+Modified: sleep/src/sleep/runtime/SleepUtils.java
+===================================================================
+--- sleep/src/sleep/runtime/SleepUtils.java	2007-06-10 20:58:20 UTC (rev 254)
++++ sleep/src/sleep/runtime/SleepUtils.java	2007-06-10 21:03:07 UTC (rev 255)
+@@ -306,11 +306,18 @@
+        streams can each be null if necessary. */ 
+    public static Scalar getIOHandleScalar(InputStream in, OutputStream out)
+    {
++      return SleepUtils.getScalar(getIOHandle(in, out));
++   }
++
++   /** creates an IO handle scalar suitable for use with the sleep IO API.  The passed in
++       streams can each be null if necessary. */ 
++   public static sleep.bridges.io.IOObject getIOHandle(InputStream in, OutputStream out)
++   {
+       sleep.bridges.io.IOObject handle = new sleep.bridges.io.IOObject();
+       handle.openRead(in);
+       handle.openWrite(out);
+ 
+-      return SleepUtils.getScalar(handle);
++      return handle;
+    }
+ 
+    /** Creates a proxy instance of the specified class (limited to interfaces at this time) that is backed with the specified closure */
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2007-06-10 20:58:20 UTC (rev 254)
++++ sleep/whatsnew.txt	2007-06-10 21:03:07 UTC (rev 255)
+@@ -3,6 +3,7 @@
+ - passing a value that can not be used as a key/value pair when a kvp 
+   is expected now results in an error message.   valid kvp's include:
+   expressions of (key =&gt; value) and strings with the form &quot;key=value&quot;
++- added getIOHandle(InputStream, OutputStream) to SleepUtilities class
+ 
+ 2.1-beta 15  (25 Apr 07)
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000233.html">[Sleep-svn] r254 - in sleep: . src/sleep/bridges tests tests/output
+</A></li>
+	<LI>Next message: <A HREF="000235.html">[Sleep-svn] r256 - in sleep: . src/sleep/bridges tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#234">[ date ]</a>
+              <a href="thread.html#234">[ thread ]</a>
+              <a href="subject.html#234">[ subject ]</a>
+              <a href="author.html#234">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

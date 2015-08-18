@@ -1,0 +1,116 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r67 - in sleep: . src/sleep/runtime
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2006-June/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r67%20-%20in%20sleep%3A%20.%20src/sleep/runtime&In-Reply-To=%3C200606150433.k5F4XXFm001334%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000049.html">
+   <LINK REL="Next"  HREF="000051.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r67 - in sleep: . src/sleep/runtime</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r67%20-%20in%20sleep%3A%20.%20src/sleep/runtime&In-Reply-To=%3C200606150433.k5F4XXFm001334%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r67 - in sleep: . src/sleep/runtime">rsmudge at berlios.de
+       </A><BR>
+    <I>Thu Jun 15 06:33:33 CEST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000049.html">[Sleep-svn] r66 - in sleep: . src/sleep/parser tests tests/output
+</A></li>
+        <LI>Next message: <A HREF="000051.html">[Sleep-svn] r69 - in sleep/docs: . images
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#50">[ date ]</a>
+              <a href="thread.html#50">[ thread ]</a>
+              <a href="subject.html#50">[ subject ]</a>
+              <a href="author.html#50">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2006-06-15 06:33:30 +0200 (Thu, 15 Jun 2006)
+New Revision: 67
+
+Modified:
+   sleep/src/sleep/runtime/SleepUtils.java
+   sleep/whatsnew.txt
+Log:
+Added getScalar functions for short/float types
+
+
+
+Modified: sleep/src/sleep/runtime/SleepUtils.java
+===================================================================
+--- sleep/src/sleep/runtime/SleepUtils.java	2006-06-15 04:21:57 UTC (rev 66)
++++ sleep/src/sleep/runtime/SleepUtils.java	2006-06-15 04:33:30 UTC (rev 67)
+@@ -263,6 +263,24 @@
+       return temp;
+    } 
+ 
++   /** returns an int scalar (coverted from the short) with value x */
++   public static Scalar getScalar(short x)
++   {
++      Scalar temp = new Scalar();
++      temp.setValue(new IntValue((int)x));
++
++      return temp;
++   } 
++
++   /** returns a double scalar (coverted from the float) with value x */
++   public static Scalar getScalar(float x)
++   {
++      Scalar temp = new Scalar();
++      temp.setValue(new DoubleValue((double)x));
++
++      return temp;
++   } 
++
+    /** returns a double scalar with value x */
+    public static Scalar getScalar(double x)
+    {
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-06-15 04:21:57 UTC (rev 66)
++++ sleep/whatsnew.txt	2006-06-15 04:33:30 UTC (rev 67)
+@@ -25,6 +25,7 @@
+   data feature to keep tracker of matchers (the old way was not
+   thread safe)
+ - for loop initialization and increment terms can now be empty
++- added SleepUtils.getScalar(x) for Java shorts and floats
+ 
+ 2.0-release
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000049.html">[Sleep-svn] r66 - in sleep: . src/sleep/parser tests tests/output
+</A></li>
+	<LI>Next message: <A HREF="000051.html">[Sleep-svn] r69 - in sleep/docs: . images
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#50">[ date ]</a>
+              <a href="thread.html#50">[ thread ]</a>
+              <a href="subject.html#50">[ subject ]</a>
+              <a href="author.html#50">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

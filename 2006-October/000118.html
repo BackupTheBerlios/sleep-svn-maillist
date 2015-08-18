@@ -1,0 +1,362 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r136 - in sleep: . src/sleep/bridges src/sleep/parser	tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2006-October/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r136%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20src/sleep/parser%0A%09tests%20tests/output&In-Reply-To=%3C200610152340.k9FNeck4025285%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000117.html">
+   <LINK REL="Next"  HREF="000119.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r136 - in sleep: . src/sleep/bridges src/sleep/parser	tests tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r136%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20src/sleep/parser%0A%09tests%20tests/output&In-Reply-To=%3C200610152340.k9FNeck4025285%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r136 - in sleep: . src/sleep/bridges src/sleep/parser	tests tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Mon Oct 16 01:40:38 CEST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000117.html">[Sleep-svn] r135 - in sleep: . src/sleep/engine/atoms
+</A></li>
+        <LI>Next message: <A HREF="000119.html">[Sleep-svn] r137 - in sleep: . src/sleep/bridges tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#118">[ date ]</a>
+              <a href="thread.html#118">[ thread ]</a>
+              <a href="subject.html#118">[ subject ]</a>
+              <a href="author.html#118">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2006-10-16 01:40:37 +0200 (Mon, 16 Oct 2006)
+New Revision: 136
+
+Added:
+   sleep/tests/closureindex.sl
+   sleep/tests/invoke.sl
+   sleep/tests/output/closureindex.sl
+   sleep/tests/output/invoke.sl
+   sleep/tests/output/sleepoo.sl
+   sleep/tests/sleepoo.sl
+Modified:
+   sleep/src/sleep/bridges/BasicUtilities.java
+   sleep/src/sleep/parser/Checkers.java
+   sleep/whatsnew.txt
+Log:
+fun stuff...
+
+
+
+Modified: sleep/src/sleep/bridges/BasicUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicUtilities.java	2006-10-14 21:12:22 UTC (rev 135)
++++ sleep/src/sleep/bridges/BasicUtilities.java	2006-10-15 23:40:37 UTC (rev 136)
+@@ -91,6 +91,7 @@
+         temp.put(&quot;-istrue&quot;, this);    // predicate -istrue &lt;Scalar&gt;, determine wether or not the scalar is null or not.
+         temp.put(&quot;-isarray&quot;, this);   
+         temp.put(&quot;-ishash&quot;,  this); 
++        temp.put(&quot;-isfunction&quot;, this);
+         temp.put(&quot;&amp;setField&quot;, this);
+      
+         SetScope scopeFunctions = new SetScope();
+@@ -125,6 +126,8 @@
+         temp.put(&quot;&amp;acquire&quot;,   sync);
+         temp.put(&quot;&amp;release&quot;,   sync);
+ 
++        temp.put(&quot;&amp;invoke&quot;,    this);
++
+         temp.put(&quot;=&gt;&quot;,       new HashKeyValueOp());
+ 
+         return true;
+@@ -182,6 +185,9 @@
+        if (predName.equals(&quot;-istrue&quot;))
+           return value.getValue().toString().length() != 0 &amp;&amp; !(&quot;0&quot;.equals(value.getValue().toString()));
+ 
++       if (predName.equals(&quot;-isfunction&quot;))
++          return SleepUtils.isFunctionScalar(value);
++
+        if (predName.equals(&quot;-isarray&quot;))
+           return value.getArray() != null;
+ 
+@@ -686,6 +692,18 @@
+          
+           return SleepUtils.getEmptyScalar();
+        }
++       else if (n.equals(&quot;&amp;invoke&quot;)) 
++       {
++          SleepClosure c    = BridgeUtilities.getFunction(l, i);
++
++          Stack        args = new Stack();
++          Iterator iter     = BridgeUtilities.getIterator(l, i);
++          while (iter.hasNext()) { args.add(0, iter.next()); }
++
++          String message    = BridgeUtilities.getString(l, null);
++ 
++          return c.callClosure(message, i, args);
++       }
+        else if (n.equals(&quot;&amp;debug&quot;))
+        {
+           /* allow the script to programatically set the debug level */
+
+Modified: sleep/src/sleep/parser/Checkers.java
+===================================================================
+--- sleep/src/sleep/parser/Checkers.java	2006-10-14 21:12:22 UTC (rev 135)
++++ sleep/src/sleep/parser/Checkers.java	2006-10-15 23:40:37 UTC (rev 136)
+@@ -181,7 +181,7 @@
+ 
+    public static boolean isIndexableItem(String a, String b)
+    {
+-      return (isIndex(b) &amp;&amp; (isFunctionCall(a) || isExpression(a) || isVariable(a) || isIndex(a)));
++      return (isIndex(b) &amp;&amp; (isFunctionCall(a) || isExpression(a) || isVariable(a) || isIndex(a) || isFunctionReferenceToken(a)));
+    }
+ 
+    public static boolean isIndexableItem(String a)
+
+Added: sleep/tests/closureindex.sl
+===================================================================
+--- sleep/tests/closureindex.sl	2006-10-14 21:12:22 UTC (rev 135)
++++ sleep/tests/closureindex.sl	2006-10-15 23:40:37 UTC (rev 136)
+@@ -0,0 +1,29 @@
++#
++# test out indexing in some other cases.
++#
++
++sub phoenetic
++{
++   this('$evil');
++
++   $this[&quot;a&quot;] = &quot;alpha&quot;;
++   $this[&quot;b&quot;] = &quot;bravo&quot;;
++   $this[&quot;c&quot;] = &quot;charlie&quot;;
++   $this[&quot;d&quot;] = &quot;delta&quot;;   
++
++   $evil = &quot;evil test!!!&quot;;
++
++   println(&quot;evil test --- $evil&quot;);
++
++   yield; 
++
++   println(&quot;yeap, evil is now $evil&quot;);
++}
++
++phoenetic(); # set everything up please..
++
++println(&quot;a    is: &quot; . &amp;phoenetic[&quot;a&quot;]);
++println(&quot;evil is: &quot; . &amp;phoenetic['$evil']);
++
++&amp;phoenetic['$evil'] = &quot;oooh, changes... eee&quot;;
++phoenetic();
+
+Added: sleep/tests/invoke.sl
+===================================================================
+--- sleep/tests/invoke.sl	2006-10-14 21:12:22 UTC (rev 135)
++++ sleep/tests/invoke.sl	2006-10-15 23:40:37 UTC (rev 136)
+@@ -0,0 +1,15 @@
++sub test
++{
++   if ($0 is $null)
++   {
++      println(&quot;&amp;test - no \$0 - but $1 $2 and $3&quot;);
++   }
++   else
++   {
++      println(&quot;I am a subroutine with 1: $1 2: $2 and 3: $3 told $0&quot;);
++   }
++}
++
++invoke(&amp;test, @(&quot;a&quot;, &quot;b&quot;, 3), &quot;testing&quot;);
++invoke(&amp;test, @(&quot;aa&quot;, &quot;bb&quot;, 3));
++
+
+Added: sleep/tests/output/closureindex.sl
+===================================================================
+--- sleep/tests/output/closureindex.sl	2006-10-14 21:12:22 UTC (rev 135)
++++ sleep/tests/output/closureindex.sl	2006-10-15 23:40:37 UTC (rev 136)
+@@ -0,0 +1,4 @@
++evil test --- evil test!!!
++a    is: alpha
++evil is: evil test!!!
++yeap, evil is now oooh, changes... eee
+
+Added: sleep/tests/output/invoke.sl
+===================================================================
+--- sleep/tests/output/invoke.sl	2006-10-14 21:12:22 UTC (rev 135)
++++ sleep/tests/output/invoke.sl	2006-10-15 23:40:37 UTC (rev 136)
+@@ -0,0 +1,2 @@
++I am a subroutine with 1: a 2: b and 3: 3 told testing
++&amp;test - no $0 - but aa bb and 3
+
+Added: sleep/tests/output/sleepoo.sl
+===================================================================
+--- sleep/tests/output/sleepoo.sl	2006-10-14 21:12:22 UTC (rev 135)
++++ sleep/tests/output/sleepoo.sl	2006-10-15 23:40:37 UTC (rev 136)
+@@ -0,0 +1,4 @@
++&lt;foo&gt; my name is: not default x - foo; arg is x_foo argument
++&lt;foo&gt; my name is: default foo; arg is y_foo argument
++&lt;bar&gt; my name is: not default x - bar; arg is x_bar argument
++&lt;bar&gt; my name is: default bar; arg is y_bar argument
+
+Added: sleep/tests/sleepoo.sl
+===================================================================
+--- sleep/tests/sleepoo.sl	2006-10-14 21:12:22 UTC (rev 135)
++++ sleep/tests/sleepoo.sl	2006-10-15 23:40:37 UTC (rev 136)
+@@ -0,0 +1,103 @@
++#
++# this is just a test of using the new closure indexing capability
++# to see what kind of fun it brings to the sleep language.
++#
++
++# special thanks to Andreas for starting the train of thought that led
++# to this.
++
++# this concept can surely be expanded, I was just looking to mimic the
++# javascript &quot;prototype&quot; function ability.  
++
++# a generic object... when a message is passed, the objects closure scope is referred to.
++# if the message indexes a function, the function is called.
++# otherwise a value is returned.  no big deal.  eh. (:
++sub object
++{
++   if ($0 !is $null)
++   {
++      if (-isfunction $this[$0])
++      {
++         return invoke($this[$0], @_);
++      }
++      else
++      {
++         return $this[$0];
++      }
++   }  
++}
++
++#
++# a constructor for some sort of class... keeps track of all instances of
++# the &quot;class&quot;.  allows slots for each instance to be populated via the
++# set message.  new instances are created with the new message.
++#
++# one weakness with this implementation is that all instances must be created
++# prior to populating the slots.  this could be easily fixed but I am just
++# creating a test case here, not a full object implementation for sleep.
++#
++sub construct
++{
++  this('@mybabies');
++
++  # [&amp;construct set: &quot;key&quot;, value]
++  if ($0 eq &quot;set&quot;) 
++  {
++     return map(lambda({ 
++        if (-isfunction $y)
++        {
++           $1[$x] = lambda($y, $object =&gt; $1); 
++        }
++        else
++        {
++           $1[$x] = $y;
++        }
++     }, $x =&gt; $1, $y =&gt; $2), @mybabies);
++  }
++  # [&amp;construct new]
++  else if ($0 eq &quot;new&quot;)
++  {
++     return push(@mybabies, lambda(&amp;object, $class =&gt; $this));
++  }
++}
++
++#
++# test all of this out
++# 
++
++$class_foo = lambda(&amp;construct);
++$class_bar = lambda(&amp;construct);  
++
++$x_foo = [$class_foo new];
++$x_bar = [$class_bar new];
++
++$y_foo = [$class_foo new];
++$y_bar = [$class_bar new];
++
++#
++# add a printme method to all instantiated class_foo and class_bar &quot;objects&quot;
++#
++[$class_foo set: &quot;printme&quot;, { println(&quot;&lt;foo&gt; my name is: &quot; . [$object name] . &quot;; arg is $1&quot;); }];
++[$class_bar set: &quot;printme&quot;, { println(&quot;&lt;bar&gt; my name is: &quot; . [$object name] . &quot;; arg is $1&quot;); }];
++
++#
++# add a name field to all instnatiated class_foo and class_bar objects
++#
++[$class_foo set: &quot;name&quot;, &quot;default foo&quot;];
++[$class_bar set: &quot;name&quot;, &quot;default bar&quot;];
++
++#
++# x will not use the defaults...
++#
++$x_foo[&quot;name&quot;] = &quot;not default x - foo&quot;;
++$x_bar[&quot;name&quot;] = &quot;not default x - bar&quot;;
++
++#
++# test it all out
++#
++[$x_foo printme: &quot;x_foo argument&quot;];
++[$y_foo printme: &quot;y_foo argument&quot;];
++
++[$x_bar printme: &quot;x_bar argument&quot;];
++[$y_bar printme: &quot;y_bar argument&quot;];
++
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-10-14 21:12:22 UTC (rev 135)
++++ sleep/whatsnew.txt	2006-10-15 23:40:37 UTC (rev 136)
+@@ -1,3 +1,17 @@
++2.1-beta 7  (15 Oct 06)
++===========
++- index operator can now be applied to closures to reference the &quot;this&quot; scope
++  of the closure i.e.
++
++  $closure = lambda({ println(&quot;I am: &quot; . $name); }, $name =&gt; &quot;Burt&quot;);
++  $closure['$name'] = &quot;Joe&quot;;
++  [$closure];
++
++  Output: &quot;I am Joe&quot;
++- added -isfunction predicate to check if a scalar contains a function or not
++- added &amp;invoke(&amp;function, @args, [message]) to invoke a function with @args
++  passed as individual arguments.
++
+ 2.1-beta 6  (1 Oct 06)
+ ===========
+ - added named parameters for Sleep closures.  When a $key =&gt; value argument is
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000117.html">[Sleep-svn] r135 - in sleep: . src/sleep/engine/atoms
+</A></li>
+	<LI>Next message: <A HREF="000119.html">[Sleep-svn] r137 - in sleep: . src/sleep/bridges tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#118">[ date ]</a>
+              <a href="thread.html#118">[ thread ]</a>
+              <a href="subject.html#118">[ subject ]</a>
+              <a href="author.html#118">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,123 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r408 - in sleep: . tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2008-May/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r408%20-%20in%20sleep%3A%20.%20tests%20tests/output&In-Reply-To=%3C200805302155.m4ULtLhw009806%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000383.html">
+   
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r408 - in sleep: . tests tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r408%20-%20in%20sleep%3A%20.%20tests%20tests/output&In-Reply-To=%3C200805302155.m4ULtLhw009806%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r408 - in sleep: . tests tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Fri May 30 23:55:21 CEST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000383.html">[Sleep-svn] r407 - in sleep: src/sleep/runtime tests tests/output
+</A></li>
+        
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#384">[ date ]</a>
+              <a href="thread.html#384">[ thread ]</a>
+              <a href="subject.html#384">[ subject ]</a>
+              <a href="author.html#384">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2008-05-30 23:55:20 +0200 (Fri, 30 May 2008)
+New Revision: 408
+
+Added:
+   sleep/tests/makebadscript.sl
+   sleep/tests/output/makebadscript.sl
+Modified:
+   sleep/whatsnew.txt
+Log:
+..
+
+
+Added: sleep/tests/makebadscript.sl
+===================================================================
+--- sleep/tests/makebadscript.sl	2008-05-30 21:50:14 UTC (rev 407)
++++ sleep/tests/makebadscript.sl	2008-05-30 21:55:20 UTC (rev 408)
+@@ -0,0 +1,15 @@
++debug(3);
++
++$script = 'println(&quot;hello world!&quot;);
++println(&quot;this is a test&quot;);
++warn(&quot;everything work ok?&quot;);';
++
++$a = join(chr(10), split(&quot;\n&quot;, $script));
++eval($a);
++
++# sleep doesn't recognize \r by itself as a newline format...
++$b = join(chr(13), split(&quot;\n&quot;, $script));
++eval($b);
++
++$c = join(chr(13) . chr(10), split(&quot;\n&quot;, $script));
++eval($c);
+
+Added: sleep/tests/output/makebadscript.sl
+===================================================================
+--- sleep/tests/output/makebadscript.sl	2008-05-30 21:50:14 UTC (rev 407)
++++ sleep/tests/output/makebadscript.sl	2008-05-30 21:55:20 UTC (rev 408)
+@@ -0,0 +1,9 @@
++hello world!
++this is a test
++Warning: everything work ok? at eval:2
++hello world!
++this is a test
++Warning: everything work ok? at eval:0
++hello world!
++this is a test
++Warning: everything work ok? at eval:2
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2008-05-30 21:50:14 UTC (rev 407)
++++ sleep/whatsnew.txt	2008-05-30 21:55:20 UTC (rev 408)
+@@ -43,7 +43,8 @@
+      as local variables
+   -- $__SCRIPT__ and @ARGV are now available to Sleep scripts
+      executed with jrunscript.
+-- sleep parser now ignores &quot;\r&quot; inside of script files.
++  -- better handling of \r, \n, and \r\n in eval()
++- sleep lexer now ignores &quot;\r&quot; as whitespace
+ 
+ 2.1-beta 26  (15 May 08)
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000383.html">[Sleep-svn] r407 - in sleep: src/sleep/runtime tests tests/output
+</A></li>
+	
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#384">[ date ]</a>
+              <a href="thread.html#384">[ thread ]</a>
+              <a href="subject.html#384">[ subject ]</a>
+              <a href="author.html#384">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

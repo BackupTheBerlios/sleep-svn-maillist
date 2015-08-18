@@ -1,0 +1,273 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r106 - in sleep: . src/sleep/bridges src/sleep/parser	tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2006-August/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r106%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20src/sleep/parser%0A%09tests%20tests/output&In-Reply-To=%3C200608191745.k7JHjeKX025298%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000087.html">
+   
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r106 - in sleep: . src/sleep/bridges src/sleep/parser	tests tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r106%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20src/sleep/parser%0A%09tests%20tests/output&In-Reply-To=%3C200608191745.k7JHjeKX025298%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r106 - in sleep: . src/sleep/bridges src/sleep/parser	tests tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Sat Aug 19 19:45:40 CEST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000087.html">[Sleep-svn] r105 - in sleep: . src/sleep/parser
+</A></li>
+        
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#88">[ date ]</a>
+              <a href="thread.html#88">[ thread ]</a>
+              <a href="subject.html#88">[ subject ]</a>
+              <a href="author.html#88">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2006-08-19 19:45:38 +0200 (Sat, 19 Aug 2006)
+New Revision: 106
+
+Modified:
+   sleep/src/sleep/bridges/BasicUtilities.java
+   sleep/src/sleep/parser/Checkers.java
+   sleep/tests/dsliteral.sl
+   sleep/tests/multilit.sl
+   sleep/tests/output/dsliteral.sl
+   sleep/whatsnew.txt
+Log:
+added a literal form for arrays and hashes
+
+
+
+Modified: sleep/src/sleep/bridges/BasicUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicUtilities.java	2006-08-19 17:33:07 UTC (rev 105)
++++ sleep/src/sleep/bridges/BasicUtilities.java	2006-08-19 17:45:38 UTC (rev 106)
+@@ -52,9 +52,15 @@
+         // functions
+         //
+ 
++        Function f_array = new array();
++        Function f_hash  = new hash();
++
++        temp.put(&quot;&amp;array&quot;, f_array); 
++        temp.put(&quot;&amp;hash&quot;, f_hash);
++        temp.put(&quot;&amp;@&quot;, f_array);
++        temp.put(&quot;&amp;%&quot;, f_hash);  
++
+         // array &amp; hashtable related
+-        temp.put(&quot;&amp;array&quot;,   new array());    // &amp;keys(%hash) = @array
+-        temp.put(&quot;&amp;hash&quot;,   new hash());      // &amp;keys(%hash) = @array
+         temp.put(&quot;&amp;keys&quot;,  this);      // &amp;keys(%hash) = @array
+         temp.put(&quot;&amp;size&quot;,  this);      // &amp;size(@array) = &lt;int&gt;
+         temp.put(&quot;&amp;push&quot;,  this);      // &amp;push(@array, $value) = $scalar
+
+Modified: sleep/src/sleep/parser/Checkers.java
+===================================================================
+--- sleep/src/sleep/parser/Checkers.java	2006-08-19 17:33:07 UTC (rev 105)
++++ sleep/src/sleep/parser/Checkers.java	2006-08-19 17:45:38 UTC (rev 106)
+@@ -161,7 +161,7 @@
+ 
+    public static boolean isFunctionCall(String a, String b)
+    {
+-      return (isFunction(a) &amp;&amp; isExpression(b));
++      return ((isFunction(a) || a.equals(&quot;@&quot;) || a.equals(&quot;%&quot;)) &amp;&amp; isExpression(b));
+    }
+ 
+    public static boolean isFunction(String a)
+@@ -169,9 +169,14 @@
+       return ((Character.isJavaIdentifierStart(a.charAt(0)) || a.charAt(0) == '&amp;') &amp;&amp; a.charAt(0) != '$' &amp;&amp; keywords.get(a) == null);
+    }
+ 
++   public static boolean isDataLiteral(String a)
++   {
++      return (a.length() &gt; 2) &amp;&amp; (  a.substring(0, 2).equals(&quot;@(&quot;) || a.substring(0, 2).equals(&quot;%(&quot;)  );
++   }
++
+    public static boolean isFunctionCall(String a)
+    {
+-      return (isFunction(a) &amp;&amp; (a.indexOf('(') &gt; -1) &amp;&amp; (a.indexOf(')') &gt; -1));
++      return ((isFunction(a) || isDataLiteral(a)) &amp;&amp; (a.indexOf('(') &gt; -1) &amp;&amp; (a.indexOf(')') &gt; -1));
+    }
+ 
+    public static boolean isIndexableItem(String a, String b)
+
+Modified: sleep/tests/dsliteral.sl
+===================================================================
+--- sleep/tests/dsliteral.sl	2006-08-19 17:33:07 UTC (rev 105)
++++ sleep/tests/dsliteral.sl	2006-08-19 17:45:38 UTC (rev 106)
+@@ -2,25 +2,27 @@
+ # literal instantiation of sleep data structures
+ #
+ 
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">- at array</A> = @[ &quot;a&quot;, &quot;b&quot;, &quot;c&quot;, &quot;d&quot;, &quot;e&quot;, &quot;f&quot; ];
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">+ at array</A> = @(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;, &quot;d&quot;, &quot;e&quot;, &quot;f&quot;);
+ printAll(@array);
+ 
+ #
+ 
+-printAll(@[ &quot;this&quot;,
++printAll(@( &quot;this&quot;,
+   &quot;is&quot;, 
+   &quot;a&quot;,
+   &quot;test&quot;,
+   &quot;of&quot;,
+   &quot;a&quot;,
+   &quot;new&quot;,
+-  &quot;syntax&quot;]);
++  &quot;syntax&quot;));
+ 
+ #
+ 
+-foreach $key =&gt; $value (%[ a =&gt; &quot;apple&quot;, b =&gt; &quot;bannana&quot;, c =&gt; &quot;cambodia&quot;, e =&gt; &quot;elephant&quot; ])
++foreach $key =&gt; $value (%(a =&gt; &quot;apple&quot;, b =&gt; &quot;bannana&quot;, c =&gt; &quot;cambodia&quot;, e =&gt; &quot;elephant&quot;))
+ {
+    println(&quot;$key =&gt; $value&quot;);
+ }
+ 
++#
+ 
++println(&quot;This is a test: &quot; . @(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;, @(&quot;d&quot;, &quot;e&quot;, &quot;f&quot;), &quot;g&quot;)[3][2]);
+
+Modified: sleep/tests/multilit.sl
+===================================================================
+--- sleep/tests/multilit.sl	2006-08-19 17:33:07 UTC (rev 105)
++++ sleep/tests/multilit.sl	2006-08-19 17:45:38 UTC (rev 106)
+@@ -65,16 +65,16 @@
+ # Array of Arrays / Scalars
+ #
+ 
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">- at data</A> =     @['item 1', 
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">+ at data</A> = @('item 1', 
+               'item 2',  
+-              @[
++               @(
+                   'sub array 1',
+                   'sub array 2',
+                   'sub array 3',
+                   'sub array 4',
+-               ],
++               ),
+                'item 4',
+-               'item 5'];
++               'item 5');
+ 
+ recurse(@data);
+ 
+@@ -87,30 +87,30 @@
+    return &quot;kvp op takes functions&quot;;
+ }
+ 
+-%data2 =    %[key1 =&gt; &quot;value 1&quot;,
++%data2 = %(key1 =&gt; &quot;value 1&quot;,
+               key2 =&gt; &quot;value 2&quot;,
+               key3 =&gt; test(), 
+-              %key3 =&gt; %[
++              %key3 =&gt; %(
+                   key3a =&gt; &quot;value a&quot;,
+                   key3b =&gt; &quot;value b&quot;,
+                   key3c =&gt; &quot;value c&quot;,
+-                  key3d =&gt; &quot;value d&quot;],
+-              key4 =&gt; &quot;value 4&quot;];
++                  key3d =&gt; &quot;value d&quot;),
++              key4 =&gt; &quot;value 4&quot;);
+ 
+ recurse(%data2);
+ 
+ #
+ # Hash of Arrays
+ #
+-%data3 =    %[letters =&gt; @[&quot;a&quot;, &quot;b&quot;, &quot;c&quot;],
+-              numbers =&gt; @[1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+-              puncs   =&gt; @[&quot;!&quot;, &quot;@&quot;, &quot;%&quot;, &quot;.&quot;, &quot;,&quot;, &quot;^&quot;],
+-              letters+numbers+puncs =&gt; @[
+-                  array(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;),    # just for giggles to make sure functions still work.. :)
+-                  @[1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+-                  @[&quot;!&quot;, &quot;@&quot;, &quot;%&quot;, &quot;.&quot;, &quot;,&quot;, &quot;^&quot;]
+-              ],
+-              astring =&gt; &quot;this is just a string for good measure&quot;];
++%data3 = hash(letters =&gt; @(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;),
++              numbers =&gt; @(1, 2, 3, 4, 5, 6, 7, 8, 9, 10),
++              puncs   =&gt; @(&quot;!&quot;, &quot;@&quot;, &quot;%&quot;, &quot;.&quot;, &quot;,&quot;, &quot;^&quot;),
++              letters+numbers+puncs =&gt; @(
++                  @(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;),
++                  @(1, 2, 3, 4, 5, 6, 7, 8, 9, 10),
++                  @(&quot;!&quot;, &quot;@&quot;, &quot;%&quot;, &quot;.&quot;, &quot;,&quot;, &quot;^&quot;)
++              ),
++              astring =&gt; &quot;this is just a string for good measure&quot;);
+ 
+ recurse(%data3);
+ 
+@@ -118,9 +118,9 @@
+ # Array of Hashes
+ #
+ 
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">- at data4</A> = @[%[rsmudge =&gt; &quot;Raphael Mudge&quot;, fvmudge =&gt; &quot;Frances Mudge&quot;, bjmudge =&gt; &quot;Brad Mudge&quot;],
+-               %[olopez  =&gt; &quot;Orlando Lopez&quot;, hlopez  =&gt; &quot;Heather Lopez&quot;],
+-               %[jsmith  =&gt; &quot;John Smith&quot;, jjsmith =&gt; &quot;Jimmy John Smith&quot;, rj =&gt; &quot;Rick James!!!&quot;]
+-              ];
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">+ at data4</A> = @(%(rsmudge =&gt; &quot;Raphael Mudge&quot;, fvmudge =&gt; &quot;Frances Mudge&quot;, bjmudge =&gt; &quot;Brad Mudge&quot;),
++               %(olopez  =&gt; &quot;Orlando Lopez&quot;, hlopez  =&gt; &quot;Heather Lopez&quot;),
++               %(jsmith  =&gt; &quot;John Smith&quot;, jjsmith =&gt; &quot;Jimmy John Smith&quot;, rj =&gt; &quot;Rick James!!!&quot;)
++              );
+ 
+ recurse(@data4);
+
+Modified: sleep/tests/output/dsliteral.sl
+===================================================================
+--- sleep/tests/output/dsliteral.sl	2006-08-19 17:33:07 UTC (rev 105)
++++ sleep/tests/output/dsliteral.sl	2006-08-19 17:45:38 UTC (rev 106)
+@@ -16,3 +16,4 @@
+ c =&gt; cambodia
+ b =&gt; bannana
+ e =&gt; elephant
++This is a test: f
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-08-19 17:33:07 UTC (rev 105)
++++ sleep/whatsnew.txt	2006-08-19 17:45:38 UTC (rev 106)
+@@ -1,5 +1,8 @@
+ 2.1-beta 4
+ ===========
++- added a literal form for arrays and hashes:
++  @(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;, &quot;d&quot;, &quot;e&quot;, @(&quot;f&quot;, &quot;g&quot;, &quot;h&quot;, &quot;i&quot;), &quot;j&quot;, &quot;k&quot;)
++  %(a =&gt; &quot;apple&quot;, b =&gt; &quot;batman&quot;, c =&gt; &quot;cow&quot;)
+ 
+ 2.1-beta 3
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000087.html">[Sleep-svn] r105 - in sleep: . src/sleep/parser
+</A></li>
+	
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#88">[ date ]</a>
+              <a href="thread.html#88">[ thread ]</a>
+              <a href="subject.html#88">[ subject ]</a>
+              <a href="author.html#88">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

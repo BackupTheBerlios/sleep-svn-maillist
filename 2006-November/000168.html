@@ -1,0 +1,260 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r186 - in sleep: . src/sleep/parser
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2006-November/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r186%20-%20in%20sleep%3A%20.%20src/sleep/parser&In-Reply-To=%3C200611300309.kAU39LV2018301%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000167.html">
+   <LINK REL="Next"  HREF="000169.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r186 - in sleep: . src/sleep/parser</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r186%20-%20in%20sleep%3A%20.%20src/sleep/parser&In-Reply-To=%3C200611300309.kAU39LV2018301%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r186 - in sleep: . src/sleep/parser">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Thu Nov 30 04:09:21 CET 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000167.html">[Sleep-svn] r185 - sleep/docs
+</A></li>
+        <LI>Next message: <A HREF="000169.html">[Sleep-svn] r187 - in sleep: . src/sleep/parser tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#168">[ date ]</a>
+              <a href="thread.html#168">[ thread ]</a>
+              <a href="subject.html#168">[ subject ]</a>
+              <a href="author.html#168">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2006-11-30 04:09:20 +0100 (Thu, 30 Nov 2006)
+New Revision: 186
+
+Modified:
+   sleep/src/sleep/parser/CodeGenerator.java
+   sleep/src/sleep/parser/Token.java
+   sleep/whatsnew.txt
+Log:
+fixed some parser tracking issues with multiline strings...
+
+
+
+Modified: sleep/src/sleep/parser/CodeGenerator.java
+===================================================================
+--- sleep/src/sleep/parser/CodeGenerator.java	2006-11-24 02:40:06 UTC (rev 185)
++++ sleep/src/sleep/parser/CodeGenerator.java	2006-11-30 03:09:20 UTC (rev 186)
+@@ -480,6 +480,9 @@
+          case EXPR_EVAL_STRING:
+          case IDEA_STRING: // implemented -- parsed literals, one of my favorite features in sleep
+            int startz = 0; 
++
++           int lineno = tokens[0].getHint();
++
+            String c = ParserUtilities.extract(strings[0]);
+             
+            Stack vals, blocks, aligns;
+@@ -490,6 +493,8 @@
+            int catpos = -1; // last position of a concatenation..
+            for (int x = 0; x &lt; c.length(); x++)
+            {
++               char check = c.charAt(x);
++ 
+                //
+                // check for an escape constant or just to skip over a character
+                //
+@@ -507,7 +512,7 @@
+                   {
+                      if ((x + 5) &gt;= c.length())
+                      {
+-                        parser.reportError(&quot;not enough remaning characters for \\uXXXX&quot;,  tokens[0]);
++                        parser.reportError(&quot;not enough remaning characters for \\uXXXX&quot;,  tokens[0].copy(lineno));
+                      }
+                      else
+                      {
+@@ -518,7 +523,7 @@
+                         }
+                         catch (NumberFormatException nex)
+                         {
+-                           parser.reportError(&quot;invalid unicode escape \\u&quot;+c.substring(x + 2, x + 6)+&quot; - must be hex digits&quot;, tokens[0]);
++                           parser.reportError(&quot;invalid unicode escape \\u&quot;+c.substring(x + 2, x + 6)+&quot; - must be hex digits&quot;, tokens[0].copy(lineno));
+                         }
+                      }
+                   }
+@@ -526,7 +531,7 @@
+                   {
+                      if ((x + 3) &gt;= c.length())
+                      {
+-                        parser.reportError(&quot;not enough remaning characters for \\xXX&quot;,  tokens[0]);
++                        parser.reportError(&quot;not enough remaning characters for \\xXX&quot;,  tokens[0].copy(lineno));
+                      }
+                      else
+                      {
+@@ -537,7 +542,7 @@
+                         }
+                         catch (NumberFormatException nex)
+                         {
+-                           parser.reportError(&quot;invalid unicode escape \\x&quot;+c.substring(x + 2, x + 4)+&quot; - must be hex digits&quot;, tokens[0]);
++                           parser.reportError(&quot;invalid unicode escape \\x&quot;+c.substring(x + 2, x + 4)+&quot; - must be hex digits&quot;, tokens[0].copy(lineno));
+                         }
+                      }
+                   }
+@@ -551,11 +556,11 @@
+                //
+                // check for the end of our variable...
+                //
+-               if (x &lt; c.length() &amp;&amp; isVar &amp;&amp; (c.charAt(x) == ' ' || c.charAt(x) == '$'))
++               if (x &lt; c.length() &amp;&amp; isVar &amp;&amp; (c.charAt(x) == ' ' || c.charAt(x) == '\n' || c.charAt(x) == '\t' || c.charAt(x) == '$'))
+                {
+                   String varname = c.substring(startz, x);
+                    
+-                  String[] ops = LexicalAnalyzer.CreateTerms(parser, new StringIterator(varname, tokens[0].getHint())).getStrings();
++                  String[] ops = LexicalAnalyzer.CreateTerms(parser, new StringIterator(varname, lineno)).getStrings();
+                   String align;
+                   if (ops.length == 3)
+                   {
+@@ -568,13 +573,13 @@
+                      if (align.length() &gt; 0)
+                      {
+                         backup();
+-                        parseIdea(new Token(align, tokens[0].getHint()));
++                        parseIdea(new Token(align, lineno));
+                         aligns.push(restore());
+                      }
+                      else
+                      {
+                         aligns.push(null);
+-                        parser.reportError(&quot;Empty alignment specification for &quot; + varname,  tokens[0]);
++                        parser.reportError(&quot;Empty alignment specification for &quot; + varname,  tokens[0].copy(lineno));
+                      }
+                   }
+                   else
+@@ -583,7 +588,7 @@
+                   }
+ 
+                   backup();
+-                  parseIdea(new Token(varname, tokens[0].getHint()));
++                  parseIdea(new Token(varname, lineno));
+                   blocks.push(restore());
+ 
+                   startz = x;
+@@ -612,7 +617,7 @@
+                      }
+                      else
+                      {
+-                        parser.reportError(&quot;$+ operator found at beginning of string&quot;, tokens[0]);
++                        parser.reportError(&quot;$+ operator found at beginning of string&quot;, tokens[0].copy(lineno));
+                      }
+                   }
+                   else
+@@ -631,6 +636,10 @@
+                      }
+                   }
+                }
++
++               if (check == '\n') { 
++                  lineno++; 
++               }
+            } 
+ 
+            if (!isVar)
+@@ -641,7 +650,7 @@
+            else
+            {
+               String   varname = c.substring(startz, c.length());
+-              String[] ops     = LexicalAnalyzer.CreateTerms(parser, new StringIterator(varname, tokens[0].getHint())).getStrings();
++              String[] ops     = LexicalAnalyzer.CreateTerms(parser, new StringIterator(varname, lineno)).getStrings();
+               String   align;
+ 
+               if (ops.length == 3)
+@@ -655,13 +664,13 @@
+                  if (align.length() &gt; 0)
+                  {
+                     backup();
+-                    parseIdea(new Token(align, tokens[0].getHint()));
++                    parseIdea(new Token(align, lineno));
+                     aligns.push(restore());
+                  }
+                  else
+                  {
+                     aligns.push(null);
+-                    parser.reportError(&quot;Empty alignment specification for &quot; + varname,  tokens[0]);
++                    parser.reportError(&quot;Empty alignment specification for &quot; + varname,  tokens[0].copy(lineno));
+                  }
+               }
+               else
+@@ -670,7 +679,7 @@
+               }
+ 
+               backup();
+-              parseIdea(new Token(varname, tokens[0].getHint()));
++              parseIdea(new Token(varname, lineno));
+               blocks.push(restore());
+            }
+ 
+
+Modified: sleep/src/sleep/parser/Token.java
+===================================================================
+--- sleep/src/sleep/parser/Token.java	2006-11-24 02:40:06 UTC (rev 185)
++++ sleep/src/sleep/parser/Token.java	2006-11-30 03:09:20 UTC (rev 186)
+@@ -50,6 +50,11 @@
+       return marker;
+    }
+ 
++   public Token copy(int _hint)
++   {
++      return new Token(term, _hint);
++   }
++ 
+    public Token copy(String text)
+    {
+       return new Token(text, getHint());
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-11-24 02:40:06 UTC (rev 185)
++++ sleep/whatsnew.txt	2006-11-30 03:09:20 UTC (rev 186)
+@@ -1,3 +1,10 @@
++2.1-beta 11
++===========
++- multline parsed literals now make a more sincere effort to track which 
++  line number a variable was encountered at.
++- fixed a bug with multi-line parsed literals where a variable followed 
++  immediately by a newline was not being &quot;terminated&quot;
++
+ 2.1-beta 10 (20 Nov 06)
+ ===========
+ - added sizeof(&quot;data format&quot;) to return the size (in bytes) of the
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000167.html">[Sleep-svn] r185 - sleep/docs
+</A></li>
+	<LI>Next message: <A HREF="000169.html">[Sleep-svn] r187 - in sleep: . src/sleep/parser tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#168">[ date ]</a>
+              <a href="thread.html#168">[ thread ]</a>
+              <a href="subject.html#168">[ subject ]</a>
+              <a href="author.html#168">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

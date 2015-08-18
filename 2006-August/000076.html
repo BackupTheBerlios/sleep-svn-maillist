@@ -1,0 +1,107 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r94 - in sleep: . src/sleep/bridges/io
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2006-August/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r94%20-%20in%20sleep%3A%20.%20src/sleep/bridges/io&In-Reply-To=%3C200608082356.k78NuFXn030364%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000075.html">
+   <LINK REL="Next"  HREF="000077.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r94 - in sleep: . src/sleep/bridges/io</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r94%20-%20in%20sleep%3A%20.%20src/sleep/bridges/io&In-Reply-To=%3C200608082356.k78NuFXn030364%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r94 - in sleep: . src/sleep/bridges/io">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Wed Aug  9 01:56:15 CEST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000075.html">[Sleep-svn] r93 - sleep/src/sleep/bridges/io
+</A></li>
+        <LI>Next message: <A HREF="000077.html">[Sleep-svn] r95 - in sleep: . src/sleep/bridges src/sleep/bridges/io
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#76">[ date ]</a>
+              <a href="thread.html#76">[ thread ]</a>
+              <a href="subject.html#76">[ subject ]</a>
+              <a href="author.html#76">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2006-08-09 01:56:03 +0200 (Wed, 09 Aug 2006)
+New Revision: 94
+
+Modified:
+   sleep/src/sleep/bridges/io/SocketObject.java
+   sleep/whatsnew.txt
+Log:
+Fixed a bug with connect timeout
+
+
+
+Modified: sleep/src/sleep/bridges/io/SocketObject.java
+===================================================================
+--- sleep/src/sleep/bridges/io/SocketObject.java	2006-08-06 17:33:02 UTC (rev 93)
++++ sleep/src/sleep/bridges/io/SocketObject.java	2006-08-08 23:56:03 UTC (rev 94)
+@@ -18,9 +18,10 @@
+    {
+       try
+       {
+-         socket = new Socket(server, port);
++         socket = new Socket();
++
++         socket.connect(new InetSocketAddress(server, port), timeout);
+          socket.setSoLinger(true, 5);
+-         socket.setSoTimeout(timeout);
+ 
+          openRead(socket.getInputStream());
+          openWrite(socket.getOutputStream());
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-08-06 17:33:02 UTC (rev 93)
++++ sleep/whatsnew.txt	2006-08-08 23:56:03 UTC (rev 94)
+@@ -1,8 +1,8 @@
+ 2.1-beta 3
+ ===========
+ - added an optional timeout parameter for the socket connect function i.e.:
+-  $socket = connect(&quot;host&quot;, port, [timeout]) 
+-  default is 60 seconds, -1 means never timeout.
++  $socket = connect(&quot;host&quot;, port, [timeout in milliseconds]) 
++  default is 60 seconds.
+ 
+ 2.1-beta 2
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000075.html">[Sleep-svn] r93 - sleep/src/sleep/bridges/io
+</A></li>
+	<LI>Next message: <A HREF="000077.html">[Sleep-svn] r95 - in sleep: . src/sleep/bridges src/sleep/bridges/io
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#76">[ date ]</a>
+              <a href="thread.html#76">[ thread ]</a>
+              <a href="subject.html#76">[ subject ]</a>
+              <a href="author.html#76">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

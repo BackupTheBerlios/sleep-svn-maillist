@@ -1,0 +1,122 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r256 - in sleep: . src/sleep/bridges tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2007-June/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r256%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20tests%20tests/output&In-Reply-To=%3C200706102110.l5ALAmtP016065%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000234.html">
+   <LINK REL="Next"  HREF="000236.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r256 - in sleep: . src/sleep/bridges tests tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r256%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20tests%20tests/output&In-Reply-To=%3C200706102110.l5ALAmtP016065%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r256 - in sleep: . src/sleep/bridges tests tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Sun Jun 10 23:10:48 CEST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000234.html">[Sleep-svn] r255 - in sleep: . src/sleep/runtime
+</A></li>
+        <LI>Next message: <A HREF="000236.html">[Sleep-svn] r257 - in sleep: . src/sleep/bridges tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#235">[ date ]</a>
+              <a href="thread.html#235">[ thread ]</a>
+              <a href="subject.html#235">[ subject ]</a>
+              <a href="author.html#235">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2007-06-10 23:10:47 +0200 (Sun, 10 Jun 2007)
+New Revision: 256
+
+Added:
+   sleep/tests/keywrds.sl
+   sleep/tests/output/keywrds.sl
+Modified:
+   sleep/src/sleep/bridges/BasicStrings.java
+   sleep/whatsnew.txt
+Log:
+added cmp as a keyword.
+
+
+Modified: sleep/src/sleep/bridges/BasicStrings.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicStrings.java	2007-06-10 21:03:07 UTC (rev 255)
++++ sleep/src/sleep/bridges/BasicStrings.java	2007-06-10 21:10:47 UTC (rev 256)
+@@ -44,6 +44,7 @@
+         ParserConfig.addKeyword(&quot;gt&quot;);
+         ParserConfig.addKeyword(&quot;isin&quot;);
+         ParserConfig.addKeyword(&quot;iswm&quot;);
++        ParserConfig.addKeyword(&quot;cmp&quot;);
+     }
+ 
+     public boolean scriptUnloaded(ScriptInstance aScript)
+
+Added: sleep/tests/keywrds.sl
+===================================================================
+--- sleep/tests/keywrds.sl	2007-06-10 21:03:07 UTC (rev 255)
++++ sleep/tests/keywrds.sl	2007-06-10 21:10:47 UTC (rev 256)
+@@ -0,0 +1,7 @@
++$x = (&quot;a&quot;) cmp (&quot;b&quot;);
++$y = (1 + 2) &lt;=&gt; (3 + 4);
++assert($x != $null);
++
++println($x);
++println($y);
++
+
+Added: sleep/tests/output/keywrds.sl
+===================================================================
+--- sleep/tests/output/keywrds.sl	2007-06-10 21:03:07 UTC (rev 255)
++++ sleep/tests/output/keywrds.sl	2007-06-10 21:10:47 UTC (rev 256)
+@@ -0,0 +1,2 @@
++-1
++-4.0
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2007-06-10 21:03:07 UTC (rev 255)
++++ sleep/whatsnew.txt	2007-06-10 21:10:47 UTC (rev 256)
+@@ -4,6 +4,7 @@
+   is expected now results in an error message.   valid kvp's include:
+   expressions of (key =&gt; value) and strings with the form &quot;key=value&quot;
+ - added getIOHandle(InputStream, OutputStream) to SleepUtilities class
++- registered cmp operator to prevent parser confusing it with a function
+ 
+ 2.1-beta 15  (25 Apr 07)
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000234.html">[Sleep-svn] r255 - in sleep: . src/sleep/runtime
+</A></li>
+	<LI>Next message: <A HREF="000236.html">[Sleep-svn] r257 - in sleep: . src/sleep/bridges tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#235">[ date ]</a>
+              <a href="thread.html#235">[ thread ]</a>
+              <a href="subject.html#235">[ subject ]</a>
+              <a href="author.html#235">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

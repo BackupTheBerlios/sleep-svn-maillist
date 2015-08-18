@@ -1,0 +1,573 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r126 - in sleep: . src/sleep/bridges src/sleep/parser	tests tests/data tests/data/src/org/hick/blah	tests/data/src/org/hick/tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2006-September/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r126%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20src/sleep/parser%0A%09tests%20tests/data%20tests/data/src/org/hick/blah%0A%09tests/data/src/org/hick/tests%20tests/output&In-Reply-To=%3C200609300722.k8U7MMZD029498%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000107.html">
+   <LINK REL="Next"  HREF="000109.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r126 - in sleep: . src/sleep/bridges src/sleep/parser	tests tests/data tests/data/src/org/hick/blah	tests/data/src/org/hick/tests tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r126%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20src/sleep/parser%0A%09tests%20tests/data%20tests/data/src/org/hick/blah%0A%09tests/data/src/org/hick/tests%20tests/output&In-Reply-To=%3C200609300722.k8U7MMZD029498%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r126 - in sleep: . src/sleep/bridges src/sleep/parser	tests tests/data tests/data/src/org/hick/blah	tests/data/src/org/hick/tests tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Sat Sep 30 09:22:22 CEST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000107.html">[Sleep-svn] r125 - in sleep: . src/sleep/bridges tests tests/output
+</A></li>
+        <LI>Next message: <A HREF="000109.html">[Sleep-svn] r127 - in sleep: . src/sleep/bridges tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#108">[ date ]</a>
+              <a href="thread.html#108">[ thread ]</a>
+              <a href="subject.html#108">[ subject ]</a>
+              <a href="author.html#108">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2006-09-30 09:22:21 +0200 (Sat, 30 Sep 2006)
+New Revision: 126
+
+Added:
+   sleep/tests/impfrom3.sl
+   sleep/tests/output/impfrom3.sl
+   sleep/tests/output/setfield.sl
+   sleep/tests/setfield.sl
+Modified:
+   sleep/src/sleep/bridges/BasicUtilities.java
+   sleep/src/sleep/parser/Checkers.java
+   sleep/src/sleep/parser/CodeGenerator.java
+   sleep/src/sleep/parser/Parser.java
+   sleep/tests/checksum.sl
+   sleep/tests/data/src/org/hick/blah/SqueezeBox.java
+   sleep/tests/data/src/org/hick/tests/FooFunction.java
+   sleep/tests/data/test.jar
+   sleep/tests/digest.sl
+   sleep/tests/forkdl.sl
+   sleep/tests/output/byteconvert.sl
+   sleep/tests/output/checksum.sl
+   sleep/tests/output/digest.sl
+   sleep/tests/output/fe_generatordb.sl
+   sleep/tests/output/forkdl.sl
+   sleep/whatsnew.txt
+Log:
+Added a way to set public fields and a check for import from: to ensure that the jar file 
+exists.
+
+
+
+Modified: sleep/src/sleep/bridges/BasicUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicUtilities.java	2006-09-24 18:49:43 UTC (rev 125)
++++ sleep/src/sleep/bridges/BasicUtilities.java	2006-09-30 07:22:21 UTC (rev 126)
+@@ -91,7 +91,8 @@
+         temp.put(&quot;-istrue&quot;, this);    // predicate -istrue &lt;Scalar&gt;, determine wether or not the scalar is null or not.
+         temp.put(&quot;-isarray&quot;, this);   
+         temp.put(&quot;-ishash&quot;,  this); 
+-
++        temp.put(&quot;&amp;setField&quot;, this);
++     
+         SetScope scopeFunctions = new SetScope();
+ 
+         temp.put(&quot;&amp;local&quot;,    scopeFunctions);
+@@ -849,7 +850,60 @@
+              return temp;
+           }
+        }
++       else if (n.equals(&quot;&amp;setField&quot;))
++       {
++          // setField(class/object, &quot;field&quot;, &quot;value&quot;)
+ 
++          Field  setMe  = null;
++          Class  aClass = null;
++          Object inst   = null;
++
++          if (l.size() == 3 &amp;&amp; &quot;==CLASS==&quot;.equals(value.toString()))
++          {
++             aClass = (Class)(BridgeUtilities.getScalar(l).objectValue());
++          }
++          else if (value.objectValue() == null)
++          {
++             throw new IllegalArgumentException(&quot;&amp;setField: can not set field on a null object&quot;);
++          }
++          else if (l.size() == 2)
++          {
++             inst   = value.objectValue();
++             aClass = inst.getClass();
++          }
++          else
++          {
++             throw new IllegalArgumentException(&quot;&amp;setField: not enough parameters&quot;);
++          }
++
++          String name = BridgeUtilities.getString(l, null);
++          Scalar arg  = BridgeUtilities.getScalar(l);
++
++          try
++          {
++             setMe = aClass.getDeclaredField(name);
++
++             if (ObjectUtilities.isArgMatch(setMe.getType(), arg) != 0)
++             {
++                setMe.setAccessible(true);
++                setMe.set(inst, ObjectUtilities.buildArgument(setMe.getType(), arg, i));
++             }
++             else
++             {
++                throw new RuntimeException(&quot;unable to convert &quot; + SleepUtils.describe(arg) + &quot; to a &quot; + setMe.getType());
++             }
++          }
++          catch (NoSuchFieldException fex)
++          {
++             throw new RuntimeException(&quot;no field named &quot; + name + &quot; in &quot; + aClass);
++          }
++          catch (RuntimeException rex) { throw (rex); }
++          catch (Exception ex)
++          {
++             throw new RuntimeException(&quot;cannot set &quot; + name + &quot; in &quot; + aClass + &quot;: &quot; + ex.getMessage());
++          }
++       }
++
+        return SleepUtils.getEmptyScalar();
+-   }
++    }
+ }
+
+Modified: sleep/src/sleep/parser/Checkers.java
+===================================================================
+--- sleep/src/sleep/parser/Checkers.java	2006-09-24 18:49:43 UTC (rev 125)
++++ sleep/src/sleep/parser/Checkers.java	2006-09-30 07:22:21 UTC (rev 126)
+@@ -101,7 +101,7 @@
+ 
+    public static final boolean isClassIdentifier(Parser parser, String a)
+    {
+-       return parser.findImportedClass(a) != null;
++       return !isIndex(a) &amp;&amp; parser.findImportedClass(a) != null;
+    }
+ 
+    public static final boolean isBindFilter(String a, String b, String c, String d)
+
+Modified: sleep/src/sleep/parser/CodeGenerator.java
+===================================================================
+--- sleep/src/sleep/parser/CodeGenerator.java	2006-09-24 18:49:43 UTC (rev 125)
++++ sleep/src/sleep/parser/CodeGenerator.java	2006-09-30 07:22:21 UTC (rev 126)
+@@ -765,6 +765,16 @@
+               atom = GeneratedSteps.Decide(parsePredicate(termsAr[0]), a, b);
+               add(atom, tokens[0]); 
+            }
++           else if (strings[0].equals(&quot;&amp;setField&quot;))
++           {
++              atom = GeneratedSteps.CreateFrame();
++              add(atom, tokens[0]);
++
++              parseSpecialParameters(ParserUtilities.extract(tokens[1]));
++
++              atom = GeneratedSteps.Call(strings[0]);
++              add(atom, tokens[0]);
++           }
+            else if (tokens.length &gt; 1)
+            {
+               atom = GeneratedSteps.CreateFrame();
+@@ -1020,7 +1030,11 @@
+            }
+            else
+            {
+-              parser.importPackage(strings[0], strings[1]);
++              File searchFor = parser.importPackage(strings[0], strings[1]);
++              if (searchFor == null || !searchFor.exists())
++              {
++                 parser.reportError(&quot;jar file to import package from was not found!&quot;, ParserUtilities.makeToken(&quot;import &quot; + strings[0] + &quot; from: &quot; + strings[1], tokens[1]));
++              }
+            }
+            break;           
+          case EXPR_RETURN:                     // implemented
+@@ -1078,6 +1092,39 @@
+       }     
+    }
+ 
++   /** checks if the first token is potentially a class literal, if it is creates an
++       object scalar for it.  otherwise it is parsed as a normal literal idea */
++   public void parseSpecialParameters(Token token)
++   {
++      TokenList terms   = ParserUtilities.groupByParameterTerm(parser, token);
++      Token[]   termsAr = terms.getTokens();
++
++      for (int x = termsAr.length - 1; x &gt;= 0; x--)
++      {
++         if (x == 0)
++         {
++            Class aClass = parser.findImportedClass(termsAr[x].toString());
++
++            if (aClass == null)
++            {
++               parseIdea(termsAr[x]);
++            }
++            else
++            {
++               Scalar  ascalar = SleepUtils.getScalar(aClass);
++               Step    atom    = GeneratedSteps.SValue(ascalar);
++               add(atom, termsAr[x]);
++
++               parseIdea(ParserUtilities.makeToken(&quot;'==CLASS=='&quot;, termsAr[x]));
++            }
++         }
++         else
++         {
++            parseIdea(termsAr[x]);
++         }
++      }
++   }
++
+    public void parseParameters(Token token)
+    {
+       TokenList terms   = ParserUtilities.groupByParameterTerm(parser, token);
+
+Modified: sleep/src/sleep/parser/Parser.java
+===================================================================
+--- sleep/src/sleep/parser/Parser.java	2006-09-24 18:49:43 UTC (rev 125)
++++ sleep/src/sleep/parser/Parser.java	2006-09-30 07:22:21 UTC (rev 126)
+@@ -76,8 +76,10 @@
+    protected HashMap    jars      = new HashMap(); /* resolved jar files, key=jar name value=ClassLoader */
+ 
+    /** Used by hoes to import package names... */
+-   public void importPackage(String packagez, String from)
++   public File importPackage(String packagez, String from)
+    {
++       File returnValue = null;
++
+        String pack, clas;
+        clas = packagez.substring(packagez.lastIndexOf(&quot;.&quot;) + 1, packagez.length());
+        pack = packagez.substring(0, packagez.lastIndexOf(&quot;.&quot;));
+@@ -88,10 +90,12 @@
+        {
+           try
+           {
+-             URLClassLoader loader = new URLClassLoader(new URL[] { ParserConfig.findJarFile(from).toURL() }, Thread.currentThread().getContextClassLoader());
++             returnValue = ParserConfig.findJarFile(from);
++ 
++             URLClassLoader loader = new URLClassLoader(new URL[] { returnValue.toURL() }, Thread.currentThread().getContextClassLoader());
+              jars.put(from, loader);
+           }
+-          catch (Exception ex) { }
++          catch (Exception ex) { ex.printStackTrace(); }
+        }
+ 
+        /* handle importing our package */
+@@ -107,12 +111,12 @@
+           Class found = findImportedClass(packagez);
+           classes.put(clas, found);
+        }
++
++       return returnValue;
+    }
+ 
+    private Class resolveClass(String pack, String clas, String jar)
+    {
+-//       System.out.println(&quot;Attempting to resolve: '&quot; + pack + &quot;' + '&quot; + clas + &quot;' + '&quot; + jar + &quot;'&quot;);
+-
+        try
+        {
+           if (jar != null)
+
+Modified: sleep/tests/checksum.sl
+===================================================================
+--- sleep/tests/checksum.sl	2006-09-24 18:49:43 UTC (rev 125)
++++ sleep/tests/checksum.sl	2006-09-30 07:22:21 UTC (rev 126)
+@@ -1,9 +1,8 @@
+ #
+ # test the checksum API
+ #
++$REAL = 453947233; # output of UNIX crc32 command for test.jar
+ 
+-$REAL = 990741747; # output of UNIX crc32 command for test.jar
+-
+ # first test... checksumming an I/O handle :)
+ 
+ $handle = openf(&quot;data/test.jar&quot;);
+
+Modified: sleep/tests/data/src/org/hick/blah/SqueezeBox.java
+===================================================================
+--- sleep/tests/data/src/org/hick/blah/SqueezeBox.java	2006-09-24 18:49:43 UTC (rev 125)
++++ sleep/tests/data/src/org/hick/blah/SqueezeBox.java	2006-09-30 07:22:21 UTC (rev 126)
+@@ -2,8 +2,22 @@
+ 
+ public class SqueezeBox
+ {
++   public static String aStringField = &quot;this is a string field&quot;;
++   public static double aDoubleField = 3.0;
++
++   public String  instanceStringField  = &quot;this is also a string field&quot;;
++   public boolean instanceBooleanField = true;
++
+    protected int sq = 33;
+ 
++   public void printValues()
++   {
++      System.out.println(&quot;static members:&quot;);
++      System.out.println(&quot;aStringField '&quot; + aStringField + &quot;' and aDoubleField = &quot; + aDoubleField);
++      System.out.println(&quot;instance members:&quot;);
++      System.out.println(&quot;instanceStringField '&quot; + instanceStringField + &quot;' instanceBooleanField = &quot; + instanceBooleanField);
++   }
++
+    public int squeeze()
+    { 
+       sq++;
+
+Modified: sleep/tests/data/src/org/hick/tests/FooFunction.java
+===================================================================
+--- sleep/tests/data/src/org/hick/tests/FooFunction.java	2006-09-24 18:49:43 UTC (rev 125)
++++ sleep/tests/data/src/org/hick/tests/FooFunction.java	2006-09-30 07:22:21 UTC (rev 126)
+@@ -7,6 +7,8 @@
+ 
+ public class FooFunction implements Function
+ {
++   public static double aField = 3.0;
++
+    private int calls = 0;
+ 
+    public Scalar evaluate(String name, ScriptInstance script, Stack locals)
+
+Modified: sleep/tests/data/test.jar
+===================================================================
+(Binary files differ)
+
+Modified: sleep/tests/digest.sl
+===================================================================
+--- sleep/tests/digest.sl	2006-09-24 18:49:43 UTC (rev 125)
++++ sleep/tests/digest.sl	2006-09-30 07:22:21 UTC (rev 126)
+@@ -2,7 +2,7 @@
+ # test the digest API
+ #
+ 
+-$REAL = '17bc99c1ea48937e2f702c7ef1c5025c'; # output of UNIX md5 command for test.jar
++$REAL = '052168a92bfc545941d9352b35288ac3';# output of UNIX md5 command for test.jar
+ 
+ # first test... digest an I/O handle :)
+ 
+
+Modified: sleep/tests/forkdl.sl
+===================================================================
+--- sleep/tests/forkdl.sl	2006-09-24 18:49:43 UTC (rev 125)
++++ sleep/tests/forkdl.sl	2006-09-30 07:22:21 UTC (rev 126)
+@@ -1,9 +1,8 @@
+ #
+ # reproduce a deadlock problem with fork...
+ #
++$REAL = 453947233; # output of UNIX crc32 command for test.jar
+ 
+-$REAL = 990741747; # output of UNIX crc32 command for test.jar
+-
+ # third test.. the kewlest test of them all...
+ 
+ $sumfork = fork({
+
+Added: sleep/tests/impfrom3.sl
+===================================================================
+--- sleep/tests/impfrom3.sl	2006-09-24 18:49:43 UTC (rev 125)
++++ sleep/tests/impfrom3.sl	2006-09-30 07:22:21 UTC (rev 126)
+@@ -0,0 +1,14 @@
++#
++# test of the error checking with import from i.e. reporting that the file was not found.
++#
++
++import org.hick.blah.SqueezeBox from: data/tes.jar;
++
++$sq = [new SqueezeBox];
++
++for ($x = 0; $x &lt; 10; $x++)
++{
++   println(&quot;Test: &quot; . [$sq squeeze]);
++}
++
++
+
+Modified: sleep/tests/output/byteconvert.sl
+===================================================================
+--- sleep/tests/output/byteconvert.sl	2006-09-24 18:49:43 UTC (rev 125)
++++ sleep/tests/output/byteconvert.sl	2006-09-30 07:22:21 UTC (rev 126)
+@@ -1,4 +1,4 @@
+ Warning: variable '$data' not declared at line 9
+ Warning: variable '$summer' not declared at line 11
+ Warning: variable '$bytes' not declared at line 15
+-The MD5 value of test.jar is: 17bc99c1ea48937e2f702c7ef1c5025c
++The MD5 value of test.jar is: 052168a92bfc545941d9352b35288ac3
+
+Modified: sleep/tests/output/checksum.sl
+===================================================================
+--- sleep/tests/output/checksum.sl	2006-09-24 18:49:43 UTC (rev 125)
++++ sleep/tests/output/checksum.sl	2006-09-30 07:22:21 UTC (rev 126)
+@@ -1,3 +1,3 @@
+-(1) Checksum value of test.jar is: 990741747 good? yes
+-(2) Checksum value of test.jar is: 990741747 good? yes
+-Checksum of written data is: 990741747
++(1) Checksum value of test.jar is: 453947233 good? yes
++(2) Checksum value of test.jar is: 453947233 good? yes
++Checksum of written data is: 453947233
+
+Modified: sleep/tests/output/digest.sl
+===================================================================
+--- sleep/tests/output/digest.sl	2006-09-24 18:49:43 UTC (rev 125)
++++ sleep/tests/output/digest.sl	2006-09-30 07:22:21 UTC (rev 126)
+@@ -1,4 +1,4 @@
+-(1) Digest value of test.jar is: 17bc99c1ea48937e2f702c7ef1c5025c good? yes
++(1) Digest value of test.jar is: 052168a92bfc545941d9352b35288ac3 good? yes
+ (2) Another test of repacked data: good
+-(3) Digest value of test.jar is: 17bc99c1ea48937e2f702c7ef1c5025c good? yes
+-Digest of written data is: 17bc99c1ea48937e2f702c7ef1c5025c
++(3) Digest value of test.jar is: 052168a92bfc545941d9352b35288ac3 good? yes
++Digest of written data is: 052168a92bfc545941d9352b35288ac3
+
+Modified: sleep/tests/output/fe_generatordb.sl
+===================================================================
+--- sleep/tests/output/fe_generatordb.sl	2006-09-24 18:49:43 UTC (rev 125)
++++ sleep/tests/output/fe_generatordb.sl	2006-09-30 07:22:21 UTC (rev 126)
+@@ -19,7 +19,7 @@
+ Trace: &amp;println('8 =&gt; val: 8') at line 8
+ 9 =&gt; val: 9
+ Trace: &amp;println('9 =&gt; val: 9') at line 8
+-Trace: &amp;lambda(&amp;closure10481832, $start =&gt; 50, $stop =&gt; 60) = &amp;closure7388808 at line 22
++Trace: &amp;lambda(&amp;closure7415377, $start =&gt; 50, $stop =&gt; 60) = &amp;closure9087808 at line 22
+ Testing out range stuff: 0 =&gt; 50
+ Trace: &amp;println('Testing out range stuff: 0 =&gt; 50') at line 24
+ Testing out range stuff: 1 =&gt; 51
+@@ -41,7 +41,7 @@
+ Testing out range stuff: 9 =&gt; 59
+ Trace: &amp;println('Testing out range stuff: 9 =&gt; 59') at line 24
+ Trace: &amp;this('$start $stop') at line 29
+-Trace: &amp;_range2(70, 80) = &amp;closure15531527 at line 42
++Trace: &amp;_range2(70, 80) = &amp;closure15794899 at line 42
+ My third test: 0 =&gt; 70
+ Trace: &amp;println('My third test: 0 =&gt; 70') at line 44
+ My third test: 1 =&gt; 71
+
+Modified: sleep/tests/output/forkdl.sl
+===================================================================
+--- sleep/tests/output/forkdl.sl	2006-09-24 18:49:43 UTC (rev 125)
++++ sleep/tests/output/forkdl.sl	2006-09-30 07:22:21 UTC (rev 126)
+@@ -1 +1 @@
+-Checksum of written data is: 990741747
++Checksum of written data is: 453947233
+
+Added: sleep/tests/output/impfrom3.sl
+===================================================================
+--- sleep/tests/output/impfrom3.sl	2006-09-24 18:49:43 UTC (rev 125)
++++ sleep/tests/output/impfrom3.sl	2006-09-30 07:22:21 UTC (rev 126)
+@@ -0,0 +1,2 @@
++Error: jar file to import package from was not found! at line 5
++       import org.hick.blah.SqueezeBox from: data/tes.jar
+
+Added: sleep/tests/output/setfield.sl
+===================================================================
+--- sleep/tests/output/setfield.sl	2006-09-24 18:49:43 UTC (rev 125)
++++ sleep/tests/output/setfield.sl	2006-09-30 07:22:21 UTC (rev 126)
+@@ -0,0 +1,2 @@
++Error: jar file to import package from was not found! at line 5
++       import org.hick.blah.SqueezeBox from: tests/data/test.jar
+
+Added: sleep/tests/setfield.sl
+===================================================================
+--- sleep/tests/setfield.sl	2006-09-24 18:49:43 UTC (rev 125)
++++ sleep/tests/setfield.sl	2006-09-30 07:22:21 UTC (rev 126)
+@@ -0,0 +1,50 @@
++#
++# test setting of fields...
++#
++
++import org.hick.blah.SqueezeBox from: tests/data/test.jar;
++
++$sb1 = [new SqueezeBox];
++$sb2 = [new SqueezeBox];
++
++println(&quot;Pre change:&quot;);
++[$sb1 printValues];
++
++setField(SqueezeBox, &quot;aDoubleField&quot;, 4);
++[$sb1 printValues];
++[$sb2 printValues];
++
++println(&quot;-&quot; x 60);
++
++setField($sb1, &quot;instanceStringField&quot;, &quot;squeeze box 1&quot;);
++setField($sb2, &quot;instanceStringField&quot;, &quot;squeeze box 2&quot;);
++[$sb1 printValues];
++[$sb2 printValues];
++
++println(&quot;-&quot; x 60);
++
++setField($sb1, &quot;instanceBooleanField&quot;, 0);
++[$sb1 printValues];
++[$sb2 printValues];
++
++println(&quot;-&quot; x 60);
++
++setField($sb2, &quot;aStringField&quot;, &quot;the rain in spain, falls mainly on the plain&quot;);
++[$sb1 printValues];
++[$sb2 printValues];
++
++println(&quot;-&quot; x 60);
++
++[{
++   setField($sb2, &quot;nofield&quot;, 33);
++}];
++
++[{
++   setField($sb2, &quot;instanceBooleanField&quot;, &quot;false and true?&quot;);
++}];
++
++println([$sb1 squeeze]);
++setField($sb1, &quot;sq&quot;, 55);
++println([$sb1 squeeze]);
++
++println(&quot;Done?&quot;);
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-09-24 18:49:43 UTC (rev 125)
++++ sleep/whatsnew.txt	2006-09-30 07:22:21 UTC (rev 126)
+@@ -11,6 +11,10 @@
+   coroutine is called again (only when the coroutine is reset, i.e. exited w/o
+   a yield is the local variable state dropped).
+ - added an error check for attempts to pack odd length hex strings
++- parser now throws an error if a jar file specified with import * from: is not
++  found.
++- added a &amp;setField(class|$object, &quot;field&quot;, value) function for setting the 
++  value of a field in a Java class or object.
+ 
+ 2.1-beta 5  (17 Sept 06)
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000107.html">[Sleep-svn] r125 - in sleep: . src/sleep/bridges tests tests/output
+</A></li>
+	<LI>Next message: <A HREF="000109.html">[Sleep-svn] r127 - in sleep: . src/sleep/bridges tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#108">[ date ]</a>
+              <a href="thread.html#108">[ thread ]</a>
+              <a href="subject.html#108">[ subject ]</a>
+              <a href="author.html#108">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

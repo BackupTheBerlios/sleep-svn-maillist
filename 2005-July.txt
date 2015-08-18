@@ -1,0 +1,2791 @@
+From rsmudge at sheep.berlios.de  Fri Jul  1 05:48:26 2005
+From: rsmudge at sheep.berlios.de (Raphael Mudge at BerliOS)
+Date: Fri, 1 Jul 2005 05:48:26 +0200
+Subject: [Sleep-svn] r30 - in sleep: . docs src/sleep/bridges src/sleep/parser
+Message-ID: <200507010348.j613mQMn024574@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2005-07-01 05:48:15 +0200 (Fri, 01 Jul 2005)
+New Revision: 30
+
+Modified:
+   sleep/docs/sleeplang.pdf
+   sleep/src/sleep/bridges/BasicNumbers.java
+   sleep/src/sleep/bridges/FileSystemBridge.java
+   sleep/src/sleep/parser/CodeGenerator.java
+   sleep/whatsnew.txt
+Log:
+Some more changes, fun stuff....  uint(n), bug fixes, etc.
+
+
+Modified: sleep/docs/sleeplang.pdf
+===================================================================
+(Binary files differ)
+
+Modified: sleep/src/sleep/bridges/BasicNumbers.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicNumbers.java	2005-06-24 23:08:34 UTC (rev 29)
++++ sleep/src/sleep/bridges/BasicNumbers.java	2005-07-01 03:48:15 UTC (rev 30)
+@@ -64,6 +64,7 @@
+        // functions
+        temp.put("&double", new convert_double());
+        temp.put("&int",    new convert_int());
++       temp.put("&uint",    new convert_uint());
+        temp.put("&long",   new convert_long());
+ 
+        temp.put("&parseNumber",   new parseNumber());
+@@ -175,6 +176,16 @@
+        }
+     }
+ 
++    private static class convert_uint implements Function
++    {
++       public Scalar evaluate(String name, ScriptInstance si, Stack args)
++       {
++          int temp = BridgeUtilities.getInt(args, 0);
++          long templ = 0x00000000FFFFFFFFL & temp;
++          return SleepUtils.getScalar(templ);
++       }
++    }
++
+     private static class convert_long implements Function
+     {
+        public Scalar evaluate(String name, ScriptInstance si, Stack args)
+
+Modified: sleep/src/sleep/bridges/FileSystemBridge.java
+===================================================================
+--- sleep/src/sleep/bridges/FileSystemBridge.java	2005-06-24 23:08:34 UTC (rev 29)
++++ sleep/src/sleep/bridges/FileSystemBridge.java	2005-07-01 03:48:15 UTC (rev 30)
+@@ -214,11 +214,14 @@
+            File a = BridgeUtilities.getFile(l);
+ 
+            File[] files = a.listFiles();
++           LinkedList temp = new LinkedList();
+ 
+-           LinkedList temp = new LinkedList();
+-           for (int x = 0; x < files.length; x++)
++           if (files != null)
+            {
+-              temp.add(files[x].getAbsolutePath());
++              for (int x = 0; x < files.length; x++)
++              {
++                 temp.add(files[x].getAbsolutePath());
++              }
+            }
+ 
+            return SleepUtils.getArrayWrapper(temp);
+
+Modified: sleep/src/sleep/parser/CodeGenerator.java
+===================================================================
+--- sleep/src/sleep/parser/CodeGenerator.java	2005-06-24 23:08:34 UTC (rev 29)
++++ sleep/src/sleep/parser/CodeGenerator.java	2005-07-01 03:48:15 UTC (rev 30)
+@@ -219,6 +219,11 @@
+    {
+       Statement stmt = TokenParser.ParseObject(parser, LexicalAnalyzer.GroupExpressionIndexTokens(parser, new StringIterator(data.toString(), data.getHint())));
+ 
++      if (parser.hasErrors())
++      {
++         return;
++      }
++
+ /*      System.out.println(stmt);
+ 
+       for (int x = 0; x < stmt.getStrings().length; x++)
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2005-06-24 23:08:34 UTC (rev 29)
++++ sleep/whatsnew.txt	2005-07-01 03:48:15 UTC (rev 30)
+@@ -5,6 +5,10 @@
+ - added a function &values(%hash) for extracting all of the values from
+   a scalar hash.
+ - exposed the PrintWriter/BufferedReader in the IOObject API
++- added a check to prevent ls() on a non-existant directory from fireing
++  an exception..
++- added uint(n) to convert scalar int n to a scalar long as an unsigned int.
++- fixed bug that was supressing HOES syntax errors
+ 
+ 2.0-b9 
+ ======
+
+
+
+From rsmudge at sheep.berlios.de  Fri Jul  1 06:02:31 2005
+From: rsmudge at sheep.berlios.de (Raphael Mudge at BerliOS)
+Date: Fri, 1 Jul 2005 06:02:31 +0200
+Subject: [Sleep-svn] r31 - in sleep/tests: . output
+Message-ID: <200507010402.j6142VHP027688@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2005-07-01 06:02:29 +0200 (Fri, 01 Jul 2005)
+New Revision: 31
+
+Added:
+   sleep/tests/closure2.sl
+   sleep/tests/output/closure2.sl
+Log:
+Added another unit test for more closure examples
+
+
+Added: sleep/tests/closure2.sl
+===================================================================
+--- sleep/tests/closure2.sl	2005-07-01 03:48:15 UTC (rev 30)
++++ sleep/tests/closure2.sl	2005-07-01 04:02:29 UTC (rev 31)
+@@ -0,0 +1,75 @@
++#
++# more miscellaneous closures... (taken mostly from the sleeplang document)
++#
++
++# 1
++
++$closure = {
++   println("My name is: $1"); 
++};
++
++[$closure: "Raphael"];
++
++# 2
++
++sub my_sub {
++   println("My name is: $1");
++}
++
++[&my_sub: "Raphael"];
++
++# 3
++
++$myfunc = lambda({
++   println("My initial name is $name");
++},  $name => "Raffi");
++
++[$myfunc];
++
++# 4
++
++sub accum 
++{
++   return lambda(
++          {
++             $i = $i + $1; 
++             return $i;
++          },  $i => $1);
++}
++
++$accum_a = accum(3);
++$accum_b = accum(30);
++
++println("a: " . [$accum_a: 1]);
++println("b: " . [$accum_b: 2]);
++
++println("a: " . [$accum_a: 1]);
++println("b: " . [$accum_b: 2]);
++
++# 5
++
++sub BuildStack
++{
++   return {
++             this('@stack');
++
++             if ($0 eq "push") { push(@stack, $1); }
++             if ($0 eq "pop")  { return pop(@stack); }
++          };
++}
++
++$mystack = BuildStack();  # construct a new stack closure...
++[$mystack push: "test"];  # push the string "test" onto the stack
++
++println("Top value is: " . [$mystack pop]); # pop the top value off of the stack and print it
++
++# 6 - not a closure example per se, but worth looking at
++
++import java.util.*;
++
++$scalar = [new StringTokenizer: "this is a test", " "];
++
++while ([$scalar hasMoreTokens])
++{
++   println("Token: " . [$scalar nextToken]);
++}
+
+Added: sleep/tests/output/closure2.sl
+===================================================================
+--- sleep/tests/output/closure2.sl	2005-07-01 03:48:15 UTC (rev 30)
++++ sleep/tests/output/closure2.sl	2005-07-01 04:02:29 UTC (rev 31)
+@@ -0,0 +1,12 @@
++My name is: Raphael
++My name is: Raphael
++My initial name is Raffi
++a: 4
++b: 32
++a: 5
++b: 34
++Top value is: test
++Token: this
++Token: is
++Token: a
++Token: test
+
+
+
+From rsmudge at berlios.de  Mon Jul  4 09:25:34 2005
+From: rsmudge at berlios.de (Raphael Mudge at BerliOS)
+Date: Mon, 4 Jul 2005 09:25:34 +0200
+Subject: [Sleep-svn] r32 - in sleep: . src/sleep/bridges src/sleep/bridges/io src/sleep/engine/atoms src/sleep/runtime tests tests/output
+Message-ID: <200507040725.j647PY5u027457@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2005-07-04 09:25:32 +0200 (Mon, 04 Jul 2005)
+New Revision: 32
+
+Added:
+   sleep/tests/binary.sl
+   sleep/tests/hoeserror.sl
+   sleep/tests/hoeswarning.sl
+   sleep/tests/output/binary.sl
+   sleep/tests/output/hoeserror.sl
+   sleep/tests/output/hoeswarning.sl
+   sleep/tests/output/types.sl
+   sleep/tests/types.sl
+Modified:
+   sleep/src/sleep/bridges/BasicIO.java
+   sleep/src/sleep/bridges/BasicNumbers.java
+   sleep/src/sleep/bridges/io/DataPattern.java
+   sleep/src/sleep/bridges/io/IOObject.java
+   sleep/src/sleep/engine/atoms/ObjectAccess.java
+   sleep/src/sleep/engine/atoms/ObjectNew.java
+   sleep/src/sleep/runtime/ScriptInstance.java
+   sleep/src/sleep/runtime/SleepUtils.java
+   sleep/whatsnew.txt
+Log:
+Updated IO stuff, added a wait command, added several unit tests.
+
+
+Modified: sleep/src/sleep/bridges/BasicIO.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicIO.java	2005-07-01 04:02:29 UTC (rev 31)
++++ sleep/src/sleep/bridges/BasicIO.java	2005-07-04 07:25:32 UTC (rev 32)
+@@ -31,6 +31,7 @@
+ import sleep.runtime.*;
+ 
+ import java.io.*;
++import java.nio.*;
+ import sleep.bridges.io.*;
+ 
+ /** provides IO functions for the sleep language */
+@@ -79,6 +80,7 @@
+         temp.put("&mark",       new mark());
+         temp.put("&skip",       new skip());
+         temp.put("&reset",      new reset());
++        temp.put("&wait",       new wait());
+ 
+         // typical ASCII'sh output functions
+         temp.put("&print",      new print());
+@@ -163,7 +165,14 @@
+           
+              child.getScriptVariables().putScalar("$source", SleepUtils.getScalar(child_io));
+ 
+-             new Thread(child, child.getName()).start();
++             Thread temp = new Thread(child, child.getName());
++
++             parent_io.setThread(temp);
++             child_io.setThread(temp);
++
++             child.setParent(parent_io);
++
++             temp.start();
+           }
+           catch (Exception ex)
+           {
+@@ -332,13 +341,19 @@
+        }
+     }
+ 
+-    private static Scalar ReadFormatted(String format, DataInputStream in, ScriptEnvironment env, IOObject control)
++    private static Scalar ReadFormatted(String format, InputStream in, ScriptEnvironment env, IOObject control)
+     {
+        Scalar temp         = SleepUtils.getArrayScalar();
+        DataPattern pattern = DataPattern.Parse(format);
+ 
++       byte        bdata[] = new byte[8]; 
++       ByteBuffer  buffer  = ByteBuffer.wrap(bdata);
++       int         read    = 0;
++
+        while (pattern != null)
+        {
++          buffer.order(pattern.order);
++
+           if (pattern.value == 'M')
+           {
+              if (pattern.count == 1)
+@@ -354,24 +369,45 @@
+              }
+              catch (Exception ex) { }
+           }
+-          else if (pattern.value == 'z' || pattern.value == 'Z')
++          else if (pattern.value == 'z' || pattern.value == 'Z' || pattern.value == 'U' || pattern.value == 'u')
+           {
+              StringBuffer temps = new StringBuffer();
+              int tempval;
+ 
+              try
+              {
+-                tempval = in.readUnsignedByte();
++                if (pattern.value == 'u' || pattern.value == 'U')
++                {
++                   read = in.read(bdata, 0, 2);
++                   if (read < 2) throw new EOFException();
++                   tempval = (int)buffer.getChar(0);
++                }
++                else
++                {
++                   tempval = in.read();
++                   if (tempval == -1) throw new EOFException();
++                }
+              
+                 int z = 0;
+ 
+-                for (; tempval != 0 && z < pattern.count; z++)
++                for (; tempval != 0 && z != pattern.count; z++)
+                 {
+                    temps.append((char)tempval);
+-                   tempval = in.readUnsignedByte();
++
++                   if (pattern.value == 'u' || pattern.value == 'U')
++                   {
++                      read = in.read(bdata, 0, 2);
++                      if (read < 2) throw new EOFException();
++                      tempval = (int)buffer.getChar(0);
++                   }
++                   else
++                   {
++                      tempval = in.read();
++                      if (tempval == -1) throw new EOFException();
++                   }
+                 } 
+ 
+-                if (pattern.value == 'Z' && z < pattern.count)
++                if ((pattern.value == 'Z' || pattern.value == 'U') && z < pattern.count)
+                 {
+                    in.skip((pattern.count - z) - 1);
+                 }
+@@ -398,52 +434,83 @@
+                       case 'R':
+                         in.reset();
+                         break;
++                      case 'C':
++                        read = in.read(bdata, 0, 1);
++
++                        if (read < 1) throw new EOFException();
++
++                        value = SleepUtils.getScalar((char)bdata[0] + ""); // turns the char into a string
++                        break;
+                       case 'c':
+-                        value = SleepUtils.getScalar(in.readChar() + ""); // turns the char into a string
++                        read = in.read(bdata, 0, 2);
++
++                        if (read < 2) throw new EOFException();
++
++                        value = SleepUtils.getScalar(buffer.getChar(0) + ""); // turns the char into a string
+                         break;
+-                      case 'C':
+-                        value = SleepUtils.getScalar(((char)in.readUnsignedByte()) + ""); // turns the char into a string
+-                        break;
+                       case 'b':
+-                        value = SleepUtils.getScalar((int)in.readByte()); // turns the byte into an int
++                        bdata[0] = (byte)in.read();
++
++                        if (bdata[0] == -1) throw new EOFException();
++
++                        value = SleepUtils.getScalar((int)bdata[0]); // turns the byte into an int
+                         break;
+                       case 'B':
+-                        value = SleepUtils.getScalar((int)in.readUnsignedByte()); // turns the byte into an int
++                        read = in.read();
++
++                        if (read == -1) throw new EOFException();
++
++                        value = SleepUtils.getScalar(read);
+                         break;
+                       case 's':
+-                        value = SleepUtils.getScalar((int)in.readShort()); // turns the byte into an int
++                        read = in.read(bdata, 0, 2);
++
++                        if (read < 2) throw new EOFException();
++
++                        value = SleepUtils.getScalar(buffer.getShort(0));
+                         break;
+                       case 'S':
+-                        value = SleepUtils.getScalar((int)in.readUnsignedShort()); // turns the byte into an int
++                        read = in.read(bdata, 0, 2);
++
++                        if (read < 2) throw new EOFException();
++
++                        value = SleepUtils.getScalar((int)buffer.getShort(0) & 0x0000FFFF);
+                         break;
+                       case 'i':
+-                        value = SleepUtils.getScalar(in.readInt()); // turns the byte into an int
++                        read = in.read(bdata, 0, 4);
++
++                        if (read < 4) throw new EOFException();
++
++                        value = SleepUtils.getScalar(buffer.getInt(0)); // turns the byte into an int
+                         break;
+                       case 'I':
+-                        int ch1 = in.read();
+-                        int ch2 = in.read();
+-                        int ch3 = in.read();
+-                        int ch4 = in.read();
++                        read = in.read(bdata, 0, 4);
+ 
+-                        if ((ch1 | ch2 | ch3 | ch4) < 0)
+-                             throw new EOFException();
++                        if (read < 4) throw new EOFException();
+ 
+-                        long templ = ((ch1 << 24) + (ch2 << 16) + (ch3 << 8) + (ch4 << 0));
+-
+-                        value = SleepUtils.getScalar(templ); // turns the byte into an int
++                        value = SleepUtils.getScalar((long)buffer.getInt(0) & 0x00000000FFFFFFFFL); // turns the byte into an int
+                         break;
+                       case 'f':
+-                        value = SleepUtils.getScalar(in.readFloat()); // turns the byte into an int
++                        read = in.read(bdata, 0, 4);
++
++                        if (read < 4) throw new EOFException();
++
++                        value = SleepUtils.getScalar(buffer.getFloat(0)); // turns the byte into an int
+                         break;
+                       case 'd':
+-                        value = SleepUtils.getScalar(in.readDouble()); // turns the byte into an int
++                        read = in.read(bdata, 0, 8);
++
++                        if (read < 8) throw new EOFException();
++
++                        value = SleepUtils.getScalar(buffer.getDouble(0)); // turns the byte into an int
+                         break;
+                       case 'l':
+-                        value = SleepUtils.getScalar(in.readLong()); // turns the byte into an int
++                        read = in.read(bdata, 0, 8);
++
++                        if (read < 8) throw new EOFException();
++
++                        value = SleepUtils.getScalar(buffer.getLong(0)); // turns the byte into an int
+                         break;
+-                      case 'u':
+-                        value = SleepUtils.getScalar(in.readUTF()); // turns the byte into an int
+-                        break;
+                       default:
+                         env.getScriptInstance().fireWarning("Erroneous file pattern character: " + pattern.value, -1);
+                    }
+@@ -467,7 +534,7 @@
+        return temp;
+     }
+ 
+-    private static void WriteFormatted(String format, DataOutputStream out, Stack arguments, IOObject control)
++    private static void WriteFormatted(String format, OutputStream out, Stack arguments, IOObject control)
+     {
+        DataPattern pattern  = DataPattern.Parse(format);
+ 
+@@ -482,9 +549,14 @@
+           return;
+        }
+ 
++       byte        bdata[] = new byte[8]; 
++       ByteBuffer  buffer  = ByteBuffer.wrap(bdata);
++
+        while (pattern != null)
+        {
+-          if (pattern.value == 'z' || pattern.value == 'Z')
++          buffer.order(pattern.order);
++
++          if (pattern.value == 'z' || pattern.value == 'Z' || pattern.value == 'u' || pattern.value == 'U')
+           {
+              try
+              {
+@@ -492,17 +564,27 @@
+ 
+                 for (int y = 0; y < tempchars.length; y++)
+                 {
+-                   out.writeByte((byte)tempchars[y]);
++                   if (pattern.value == 'u' || pattern.value == 'U')
++                   {
++                      buffer.putChar(0, tempchars[y]);
++                      out.write(bdata, 0, 2);
++                   }
++                   else
++                   {
++                      out.write((int)tempchars[y]);
++                   }
+                 }
+ 
+-                out.writeByte(0); // output the null terminator
++                if (pattern.value == 'U') { out.write(0); out.write(0); }
++                else { out.write(0); } // in the case of Z, keep padding the field length with nulls.
+    
+-                if (pattern.value == 'Z')
++                if (pattern.value == 'Z' || pattern.value == 'U')
+                 {
+                    // the +1 for the start of this loop is to account for the outputted null character
+                    for (int z = tempchars.length + 1; z < pattern.count; z++)
+                    {
+-                      out.writeByte(0); // in the case of Z, keep padding the field length with nulls.
++                      if (pattern.value == 'U') { out.write(0); out.write(0); }
++                      else { out.write(0); } // in the case of Z, keep padding the field length with nulls.
+                    }
+                 }
+              }
+@@ -528,38 +610,41 @@
+                    switch (pattern.value)
+                    {
+                       case 'x':
+-                        out.writeByte(0);
++                        out.write(0);
+                         break;
+                       case 'c':
+-                        out.writeChar(temp.toString().charAt(0));
++                        buffer.putChar(0, temp.toString().charAt(0));
++                        out.write(bdata, 0, 2);
+                         break;
+                       case 'C':
+-                        out.writeByte((byte)temp.toString().charAt(0));
++                        out.write((int)temp.toString().charAt(0));
+                         break;
+                       case 'b':
+                       case 'B':
+-                        out.writeByte(temp.intValue());
++                        out.write(temp.intValue());
+                         break;
+                       case 's':
+                       case 'S':
+-                        out.writeShort(temp.intValue());
++                        buffer.putShort(0, (short)temp.intValue());
++                        out.write(bdata, 0, 2);
+                         break;
+                       case 'i':
+                       case 'I':
+-                        out.writeInt(temp.intValue());
++                        buffer.putInt(0, temp.intValue());
++                        out.write(bdata, 0, 4);
+                         break;
+                       case 'f':
+-                        out.writeFloat((float)temp.doubleValue());
++                        buffer.putFloat(0, (float)temp.doubleValue());
++                        out.write(bdata, 0, 4);
+                         break;
+                       case 'd':
+-                        out.writeDouble(temp.doubleValue());
++                        buffer.putDouble(0, temp.doubleValue());
++                        out.write(bdata, 0, 8);
+                         break;
+                       case 'l':
+-                        out.writeLong(temp.longValue());
++                        buffer.putLong(0, temp.longValue());
++                        out.write(bdata, 0, 8);
+                         break;
+-                      case 'u':
+-                        out.writeUTF(temp.toString());
+-                        break;
+                       default:
+                    }
+                 }
+@@ -573,6 +658,12 @@
+ 
+           pattern = pattern.next;
+        }
++
++       try
++       {
++          out.flush();
++       }
++       catch (Exception ex) { }
+     }
+ 
+     private static class bread implements Function
+@@ -635,6 +726,32 @@
+        }
+     }
+ 
++    private static class wait implements Function
++    {
++       public Scalar evaluate(String n, ScriptInstance i, Stack l)
++       {
++          IOObject a     = chooseSource(l, 1);
++          long     times = BridgeUtilities.getLong(l, -1);
++          long     stamp = System.currentTimeMillis();
++
++          if (a.getThread() != null)
++          {
++             while (a.getThread().isAlive())
++             {
++                 if (times > -1 && (System.currentTimeMillis() - stamp) > times)
++                 {
++                    i.getScriptEnvironment().flagError("wait on object timed out");
++                    return SleepUtils.getEmptyScalar();
++                 }
++
++                 Thread.yield();
++             }
++          }
++
++          return a.getToken();
++       }
++    }
++
+     private static class unpack implements Function
+     {
+        public Scalar evaluate(String n, ScriptInstance i, Stack l)
+@@ -672,7 +789,7 @@
+ 
+           for (int x = 0; x < data.length; x++)
+           {
+-             value.append((byte)data[x]);
++             value.append((char)data[x]);
+           }
+ 
+           return SleepUtils.getScalar(value.toString());
+@@ -691,7 +808,8 @@
+              for (int x = 0; x < data.length(); x++)
+              {
+                 a.getWriter().writeByte((byte)data.charAt(x));
+-             }
++             } 
++             a.getWriter().flush();
+           }
+           catch (Exception ex)
+           {
+@@ -737,6 +855,7 @@
+           SleepClosure b = BridgeUtilities.getFunction(l, i);
+ 
+           Thread fred = new Thread(new CallbackReader(a, i, b, BridgeUtilities.getInt(l, 0)));
++          a.setThread(fred);
+           fred.start();
+ 
+           return SleepUtils.getEmptyScalar();
+@@ -840,7 +959,8 @@
+        {
+           if (function != null)
+           {
+-             new Thread(this).start();
++             socket.setThread(new Thread(this));
++             socket.getThread().start();
+           }
+           else
+           {
+
+Modified: sleep/src/sleep/bridges/BasicNumbers.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicNumbers.java	2005-07-01 04:02:29 UTC (rev 31)
++++ sleep/src/sleep/bridges/BasicNumbers.java	2005-07-04 07:25:32 UTC (rev 32)
+@@ -296,6 +296,6 @@
+           if (o.equals("^"))  { return SleepUtils.getScalar(a & b); }
+        }
+ 
+-       return null;
++       return SleepUtils.getEmptyScalar();
+     }
+ }
+
+Modified: sleep/src/sleep/bridges/io/DataPattern.java
+===================================================================
+--- sleep/src/sleep/bridges/io/DataPattern.java	2005-07-01 04:02:29 UTC (rev 31)
++++ sleep/src/sleep/bridges/io/DataPattern.java	2005-07-04 07:25:32 UTC (rev 32)
+@@ -1,6 +1,7 @@
+ package sleep.bridges.io;
+ 
+ import java.util.*;
++import java.nio.*;
+ 
+ /** A DataPattern represents a data format for Sleep's IO functions. */
+ public class DataPattern
+@@ -8,6 +9,7 @@
+    public DataPattern next  = null;
+    public int         count = 1;
+    public char        value = ' ';
++   public ByteOrder   order = ByteOrder.BIG_ENDIAN;
+ 
+    private static HashMap patternCache = new HashMap();
+ 
+@@ -33,7 +35,7 @@
+       if (patternCache.get(format) != null)
+           return (DataPattern)patternCache.get(format);
+ 
+-      DataPattern head = null, temp = null;
++      DataPattern head   = null, temp = null;
+       StringBuffer count = null;
+ 
+       for (int x = 0; x < format.length(); x++)
+@@ -57,11 +59,28 @@
+ 
+             count = new StringBuffer(3);
+             temp.value = format.charAt(x);
++
++            if (format.charAt(x) == 'z' || format.charAt(x) == 'Z' || format.charAt(x) == 'u' || format.charAt(x) == 'U')
++            {
++               temp.count = -1;
++            }
+          }
+          else if (format.charAt(x) == '*')
+          {
+             temp.count = -1;
+          }
++         else if (format.charAt(x) == '!')
++         {
++            temp.order = ByteOrder.nativeOrder();
++         }
++         else if (format.charAt(x) == '-')
++         {
++            temp.order = ByteOrder.LITTLE_ENDIAN;
++         }
++         else if (format.charAt(x) == '+')
++         {
++            temp.order = ByteOrder.BIG_ENDIAN;
++         }
+          else if (Character.isDigit(format.charAt(x)))
+          {
+             count.append(format.charAt(x));
+
+Modified: sleep/src/sleep/bridges/io/IOObject.java
+===================================================================
+--- sleep/src/sleep/bridges/io/IOObject.java	2005-07-01 04:02:29 UTC (rev 31)
++++ sleep/src/sleep/bridges/io/IOObject.java	2005-07-04 07:25:32 UTC (rev 32)
+@@ -1,6 +1,7 @@
+ package sleep.bridges.io;
+ 
+ import java.io.*;
++import sleep.runtime.*;
+ 
+ /** <p>The IOObject is the parent class for all IO Source objects that are compatible with Sleep's
+  *  I/O API.</p>
+@@ -32,6 +33,35 @@
+    protected DataInputStream  readerb = null;
+    protected DataOutputStream writerb = null;
+ 
++   protected Thread           thread  = null;
++   protected Scalar           token   = null;
++
++   /** set the thread used for this IOObject (currently used to allow a script to wait() on the threads completion) */
++   public void setThread(Thread t)
++   {
++      thread = t;
++   }
++
++   /** returns the thread associated with this IOObject */
++   public Thread getThread()
++   {
++      return thread;
++   }
++
++   /** returns a scalar token associated with this IOObject.  Will return the empty scalar if the token is null */
++   public Scalar getToken()
++   {
++      if (token == null) return SleepUtils.getEmptyScalar();
++
++      return token;
++   }
++
++   /** sets the scalar token associated with this IOObject */
++   public void setToken(Scalar t)
++   {
++      token = t;
++   }
++
+    /** returns an IOObject that represents stdin/stdout */
+    public static IOObject getConsole()
+    {
+
+Modified: sleep/src/sleep/engine/atoms/ObjectAccess.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/ObjectAccess.java	2005-07-01 04:02:29 UTC (rev 31)
++++ sleep/src/sleep/engine/atoms/ObjectAccess.java	2005-07-04 07:25:32 UTC (rev 32)
+@@ -149,8 +149,8 @@
+             yex = yex.getCause();
+          }
+ 
+-         e.flagError((yex.getMessage() == null) ? yex.toString() : yex.getMessage());
+-         e.getScriptInstance().fireWarning((yex.getMessage() == null) ? yex.toString() : yex.getMessage(), getLineNumber());
++         e.flagError(yex.toString());
++         e.getScriptInstance().fireWarning(yex.toString(), getLineNumber());
+       }
+       catch (IllegalArgumentException aex)
+       {
+@@ -159,12 +159,18 @@
+       }
+       catch (NoSuchFieldException fex)
+       {
+-         e.getScriptInstance().fireWarning("no field/method named " + name + " in " + theClass, getLineNumber());
++         if (!e.getCurrentFrame().isEmpty())
++         {
++            e.getScriptInstance().fireWarning("there is no method " + name + " that takes " + e.getCurrentFrame().size() + " arguments in " + theClass, getLineNumber());
++         }
++         else
++         {
++            e.getScriptInstance().fireWarning("no field/method named " + name + " in " + theClass, getLineNumber());
++         }
+       }
+-      catch (Exception ex)
++      catch (IllegalAccessException iax)
+       {
+-         e.getScriptInstance().fireWarning(ex.toString() + " " + ex.getMessage(), getLineNumber());
+-         ex.printStackTrace();
++         e.getScriptInstance().fireWarning("cannot access " + name + " in " + theClass + ": " + iax.getMessage(), getLineNumber());
+       }
+ 
+       e.KillFrame();
+
+Modified: sleep/src/sleep/engine/atoms/ObjectNew.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/ObjectNew.java	2005-07-01 04:02:29 UTC (rev 31)
++++ sleep/src/sleep/engine/atoms/ObjectNew.java	2005-07-04 07:25:32 UTC (rev 32)
+@@ -66,6 +66,10 @@
+             parameters = ObjectUtilities.buildArgumentArray(theConstructor.getParameterTypes(), e.getCurrentFrame(), e.getScriptInstance());
+             result = ObjectUtilities.BuildScalar(false, theConstructor.newInstance(parameters));
+          }
++         else
++         {
++            e.getScriptInstance().fireWarning("no " + e.getCurrentFrame().size() + " argument constructor exists for class " + name.getName(), getLineNumber());
++         }
+       }
+       catch (InvocationTargetException ite)
+       {
+@@ -76,19 +80,24 @@
+             yex = yex.getCause();
+          }
+ 
+-         e.flagError((yex.getMessage() == null) ? yex.toString() : yex.getMessage());
+-         e.getScriptInstance().fireWarning((yex.getMessage() == null) ? yex.toString() : yex.getMessage(), getLineNumber());
++         e.flagError(yex.toString());
++         e.getScriptInstance().fireWarning(yex.toString(), getLineNumber());
+       }
+       catch (IllegalArgumentException aex)
+       {
+          e.getScriptInstance().fireWarning(ObjectUtilities.buildArgumentErrorMessage(name, name.getName(), theConstructor.getParameterTypes(),
+                                      parameters), getLineNumber());
+       }
+-      catch (Exception ex)
++      catch (InstantiationException iex)
+       {
+-         e.getScriptInstance().fireWarning(ex.toString() + " " + ex.getMessage(), getLineNumber());
+-         ex.printStackTrace();
++         e.flagError("unable to instantiate abstract class " + name.getName());
++         e.getScriptInstance().fireWarning("unable to instantiate abstract class " + name.getName(), getLineNumber());
+       }
++      catch (Exception iax)
++      {
++         e.flagError(iax.toString());
++         e.getScriptInstance().fireWarning(iax.toString(), getLineNumber());
++      }
+ 
+       e.KillFrame();
+       env.push(result);
+
+Modified: sleep/src/sleep/runtime/ScriptInstance.java
+===================================================================
+--- sleep/src/sleep/runtime/ScriptInstance.java	2005-07-01 04:02:29 UTC (rev 31)
++++ sleep/src/sleep/runtime/ScriptInstance.java	2005-07-04 07:25:32 UTC (rev 32)
+@@ -143,10 +143,13 @@
+     }
+ 
+     /** Executes this script, should be done first thing once a script is loaded */
+-    public void runScript()
++    public Scalar runScript()
+     {
+         script.evaluate(getScriptEnvironment());
++        Scalar temp = getScriptEnvironment().getReturnValue();
++
+         getScriptEnvironment().clearReturn();
++        return temp;
+     }
+  
+     /** Creates a forked script instance.  This does not work like fork in an operating system.  Variables are not copied, period.
+@@ -162,9 +165,22 @@
+     /** Executes this script, same as runScript() just here for Runnable compatability */
+     public void run()
+     {
+-        runScript();
++        Scalar temp = runScript();
++
++        if (parent != null)
++        {
++           parent.setToken(temp);
++        }
+     }
+ 
++    protected sleep.bridges.io.IOObject parent = null;
++    
++    /** Sets up the parent of this script (in case it is being run via &amp;fork()) */
++    public void setParent(sleep.bridges.io.IOObject p)
++    {
++        parent = p;
++    }
++
+     /** Returns the compiled form of this script */
+     public Block getRunnableBlock()
+     {
+
+Modified: sleep/src/sleep/runtime/SleepUtils.java
+===================================================================
+--- sleep/src/sleep/runtime/SleepUtils.java	2005-07-01 04:02:29 UTC (rev 31)
++++ sleep/src/sleep/runtime/SleepUtils.java	2005-07-04 07:25:32 UTC (rev 32)
+@@ -319,7 +319,9 @@
+    public static Scalar getScalar(boolean x)
+    {
+       if (x)
+-         SleepUtils.getScalar(1);
++      {
++         return SleepUtils.getScalar(1); // thanks to Ralph Becker for finding my lack of a return statement here :)
++      }
+ 
+       return SleepUtils.getEmptyScalar();
+    }
+
+Added: sleep/tests/binary.sl
+===================================================================
+--- sleep/tests/binary.sl	2005-07-01 04:02:29 UTC (rev 31)
++++ sleep/tests/binary.sl	2005-07-04 07:25:32 UTC (rev 32)
+@@ -0,0 +1,91 @@
++$data = pack('CidZl', "A", 42, 3.5, "hehe this is a string", 1234567890);
++
++($char, $int, $double, $string, $long) = unpack('CidZl', $data);
++
++println("char   data is: $char");
++println("int    data is: $int");
++println("double data is: $double");
++println("string data is: $string");
++println("long   data is: $long");
++
++println("-" x 40);
++
++#
++# lets try this..
++#
++
++# pack everything in little endian order...
++$data = pack('C- i- d- Z- l-', "A", 2, 3.5, "hehe this is a string", 1234567890);
++
++# unpack everything in big endian order (default)
++($char, $int, $double, $string, $long) = unpack('C+ i+ d+ Z+ l+', $data);
++
++println("char   data is: $char");
++println("int    data is: $int");
++println("double data is: $double");
++println("string data is: $string");
++println("long   data is: $long");
++
++println("NORMAL BYTE: " . [Integer toBinaryString: 2]);
++println("LITTLE BYTE: " . [Integer toBinaryString: $int]);
++
++println("-" x 40);
++
++# pack everything in little endian order...
++$data = pack('C- i- d- Z- l-', "A", 42, 3.5, "hehe this is a string", 1234567890);
++
++# unpack everything in little endian order
++($char, $int, $double, $string, $long) = unpack('C- i- d- Z- l-', $data);
++
++println("char   data is: $char");
++println("int    data is: $int");
++println("double data is: $double");
++println("string data is: $string");
++println("long   data is: $long");
++
++println("-" x 40);
++
++#
++# other tests..
++# 
++$data = pack('b3', 32, -3, 4);
++
++($u1, $u2, $u3) = unpack('B3', $data);
++($s1, $s2, $s3) = unpack('b3', $data);
++
++println("Byte Unsigned: $u1 $u2 $u3");
++println("Byte Signed  : $s1 $s2 $s3");
++
++println("-" x 40);
++
++$data = pack('s3', -25, -35, 16000);
++
++($u1, $u2, $u3) = unpack('S3', $data);
++($s1, $s2, $s3) = unpack('s3', $data);
++
++println("Short Unsigned: $u1 $u2 $u3");
++println("Short Signed  : $s1 $s2 $s3");
++
++println("-" x 40);
++
++
++#
++# Arch test..
++#
++
++$temp = iff(unpack('i-', pack('i+', 1))[0] == 1, "big endian", "little endian"); # use ! instead of - for a real test (! is native endianess, - is always little, + is always big)
++println("Test: $temp");
++
++println("-" x 40);
++
++#
++# I hate these stupid UTF strings... blah
++#
++
++$data = pack('UUU', "this string is lame as hell", "this string is also lame", "this string is even lamer");
++($s1, $s2, $s3) = unpack('UUU', $data);
++
++println("1: $s1");
++println("2: $s2");
++println("3: $s3");
++
+
+Added: sleep/tests/hoeserror.sl
+===================================================================
+--- sleep/tests/hoeserror.sl	2005-07-01 04:02:29 UTC (rev 31)
++++ sleep/tests/hoeserror.sl	2005-07-04 07:25:32 UTC (rev 32)
+@@ -0,0 +1,5 @@
++#
++# a syntax error that was not being detected...
++#
++
++["test" "arg", "arg1"]; # what is this?!?
+
+Added: sleep/tests/hoeswarning.sl
+===================================================================
+--- sleep/tests/hoeswarning.sl	2005-07-01 04:02:29 UTC (rev 31)
++++ sleep/tests/hoeswarning.sl	2005-07-04 07:25:32 UTC (rev 32)
+@@ -0,0 +1,33 @@
++#
++# Make sure HOES is catching java exceptions correctly...
++#
++$long  = [Long    valueOf: "4782378478324474fjjsdfjsdjkfjk3"];
++
++if (checkError($error))
++{
++   println("Trouble converting long: $error");
++}
++
++#
++# make sure bad field is being caught...
++#
++
++$long = [Long tHiS_FiElD_DoES_nOT_EXIsT];
++
++#
++# make sure argument mismatch is caught...
++#
++
++$long = [Long valueOf: 3, 4, 5, 6, 7, 8, 9, 10];
++
++#
++# test no such constructor message...
++#
++
++$obj = [new StringTokenizer];
++
++#
++# test illegal access (by trying to instantiate an abstract class)
++# 
++
++$model = [new javax.swing.AbstractListModel];
+
+Added: sleep/tests/output/binary.sl
+===================================================================
+--- sleep/tests/output/binary.sl	2005-07-01 04:02:29 UTC (rev 31)
++++ sleep/tests/output/binary.sl	2005-07-04 07:25:32 UTC (rev 32)
+@@ -0,0 +1,31 @@
++char   data is: A
++int    data is: 42
++double data is: 3.5
++string data is: hehe this is a string
++long   data is: 1234567890
++----------------------------------------
++char   data is: A
++int    data is: 33554432
++double data is: 1.5494E-320
++string data is: hehe this is a string
++long   data is: -3313921135514484736
++NORMAL BYTE: 10
++LITTLE BYTE: 10000000000000000000000000
++----------------------------------------
++char   data is: A
++int    data is: 42
++double data is: 3.5
++string data is: hehe this is a string
++long   data is: 1234567890
++----------------------------------------
++Byte Unsigned: 32 253 4
++Byte Signed  : 32 -3 4
++----------------------------------------
++Short Unsigned: 65511 65501 16000
++Short Signed  : -25 -35 16000
++----------------------------------------
++Test: little endian
++----------------------------------------
++1: this string is lame as hell
++2: this string is also lame
++3: this string is even lamer
+
+Added: sleep/tests/output/hoeserror.sl
+===================================================================
+--- sleep/tests/output/hoeserror.sl	2005-07-01 04:02:29 UTC (rev 31)
++++ sleep/tests/output/hoeserror.sl	2005-07-04 07:25:32 UTC (rev 32)
+@@ -0,0 +1,2 @@
++Error: Object Access: parameter separator is : at line 5
++       "test" "arg" , "arg1" 
+
+Added: sleep/tests/output/hoeswarning.sl
+===================================================================
+--- sleep/tests/output/hoeswarning.sl	2005-07-01 04:02:29 UTC (rev 31)
++++ sleep/tests/output/hoeswarning.sl	2005-07-04 07:25:32 UTC (rev 32)
+@@ -0,0 +1,6 @@
++Warning: java.lang.NumberFormatException: For input string: "4782378478324474fjjsdfjsdjkfjk3" at line 4
++Trouble converting long: java.lang.NumberFormatException: For input string: "4782378478324474fjjsdfjsdjkfjk3"
++Warning: no field/method named tHiS_FiElD_DoES_nOT_EXIsT in class java.lang.Long at line 15
++Warning: there is no method valueOf that takes 8 arguments in class java.lang.Long at line 21
++Warning: no 0 argument constructor exists for class java.util.StringTokenizer at line 27
++Warning: unable to instantiate abstract class javax.swing.AbstractListModel at line 33
+
+Added: sleep/tests/output/types.sl
+===================================================================
+--- sleep/tests/output/types.sl	2005-07-01 04:02:29 UTC (rev 31)
++++ sleep/tests/output/types.sl	2005-07-04 07:25:32 UTC (rev 32)
+@@ -0,0 +1,5 @@
++Int    value is: 3   - class java.lang.Integer
++Long   value is: 47823784783244743  - class java.lang.Long
++True   value is: 1 - class java.lang.Integer
++False  value is: 0 - class java.lang.Integer
++Object value is: <tokenizer> class java.util.StringTokenizer
+
+Added: sleep/tests/types.sl
+===================================================================
+--- sleep/tests/types.sl	2005-07-01 04:02:29 UTC (rev 31)
++++ sleep/tests/types.sl	2005-07-04 07:25:32 UTC (rev 32)
+@@ -0,0 +1,16 @@
++#
++# Test of conversions from Java types to Sleep types and vice versa...
++#
++
++$int   = [Integer valueOf: "3"];
++$long  = [Long    valueOf: "47823784783244743"];
++$boolT = ["a" equals: "a"];
++$boolF = ["a" equals: "b"];
++$obj   = [new java.util.StringTokenizer: "Hello"];
++
++println("Int    value is: $int   - " . [$int getClass]);
++println("Long   value is: $long  - " . [$long getClass]);
++println("True   value is: $boolT - " . [$boolT getClass]);
++println("False  value is: $boolF - " . [$boolF getClass]);
++println("Object value is: <tokenizer> " . [$obj getClass]);
++
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2005-07-01 04:02:29 UTC (rev 31)
++++ sleep/whatsnew.txt	2005-07-04 07:25:32 UTC (rev 32)
+@@ -9,6 +9,18 @@
+   an exception..
+ - added uint(n) to convert scalar int n to a scalar long as an unsigned int.
+ - fixed bug that was supressing HOES syntax errors
++- fixed bug with SleepUtils.getScalar(boolean) always returning a false
++  boolean, thanks to Ralph Becker for finding and isolating the fix for this.
++- fixed a bug with pack() packing creating the byte string the wrong way 
++- fixed bug with z/Z formats only grabbing one character of a string from
++  the IO stream if no max string size is specified.
++- changed the u format and added a U format.. u/U reads/writes 16 bit UTF-16
++  characters similar to how z/Z handles 8 bit ASCII characters.
++- bwrite and writeb now automatically flush the data after writing everything
++- added &wait($handle, [timeout]) to wait for a fork or callback associated
++  with $handle to finish.  If the specified timeout is reached the function
++  will return the empty scalar.  If $handle is a fork, the return value of 
++  the fork will be returned by &wait.
+ 
+ 2.0-b9 
+ ======
+
+
+
+From rsmudge at berlios.de  Wed Jul  6 16:50:32 2005
+From: rsmudge at berlios.de (Raphael Mudge at BerliOS)
+Date: Wed, 6 Jul 2005 16:50:32 +0200
+Subject: [Sleep-svn] r33 - sleep/docs
+Message-ID: <200507061450.j66EoWCk028620@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2005-07-06 16:50:23 +0200 (Wed, 06 Jul 2005)
+New Revision: 33
+
+Modified:
+   sleep/docs/sleeplang.pdf
+Log:
+Updated docs..
+
+
+Modified: sleep/docs/sleeplang.pdf
+===================================================================
+(Binary files differ)
+
+
+
+From rsmudge at berlios.de  Thu Jul  7 04:58:49 2005
+From: rsmudge at berlios.de (Raphael Mudge at BerliOS)
+Date: Thu, 7 Jul 2005 04:58:49 +0200
+Subject: [Sleep-svn] r34 - in sleep: . src/sleep/bridges src/sleep/engine
+Message-ID: <200507070258.j672wn0k023999@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2005-07-07 04:58:47 +0200 (Thu, 07 Jul 2005)
+New Revision: 34
+
+Modified:
+   sleep/readme.txt
+   sleep/src/sleep/bridges/BasicNumbers.java
+   sleep/src/sleep/engine/ObjectUtilities.java
+   sleep/whatsnew.txt
+Log:
+More stuff :P
+
+
+Modified: sleep/readme.txt
+===================================================================
+--- sleep/readme.txt	2005-07-06 14:50:23 UTC (rev 33)
++++ sleep/readme.txt	2005-07-07 02:58:47 UTC (rev 34)
+@@ -1,5 +1,5 @@
+  ------- -------------------- ---------   ---------------  ------- ---------
+-Sleep - 2.0-stable - README   
++Sleep - 2.0-beta 10 - README   
+ -  ------------- -------- -   ---------------- --       -    -     -     - - -
+ 
+ "You got the language, all you need now is the O'Reilly book".  That is
+
+Modified: sleep/src/sleep/bridges/BasicNumbers.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicNumbers.java	2005-07-06 14:50:23 UTC (rev 33)
++++ sleep/src/sleep/bridges/BasicNumbers.java	2005-07-07 02:58:47 UTC (rev 34)
+@@ -32,7 +32,7 @@
+ import java.math.*;
+ 
+ /** provides some of the basic number crunching functionality */
+-public class BasicNumbers implements Predicate, Operator, Loadable
++public class BasicNumbers implements Predicate, Operator, Loadable, Function
+ {
+     public static Class TYPE_LONG;
+     public static Class TYPE_INT;
+@@ -61,6 +61,16 @@
+     {
+        Hashtable temp = aScript.getScriptEnvironment().getEnvironment();
+ 
++       // math ops..
++
++       String funcs[] = new String[] { "&abs", "&acos", "&asin", "&atan", "&atan2", "&ceil", "&cos", "&log", "&round", 
++                                       "&sin", "&sqrt", "&tan", "&radians", "&degrees", "&exp", "&floor" };
++
++       for (int x = 0; x < funcs.length; x++)
++       {
++          temp.put(funcs[x], this);
++       }
++
+        // functions
+        temp.put("&double", new convert_double());
+        temp.put("&int",    new convert_int());
+@@ -111,6 +121,29 @@
+           return SleepUtils.getScalar(temp.longValue());
+        }
+     }
++
++    public Scalar evaluate(String name, ScriptInstance si, Stack args)
++    {
++       if (name.equals("&abs")) { return SleepUtils.getScalar(Math.abs(BridgeUtilities.getDouble(args, 0.0))); }
++       else if (name.equals("&acos")) { return SleepUtils.getScalar(Math.acos(BridgeUtilities.getDouble(args, 0.0))); }
++       else if (name.equals("&asin")) { return SleepUtils.getScalar(Math.asin(BridgeUtilities.getDouble(args, 0.0))); }
++       else if (name.equals("&atan")) { return SleepUtils.getScalar(Math.atan(BridgeUtilities.getDouble(args, 0.0))); }
++       else if (name.equals("&atan2")) { return SleepUtils.getScalar(Math.atan2(BridgeUtilities.getDouble(args, 0.0), BridgeUtilities.getDouble(args, 0.0))); }
++       else if (name.equals("&ceil")) { return SleepUtils.getScalar(Math.ceil(BridgeUtilities.getDouble(args, 0.0))); }
++       else if (name.equals("&floor")) { return SleepUtils.getScalar(Math.floor(BridgeUtilities.getDouble(args, 0.0))); }
++       else if (name.equals("&cos")) { return SleepUtils.getScalar(Math.cos(BridgeUtilities.getDouble(args, 0.0))); }
++       else if (name.equals("&log") && args.size() == 1) { return SleepUtils.getScalar(Math.log(BridgeUtilities.getDouble(args, 0.0))); }
++       else if (name.equals("&log") && args.size() == 2) { return SleepUtils.getScalar(Math.log(BridgeUtilities.getDouble(args, 0.0)) / Math.log(BridgeUtilities.getDouble(args, 0.0))); }
++       else if (name.equals("&round")) { return SleepUtils.getScalar(Math.round(BridgeUtilities.getDouble(args, 0.0))); }
++       else if (name.equals("&sin")) { return SleepUtils.getScalar(Math.sin(BridgeUtilities.getDouble(args, 0.0))); }
++       else if (name.equals("&sqrt")) { return SleepUtils.getScalar(Math.sqrt(BridgeUtilities.getDouble(args, 0.0))); }
++       else if (name.equals("&tan")) { return SleepUtils.getScalar(Math.tan(BridgeUtilities.getDouble(args, 0.0))); }
++       else if (name.equals("&radians")) { return SleepUtils.getScalar(Math.toRadians(BridgeUtilities.getDouble(args, 0.0))); }
++       else if (name.equals("&degrees")) { return SleepUtils.getScalar(Math.toDegrees(BridgeUtilities.getDouble(args, 0.0))); }
++       else if (name.equals("&exp")) { return SleepUtils.getScalar(Math.exp(BridgeUtilities.getDouble(args, 0.0))); }
++
++       return SleepUtils.getEmptyScalar();
++    }
+     
+     private static class formatNumber implements Function
+     {
+
+Modified: sleep/src/sleep/engine/ObjectUtilities.java
+===================================================================
+--- sleep/src/sleep/engine/ObjectUtilities.java	2005-07-06 14:50:23 UTC (rev 33)
++++ sleep/src/sleep/engine/ObjectUtilities.java	2005-07-07 02:58:47 UTC (rev 34)
+@@ -37,8 +37,7 @@
+    private static Class INT_SCALAR; 
+    private static Class DOUBLE_SCALAR;
+    private static Class LONG_SCALAR;
+-   private static Class STRING_TYPE;
+-   private static Class BOOLEAN_TYPE;
++   private static Class BOOLEAN_TYPE, BYTE_TYPE, CHARACTER_TYPE, DOUBLE_TYPE, FLOAT_TYPE, INTEGER_TYPE, LONG_TYPE, STRING_TYPE;
+ 
+    static
+    {
+@@ -49,8 +48,14 @@
+          DOUBLE_SCALAR = Class.forName("sleep.engine.types.DoubleValue");
+          LONG_SCALAR   = Class.forName("sleep.engine.types.LongValue");
+ 
+-         STRING_TYPE   = Class.forName("java.lang.String");
+-         BOOLEAN_TYPE  = Class.forName("java.lang.Boolean");
++         BOOLEAN_TYPE    = Class.forName("java.lang.Boolean");
++         BYTE_TYPE       = Class.forName("java.lang.Byte");
++         CHARACTER_TYPE  = Class.forName("java.lang.Character");
++         DOUBLE_TYPE     = Class.forName("java.lang.Double");
++         FLOAT_TYPE      = Class.forName("java.lang.Float");
++         INTEGER_TYPE    = Class.forName("java.lang.Integer");
++         LONG_TYPE       = Class.forName("java.lang.Long");
++         STRING_TYPE     = Class.forName("java.lang.String");
+       }
+       catch (Exception ex) { }
+    }
+@@ -295,41 +300,41 @@
+          return array;
+       }
+ 
++      Class check = value.getClass();
++
+       if (primitives)
+       {
+-         if (value.getClass() == Boolean.TYPE || value.getClass() == BOOLEAN_TYPE)
++         if (check == BOOLEAN_TYPE)
+          {
+-            // java reflection has a bug where a boolean primitive is returned as a java.lang.Boolean object and not a
+-            // type as specified by Boolean.TYPE.  Dorks.
+             return SleepUtils.getScalar(  ((Boolean)value).booleanValue() ? 1 : 0 );
+          }
+-         else if (value.getClass() == Byte.TYPE)
++         else if (check == BYTE_TYPE)
+          {
+             return SleepUtils.getScalar(  (int)( ((Byte)value).byteValue() )  );
+          }
+-         else if (value.getClass() == Character.TYPE)
++         else if (check == CHARACTER_TYPE)
+          {
+             return SleepUtils.getScalar(  value.toString()  );
+          }
+-         else if (value.getClass() == Double.TYPE)
++         else if (check == DOUBLE_TYPE)
+          {
+             return SleepUtils.getScalar(  ((Double)value).doubleValue()   );
+          }
+-         else if (value.getClass() == Float.TYPE)
++         else if (check == FLOAT_TYPE)
+          {
+             return SleepUtils.getScalar(  (double)( ((Float)value).floatValue() )  );
+          }
+-         else if (value.getClass() == Integer.TYPE)
++         else if (check == INTEGER_TYPE)
+          {
+             return SleepUtils.getScalar(  ((Integer)value).intValue()   );
+          }
+-         else if (value.getClass() == Long.TYPE)
++         else if (check == LONG_TYPE)
+          {
+             return SleepUtils.getScalar(  ((Long)value).longValue()   );
+          }
+       }
+ 
+-      if (value.getClass() == STRING_TYPE)
++      if (check == STRING_TYPE)
+       {
+          return SleepUtils.getScalar(value.toString());
+       }
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2005-07-06 14:50:23 UTC (rev 33)
++++ sleep/whatsnew.txt	2005-07-07 02:58:47 UTC (rev 34)
+@@ -1,26 +1,28 @@
+-2.0-stable
+-======
+-- fixed a bug with the primitive boolean from HOES being returned as a 
+-  scalar string and not an integer 1/0.
+-- added a function &values(%hash) for extracting all of the values from
+-  a scalar hash.
++2.0-b10
++=======
++- fixed a bug with primitive values returned by HOES expressions not
++  being interpreted as their primitive selves.
++- added a function &values(%hash) for extracting all of the values from a 
++  scalar hash.
+ - exposed the PrintWriter/BufferedReader in the IOObject API
+-- added a check to prevent ls() on a non-existant directory from fireing
+-  an exception..
++- added a check to prevent ls() on a non-existant directory from fireing an 
++  exception..
+ - added uint(n) to convert scalar int n to a scalar long as an unsigned int.
+ - fixed bug that was supressing HOES syntax errors
+-- fixed bug with SleepUtils.getScalar(boolean) always returning a false
++- fixed bug with SleepUtils.getScalar(boolean) always returning a false 
+   boolean, thanks to Ralph Becker for finding and isolating the fix for this.
+ - fixed a bug with pack() packing creating the byte string the wrong way 
+-- fixed bug with z/Z formats only grabbing one character of a string from
+-  the IO stream if no max string size is specified.
++- fixed bug with z/Z formats only grabbing one character of a string from the 
++  IO stream if no max string size is specified.
+ - changed the u format and added a U format.. u/U reads/writes 16 bit UTF-16
+   characters similar to how z/Z handles 8 bit ASCII characters.
+ - bwrite and writeb now automatically flush the data after writing everything
+ - added &wait($handle, [timeout]) to wait for a fork or callback associated
+   with $handle to finish.  If the specified timeout is reached the function
+-  will return the empty scalar.  If $handle is a fork, the return value of 
+-  the fork will be returned by &wait.
++  will return the empty scalar.  If $handle is a fork, the return value of the 
++  fork will be returned by &wait.
++- added a whole slew of mathematical functions bridgeing most of java.lang.Math 
++  into Sleep.
+ 
+ 2.0-b9 
+ ======
+
+
+
+From rsmudge at berlios.de  Thu Jul  7 05:06:02 2005
+From: rsmudge at berlios.de (Raphael Mudge at BerliOS)
+Date: Thu, 7 Jul 2005 05:06:02 +0200
+Subject: [Sleep-svn] r35 - sleep/docs
+Message-ID: <200507070306.j67362AR025535@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2005-07-07 05:05:54 +0200 (Thu, 07 Jul 2005)
+New Revision: 35
+
+Modified:
+   sleep/docs/sleeplang.pdf
+Log:
+Doc update
+
+
+Modified: sleep/docs/sleeplang.pdf
+===================================================================
+(Binary files differ)
+
+
+
+From rsmudge at berlios.de  Mon Jul 11 11:51:16 2005
+From: rsmudge at berlios.de (Raphael Mudge at BerliOS)
+Date: Mon, 11 Jul 2005 11:51:16 +0200
+Subject: [Sleep-svn] r36 - in sleep: src/sleep/bridges src/sleep/parser tests tests/output
+Message-ID: <200507110951.j6B9pGOM022006@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2005-07-11 11:51:16 +0200 (Mon, 11 Jul 2005)
+New Revision: 36
+
+Added:
+   sleep/tests/binarysz.sl
+   sleep/tests/concat2.sl
+   sleep/tests/output/binarysz.sl
+   sleep/tests/output/concat2.sl
+   sleep/tests/output/squote.sl
+   sleep/tests/squote.sl
+Modified:
+   sleep/src/sleep/bridges/BasicIO.java
+   sleep/src/sleep/bridges/RegexBridge.java
+   sleep/src/sleep/parser/CodeGenerator.java
+   sleep/src/sleep/parser/LexicalAnalyzer.java
+Log:
+- fixed a fringe case with the Z unpack character
+- cleaned up definitions of pack for z/Z/u/U
+- made backslash in single quoted strings behave properly:
+  \' is a single quotes; \\ is a \; \ otherwise has no meaning
+
+  I hate changes that break compatability with old scripts (especially
+  ones I wrote) but the old behavior was a bug, not a feature...
+- fixed $1.$2 not working correctly.  the . operator is the only
+  built-in operator that can do without white space...
+- replace() function now takes a 4th parameter for the max number of
+  occurences to replace...
+
+- added several unit tests as well...
+
+
+
+Modified: sleep/src/sleep/bridges/BasicIO.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicIO.java	2005-07-07 03:05:54 UTC (rev 35)
++++ sleep/src/sleep/bridges/BasicIO.java	2005-07-11 09:51:16 UTC (rev 36)
+@@ -388,7 +388,7 @@
+                    if (tempval == -1) throw new EOFException();
+                 }
+              
+-                int z = 0;
++                int z = 1;
+ 
+                 for (; tempval != 0 && z != pattern.count; z++)
+                 {
+@@ -407,9 +407,15 @@
+                    }
+                 } 
+ 
++                if (tempval != 0)
++                {
++                   temps.append((char)tempval); 
++                }
++
+                 if ((pattern.value == 'Z' || pattern.value == 'U') && z < pattern.count)
+                 {
+-                   in.skip((pattern.count - z) - 1);
++                   int skipby = (pattern.count - z) * (pattern.value == 'U' ? 2 : 1);
++                   in.skip(skipby);
+                 }
+              }
+              catch (Exception fex) 
+@@ -575,18 +581,33 @@
+                    }
+                 }
+ 
+-                if (pattern.value == 'U') { out.write(0); out.write(0); }
+-                else { out.write(0); } // in the case of Z, keep padding the field length with nulls.
+-   
+-                if (pattern.value == 'Z' || pattern.value == 'U')
++                // handle padding... 
++
++                for (int z = tempchars.length; z < pattern.count; z++)
+                 {
+-                   // the +1 for the start of this loop is to account for the outputted null character
+-                   for (int z = tempchars.length + 1; z < pattern.count; z++)
++                   switch (pattern.value)
+                    {
+-                      if (pattern.value == 'U') { out.write(0); out.write(0); }
+-                      else { out.write(0); } // in the case of Z, keep padding the field length with nulls.
++                      case 'U':
++                         out.write(0); 
++                         out.write(0);
++                         break;
++                      case 'Z':
++                         out.write(0);
++                         break;
+                    }
+                 }
++
++                // write out our terminating null byte please...
++
++                if (pattern.value == 'z' || (pattern.value == 'Z' && pattern.count == -1))
++                {
++                   out.write(0);
++                }
++                else if (pattern.value == 'u' || (pattern.value == 'U' && pattern.count == -1))
++                {
++                   out.write(0);
++                   out.write(0);
++                }
+              }
+              catch (Exception ex)
+              {
+
+Modified: sleep/src/sleep/bridges/RegexBridge.java
+===================================================================
+--- sleep/src/sleep/bridges/RegexBridge.java	2005-07-07 03:05:54 UTC (rev 35)
++++ sleep/src/sleep/bridges/RegexBridge.java	2005-07-11 09:51:16 UTC (rev 36)
+@@ -187,14 +187,27 @@
+     {
+        public Scalar evaluate(String n, ScriptInstance script, Stack l)
+        {
+-          String a = ((Scalar)l.pop()).toString();
+-          String b = ((Scalar)l.pop()).toString();
+-          String c = ((Scalar)l.pop()).toString();
++          String a = ((Scalar)l.pop()).toString(); // current
++          String b = ((Scalar)l.pop()).toString(); // old
++          String c = ((Scalar)l.pop()).toString(); // new
++          int    d = BridgeUtilities.getInt(l, -1);
+ 
++          StringBuffer rv = new StringBuffer();
++
+           Pattern pattern = RegexBridge.getPattern(b);
+           Matcher matcher = pattern.matcher(a);
++       
++          int matches = 0;
+ 
+-          return SleepUtils.getScalar(matcher.replaceAll(c));
++          while (matcher.find() && matches != d)
++          {
++             matcher.appendReplacement(rv, c);
++             matches++;
++          }
++
++          matcher.appendTail(rv);
++
++          return SleepUtils.getScalar(rv.toString());
+        }
+     }
+ }
+
+Modified: sleep/src/sleep/parser/CodeGenerator.java
+===================================================================
+--- sleep/src/sleep/parser/CodeGenerator.java	2005-07-07 03:05:54 UTC (rev 35)
++++ sleep/src/sleep/parser/CodeGenerator.java	2005-07-11 09:51:16 UTC (rev 36)
+@@ -365,6 +365,7 @@
+ 
+        Iterator i;
+        String   mutilate; // mutilate this string as I see fit...
++       StringBuffer sb;  
+ 
+        String[] strings = datum.getStrings(); // was "temp"
+        Token[]  tokens  = datum.getTokens();
+@@ -430,7 +431,22 @@
+            parseObject(ParserUtilities.extract(tokens[0]));
+            break;
+          case IDEA_LITERAL: // implemented                   
+-           ascalar = SleepUtils.getScalar(ParserUtilities.extract(strings[0]));
++           sb = new StringBuffer(ParserUtilities.extract(strings[0]));
++
++           for (int x = 0; x < sb.length(); x++)
++           {
++              if (sb.charAt(x) == '\\' && (x + 1) < sb.length())
++              {
++                 char tempc = sb.charAt(x + 1);
++
++                 if (tempc == '\'' || tempc == '\\')
++                 {
++                    sb.deleteCharAt(x);
++                 }
++              }
++           }
++
++           ascalar = SleepUtils.getScalar(sb.toString());
+            atom    = GeneratedSteps.SValue(ascalar);
+            add(atom, tokens[0]);
+            break;
+@@ -488,7 +504,7 @@
+          case EXPR_EVAL_STRING:
+          case IDEA_STRING: // implemented -- parsed literals, one of my favorite features in sleep
+            int startz = 0; 
+-           String c   = ParserUtilities.extract(strings[0]);
++           String c = ParserUtilities.extract(strings[0]);
+             
+            Stack vals, blocks, aligns;
+            vals   = new Stack();
+
+Modified: sleep/src/sleep/parser/LexicalAnalyzer.java
+===================================================================
+--- sleep/src/sleep/parser/LexicalAnalyzer.java	2005-07-07 03:05:54 UTC (rev 35)
++++ sleep/src/sleep/parser/LexicalAnalyzer.java	2005-07-11 09:51:16 UTC (rev 36)
+@@ -62,7 +62,7 @@
+    // using this effectively removes the white space requirement for said built in operator.  
+    private static boolean isBuiltInOperator(char f, StringBuffer aTerm, StringIterator iter)
+    {
+-      if (f == '.' && (aTerm.length() <= 0 || !Character.isDigit(aTerm.charAt(aTerm.length() - 1))))
++      if (f == '.' && (aTerm.length() <= 0 || !(Character.isDigit(aTerm.charAt(aTerm.length() - 1)) && aTerm.charAt(0) != '$')))
+       {
+          return true;
+       }
+@@ -191,11 +191,11 @@
+              {
+                 report.reportError("Escape is end of string", new Token(value.toString(), iterator.getLineNumber(), iterator.getLineMarker()));
+              }
+-             else
++             else 
+              {
+                 value.append(temp);
+                 value.append(iterator.next());
+-             }
++             } 
+          }        
+          else if (term.isRight(temp) || term.isMatch(temp))
+          {
+
+Added: sleep/tests/binarysz.sl
+===================================================================
+--- sleep/tests/binarysz.sl	2005-07-07 03:05:54 UTC (rev 35)
++++ sleep/tests/binarysz.sl	2005-07-11 09:51:16 UTC (rev 36)
+@@ -0,0 +1,25 @@
++#
++# test of some pack/unpack fringe cases...
++#
++
++# looking for the following
++# when we write a Z10 string and we happen to hit the 10 char length, no \0 should be written
++# I just want to make sure said string is read in correctly as well...
++#
++
++$temp = pack('Z10 I', "0123456789", 33);
++
++println("Strlen: " . strlen($temp)); # should be 14
++
++($string, $int) = unpack('Z10 I', $temp);
++
++println("Test: $string and $int");
++
++$temp2 = pack('Z10 I', "abcde", 45);
++
++println("Strlen: " . strlen($temp2)); # should be 14
++
++($string2, $int2) = unpack('Z10 I', $temp2);
++
++println("Test: $string2 and $int2");
++
+
+Added: sleep/tests/concat2.sl
+===================================================================
+--- sleep/tests/concat2.sl	2005-07-07 03:05:54 UTC (rev 35)
++++ sleep/tests/concat2.sl	2005-07-11 09:51:16 UTC (rev 36)
+@@ -0,0 +1,10 @@
++#
++# Test the work done on the concatenation operator...
++#
++
++sub test
++{
++  println($1.$2);
++}
++
++test("X", "Y");
+
+Added: sleep/tests/output/binarysz.sl
+===================================================================
+--- sleep/tests/output/binarysz.sl	2005-07-07 03:05:54 UTC (rev 35)
++++ sleep/tests/output/binarysz.sl	2005-07-11 09:51:16 UTC (rev 36)
+@@ -0,0 +1,4 @@
++Strlen: 14
++Test: 0123456789 and 33
++Strlen: 14
++Test: abcde and 45
+
+Added: sleep/tests/output/concat2.sl
+===================================================================
+--- sleep/tests/output/concat2.sl	2005-07-07 03:05:54 UTC (rev 35)
++++ sleep/tests/output/concat2.sl	2005-07-11 09:51:16 UTC (rev 36)
+@@ -0,0 +1 @@
++XY
+
+Added: sleep/tests/output/squote.sl
+===================================================================
+--- sleep/tests/output/squote.sl	2005-07-07 03:05:54 UTC (rev 35)
++++ sleep/tests/output/squote.sl	2005-07-11 09:51:16 UTC (rev 36)
+@@ -0,0 +1,6 @@
++'
++\
++\'\
++\\\\\\\\
++\a\b\c\d\e\f\g\h\i\j\k\l\m\n\o\p\q\r\s\t\u\v\w\x\y\z
++Error running eval'd code: 2 error(s): Mismatched Parentheses - missing close paren at 1; Runaway string at 1
+
+Added: sleep/tests/squote.sl
+===================================================================
+--- sleep/tests/squote.sl	2005-07-07 03:05:54 UTC (rev 35)
++++ sleep/tests/squote.sl	2005-07-11 09:51:16 UTC (rev 36)
+@@ -0,0 +1,23 @@
++#
++# Single Quote Behavior...
++#
++
++
++println('\''); # single quoted single quote '
++
++println('\\'); # a double backslash... plz... :) for regex sakes \\
++
++println('\\\'\\'); 
++
++println('\\\\\\\\\\\\\\\\');
++
++println('\a\b\c\d\e\f\g\h\i\j\k\l\m\n\o\p\q\r\s\t\u\v\w\x\y\z');
++
++eval("
++    println('\\\\'');
++");
++
++if (checkError($error))
++{
++   println("Error running eval'd code: $error");
++}
+
+
+
+From rsmudge at berlios.de  Tue Jul 12 15:54:23 2005
+From: rsmudge at berlios.de (Raphael Mudge at BerliOS)
+Date: Tue, 12 Jul 2005 15:54:23 +0200
+Subject: [Sleep-svn] r37 - in sleep: . src/sleep/bridges
+Message-ID: <200507121354.j6CDsNR9031769@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2005-07-12 15:54:22 +0200 (Tue, 12 Jul 2005)
+New Revision: 37
+
+Added:
+   sleep/src/sleep/bridges/Transliteration.java
+Modified:
+   sleep/src/sleep/bridges/BasicIO.java
+   sleep/src/sleep/bridges/BasicStrings.java
+   sleep/src/sleep/bridges/RegexBridge.java
+   sleep/whatsnew.txt
+Log:
+Added transliteration
+
+
+Modified: sleep/src/sleep/bridges/BasicIO.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicIO.java	2005-07-11 09:51:16 UTC (rev 36)
++++ sleep/src/sleep/bridges/BasicIO.java	2005-07-12 13:54:22 UTC (rev 37)
+@@ -84,7 +84,10 @@
+ 
+         // typical ASCII'sh output functions
+         temp.put("&print",      new print());
+-        temp.put("&println",    new println());
++
++        println f_println = new println();
++        temp.put("&println",    f_println);
++        temp.put("&printf",    f_println); // I need to fix my unit tests to get rid of the printf function... grr
+         temp.put("&printAll",   new printArray());
+         temp.put("&printEOF",   new printEOF());
+ 
+
+Modified: sleep/src/sleep/bridges/BasicStrings.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicStrings.java	2005-07-11 09:51:16 UTC (rev 36)
++++ sleep/src/sleep/bridges/BasicStrings.java	2005-07-12 13:54:22 UTC (rev 37)
+@@ -56,7 +56,6 @@
+         Hashtable temp = aScript.getScriptEnvironment().getEnvironment();
+ 
+         // functions
+-        temp.put("&printf", new func_printf());
+         temp.put("&left",   new func_left());
+         temp.put("&right",  new func_right());
+ 
+@@ -68,6 +67,8 @@
+         temp.put("&strlen",  new func_strlen());
+         temp.put("&strrep",  new func_strrep());
+ 
++        temp.put("&tr",      new func_tr());
++
+         temp.put("&asc",     new func_asc());
+         temp.put("&chr",     new func_chr());
+ 
+@@ -259,25 +260,37 @@
+         }
+     }
+ 
+-    private static class func_printf implements Function
++    private static class func_left implements Function
+     {
+         public Scalar evaluate(String n, ScriptInstance i, Stack l)
+         {
+-           System.out.println(((Scalar)l.pop()).toString());
+-           return null;
++           String temp  = l.pop().toString();
++           int    value = ((Scalar)l.pop()).intValue();
++
++           if (value >= temp.length()) { return SleepUtils.getScalar(temp); }
++
++           return SleepUtils.getScalar(temp.substring(0, value));
+         }
+     }
+ 
+-    private static class func_left implements Function
++    private static class func_tr implements Function
+     {
+         public Scalar evaluate(String n, ScriptInstance i, Stack l)
+         {
+-           String temp  = l.pop().toString();
+-           int    value = ((Scalar)l.pop()).intValue();
++           String old       = BridgeUtilities.getString(l, "");
++           String pattern   = BridgeUtilities.getString(l, "");
++           String mapper    = BridgeUtilities.getString(l, "");
++           String optstr    = BridgeUtilities.getString(l, "");
+ 
+-           if (value >= temp.length()) { return SleepUtils.getScalar(temp); }
++           int options = 0; 
+ 
+-           return SleepUtils.getScalar(temp.substring(0, value));
++           if (optstr.indexOf('c') > -1) { options = options | Transliteration.OPTION_COMPLEMENT; }
++           if (optstr.indexOf('d') > -1) { options = options | Transliteration.OPTION_DELETE; }
++           if (optstr.indexOf('s') > -1) { options = options | Transliteration.OPTION_SQUEEZE; }
++
++           Transliteration temp = Transliteration.compile(pattern, mapper, options);
++
++           return SleepUtils.getScalar(temp.translate(old));
+         }
+     }
+ 
+
+Modified: sleep/src/sleep/bridges/RegexBridge.java
+===================================================================
+--- sleep/src/sleep/bridges/RegexBridge.java	2005-07-11 09:51:16 UTC (rev 36)
++++ sleep/src/sleep/bridges/RegexBridge.java	2005-07-12 13:54:22 UTC (rev 37)
+@@ -41,6 +41,7 @@
+     static
+     {
+        ParserConfig.addKeyword("ismatch");
++       ParserConfig.addKeyword("hasmatch");
+     }
+ 
+     private static Pattern getPattern(String pattern)
+@@ -69,6 +70,7 @@
+ 
+         // predicates
+         temp.put("ismatch", matcher);
++        temp.put("hasmatch", matcher);
+ 
+         // functions
+         temp.put("&matched", matcher);
+@@ -84,15 +86,42 @@
+     {
+        protected Matcher matcher = null;
+ 
++       protected HashMap context = new HashMap(); // storing matcher contexts...
++
+        public boolean decide(String n, ScriptInstance i, Stack l)
+        {
+-          String b = ((Scalar)l.pop()).toString();
+-          String a = ((Scalar)l.pop()).toString();
++          String b = ((Scalar)l.pop()).toString(); // PATTERN
++          String a = ((Scalar)l.pop()).toString(); // TEXT TO MATCH AGAINST
+ 
+           Pattern pattern = RegexBridge.getPattern(b);
+-          matcher = pattern.matcher(a);
+-    
+-          return matcher.matches();
++          boolean rv;
++
++          if (n.equals("hasmatch"))
++          {
++              if (context.containsKey(a + b))
++              {
++                 matcher = (Matcher)context.get(a + b);
++              }
++              else
++              {
++                 matcher = pattern.matcher(a);
++                 context.put(a + b, matcher);
++              }
++              rv = matcher.find();
++          }
++          else
++          {
++              matcher = pattern.matcher(a);
++              rv =  matcher.matches();
++          }
++
++          if (!rv) 
++          {
++             matcher  = null;           
++             context.remove(a + b);
++          }
++
++          return rv;
+        }
+ 
+        public Scalar evaluate(String n, ScriptInstance i, Stack l)
+@@ -126,7 +155,7 @@
+           Scalar value = SleepUtils.getArrayScalar();            
+           int    count = matcher.groupCount();  
+ 
+-          if (matcher.matches())
++          if (matcher.find())
+           {
+              for (int x = 1; x <= count; x++)
+              {
+
+Added: sleep/src/sleep/bridges/Transliteration.java
+===================================================================
+--- sleep/src/sleep/bridges/Transliteration.java	2005-07-11 09:51:16 UTC (rev 36)
++++ sleep/src/sleep/bridges/Transliteration.java	2005-07-12 13:54:22 UTC (rev 37)
+@@ -0,0 +1,369 @@
++package sleep.bridges;
++
++import java.util.*;
++import java.text.*;
++
++import java.util.regex.PatternSyntaxException;
++
++/**
++ * <p>This class provides a character translation utility similar to the UNIX tr command.  Essentially
++ * a pattern is compiled defining characters and their appropriate substitutions.  Once compiled a 
++ * Transliteration pattern can be compared against a string.  Each character in the string is compared
++ * to each character in the pattern.  If a match is found the character is either replaced or deleted
++ * as specified in the patterns replacement.</p>
++ *
++ * <p>Transliteration is not the same as regular expressions.  Transliteration has a single character
++ * scope.</p>
++ *
++ * <b>Example Usage:</b>
++ *
++ * <pre> // A simple ROT13 Translator (for extra security run it twice...)
++ * Transliteration rot13 = Transliteration.compile("a-z", "n-za-m");
++ * String ciphertext = rot13.translate("this is a mad cool test");
++ *
++ * System.out.println("Cipher text: " + ciphertext);
++ *
++ * Sring plaintext = rot13.translate(ciphertext);
++ * System.out.println("Plain text: " + plaintext);</pre>
++ *
++ * <p>Replacement patterns and Matcher patterns may both contain ranges.  Any range specified in either of these places will be
++ * expanded to all of the characters.  A range is specified as <code><i>n</i>-</i>m</i></code> where <i>n</i> is the
++ * starting character (A-Z, a-z, 0-9) and <i>m</i> is the ending character.  Backwards ranges are allowed as well.</p>
++ *
++ * <p>If an expanded replacement pattern is shorter than the matcher pattern, the last character of the replacement pattern
++ * will be used to map to all remaining characters in the matcher pattern.  The <code>OPTION_DELETE</code> option changes this
++ * behavior to delete those matches that don't have a replacement pattern character explicitly mapped to them.</p>
++ *
++ * <p>Matcher patterns may contain the following character classes:</p>
++ *
++ * <table width="80%"> 
++ *  <tr><th width="100" align="left">Sequence</th><th align="left">Meaning</th></tr>
++ *  <tr><td>.</td><td>Matches any character</td></tr>
++ *  <tr><td>\d</td><td>Matches any digit 0-9</td></tr>
++ *  <tr><td>\D</td><td>Matches any non-digit</td></tr>
++ *  <tr><td>\s</td><td>Matches any whitespace character</td></tr>
++ *  <tr><td>\S</td><td>Matches any non-whitespace character</td></tr>
++ *  <tr><td>\w</td><td>Matches any letter</td></tr>
++ *  <tr><td>\W</td><td>Matches any non-letter</td></tr>
++ *  <tr><td>\\</td><td>Matches a literal backslash</td></tr>
++ *  <tr><td>\.</td><td>Matches a literal period</td></tr>
++ *  <tr><td>\-</td><td>Matches a literal dash</td></tr>
++ * </table>
++ *
++ * <p>Any other escape sequence is considered an error and an exception will be thrown.</p>
++ *
++ * <p>Transliteration patterns have several options that can change the behavior of the matcher/translator.</p>
++ *
++ * <p><code>OPTION_DELETE</code> tells the translator to delete matching characters if there is no mapped character specified
++ * in the replacement pattern.</p>
++ *
++ * <p><code>OPTION_COMPLEMENT</code> negates the compiled pattern.  When this flag is set all characters and meta-characters will
++ * match their compliments.</p>
++ *
++ * <p><code>OPTION_SQUEEZE</code> is used to force the translator to squeeze together matches right next to eachother.  Essentially
++ * this option will delete repeated characters that match a pattern character.</p>
++ *
++ * <p>This class is released into the public domain.  Do with it as you wish (but please give credit where credit is due). 
++ * Created by <a href="mailto:raffi at hick.org">Raphael Mudge</a> for the <a href="http://sleep.hick.org/">Sleep scripting language</a>.</p>
++ **/
++public class Transliteration
++{
++    /** Forces any matches of non-mapped pattern characters to be deleted */
++    public static final int OPTION_DELETE     = 1;
++
++    /** Negates the pattern */
++    public static final int OPTION_COMPLEMENT = 2; 
++
++    /** Deletes duplicates of all matched characters */
++    public static final int OPTION_SQUEEZE    = 4;
++
++    private static String AvailableOptions = "dDsSwW.\\-"; 
++
++    private int options = 0;
++
++    /** the head of a linked list of pattern elements */
++    private Element pattern = null;
++
++    private static class Element 
++    {
++        public char     item = 'x';
++        public char     replacement = 'x';
++        public boolean  isSpecial   = false; 
++        public boolean  isWildcard  = false;
++
++        public Element next = null;
++    }
++
++    /** Returns a string representation of this transliteration pattern... */
++    public String toString()
++    {
++        StringBuffer a = new StringBuffer();
++        StringBuffer b = new StringBuffer();
++        Element temp = pattern;
++        while (temp != null)
++        {
++           if (temp.isSpecial)
++           {
++              switch (temp.item)
++              {
++                 case '.':
++                   a.append("[:ANY:]");
++                   break;
++                 case 'd':
++                   a.append("[:digit:]");
++                   break;
++                 case 'D':
++                   a.append("[:non-digit:]");
++                   break;
++                 case 's':
++                   a.append("[:whitespace:]");
++                   break;
++                 case 'S':
++                   a.append("[:non-whitespace:]");
++                   break;
++                 case 'w':
++                   a.append("[:word character:]");
++                   break;
++                 case 'W':
++                   a.append("[:non-word character:]");
++                   break;
++                 default:
++                   a.append(temp.item);
++              }
++           }
++           else
++           {
++              a.append(temp.item);
++           }
++           b.append(temp.replacement);
++           temp = temp.next;
++        }
++
++        return "tr/" + a + "/" + b + "/";
++    }
++ 
++    private static String getRange(char a, char b)
++    {
++        StringBuffer temp = new StringBuffer();
++
++        if (a < b)
++        {
++           char c = a;
++           while (c < b)
++           {
++              temp.append(c);
++              c = (char)(c + 1);
++           }
++        }
++        else if (a > b)
++        {
++           char c = a;
++           while (c > b)
++           {
++              temp.append(c);
++              c = (char)(c - 1);
++           }
++        }
++
++        return temp.toString();
++    }
++
++    private static String expandRanges(String text) throws PatternSyntaxException
++    {
++        StringBuffer temp = new StringBuffer(text);
++
++        for (int x = 0; x < temp.length(); x++)
++        {
++            if (temp.charAt(x) == '\\')
++            {
++               x++;
++            }
++            else if (temp.charAt(x) == '-')
++            {
++               if (x <= 0 || x >= (temp.length() - 1))
++                    throw new PatternSyntaxException("Dangling range operator '-'", text, text.length() - 1);
++
++               String range = getRange(temp.charAt(x-1), temp.charAt(x+1));
++               temp.replace(x - 1, x + 1, range);
++
++               x += range.length() - 2;
++            }
++        }
++
++        return temp.toString();        
++    }
++
++    private Element buildPattern(String pattern, String changes)
++    {
++         Element head = null;
++         Element temp = null;
++
++         pattern = expandRanges(pattern);
++         changes = expandRanges(changes);
++
++         StringCharacterIterator a = new StringCharacterIterator(pattern);
++         StringCharacterIterator b = new StringCharacterIterator(changes);
++
++         while (a.current() != StringCharacterIterator.DONE)  // StringCharacterIterator.DONE?!? What kind of high school intern 
++         {                                                    // wrote this class...  hello... hasNext() !
++             if (temp == null)
++             {
++                 head = new Element();
++                 temp = head;
++             }
++             else
++             {
++                 temp.next = new Element();
++                 temp      = temp.next;
++             }
++
++             if (a.current() == '\\')
++             {
++                 temp.item        = a.next();
++                 temp.replacement = b.current();
++
++                 if (a.current() == StringCharacterIterator.DONE)
++                 {
++                    throw new PatternSyntaxException("attempting to escape end of pattern string", pattern, a.getEndIndex() - 1);
++                 }
++                 else if (AvailableOptions.indexOf(temp.item) == -1)
++                 {
++                    throw new PatternSyntaxException("unrecognized escaped meta-character '" + temp.item + "'", pattern, a.getIndex());
++                 }
++                 else
++                 {
++                    // anything escaped is considered special except for a \, a ., and a -
++                    temp.isSpecial = (a.current() != '\\' && a.current() != '.' && a.current() != '-');
++                 }
++             } 
++             else
++             {
++                 temp.item        = a.current();
++                 temp.replacement = b.current();
++
++                 temp.isSpecial   = a.current() == '.'; // a . is always considered special unless escaped...
++             }
++ 
++             a.next();
++             b.next();
++
++             if (b.current() == StringCharacterIterator.DONE && ((options & OPTION_DELETE) != OPTION_DELETE))
++             {
++                b.last();
++             }
++         }
++            
++         return head; 
++     }
++
++     /** Compiles the translation pattern.  The matches pattern is what the translator engine looks for.  Each character in the
++         expanded matches pattern is mapped to the corresponding character in the expanded replacements pattern.  In theory
++         when a string is applied to this Transliteration all characters that match something in the matches pattern will be
++         replaced with the corresponding character from the replacements pattern.  
++
++         @throws PatternSyntaxException caused by a bad pattern. */
++     public static Transliteration compile(String matches, String replacements) throws PatternSyntaxException
++     {
++         return compile(matches, replacements, 0);
++     }
++
++     /** Compiles the translation pattern.  The matches pattern is what the translator engine looks for.  Each character in the
++         expanded matches pattern is mapped to the corresponding character in the expanded replacements pattern.  In theory
++         when a string is applied to this Transliteration all characters that match something in the matches pattern will be
++         replaced with the corresponding character from the replacements pattern.  
++
++         @throws PatternSyntaxException caused by a bad pattern.*/
++     public static Transliteration compile(String matches, String replacements, int options) throws PatternSyntaxException
++     {
++         Transliteration value = new Transliteration();
++         value.options = options;
++         value.pattern = value.buildPattern(matches, replacements);
++         return value;
++    }
++
++    private boolean isMatch(char current, Element element)
++    {
++        boolean rv = false;
++
++        if (element.isSpecial)
++        {
++            switch (element.item)
++            {
++                 case '.':
++                   rv = true;
++                   break;
++                 case 'd':
++                   rv = Character.isDigit(current);
++                   break;
++                 case 'D':
++                   rv = !Character.isDigit(current);
++                   break;
++                 case 's':
++                   rv = Character.isWhitespace(current);
++                   break;
++                 case 'S':
++                   rv = !Character.isWhitespace(current);
++                   break;
++                 case 'w':
++                   rv = Character.isLetter(current);
++                   break;
++                 case 'W':
++                   rv = !Character.isLetter(current);
++                   break;
++            }
++        }
++        else
++        {
++            rv = element.item == current;
++        }
++
++        if ((options & OPTION_COMPLEMENT) == OPTION_COMPLEMENT)
++        {
++           rv = !rv;
++        }
++
++        return rv;
++    }
++
++    /** Applies this Transliteration to the specified text. */
++    public String translate(String text)
++    {
++        StringBuffer rv = new StringBuffer();
++
++        Element temp = null;
++        char         current;
++        boolean match = false;
++
++        for (int x = 0; x < text.length(); x++)
++        {
++            current = text.charAt(x);             
++            temp = pattern;
++            match = false;
++            while (temp != null)
++            {
++                if (isMatch(current, temp))
++                {
++                    if (temp.replacement != StringCharacterIterator.DONE)
++                    {
++                       rv.append(temp.replacement);
++                    }
++
++                    // perform our squeeze :)
++                    while ((options & OPTION_SQUEEZE) == OPTION_SQUEEZE && (x + 1) < text.length() && text.charAt(x + 1) == current)
++                    {
++                        x++;
++                    }
++                    match = true;
++
++                    break;
++                }
++                temp = temp.next;
++            }
++
++            if (!match)
++                rv.append(current);
++        }
++
++        return rv.toString();
++    }
++}
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2005-07-11 09:51:16 UTC (rev 36)
++++ sleep/whatsnew.txt	2005-07-12 13:54:22 UTC (rev 37)
+@@ -1,3 +1,30 @@
++2.0-b11
++=======
++- fixed a fringe case with the Z unpack character
++- cleaned up definitions of pack for z/Z/u/U
++- made backslash in single quoted strings behave properly:
++  \' is a single quotes; \\ is a \; \ otherwise has no meaning
++
++  I hate changes that break compatability with old scripts (especially
++  ones I wrote) but the old behavior was a bug, not a feature...
++- fixed $1.$2 not working correctly.  the . operator is the only 
++  built-in operator that can do without white space...
++- replace() function now takes a 4th parameter for the max number of
++  occurences to replace...
++- added a hasmatch predicate similar to ismatch, notable differences:
++  ismatch matches the entire string against the pattern
++
++  hasmatch looks for a matching substring, each subsequent call to
++  hasmatch will look for the next substring until no matches are
++  left to be found (in which case it resets itself after returning
++  false).   hasmatch is essentially the same as the g option in
++  Perl's regex stuff...
++- updated the matches() function to work a lot like hasmatch where
++  it will look for substrings and return all groupings for all
++  matching substrings...  
++- added a &tr() function similar to the UNIX command tr.  
++  Transliteration is fun for the whole family...
++
+ 2.0-b10
+ =======
+ - fixed a bug with primitive values returned by HOES expressions not
+
+
+
+From rsmudge at berlios.de  Tue Jul 12 17:38:03 2005
+From: rsmudge at berlios.de (Raphael Mudge at BerliOS)
+Date: Tue, 12 Jul 2005 17:38:03 +0200
+Subject: [Sleep-svn] r38 - in sleep: . src/sleep/bridges tests tests/output
+Message-ID: <200507121538.j6CFc3aG008598@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2005-07-12 17:38:02 +0200 (Tue, 12 Jul 2005)
+New Revision: 38
+
+Added:
+   sleep/tests/behavior.sl
+   sleep/tests/output/behavior.sl
+   sleep/tests/output/trans.sl
+   sleep/tests/trans.sl
+Modified:
+   sleep/src/sleep/bridges/RegexBridge.java
+   sleep/whatsnew.txt
+Log:
+More changes...
+
+
+Modified: sleep/src/sleep/bridges/RegexBridge.java
+===================================================================
+--- sleep/src/sleep/bridges/RegexBridge.java	2005-07-12 13:54:22 UTC (rev 37)
++++ sleep/src/sleep/bridges/RegexBridge.java	2005-07-12 15:38:02 UTC (rev 38)
+@@ -148,19 +148,30 @@
+        {
+           String a = ((Scalar)l.pop()).toString();
+           String b = ((Scalar)l.pop()).toString();
++          int    c = BridgeUtilities.getInt(l, -1);
++          int    d = BridgeUtilities.getInt(l, c);
+ 
+           Pattern pattern = RegexBridge.getPattern(b);
+           Matcher matcher = pattern.matcher(a);
+    
+           Scalar value = SleepUtils.getArrayScalar();            
+-          int    count = matcher.groupCount();  
+ 
+-          if (matcher.find())
++          int temp = 0;
++
++          while (matcher.find())
+           {
++             int    count = matcher.groupCount();  
++
++             if (temp == c) { value = SleepUtils.getArrayScalar(); }
++
+              for (int x = 1; x <= count; x++)
+              {
+                 value.getArray().push(SleepUtils.getScalar(matcher.group(x)));
+              }
++
++             if (temp == d) { return value; }
++
++             temp++;
+           }
+ 
+           return value;
+
+Added: sleep/tests/behavior.sl
+===================================================================
+--- sleep/tests/behavior.sl	2005-07-12 13:54:22 UTC (rev 37)
++++ sleep/tests/behavior.sl	2005-07-12 15:38:02 UTC (rev 38)
+@@ -0,0 +1,11 @@
++while ('(654) 555-1212(248) 399-8219(734) 586-9912' hasmatch '\((\d\d\d)\) (\d\d\d-\d\d\d\d)')
++{
++   ($areaCode, $phoneNumber) = matched();
++   println("$areaCode and $phoneNumber");
++
++   while ('(123) 456-7890 sfdsdf (453) 443-3455' hasmatch '\((\d\d\d)\) (\d\d\d-\d\d\d\d)')
++   {
++      ($areaCode, $phoneNumber) = matched();
++      println("    $areaCode and $phoneNumber");
++   }
++}
+
+Added: sleep/tests/output/behavior.sl
+===================================================================
+--- sleep/tests/output/behavior.sl	2005-07-12 13:54:22 UTC (rev 37)
++++ sleep/tests/output/behavior.sl	2005-07-12 15:38:02 UTC (rev 38)
+@@ -0,0 +1,9 @@
++654 and 555-1212
++    123 and 456-7890
++    453 and 443-3455
++248 and 399-8219
++    123 and 456-7890
++    453 and 443-3455
++734 and 586-9912
++    123 and 456-7890
++    453 and 443-3455
+
+Added: sleep/tests/output/trans.sl
+===================================================================
+--- sleep/tests/output/trans.sl	2005-07-12 13:54:22 UTC (rev 37)
++++ sleep/tests/output/trans.sl	2005-07-12 15:38:02 UTC (rev 38)
+@@ -0,0 +1,6 @@
++Cipher text: guvf vf n grfg hAS 12345!!!!
++Plain  text: this is a test uNF 12345!!!!
++Swap: BBB ABAB AAA
++Numbers? Ths s  tst
++Complement? 1143
++Squeeze: B ABAB A
+
+Added: sleep/tests/trans.sl
+===================================================================
+--- sleep/tests/trans.sl	2005-07-12 13:54:22 UTC (rev 37)
++++ sleep/tests/trans.sl	2005-07-12 15:38:02 UTC (rev 38)
+@@ -0,0 +1,28 @@
++#
++# Test of translation tools...
++#
++
++# rot13 test
++
++$cipher = tr("this is a test uNF 12345!!!!", 'a-zA-Z', 'n-za-mN-ZA-M');
++println("Cipher text: " . $cipher);
++
++$plain = tr($cipher, 'a-zA-Z', 'n-za-mN-ZA-M');
++println("Plain  text: " . $plain);
++
++# swap test
++
++println("Swap: " . tr("AAA BABA BBB", "AB", "BA"));
++
++# delete all numbers
++
++println("Numbers? " . tr("Th1s 1s 4 t3st", '\d', ""));
++
++# complement...
++
++println("Complement? " . tr("Th1s 1s 4 t3st", '\d', "", 'c'));
++
++# squeeze
++
++println("Squeeze: " . tr("AAA BABA BBB", "AB", "BA", 's'));
++
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2005-07-12 13:54:22 UTC (rev 37)
++++ sleep/whatsnew.txt	2005-07-12 15:38:02 UTC (rev 38)
+@@ -22,8 +22,9 @@
+ - updated the matches() function to work a lot like hasmatch where
+   it will look for substrings and return all groupings for all
+   matching substrings...  
+-- added a &tr() function similar to the UNIX command tr.  
+-  Transliteration is fun for the whole family...
++- added a transliteration function &tr ala the UNIX command tr.  
++- updated &matches to allow either a range of matching substring 
++  groups to be extracted or a single substring group.
+ 
+ 2.0-b10
+ =======
+
+
+
+From rsmudge at berlios.de  Mon Jul 18 10:07:44 2005
+From: rsmudge at berlios.de (Raphael Mudge at BerliOS)
+Date: Mon, 18 Jul 2005 10:07:44 +0200
+Subject: [Sleep-svn] r45 - in sleep: . docs src/sleep/bridges src/sleep/engine tests/output
+Message-ID: <200507180807.j6I87iYG008248@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2005-07-18 10:07:37 +0200 (Mon, 18 Jul 2005)
+New Revision: 45
+
+Modified:
+   sleep/docs/sleeplang.pdf
+   sleep/src/sleep/bridges/BasicStrings.java
+   sleep/src/sleep/engine/Block.java
+   sleep/tests/output/native_arrays.sl
+   sleep/whatsnew.txt
+Log:
+Updated the exception message handling...
+
+
+Modified: sleep/docs/sleeplang.pdf
+===================================================================
+(Binary files differ)
+
+Modified: sleep/src/sleep/bridges/BasicStrings.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicStrings.java	2005-07-17 16:46:50 UTC (rev 44)
++++ sleep/src/sleep/bridges/BasicStrings.java	2005-07-18 08:07:37 UTC (rev 45)
+@@ -414,6 +414,11 @@
+     {
+         public Scalar evaluate(String n, ScriptInstance i, Stack l)
+         {
++           if (l.size() != 2)
++           {
++              throw new IllegalArgumentException("&sort requires a function to specify how to sort the data");
++           }
++
+            Function     my_func   = BridgeUtilities.getFunction(l, i);
+            ScalarArray  array     = BridgeUtilities.getWorkableArray(l);
+ 
+
+Modified: sleep/src/sleep/engine/Block.java
+===================================================================
+--- sleep/src/sleep/engine/Block.java	2005-07-17 16:46:50 UTC (rev 44)
++++ sleep/src/sleep/engine/Block.java	2005-07-18 08:07:37 UTC (rev 45)
+@@ -131,6 +131,16 @@
+            {
+               Scalar value = temp.evaluate(environment);
+            }
++           catch (IllegalArgumentException aex)
++           {
++              environment.getScriptInstance().fireWarning(aex.getMessage(), temp.getLineNumber());
++              return SleepUtils.getEmptyScalar();
++           }
++           catch (RuntimeException rex)
++           {
++              environment.getScriptInstance().fireWarning(rex.getMessage(), temp.getLineNumber());
++              return SleepUtils.getEmptyScalar();
++           }
+            catch (Exception ex)
+            {
+               environment.getScriptInstance().fireWarning(ex.toString(), temp.getLineNumber());
+
+Modified: sleep/tests/output/native_arrays.sl
+===================================================================
+--- sleep/tests/output/native_arrays.sl	2005-07-17 16:46:50 UTC (rev 44)
++++ sleep/tests/output/native_arrays.sl	2005-07-18 08:07:37 UTC (rev 45)
+@@ -32,15 +32,7 @@
+ $temp[1][3] = 10
+ $temp[1][4] = 11
+ $temp[1][5] = 12
+-Warning: java.lang.RuntimeException: &cast: specified dimensions 18 is not equal to total array elements 12 at line 116
+-java.lang.RuntimeException: &cast: specified dimensions 18 is not equal to total array elements 12
+-	at sleep.bridges.BasicUtilities$f_cast.evaluate(Unknown Source)
+-	at sleep.engine.atoms.Call.evaluate(Unknown Source)
+-	at sleep.engine.Block.evaluate(Unknown Source)
+-	at sleep.engine.atoms.Goto.evaluate(Unknown Source)
+-	at sleep.engine.Block.evaluate(Unknown Source)
+-	at sleep.runtime.ScriptInstance.runScript(Unknown Source)
+-	at sleep.console.TextConsole.main(Unknown Source)
++Warning: &cast: specified dimensions 18 is not equal to total array elements 12 at line 116
+ Still going...
+ <--------------------------------------------------->
+ temp[0] = t
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2005-07-17 16:46:50 UTC (rev 44)
++++ sleep/whatsnew.txt	2005-07-18 08:07:37 UTC (rev 45)
+@@ -1,5 +1,5 @@
+-2.0-stable
+-=======
++2.0-release
++===========
+ - added a -version, -v, --version command line switch to see what
+   Sleep version you're using :)
+ - HOES now automatically converts a 1-dimensional Sleep array into
+@@ -21,6 +21,9 @@
+   array with a type t (b = byte, c = char, i = int, etc..).  
+   Any arguments specified represent the dimensions of the array i.e.
+   &cast(@var, 'l', 2, 3) casts @var into a 2x3 array of Java longs.
++- &sort now throws an IllegalArgumentException if not enough args
++  are specified (I've been bitten by accidentally using &sort when
++  I really wanted &sorta and friends...)
+ 
+ 2.0-b11
+ =======
+
+
+
+From rsmudge at berlios.de  Mon Jul 18 15:17:33 2005
+From: rsmudge at berlios.de (Raphael Mudge at BerliOS)
+Date: Mon, 18 Jul 2005 15:17:33 +0200
+Subject: [Sleep-svn] r46 - in sleep: . docs src/sleep/bridges src/sleep/runtime tests tests/output
+Message-ID: <200507181317.j6IDHX0C031723@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2005-07-18 15:17:15 +0200 (Mon, 18 Jul 2005)
+New Revision: 46
+
+Added:
+   sleep/tests/ftest.sl
+   sleep/tests/output/ftest.sl
+Modified:
+   sleep/docs/sleepguide.pdf
+   sleep/docs/sleeplang.pdf
+   sleep/src/sleep/bridges/BasicIO.java
+   sleep/src/sleep/runtime/SleepUtils.java
+   sleep/whatsnew.txt
+Log:
+Sleep 2.0
+
+
+Modified: sleep/docs/sleepguide.pdf
+===================================================================
+(Binary files differ)
+
+Modified: sleep/docs/sleeplang.pdf
+===================================================================
+(Binary files differ)
+
+Modified: sleep/src/sleep/bridges/BasicIO.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicIO.java	2005-07-18 08:07:37 UTC (rev 45)
++++ sleep/src/sleep/bridges/BasicIO.java	2005-07-18 13:17:15 UTC (rev 46)
+@@ -146,6 +146,14 @@
+           ScriptInstance child = i.fork();
+           child.installBlock(param.getRunnableCode());
+ 
++          ScriptVariables vars = child.getScriptVariables();
++
++          while (!l.isEmpty())
++          {
++             KeyValuePair kvp = BridgeUtilities.getKeyValuePair(l);
++             vars.putScalar(kvp.getKey().toString(), kvp.getValue());
++          }
++
+           // create a pipe between these two items...
+           IOObject parent_io = new IOObject();
+           IOObject child_io  = new IOObject();
+
+Modified: sleep/src/sleep/runtime/SleepUtils.java
+===================================================================
+--- sleep/src/sleep/runtime/SleepUtils.java	2005-07-18 08:07:37 UTC (rev 45)
++++ sleep/src/sleep/runtime/SleepUtils.java	2005-07-18 13:17:15 UTC (rev 46)
+@@ -49,10 +49,10 @@
+ public class SleepUtils
+ {
+    /** A date stamp of this Sleep release in YYYYMMDD format */
+-   public static final int    SLEEP_RELEASE = 20050718;
++   public static final int    SLEEP_RELEASE = 20050720;
+ 
+    /** A string description of this Sleep release */
+-   public static final String SLEEP_VERSION = "Sleep 2.0-stable";
++   public static final String SLEEP_VERSION = "Sleep 2.0";
+ 
+    /** registers "keyword" as a keyword with the parser.  This is a necessity if you have extra non standard
+      bridges in sleep */
+
+Added: sleep/tests/ftest.sl
+===================================================================
+--- sleep/tests/ftest.sl	2005-07-18 08:07:37 UTC (rev 45)
++++ sleep/tests/ftest.sl	2005-07-18 13:17:15 UTC (rev 46)
+@@ -0,0 +1,23 @@
++#
++# simple fork test..
++#
++
++$closure = {
++   $value = 0L;
++   for ($x = 0; $x < $initial; $x++)
++   {
++      $value = $value + long($x);
++   }
++
++   return $value;
++};
++
++$handle1 = fork($closure, $initial => 12348);
++$handle2 = fork($closure, $initial => 9000);
++$handle3 = fork($closure, $initial => 12345);
++$handle4 = fork($closure, $initial => 47857);
++
++println("Value 1 is: " . wait($handle1));
++println("Value 2 is: " . wait($handle2));
++println("Value 3 is: " . wait($handle3));
++println("Value 4 is: " . wait($handle4));
+
+Added: sleep/tests/output/ftest.sl
+===================================================================
+--- sleep/tests/output/ftest.sl	2005-07-18 08:07:37 UTC (rev 45)
++++ sleep/tests/output/ftest.sl	2005-07-18 13:17:15 UTC (rev 46)
+@@ -0,0 +1,4 @@
++Value 1 is: 76230378
++Value 2 is: 40495500
++Value 3 is: 76193340
++Value 4 is: 1145122296
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2005-07-18 08:07:37 UTC (rev 45)
++++ sleep/whatsnew.txt	2005-07-18 13:17:15 UTC (rev 46)
+@@ -24,6 +24,9 @@
+ - &sort now throws an IllegalArgumentException if not enough args
+   are specified (I've been bitten by accidentally using &sort when
+   I really wanted &sorta and friends...)
++- added the ability for fork(&closure, ...) to take an initial set
++  of values to pass to the forked script environment.  this feature
++  comes with a heavy warning, see the docs for more details
+ 
+ 2.0-b11
+ =======
+
+
+

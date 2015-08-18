@@ -1,0 +1,134 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r265 - in sleep: src/sleep/runtime tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2007-June/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r265%20-%20in%20sleep%3A%20src/sleep/runtime%20tests%20tests/output&In-Reply-To=%3C200706110231.l5B2VN6i024502%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000243.html">
+   <LINK REL="Next"  HREF="000245.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r265 - in sleep: src/sleep/runtime tests tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r265%20-%20in%20sleep%3A%20src/sleep/runtime%20tests%20tests/output&In-Reply-To=%3C200706110231.l5B2VN6i024502%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r265 - in sleep: src/sleep/runtime tests tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Mon Jun 11 04:31:23 CEST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000243.html">[Sleep-svn] r264 - in sleep: . src/sleep/bridges src/sleep/engine	src/sleep/engine/types src/sleep/runtime tests tests/output
+</A></li>
+        <LI>Next message: <A HREF="000245.html">[Sleep-svn] r266 - in sleep: . docs src/sleep/bridges	src/sleep/runtime
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#244">[ date ]</a>
+              <a href="thread.html#244">[ thread ]</a>
+              <a href="subject.html#244">[ subject ]</a>
+              <a href="author.html#244">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2007-06-11 04:31:22 +0200 (Mon, 11 Jun 2007)
+New Revision: 265
+
+Added:
+   sleep/tests/output/remove.sl
+   sleep/tests/remove.sl
+Modified:
+   sleep/src/sleep/runtime/SleepUtils.java
+Log:
+some changes to remove.
+
+
+
+Modified: sleep/src/sleep/runtime/SleepUtils.java
+===================================================================
+--- sleep/src/sleep/runtime/SleepUtils.java	2007-06-11 02:21:47 UTC (rev 264)
++++ sleep/src/sleep/runtime/SleepUtils.java	2007-06-11 02:31:22 UTC (rev 265)
+@@ -66,9 +66,12 @@
+             }
+             else if (value.getActualValue() != null &amp;&amp; next.getActualValue() != null)
+             {
+-               if (value.getActualValue().getClass() == ObjectValue.class &amp;&amp; value.getActualValue().getClass() == ObjectValue.class &amp;&amp; value.objectValue() == next.objectValue())
++               if (value.getActualValue().getClass() == ObjectValue.class || next.getActualValue().getClass() == ObjectValue.class) 
+                {
+-                  collection.remove(); /* two objects with matching references! */
++                  if (value.objectValue() == next.objectValue())
++                  {
++                     collection.remove(); /* two objects with matching references! */
++                  }
+                }
+                else if (value.getActualValue().toString().equals(next.getActualValue().toString()))
+                {
+
+Added: sleep/tests/output/remove.sl
+===================================================================
+--- sleep/tests/output/remove.sl	2007-06-11 02:21:47 UTC (rev 264)
++++ sleep/tests/output/remove.sl	2007-06-11 02:31:22 UTC (rev 265)
+@@ -0,0 +1,9 @@
++%(d =&gt; 1, a =&gt; 'Apple', c =&gt; 1.0, b =&gt; 'Bat', e =&gt; 1L)
++%(d =&gt; 1, a =&gt; 'Apple', c =&gt; 1.0, b =&gt; 'Bat', e =&gt; 1L)
++%(d =&gt; 1, c =&gt; 1.0, b =&gt; 'Bat', e =&gt; 1L)
++%(c =&gt; 1.0, b =&gt; 'Bat')
++[]
++[foo]
++%(blah =&gt; [foo], c =&gt; 1.0, b =&gt; 'Bat')
++With foo? %(blah =&gt; [foo], c =&gt; 1.0, b =&gt; 'Bat')
++No foo!: %(c =&gt; 1.0, b =&gt; 'Bat')
+
+Added: sleep/tests/remove.sl
+===================================================================
+--- sleep/tests/remove.sl	2007-06-11 02:21:47 UTC (rev 264)
++++ sleep/tests/remove.sl	2007-06-11 02:31:22 UTC (rev 265)
+@@ -0,0 +1,18 @@
++%d = %(a =&gt; &quot;Apple&quot;, b =&gt; &quot;Bat&quot;, c =&gt; 1.0, d =&gt; 1, e =&gt; 1L);
++println(%d);
++removeAt(%d, 1);
++println(%d);
++removeAt(%d, &quot;a&quot;);
++println(%d);
++remove(%d, 1);
++println(%d);
++$l = [new LinkedList];
++println($l);
++[$l add: &quot;foo&quot;];
++println($l);
++%d[&quot;blah&quot;] = $l;
++println(%d);
++remove(%d, &quot;[foo]&quot;);
++println(&quot;With foo? &quot; . %d);
++remove(%d, $l);
++println(&quot;No foo!: &quot; . %d);
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000243.html">[Sleep-svn] r264 - in sleep: . src/sleep/bridges src/sleep/engine	src/sleep/engine/types src/sleep/runtime tests tests/output
+</A></li>
+	<LI>Next message: <A HREF="000245.html">[Sleep-svn] r266 - in sleep: . docs src/sleep/bridges	src/sleep/runtime
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#244">[ date ]</a>
+              <a href="thread.html#244">[ thread ]</a>
+              <a href="subject.html#244">[ subject ]</a>
+              <a href="author.html#244">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

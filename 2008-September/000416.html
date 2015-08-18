@@ -1,0 +1,146 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r438 - in sleep: . src/sleep/engine/types tests	tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2008-September/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r438%20-%20in%20sleep%3A%20.%20src/sleep/engine/types%20tests%0A%09tests/output&In-Reply-To=%3C200809252038.m8PKcZQL027221%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000415.html">
+   <LINK REL="Next"  HREF="000417.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r438 - in sleep: . src/sleep/engine/types tests	tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r438%20-%20in%20sleep%3A%20.%20src/sleep/engine/types%20tests%0A%09tests/output&In-Reply-To=%3C200809252038.m8PKcZQL027221%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r438 - in sleep: . src/sleep/engine/types tests	tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Thu Sep 25 22:38:35 CEST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000415.html">[Sleep-svn] r437 - in sleep: . src/sleep/bridges	src/sleep/engine/types src/sleep/parser tests tests/output
+</A></li>
+        <LI>Next message: <A HREF="000417.html">[Sleep-svn] r439 - in sleep: . src/sleep/engine	src/sleep/engine/atoms src/sleep/runtime tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#416">[ date ]</a>
+              <a href="thread.html#416">[ thread ]</a>
+              <a href="subject.html#416">[ subject ]</a>
+              <a href="author.html#416">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2008-09-25 22:38:34 +0200 (Thu, 25 Sep 2008)
+New Revision: 438
+
+Added:
+   sleep/tests/output/serohash.sl
+   sleep/tests/serohash.sl
+Modified:
+   sleep/src/sleep/engine/types/OrderedHashContainer.java
+   sleep/whatsnew.txt
+Log:
+fixed a bug with serialized ordered hashes.
+
+
+
+Modified: sleep/src/sleep/engine/types/OrderedHashContainer.java
+===================================================================
+--- sleep/src/sleep/engine/types/OrderedHashContainer.java	2008-09-25 20:26:37 UTC (rev 437)
++++ sleep/src/sleep/engine/types/OrderedHashContainer.java	2008-09-25 20:38:34 UTC (rev 438)
+@@ -33,10 +33,10 @@
+    }
+ 
+    /** policy function for what to do when a miss occurs */
+-   protected SleepClosure missPolicy;
++   protected transient SleepClosure missPolicy;
+ 
+    /** policy function for what to do when a hit occurs */
+-   protected SleepClosure removalPolicy;
++   protected transient SleepClosure removalPolicy;
+ 
+    /** set the removal policy for this hash (decides if an entry should be removed or not */
+    public void setRemovalPolicy(SleepClosure policy)
+
+Added: sleep/tests/output/serohash.sl
+===================================================================
+--- sleep/tests/output/serohash.sl	2008-09-25 20:26:37 UTC (rev 437)
++++ sleep/tests/output/serohash.sl	2008-09-25 20:38:34 UTC (rev 438)
+@@ -0,0 +1,7 @@
++Warning: Miss policy called at serohash.sl:2
++Warning: Removal policy called at serohash.sl:3
++Warning: Miss policy called at serohash.sl:2
++Warning: Removal policy called at serohash.sl:3
++201527, 201527
++%(b =&gt; 201527, a =&gt; 201527)
++%(b =&gt; 201527, a =&gt; 201527, xx =&gt; '33')
+
+Added: sleep/tests/serohash.sl
+===================================================================
+--- sleep/tests/serohash.sl	2008-09-25 20:26:37 UTC (rev 437)
++++ sleep/tests/serohash.sl	2008-09-25 20:38:34 UTC (rev 438)
+@@ -0,0 +1,14 @@
++%ohash = ohash();
++setMissPolicy(%ohash, { warn(&quot;Miss policy called&quot;); return 0x31337; });
++setRemovalPolicy(%ohash, { warn(&quot;Removal policy called&quot;); return 0; });
++
++println(%ohash[&quot;a&quot;] . ', ' . %ohash[&quot;b&quot;]);
++
++$buffer = allocate();
++writeObject($buffer, %ohash);
++closef($buffer);
++
++$hash = readObject($buffer);
++println($hash);
++$hash[&quot;xx&quot;] = &quot;33&quot;;
++println($hash);
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2008-09-25 20:26:37 UTC (rev 437)
++++ sleep/whatsnew.txt	2008-09-25 20:38:34 UTC (rev 438)
+@@ -10,7 +10,13 @@
+ - ordered hash now makes a copy of value returned by miss policy.  This
+   prevents a situation where all members of a hash share reference to same
+   default value (and are thus changeable in place).
++- ohash now longer serializes miss and removal policies.  be warned when
++  you deserialize these hashes you'll want to readd the policy functions
+ 
++  [previous behavior resulted in a null error and corrupted the Sleep
++  stack, so if this affected you, you already knew and weren't happy with
++  with it].
++
+ 2.1-release  (7 Aug 08) [update 2.5]
+ ===========
+ - made a sanity check with inline function execution to keep jIRCii
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000415.html">[Sleep-svn] r437 - in sleep: . src/sleep/bridges	src/sleep/engine/types src/sleep/parser tests tests/output
+</A></li>
+	<LI>Next message: <A HREF="000417.html">[Sleep-svn] r439 - in sleep: . src/sleep/engine	src/sleep/engine/atoms src/sleep/runtime tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#416">[ date ]</a>
+              <a href="thread.html#416">[ thread ]</a>
+              <a href="subject.html#416">[ subject ]</a>
+              <a href="author.html#416">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

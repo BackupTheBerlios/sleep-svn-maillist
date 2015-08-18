@@ -1,0 +1,138 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r78 - sleep/docs
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2006-June/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r78%20-%20sleep/docs&In-Reply-To=%3C200606171715.k5HHFkVm020954%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000059.html">
+   <LINK REL="Next"  HREF="000061.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r78 - sleep/docs</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r78%20-%20sleep/docs&In-Reply-To=%3C200606171715.k5HHFkVm020954%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r78 - sleep/docs">rsmudge at berlios.de
+       </A><BR>
+    <I>Sat Jun 17 19:15:46 CEST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000059.html">[Sleep-svn] r77 - in sleep: docs src/sleep/bridges src/sleep/bridges/io
+</A></li>
+        <LI>Next message: <A HREF="000061.html">[Sleep-svn] r79 - in sleep: . src/sleep/console src/sleep/engine src/sleep/runtime tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#60">[ date ]</a>
+              <a href="thread.html#60">[ thread ]</a>
+              <a href="subject.html#60">[ subject ]</a>
+              <a href="author.html#60">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2006-06-17 19:15:45 +0200 (Sat, 17 Jun 2006)
+New Revision: 78
+
+Modified:
+   sleep/docs/sleeplang.html
+Log:
+Documented all of those functions I've been adding... whee...
+
+
+
+Modified: sleep/docs/sleeplang.html
+===================================================================
+--- sleep/docs/sleeplang.html	2006-06-17 07:29:51 UTC (rev 77)
++++ sleep/docs/sleeplang.html	2006-06-17 17:15:45 UTC (rev 78)
+@@ -1592,6 +1592,11 @@
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td&gt;@&lt;/td&gt;
++  &lt;td&gt;filter(&amp;closure, @array)&lt;/td&gt;
++  &lt;td&gt;Evaluates the specified closure against each element of @array.  Each non-null value returned by &amp;closure is collected into an array that is returned by the filter() call.&lt;/td&gt;
++ &lt;/tr&gt;
++ &lt;tr&gt;
++  &lt;td&gt;@&lt;/td&gt;
+   &lt;td&gt;flatten(@array)&lt;/td&gt;
+   &lt;td&gt;returns a copy of a multidimensional(?) @array flattened into a one dimensional array&lt;/td&gt;
+  &lt;/tr&gt;
+@@ -1611,6 +1616,11 @@
+   &lt;td&gt;pushes $scalar arguments on to the top of @array&lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
++  &lt;td&gt;@&lt;/td&gt;
++  &lt;td&gt;reduce(@array, &amp;closure)&lt;/td&gt;
++  &lt;td&gt;I probably should have learned from python and not added this but here it is anyways.  Applies &amp;closure to first two elements of @array.  Takes the resulting value and applies it to the next element of @array, so on and so forth.  Returns one value.&lt;/td&gt;
++ &lt;/tr&gt;
++ &lt;tr&gt;
+   &lt;td&gt;&lt;/td&gt;
+   &lt;td&gt;remove(@array, $scalar, ...)&lt;/td&gt;
+   &lt;td&gt;removes each specified $scalar from @array.  if no parameters are passed the active element in the current foreach loop is removed.&lt;/td&gt;
+@@ -1626,6 +1636,11 @@
+   &lt;td&gt;returns a copy of @array in reverse order&lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
++  &lt;td&gt;@&lt;/td&gt;
++  &lt;td&gt;search(@array, &amp;closure, [index])&lt;/td&gt;
++  &lt;td&gt;Applies &amp;closure to each element of @array (beginning with the specified index).  Returns the first non-null return value of &amp;closure.&lt;/td&gt;
++ &lt;/tr&gt;
++ &lt;tr&gt;
+   &lt;td&gt;$&lt;/td&gt;
+   &lt;td&gt;shift(@array)&lt;/td&gt;
+   &lt;td&gt;removes the first element from @array and returns it.&lt;/td&gt;
+@@ -2202,6 +2217,11 @@
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td&gt;$&lt;/td&gt;
++  &lt;td&gt;mid(&quot;string&quot;, start, n)&lt;/td&gt;
++  &lt;td&gt;returns a substring of the specified &quot;string&quot; starting from the start index followed by the next n chars&lt;/td&gt;
++ &lt;/tr&gt;
++ &lt;tr&gt;
++  &lt;td&gt;$&lt;/td&gt;
+   &lt;td&gt;replace(&quot;string&quot;, 'pattern', &quot;new&quot;, [n])&lt;/td&gt;
+   &lt;td&gt;splits &quot;string&quot; by regex 'pattern' in &quot;string&quot; and joins it with specified &quot;new&quot; value.  will replace up to n occurences. 
+   within the &quot;new&quot; string remembered patterns can be expanded with the literal $1, $2, etc.  These are literal characters  
+@@ -2209,6 +2229,12 @@
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td&gt;$&lt;/td&gt;
++  &lt;td&gt;replaceAt(&quot;string&quot;, &quot;new&quot;, index, [n])&lt;/td&gt;
++  &lt;td&gt;removes n characters from the specified index (or just len of the new string if n isn't
++      specified) then inserts the new string into the specified index.&lt;/td&gt;
++ &lt;/tr&gt;
++ &lt;tr&gt;
++  &lt;td&gt;$&lt;/td&gt;
+   &lt;td&gt;right(&quot;string&quot;, n)&lt;/td&gt;
+   &lt;td&gt;returns the right most n characters of &quot;string'&lt;/td&gt;
+  &lt;/tr&gt;
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000059.html">[Sleep-svn] r77 - in sleep: docs src/sleep/bridges src/sleep/bridges/io
+</A></li>
+	<LI>Next message: <A HREF="000061.html">[Sleep-svn] r79 - in sleep: . src/sleep/console src/sleep/engine src/sleep/runtime tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#60">[ date ]</a>
+              <a href="thread.html#60">[ thread ]</a>
+              <a href="subject.html#60">[ subject ]</a>
+              <a href="author.html#60">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

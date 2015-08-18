@@ -1,0 +1,182 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r386 - in sleep: . src/sleep/bridges
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2008-May/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r386%20-%20in%20sleep%3A%20.%20src/sleep/bridges&In-Reply-To=%3C200805290743.m4T7hJEG012478%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000361.html">
+   <LINK REL="Next"  HREF="000363.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r386 - in sleep: . src/sleep/bridges</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r386%20-%20in%20sleep%3A%20.%20src/sleep/bridges&In-Reply-To=%3C200805290743.m4T7hJEG012478%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r386 - in sleep: . src/sleep/bridges">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Thu May 29 09:43:19 CEST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000361.html">[Sleep-svn] r385 - in sleep: . docs src/sleep/engine	src/sleep/engine/atoms src/sleep/engine/types tests tests/output
+</A></li>
+        <LI>Next message: <A HREF="000363.html">[Sleep-svn] r387 - in sleep: src/sleep/engine/types tests	tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#362">[ date ]</a>
+              <a href="thread.html#362">[ thread ]</a>
+              <a href="subject.html#362">[ subject ]</a>
+              <a href="author.html#362">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2008-05-29 09:43:19 +0200 (Thu, 29 May 2008)
+New Revision: 386
+
+Modified:
+   sleep/runtests.sl
+   sleep/src/sleep/bridges/RegexBridge.java
+   sleep/whatsnew.txt
+Log:
+fixed hasmatch memory leak
+
+
+Modified: sleep/runtests.sl
+===================================================================
+--- sleep/runtests.sl	2008-05-29 04:38:57 UTC (rev 385)
++++ sleep/runtests.sl	2008-05-29 07:43:19 UTC (rev 386)
+@@ -96,7 +96,7 @@
+    $1 = replace($1, '(\&amp;closure\[.*?\]\#)\d+', '$1X');
+    $1 = replace($1, '/Users/raffi/sleepdev/sleep', '==CWD==');
+    $1 = replace($1, getFileParent(cwd()), '==CWD==');
+-   $1 = replace($1, '([\.\[][a-zA-Z_0-9;]+@)[0-9a-f]{5,6}', '$1######');
++   $1 = replace($1, '([\.\[][a-zA-Z_0-9;]+@)[0-9a-f]{4,6}', '$1######');
+    $1 = replace($1, '\$Proxy\d+?', '\$Proxy#');
+    return $1;
+ }
+
+Modified: sleep/src/sleep/bridges/RegexBridge.java
+===================================================================
+--- sleep/src/sleep/bridges/RegexBridge.java	2008-05-29 04:38:57 UTC (rev 385)
++++ sleep/src/sleep/bridges/RegexBridge.java	2008-05-29 07:43:19 UTC (rev 386)
+@@ -38,7 +38,23 @@
+ /** Provides a bridge between Java's regex API and sleep.  Rock on */
+ public class RegexBridge implements Loadable
+ {
+-    private static Map patternCache = Collections.synchronizedMap(new HashMap());
++    private static Map patternCache = Collections.synchronizedMap(new Cache(128));
++
++    private static class Cache extends LinkedHashMap
++    {
++       protected int count;
++
++       public Cache(int count)
++       {
++          super(11, 0.75f, true);
++          this.count = count;
++       }
++
++       protected boolean removeEldestEntry(Map.Entry eldest)
++       {
++          return (size() &gt;= count);
++       }
++    }
+  
+     static
+     {
+@@ -56,11 +72,6 @@
+        }
+        else
+        {
+-          if (patternCache.size() &gt; 1024)
+-          {
+-             patternCache.clear(); /* ensure the pattern cache is flushed once in awhile */
+-          }
+-     
+           temp = Pattern.compile(pattern);
+           patternCache.put(pattern, temp);
+ 
+@@ -135,12 +146,22 @@
+     /** a helper utility to get the matcher out of the script environment */
+     private static Scalar getMatcher(ScriptEnvironment env, String key, String text, Pattern p)
+     {
+-       Scalar temp = (Scalar)env.getContextMetadata(key);
++       Map matchers = (Map)env.getContextMetadata(&quot;matchers&quot;);
+ 
++       if (matchers == null)
++       {
++          matchers = new Cache(16);
++          env.setContextMetadata(&quot;matchers&quot;, matchers);
++       }       
++
++       /* get our value */
++
++       Scalar temp = (Scalar)matchers.get(key);
++
+        if (temp == null)
+        {
+           temp = SleepUtils.getScalar(p.matcher(text));
+-          env.setContextMetadata(key, temp);
++          matchers.put(key, temp);
+           return temp;
+        }
+        else
+@@ -175,7 +196,8 @@
+ 
+               if (!rv)
+               {
+-                 i.getScriptEnvironment().setContextMetadata(key, null);
++                 Map matchers = (Map)i.getScriptEnvironment().getContextMetadata(&quot;matchers&quot;);
++                 if (matchers != null) { matchers.remove(key); }
+               }
+           }
+           else
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2008-05-29 04:38:57 UTC (rev 385)
++++ sleep/whatsnew.txt	2008-05-29 07:43:19 UTC (rev 386)
+@@ -15,6 +15,12 @@
+   thrown by Java
+ - foreach loops now break if a ConcurrentModificationException
+   is thrown.
++- reimplemented regex pattern and hasmatch state cacheing to 
++  prevent memory leaks.  Sleep will cache 128 patterns globally 
++  and up to 16 hasmatch contexts per closure.  Remember that 
++  hasmatch will remove its state after returning false.  These
++  measures are in place to help prevent runaway uses of 
++  hasmatch from eating all of the memory.
+ 
+ 2.1-beta 26  (15 May 08)
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000361.html">[Sleep-svn] r385 - in sleep: . docs src/sleep/engine	src/sleep/engine/atoms src/sleep/engine/types tests tests/output
+</A></li>
+	<LI>Next message: <A HREF="000363.html">[Sleep-svn] r387 - in sleep: src/sleep/engine/types tests	tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#362">[ date ]</a>
+              <a href="thread.html#362">[ thread ]</a>
+              <a href="subject.html#362">[ subject ]</a>
+              <a href="author.html#362">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

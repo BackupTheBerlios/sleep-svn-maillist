@@ -1,0 +1,335 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r377 - in sleep: . src/sleep/bridges src/sleep/console	src/sleep/runtime
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2008-May/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r377%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20src/sleep/console%0A%09src/sleep/runtime&In-Reply-To=%3C200805151610.m4FGAcb0020864%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000352.html">
+   <LINK REL="Next"  HREF="000354.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r377 - in sleep: . src/sleep/bridges src/sleep/console	src/sleep/runtime</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r377%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20src/sleep/console%0A%09src/sleep/runtime&In-Reply-To=%3C200805151610.m4FGAcb0020864%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r377 - in sleep: . src/sleep/bridges src/sleep/console	src/sleep/runtime">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Thu May 15 18:10:38 CEST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000352.html">[Sleep-svn] r376 - in sleep/jsr223: . src/org/dashnine/sleep
+</A></li>
+        <LI>Next message: <A HREF="000354.html">[Sleep-svn] r378 - in sleep: . src/sleep/bridges tests
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#353">[ date ]</a>
+              <a href="thread.html#353">[ thread ]</a>
+              <a href="subject.html#353">[ subject ]</a>
+              <a href="author.html#353">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2008-05-15 18:10:37 +0200 (Thu, 15 May 2008)
+New Revision: 377
+
+Modified:
+   sleep/src/sleep/bridges/BasicUtilities.java
+   sleep/src/sleep/console/ConsoleImplementation.java
+   sleep/src/sleep/runtime/ScriptLoader.java
+   sleep/whatsnew.txt
+Log:
+changes to how the script loader handles cached files
+
+
+Modified: sleep/src/sleep/bridges/BasicUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicUtilities.java	2008-05-15 04:50:24 UTC (rev 376)
++++ sleep/src/sleep/bridges/BasicUtilities.java	2008-05-15 16:10:37 UTC (rev 377)
+@@ -351,11 +351,16 @@
+                 if (parent != null)
+                 {
+                    URLClassLoader loader = new URLClassLoader(new URL[] { parent.toURL() });
++                   sloader.touch(className, parent.isDirectory() ? new File(parent, className).lastModified() : parent.lastModified());
++
+                    istream = loader.getResourceAsStream(className);
+                 }
+                 else
+                 {
+-                   istream = new FileInputStream(BridgeUtilities.toSleepFile(className, si));
++                   File tempf = BridgeUtilities.toSleepFile(className, si);
++                   sloader.touch(className, tempf.lastModified());
++
++                   istream = new FileInputStream(tempf);
+                 }
+ 
+                 if (istream != null)
+
+Modified: sleep/src/sleep/console/ConsoleImplementation.java
+===================================================================
+--- sleep/src/sleep/console/ConsoleImplementation.java	2008-05-15 04:50:24 UTC (rev 376)
++++ sleep/src/sleep/console/ConsoleImplementation.java	2008-05-15 16:10:37 UTC (rev 377)
+@@ -471,7 +471,7 @@
+        }
+        else
+        {
+-          HashMap temp = loader.getScriptsByKey();
++          Map temp = loader.getScriptsByKey();
+ 
+           if (temp.get(getFullScript(item)) != null)
+           {
+@@ -493,7 +493,7 @@
+        }
+        else
+        {
+-          HashMap temp = loader.getScriptsByKey();
++          Map temp = loader.getScriptsByKey();
+ 
+           if (temp.get(getFullScript(item)) != null)
+           {
+
+Modified: sleep/src/sleep/runtime/ScriptLoader.java
+===================================================================
+--- sleep/src/sleep/runtime/ScriptLoader.java	2008-05-15 04:50:24 UTC (rev 376)
++++ sleep/src/sleep/runtime/ScriptLoader.java	2008-05-15 16:10:37 UTC (rev 377)
+@@ -92,8 +92,39 @@
+     /**
+      * cache for parsed scripts mantained (optionally) by the script loader.
+      */
+-    protected static HashMap BLOCK_CACHE = null;
++    protected static Map BLOCK_CACHE = null;
+ 
++    private Block retrieveCacheEntry(String name)
++    {
++       if (BLOCK_CACHE != null &amp;&amp; BLOCK_CACHE.containsKey(name))
++       {
++          Object[] temp = (Object[])BLOCK_CACHE.get(name);
++          return (Block)temp[0];
++       }
++
++       return null;
++    }
++
++    private static boolean isCacheHit(String name)
++    {
++       return BLOCK_CACHE != null &amp;&amp; BLOCK_CACHE.containsKey(name);
++    }
++
++    /** nudge the cache with the last modified time of the specified script.  this call will delete the script from the cache if the lastModifiedTime &gt; lastLoadTime */
++    public void touch(String name, long lastModifiedTime)
++    {
++       if (BLOCK_CACHE != null &amp;&amp; BLOCK_CACHE.containsKey(name))
++       {
++          Object[] temp   = (Object[])BLOCK_CACHE.get(name);
++          long     loaded = ((Long)temp[1]).longValue();
++
++          if (lastModifiedTime &gt; loaded)
++          {
++             BLOCK_CACHE.remove(name);
++          }
++       }
++    }
++
+     /**
+      * loaded scripts
+      */
+@@ -102,7 +133,7 @@
+     /**
+      * loaded scripts except referable by key
+      */
+-    protected HashMap scripts;
++    protected Map scripts;
+ 
+     /**
+      * global bridges
+@@ -136,10 +167,10 @@
+      * The Sleep script loader can optionally cache parsed script files once they are loaded.  This is useful if you will have
+      * several script loader instances loading the same script files in isolated objects.
+      */
+-    public HashMap setGlobalCache(boolean setting)
++    public Map setGlobalCache(boolean setting)
+     {
+         if (setting &amp;&amp; BLOCK_CACHE == null)
+-            BLOCK_CACHE = new HashMap();
++            BLOCK_CACHE = Collections.synchronizedMap(new HashMap());
+ 
+         if (!setting)
+             BLOCK_CACHE = null;
+@@ -187,7 +218,7 @@
+      * Returns a HashMap with all loaded scripts, the key is a string which is just the filename, the value is a ScriptInstance
+      * object
+      */
+-    public HashMap getScriptsByKey()
++    public Map getScriptsByKey()
+     {
+         return scripts;
+     }
+@@ -205,7 +236,8 @@
+      */
+     public ScriptEnvironment getFirstScriptEnvironment()
+     {
+-        if (loadedScripts.size() &gt; 0) {
++        if (loadedScripts.size() &gt; 0) 
++        {
+             ScriptInstance si = (ScriptInstance) loadedScripts.getFirst();
+             return si.getScriptEnvironment();
+         }
+@@ -230,14 +262,17 @@
+         si.setName(name);
+ 
+         Iterator i = bridgess.iterator();
+-        while (i.hasNext()) {
++        while (i.hasNext()) 
++        {
+             ((Loadable) i.next()).scriptLoaded(si);
+         }
+ 
+         // load the &quot;global&quot; bridges iff they need to be loaded again...
+-        if (si.getScriptEnvironment().getEnvironment().get(&quot;(isloaded)&quot;) != this) {
++        if (si.getScriptEnvironment().getEnvironment().get(&quot;(isloaded)&quot;) != this) 
++        {
+             i = bridgesg.iterator();
+-            while (i.hasNext()) {
++            while (i.hasNext()) 
++            {
+                 ((Loadable) i.next()).scriptLoaded(si);
+             }
+             si.getScriptEnvironment().getEnvironment().put(&quot;(isloaded)&quot;, this);
+@@ -263,7 +298,8 @@
+     {
+         File bin = new File(script.getAbsolutePath() + &quot;.bin&quot;);
+ 
+-        if (bin.exists() &amp;&amp; (!script.exists() || script.lastModified() &lt; bin.lastModified())) {
++        if (bin.exists() &amp;&amp; (!script.exists() || script.lastModified() &lt; bin.lastModified())) 
++        {
+             return loadSerialized(script.getName(), new FileInputStream(bin), env);
+         }
+ 
+@@ -307,11 +343,6 @@
+         return si;
+     }
+ 
+-    private static boolean isCacheHit(String name)
+-    {
+-        return BLOCK_CACHE != null &amp;&amp; BLOCK_CACHE.containsKey(name);
+-    }
+-
+     /** loads the specified script */
+     public ScriptInstance loadScript(String name, String code, Hashtable env) throws YourCodeSucksException
+     {
+@@ -321,16 +352,18 @@
+     /** compiles a script using the specified stream as a source */
+     public Block compileScript(String name, InputStream stream) throws YourCodeSucksException, IOException
+     {
+-        if (isCacheHit(name)) {
++        if (isCacheHit(name)) 
++        {
+             stream.close();
+-            return compileScript(name, &quot;&quot;);
++            return retrieveCacheEntry(name);
+         }
+ 
+-        StringBuffer code = new StringBuffer(&quot;&quot;);
++        StringBuffer code = new StringBuffer();
+ 
+         BufferedReader in = new BufferedReader(getInputStreamReader(stream));
+         String s = in.readLine();
+-        while (s != null) {
++        while (s != null) 
++        {
+             code.append(&quot;\n&quot;);
+             code.append(s);
+             s = in.readLine();
+@@ -347,6 +380,7 @@
+      */
+     public Block compileScript(File file) throws IOException, YourCodeSucksException
+     {
++        touch(file.getAbsolutePath(), file.lastModified());
+         return compileScript(file.getAbsolutePath(), new FileInputStream(file));
+     }
+ 
+@@ -363,8 +397,7 @@
+     {
+         if (isCacheHit(name)) 
+         {
+-            //System.out.println(&quot;BLOCK CACHE HIT FOR: &quot; + name);
+-            return (Block) BLOCK_CACHE.get(name);
++            return retrieveCacheEntry(name);
+         } 
+         else 
+         {
+@@ -378,7 +411,9 @@
+             temp.parse();
+ 
+             if (BLOCK_CACHE != null)
+-                BLOCK_CACHE.put(name, temp.getRunnableBlock());
++            {
++                BLOCK_CACHE.put(name, new Object[] { temp.getRunnableBlock(), new Long(System.currentTimeMillis()) });
++            }
+ 
+             return temp.getRunnableBlock();
+         }
+@@ -442,10 +477,9 @@
+     public void unloadScript(ScriptInstance script)
+     {
+         // clear the block cache of this script...
+-        if (BLOCK_CACHE != null) {
+-            //System.out.println(&quot;Removing: &quot; + script.getName() + &quot; from BLOCK_CACHE&quot;);
+-            //BLOCK_CACHE.remove(script.getName());
+-            BLOCK_CACHE.clear();
++        if (BLOCK_CACHE != null) 
++        {
++            BLOCK_CACHE.remove(script.getName());
+         }
+ 
+         //
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2008-05-15 04:50:24 UTC (rev 376)
++++ sleep/whatsnew.txt	2008-05-15 16:10:37 UTC (rev 377)
+@@ -47,7 +47,12 @@
+ - added JSR223/javax.script API support.  sleep.jar is now a 
+   service provider for this API.  See jsr223/readme-jsr223.txt
+   for more information.
+-  
++- Reworked the ScriptLoader compiled code cache.  It works mostly
++  as before except now an unloaded script will not delete the 
++  entire cache.  This was put in place to account for &amp;include'd
++  scripts.  Now &amp;include validates its last modified timestamp
++  with the ScriptLoader prior to (re)loading.  
++   
+ 2.1-beta 25  (8 May 08) [will this beta process ever end?]
+ ===========
+ - added &amp;chdir() to change the current working directory of the
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000352.html">[Sleep-svn] r376 - in sleep/jsr223: . src/org/dashnine/sleep
+</A></li>
+	<LI>Next message: <A HREF="000354.html">[Sleep-svn] r378 - in sleep: . src/sleep/bridges tests
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#353">[ date ]</a>
+              <a href="thread.html#353">[ thread ]</a>
+              <a href="subject.html#353">[ subject ]</a>
+              <a href="author.html#353">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

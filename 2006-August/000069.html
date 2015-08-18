@@ -1,0 +1,564 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r87 - in sleep: . docs src/sleep/console	src/sleep/error src/sleep/parser src/sleep/runtime tests	tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2006-August/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r87%20-%20in%20sleep%3A%20.%20docs%20src/sleep/console%0A%09src/sleep/error%20src/sleep/parser%20src/sleep/runtime%20tests%0A%09tests/output&In-Reply-To=%3C200608060007.k7607fpH020924%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000068.html">
+   <LINK REL="Next"  HREF="000070.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r87 - in sleep: . docs src/sleep/console	src/sleep/error src/sleep/parser src/sleep/runtime tests	tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r87%20-%20in%20sleep%3A%20.%20docs%20src/sleep/console%0A%09src/sleep/error%20src/sleep/parser%20src/sleep/runtime%20tests%0A%09tests/output&In-Reply-To=%3C200608060007.k7607fpH020924%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r87 - in sleep: . docs src/sleep/console	src/sleep/error src/sleep/parser src/sleep/runtime tests	tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Sun Aug  6 02:07:41 CEST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000068.html">[Sleep-svn] r86 - in sleep: . docs src/sleep/bridges	src/sleep/bridges/io
+</A></li>
+        <LI>Next message: <A HREF="000070.html">[Sleep-svn] r88 - sleep
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#69">[ date ]</a>
+              <a href="thread.html#69">[ thread ]</a>
+              <a href="subject.html#69">[ subject ]</a>
+              <a href="author.html#69">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2006-08-06 02:07:11 +0200 (Sun, 06 Aug 2006)
+New Revision: 87
+
+Added:
+   sleep/tests/output/while2.sl
+   sleep/tests/while2.sl
+Modified:
+   sleep/docs/sleeplang.html
+   sleep/src/sleep/console/ConsoleImplementation.java
+   sleep/src/sleep/error/YourCodeSucksException.java
+   sleep/src/sleep/parser/Checkers.java
+   sleep/src/sleep/parser/CodeGenerator.java
+   sleep/src/sleep/parser/ParserConstants.java
+   sleep/src/sleep/parser/TokenParser.java
+   sleep/src/sleep/runtime/ScriptEnvironment.java
+   sleep/whatsnew.txt
+Log:
+added assignment loops by extending the potential syntax for while loops.
+
+
+
+Modified: sleep/docs/sleeplang.html
+===================================================================
+--- sleep/docs/sleeplang.html	2006-08-05 05:20:58 UTC (rev 86)
++++ sleep/docs/sleeplang.html	2006-08-06 00:07:11 UTC (rev 87)
+@@ -455,6 +455,30 @@
+ 
+ &lt;pre&gt;for ($x = 0; $x &lt; 100; $x = $x + 1) { }&lt;/pre&gt;
+ 
++&lt;h3&gt;Assignment Loops&lt;/h3&gt;
++
++&lt;p&gt;While loops can be used in another way.  Namely to assign the results of an expression to a scalar and then execute
++a series of commands while the specified expression does not evaluate to $null.&lt;/p&gt;
++
++&lt;p&gt;The syntax for these assignment loops looks like:&lt;/p&gt;
++
++&lt;pre&gt;while &lt;b&gt;$variable&lt;/b&gt; (&lt;b&gt;expression&lt;/b&gt;) { &lt;b&gt;commands&lt;/b&gt; }&lt;/pre&gt;
++
++&lt;p&gt;This form of a while loop has numerous uses including easily reading from a file.  For example:&lt;/p&gt;
++
++&lt;pre&gt;$handle = openf(&quot;myfile.txt&quot;);
++while $text (readln($handle))
++{
++   println(&quot;Read a line of text from myfile.txt: $text&quot;);
++}&lt;/pre&gt;
++
++&lt;p&gt;In the example above, myfile.txt is opened and the handle is assigned to $handle.  readln is then continuously called
++on $handle and the result assigned to $text.  Each time this happens the print function in the body of the loop is called.
++When there is no more text to be read the function readln returns $null.  When this happens the loop finishes.&lt;/p&gt;
++
++&lt;p&gt;Assignment loops are used to iterate over any type of expression where as foreach loops are used to iterate over any
++type of collection of date.  The assignment loop is the flexible cousin of the foreach loop.&lt;/p&gt;
++
+ &lt;h3&gt;The Break Command&lt;/h3&gt;
+ 
+ &lt;p&gt;Sometimes you may want to end a loop before it has completed.  An easy way to do this is with the break command.&lt;/p&gt;
+@@ -683,6 +707,9 @@
+ &lt;p&gt;The current element of a foreach loop can be removed by calling &lt;code&gt;remove()&lt;/code&gt; with no parameters.  This only works 
+ when iterating over an &lt;var&gt;@array&lt;/var&gt;.&lt;/p&gt;
+ 
++&lt;p&gt;Foreach loops can also iterate over closures.  This use of foreach loops is described when closures and coroutines are
++described in the &lt;a href=&quot;#10a&quot;&gt;closures section&lt;/a&gt;.&lt;/p&gt;
++
+ &lt;h3&gt;Arrays as Stacks&lt;/h3&gt;
+ 
+ &lt;p&gt;A stack is a data structure that has a push and pop operation.  Push puts data on top of the stack.  Pop takes data off the 
+@@ -1549,6 +1576,10 @@
+ Value is 998
+ Value is 999&lt;/pre&gt;
+ 
++&lt;p&gt;This use of foreach is a limited version of the assignment loops using the extended while syntax.  Assignment loops
++evaluate an expression each iteration of a loop where as foreach is iterating over a closure reference.  The difference is
++pretty much in the implementation, the end result is the same.&lt;/p&gt;
++
+ &lt;a name=&quot;11&quot;&gt;&lt;h2&gt;Function Library&lt;/h2&gt;&lt;/a&gt;
+ 
+ &lt;p&gt;This appendix is a list of the application neutral built-in functions for sleep.  I expect this list to grow as time goes on.  
+
+Modified: sleep/src/sleep/console/ConsoleImplementation.java
+===================================================================
+--- sleep/src/sleep/console/ConsoleImplementation.java	2006-08-05 05:20:58 UTC (rev 86)
++++ sleep/src/sleep/console/ConsoleImplementation.java	2006-08-06 00:07:11 UTC (rev 87)
+@@ -409,17 +409,7 @@
+    /** a convienence method that formats and writes each syntax error to the proxy output */
+    public void processScriptErrors(YourCodeSucksException ex)
+    {
+-      LinkedList errors = ex.getErrors();
+-      Iterator i = errors.iterator();
+-      while (i.hasNext())
+-      {
+-         SyntaxError anError = (SyntaxError)i.next();
+-         getProxy().consolePrintln(&quot;Error: &quot; + anError.getDescription() + &quot; at line &quot; + anError.getLineNumber());
+-         getProxy().consolePrintln(&quot;       &quot; + anError.getCodeSnippet());
+-                         
+-         if (anError.getMarker() != null)
+-           getProxy().consolePrintln(&quot;       &quot; + anError.getMarker());
+-      }
++      getProxy().consolePrint(ex.formatErrors());
+    }
+ 
+    public void processScriptWarning(ScriptWarning warning)
+
+Modified: sleep/src/sleep/error/YourCodeSucksException.java
+===================================================================
+--- sleep/src/sleep/error/YourCodeSucksException.java	2006-08-05 05:20:58 UTC (rev 86)
++++ sleep/src/sleep/error/YourCodeSucksException.java	2006-08-06 00:07:11 UTC (rev 87)
+@@ -17,6 +17,7 @@
+ package sleep.error;
+ 
+ import java.util.*;
++import java.io.*;
+ 
+ /**
+  * Syntax errors are a reality of programming.  Any time a syntax error occurs when attempting to load a script the 
+@@ -76,12 +77,40 @@
+        return buf.toString();
+     }
+ 
+-    /** Returns a string representation of the errors within this exception */
++    /** Returns a simple string representation of the errors within this exception */
+     public String toString()
+     {
+        return &quot;YourCodeSucksException: &quot; + getMessage();
+     }
+ 
++    /** print a nicely formatted version of the script errors to the specified stream */
++    public void printErrors(OutputStream out)
++    {
++       PrintWriter pout = new PrintWriter(out);
++       pout.print(formatErrors());
++       pout.flush();
++    }
++
++    /** generate a nicely formatted string representation of the script errors in this exception */
++    public String formatErrors()
++    {
++       StringBuffer representation = new StringBuffer();
++
++       LinkedList errors = getErrors();
++       Iterator i = errors.iterator();
++       while (i.hasNext())
++       {
++           SyntaxError anError = (SyntaxError)i.next();
++           representation.append(&quot;Error: &quot; + anError.getDescription() + &quot; at line &quot; + anError.getLineNumber() + &quot;\n&quot;);
++           representation.append(&quot;       &quot; + anError.getCodeSnippet() + &quot;\n&quot;);
++
++           if (anError.getMarker() != null)
++             representation.append(&quot;       &quot; + anError.getMarker() + &quot;\n&quot;);
++       }
++
++       return representation.toString();
++    }
++
+     /** All of the errors are stored in a linked list.  The linked list contains {@link sleep.error.SyntaxError SyntaxError} objects. */
+     public LinkedList getErrors()
+     {
+
+Modified: sleep/src/sleep/parser/Checkers.java
+===================================================================
+--- sleep/src/sleep/parser/Checkers.java	2006-08-05 05:20:58 UTC (rev 86)
++++ sleep/src/sleep/parser/Checkers.java	2006-08-06 00:07:11 UTC (rev 87)
+@@ -206,6 +206,11 @@
+        return true;
+    }
+ 
++   public static final boolean isSpecialWhile(String a, String b, String c, String d)
++   {
++       return isWhile(a, c, d) &amp;&amp; isVariable(b);
++   }
++
+    public static final boolean isWhile (String a, String b, String c)
+    {
+        return (a.equals(&quot;while&quot;) &amp;&amp; isExpression(b) &amp;&amp; isBlock(c));
+
+Modified: sleep/src/sleep/parser/CodeGenerator.java
+===================================================================
+--- sleep/src/sleep/parser/CodeGenerator.java	2006-08-05 05:20:58 UTC (rev 86)
++++ sleep/src/sleep/parser/CodeGenerator.java	2006-08-06 00:07:11 UTC (rev 87)
+@@ -789,6 +789,35 @@
+            atom = GeneratedSteps.Goto(parsePredicate(ParserUtilities.extract(tokens[1])), restore(), null);
+            add(atom, tokens[1]);
+            break;
++         case EXPR_WHILE_SPECIAL:                                        // done
++           /* 0 = while
++              1 = $var
++              2 = (expression) 
++              3 = {block} */
++
++           // handle the actual block of code
++           backup();
++           parseBlock(tokens[3]);    
++           b = restore(); 
++
++           // handle the assignment step please (Assign will push the RHS onto the stack)
++           backup();
++
++           atom = GeneratedSteps.CreateFrame(); /* overall create the frame please */
++           add(atom, tokens[0]);
++        
++           parseBlock(new Token(strings[1] + &quot; = &quot; + strings[2] + &quot;;&quot;, tokens[2].getHint()));
++           
++           // push $null onto the current frame as well...
++           add(GeneratedSteps.SValue(SleepUtils.getEmptyScalar()), tokens[2]);
++
++           a = restore();
++
++           // dew the lewp while the assigned value is not $null
++           atom = GeneratedSteps.Goto(new Check(&quot;!is&quot;, a), b, null);
++           add(atom, tokens[1]);
++
++           break;
+          case EXPR_ASSIGNMENT_T:                                  // implemented
+            atom = GeneratedSteps.CreateFrame();
+            add(atom, tokens[0]);
+
+Modified: sleep/src/sleep/parser/ParserConstants.java
+===================================================================
+--- sleep/src/sleep/parser/ParserConstants.java	2006-08-05 05:20:58 UTC (rev 86)
++++ sleep/src/sleep/parser/ParserConstants.java	2006-08-06 00:07:11 UTC (rev 87)
+@@ -2,26 +2,27 @@
+ 
+ public interface ParserConstants
+ {
+-   public static final int EXPR_BLOCK        = 150;       
+-   public static final int EXPR_WHILE        = 100;       
+-   public static final int EXPR_ASSIGNMENT   = 200;
+-   public static final int EXPR_ASSIGNMENT_T = 202;
+-   public static final int EXPR_IF           = 300;
+-   public static final int EXPR_IF_ELSE      = 301;
+-   public static final int EXPR_FOREACH      = 400;
+-   public static final int EXPR_FOR          = 401;
++   public static final int EXPR_BLOCK           = 150;       
++   public static final int EXPR_WHILE           = 100;
++   public static final int EXPR_WHILE_SPECIAL   = 101;       
++   public static final int EXPR_ASSIGNMENT      = 200;
++   public static final int EXPR_ASSIGNMENT_T    = 202;
++   public static final int EXPR_IF              = 300;
++   public static final int EXPR_IF_ELSE         = 301;
++   public static final int EXPR_FOREACH         = 400;
++   public static final int EXPR_FOR             = 401;
+    public static final int EXPR_FOREACH_SPECIAL = 402;
+-   public static final int EXPR_RETURN       = 500;
+-   public static final int EXPR_BREAK        = 501;
+-   public static final int EXPR_BIND         = 502;
+-   public static final int EXPR_ESCAPE       = 503;
+-   public static final int EXPR_BIND_PRED    = 504;
+-   public static final int EXPR_BIND_FILTER  = 505;
++   public static final int EXPR_RETURN          = 500;
++   public static final int EXPR_BREAK           = 501;
++   public static final int EXPR_BIND            = 502;
++   public static final int EXPR_ESCAPE          = 503;
++   public static final int EXPR_BIND_PRED       = 504;
++   public static final int EXPR_BIND_FILTER     = 505;
+ 
+-   public static final int EXPR_EVAL_STRING  = 506; // used for `backtick` strings that do something cool :)
++   public static final int EXPR_EVAL_STRING     = 506; // used for `backtick` strings that do something cool :)
+  
+-   public static final int IDEA_EXPR       = 601;
+-   public static final int IDEA_OPER       = 603;
++   public static final int IDEA_EXPR            = 601;
++   public static final int IDEA_OPER            = 603;
+    public static final int IDEA_FUNC       = 604;
+    public static final int IDEA_STRING     = 605;
+    public static final int IDEA_LITERAL    = 606;
+
+Modified: sleep/src/sleep/parser/TokenParser.java
+===================================================================
+--- sleep/src/sleep/parser/TokenParser.java	2006-08-05 05:20:58 UTC (rev 86)
++++ sleep/src/sleep/parser/TokenParser.java	2006-08-06 00:07:11 UTC (rev 87)
+@@ -484,6 +484,15 @@
+             myToken.add(tokens[x+5]);
+             x += 5;
+          }
++         else if ((x + 3) &lt; tokens.length &amp;&amp; Checkers.isSpecialWhile(strings[x], strings[x+1], strings[x+2], strings[x+3]))
++         {
++            myToken.setType(EXPR_WHILE_SPECIAL);
++            myToken.add(tokens[x]);
++            myToken.add(tokens[x+1]);
++            myToken.add(tokens[x+2]);
++            myToken.add(tokens[x+3]);
++            x += 3;
++         }
+          else if ((x + 3) &lt; tokens.length &amp;&amp; Checkers.isForeach(strings[x], strings[x+1], strings[x+2], strings[x+3]))
+          {
+             myToken.setType(EXPR_FOREACH);
+
+Modified: sleep/src/sleep/runtime/ScriptEnvironment.java
+===================================================================
+--- sleep/src/sleep/runtime/ScriptEnvironment.java	2006-08-05 05:20:58 UTC (rev 86)
++++ sleep/src/sleep/runtime/ScriptEnvironment.java	2006-08-06 00:07:11 UTC (rev 87)
+@@ -384,6 +384,7 @@
+        return (Stack)frames.get(findex);    
+     }
+ 
++    /** kills the current frame and if there is a parent frame pushes the specified value on to it */
+     public void FrameResult(Scalar value)
+     {
+        KillFrame();
+
+Added: sleep/tests/output/while2.sl
+===================================================================
+--- sleep/tests/output/while2.sl	2006-08-05 05:20:58 UTC (rev 86)
++++ sleep/tests/output/while2.sl	2006-08-06 00:07:11 UTC (rev 87)
+@@ -0,0 +1,57 @@
++The repeat function has been called
++Testing new while syntax: 0
++The repeat function has been called
++Testing new while syntax: 1
++The repeat function has been called
++Testing new while syntax: 2
++The repeat function has been called
++Testing new while syntax: 3
++The repeat function has been called
++Testing new while syntax: 4
++The repeat function has been called
++Testing new while syntax: 5
++The repeat function has been called
++Testing new while syntax: 6
++The repeat function has been called
++Testing new while syntax: 7
++The repeat function has been called
++Testing new while syntax: 8
++The repeat function has been called
++Testing new while syntax: 9
++The repeat function has been called
++Read: #
++Read: # test the extended syntax for while loops...
++Read: #
++Read: 
++Read: sub callto
++Read: {
++Read:    this('$x');
++Read:    $x = 0;
++Read:    while ($x &lt; $1)
++Read:    {
++Read:       yield $x;
++Read:       $x++;
++Read:    }
++Read: 
++Read:    return $null;
++Read: }
++Read: 
++Read: sub repeat
++Read: {
++Read:    println(&quot;The repeat function has been called&quot;);
++Read:    return 10;
++Read: }
++Read: 
++Read: while $check (callto(repeat()))
++Read: {
++Read:    println(&quot;Testing new while syntax: $check&quot;);
++Read: }
++Read: 
++Read: # test 2.
++Read: 
++Read: $handle = openf(&quot;while2.sl&quot;);
++Read: 
++Read: while $value (readln($handle))
++Read: {
++Read:    println(&quot;Read: $value&quot;);
++Read: }
+
+Added: sleep/tests/while2.sl
+===================================================================
+--- sleep/tests/while2.sl	2006-08-05 05:20:58 UTC (rev 86)
++++ sleep/tests/while2.sl	2006-08-06 00:07:11 UTC (rev 87)
+@@ -0,0 +1,36 @@
++#
++# test the extended syntax for while loops...
++#
++
++sub callto
++{
++   this('$x');
++   $x = 0;
++   while ($x &lt; $1)
++   {
++      yield $x;
++      $x++;
++   }
++
++   return $null;
++}
++
++sub repeat
++{
++   println(&quot;The repeat function has been called&quot;);
++   return 10;
++}
++
++while $check (callto(repeat()))
++{
++   println(&quot;Testing new while syntax: $check&quot;);
++}
++
++# test 2.
++
++$handle = openf(&quot;while2.sl&quot;);
++
++while $value (readln($handle))
++{
++   println(&quot;Read: $value&quot;);
++}
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-08-05 05:20:58 UTC (rev 86)
++++ sleep/whatsnew.txt	2006-08-06 00:07:11 UTC (rev 87)
+@@ -5,55 +5,54 @@
+   &amp;search(@array, &amp;closure, [index])
+   &amp;filter(@array, &amp;closure)
+ - added &amp;replaceAt(&quot;original&quot;, &quot;new&quot;, index, [chars to delete]);
+-- added &amp;mid(&quot;string&quot;, index, n chars) to extract a substring
+-  equivalent to &amp;substr(&quot;string&quot;, index, index + n chars) 
+-- exposed the IO Process, File, and Socket using a new method
+-  added to IOObject: getSource().  This will allow scripters to
+-  query the IO source using HOES if there is some API Sleep does
+-  not bridge. (i.e. exit value of a process)
+-- added an API to SleepUtils for building an IO handle scalar 
+-  from a Java InputStream/OutputStream
+-- added a debug flag to each script instance.  the options consist 
+-  of:
+-  DEBUG_SHOW_ERRORS = 1 - this is the typical behavior that causes
+-     a runtime warning to be fired whenever an uncaught exception
+-     occurs within a bridge.
++- added &amp;mid(&quot;string&quot;, index, n chars) to extract a substring equivalent to 
++  &amp;substr(&quot;string&quot;, index, index + n chars) 
++- exposed the IO Process, File, and Socket using a new method added to 
++  IOObject: getSource().  This will allow scripters to query the IO source 
++  using HOES if there is some API Sleep does not bridge. (i.e. exit value of a
++  process)
++- added an API to SleepUtils for building an IO handle scalar from a Java 
++  InputStream/OutputStream
++- added a debug flag to each script instance.  the options consist of:
++
++  DEBUG_SHOW_ERRORS = 1 - this is the typical behavior that causes a runtime 
++     warning to be fired whenever an uncaught exception occurs within a bridge.
+   DEBUG_SHOW_WARNINGS = 2 - fires a runtime warning any time an error
+-     is flagged using flagError() in the script environment.  
+-     runtime warnings are typically errors a scripter is meant to
+-     check for with checkError($error).  
+-  DEBUG_NONE = 0 - disables all firing of runtime warnings (not 
+-     recommended)
++     is flagged using flagError() in the script environment.  runtime warnings
++     are typically errors a scripter is meant to check for with 
++     checkError($error).  
++  DEBUG_NONE = 0 - disables all firing of runtime warnings (not recommended)
+ 
+-  Sleep scripts on the command line can run with different debug 
+-  levels using:
++  Sleep scripts on the command line can run with different debug levels using:
+   java -Dsleep.debug=3 -jar sleep.jar filename.sl
+-- foreach can now iterate over closures..  if a closure is passed to
+-  foreach then the closure will be called continuously until a $null
+-  is returned.
++- foreach can now iterate over closures..  if a closure is passed to foreach 
++  then the closure will be called continuously until a $null is returned.
+ - added a few functions for performing set type operations on @arrays
+   @ removeAll(@a, @b) - modifies @a with the difference of @a - @b
+   @ addAll(@a, @b) - modifies @a with the union of @a + @b
+   @ retainAll(@a, @b) - modifies @a to contain the intersection of @a and @b
+-- added methods to SleepUtils to generate a java.util.Map from a 
+-  Sleep Hash scalar and to generate a java.util.List from a Sleep Array.
++- added methods to SleepUtils to generate a java.util.Map from a Sleep Hash 
++  scalar and to generate a java.util.List from a Sleep Array.
+ - readln in Sleep I/O now returns the empty scalar at the end of the stream
+-  this can be checked for using is.. i.e.
+-
+-  $temp = readln($handle);
+-  while ($temp !is $null)
+-  {
+-     # do something with $temp
+-     $temp = readln($temp);
+-  }
+-
+ - sleep I/O streams now autoflush on all writes.  this should solve many
+   frustrations that the I/O pipeline has occasionally caused scripters.
+-- added &amp;available($handle) to determine the number of available bytes 
+-  for a given stream.  also an option is &amp;available($handle, &quot;substring&quot;)
+-  to determine if the specified &quot;substring&quot; is contained in the data
+-  available to be read.
++- added &amp;available($handle) to determine the number of available bytes for a 
++  given stream.  also an option is &amp;available($handle, &quot;substring&quot;) to 
++  determine if the specified &quot;substring&quot; is contained in the data available to
++  be read.
++- added an extended version of the while loop that continuously evaluates an 
++  expression, assigns it to a variable, and executes a block of code so long as
++  the specified variable is not null.  example:
+ 
++  $handle = openf(&quot;somefile.txt&quot;);
++  while $data (readln($handle))
++  {
++     println(&quot;Read: $data&quot;);
++  } 
++- added formatErrors() and printErrors(OutputStream out) functions to the
++  YourCodeSucksException class.   should make reporting parser errors less of
++  a burden when embedding sleep into applications.
++
+ 2.1-beta 1
+ ===========
+ - fixed the clean target in the sleep build.xml file
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000068.html">[Sleep-svn] r86 - in sleep: . docs src/sleep/bridges	src/sleep/bridges/io
+</A></li>
+	<LI>Next message: <A HREF="000070.html">[Sleep-svn] r88 - sleep
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#69">[ date ]</a>
+              <a href="thread.html#69">[ thread ]</a>
+              <a href="subject.html#69">[ subject ]</a>
+              <a href="author.html#69">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

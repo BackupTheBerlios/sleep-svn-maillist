@@ -1,0 +1,167 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r200 - sleep/src/sleep/bridges
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2006-December/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r200%20-%20sleep/src/sleep/bridges&In-Reply-To=%3C200612060038.kB60c0f9011766%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000181.html">
+   <LINK REL="Next"  HREF="000183.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r200 - sleep/src/sleep/bridges</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r200%20-%20sleep/src/sleep/bridges&In-Reply-To=%3C200612060038.kB60c0f9011766%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r200 - sleep/src/sleep/bridges">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Wed Dec  6 01:38:00 CET 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000181.html">[Sleep-svn] r199 - in sleep: src/sleep/engine tests/output
+</A></li>
+        <LI>Next message: <A HREF="000183.html">[Sleep-svn] r201 - in sleep: . src/sleep/bridges tests
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#182">[ date ]</a>
+              <a href="thread.html#182">[ thread ]</a>
+              <a href="subject.html#182">[ subject ]</a>
+              <a href="author.html#182">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2006-12-06 01:37:59 +0100 (Wed, 06 Dec 2006)
+New Revision: 200
+
+Modified:
+   sleep/src/sleep/bridges/BasicUtilities.java
+Log:
+started work on an include() function.
+
+
+
+Modified: sleep/src/sleep/bridges/BasicUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicUtilities.java	2006-12-04 05:04:46 UTC (rev 199)
++++ sleep/src/sleep/bridges/BasicUtilities.java	2006-12-06 00:37:59 UTC (rev 200)
+@@ -110,7 +110,8 @@
+         temp.put(&quot;&amp;shift&quot;,    new shift());   // not safe within foreach loops yada yada yada...
+ 
+         temp.put(&quot;&amp;systemProperties&quot;,    new systemProperties());
+-        temp.put(&quot;&amp;use&quot;,    new f_use());
++        temp.put(&quot;&amp;use&quot;,     new f_use());
++        temp.put(&quot;&amp;include&quot;, temp.get(&quot;&amp;use&quot;));
+         temp.put(&quot;&amp;checkError&quot;,    new checkError());
+ 
+         // closure / function handle type stuff
+@@ -241,36 +242,60 @@
+ 
+           if (parent != null &amp;&amp; !parent.exists())
+           {
+-             throw new IllegalArgumentException(&quot;&amp;use: could not locate jar file '&quot; + parent + &quot;'&quot;);
++             throw new IllegalArgumentException(n + &quot;: could not locate jar file '&quot; + parent + &quot;'&quot;);
+           }
+ 
+-          Class bridge;
+-
+           try
+           {
+-             if (parent != null)
++             if (n.equals(&quot;&amp;use&quot;))
+              {
+-                URLClassLoader loader = new URLClassLoader(new URL[] { parent.toURL() });
+-                bridge = Class.forName(className, true, loader);
++                Class bridge;
++
++                if (parent != null)
++                {
++                   URLClassLoader loader = new URLClassLoader(new URL[] { parent.toURL() });
++                   bridge = Class.forName(className, true, loader);
++                }
++                else
++                {
++                   bridge = Class.forName(className);
++                }
++
++                Loadable temp;
++
++                if (bridges.get(bridge) == null)
++                {
++                   temp = (Loadable)bridge.newInstance();
++                   bridges.put(bridge, temp);
++                }
++                else
++                {
++                   temp = (Loadable)bridges.get(bridge);
++                }
++
++                temp.scriptLoaded(si);
+              }
+              else
+              {
+-                bridge = Class.forName(className);
+-             }
++                ScriptInstance script;
++                ScriptLoader   sloader = (ScriptLoader)si.getScriptEnvironment().getEnvironment().get(&quot;(isloaded)&quot;);
+ 
+-             Loadable temp;
++                System.out.println(sloader);
+ 
+-             if (bridges.get(bridge) == null)
+-             {
+-                temp = (Loadable)bridge.newInstance();
+-                bridges.put(bridge, temp);
++                if (parent != null)
++                {
++                   URLClassLoader loader = new URLClassLoader(new URL[] { parent.toURL() });
++                   script = sloader.loadScript(new File(parent, className).getAbsolutePath(), loader.getResourceAsStream(className), si.getScriptEnvironment().getEnvironment());
++                }
++                else
++                {
++                   script = sloader.loadScript(new File(className), si.getScriptEnvironment().getEnvironment());
++                }
++
++                script.setScriptVariables(si.getScriptVariables()); /* ensure included scripts share vars */
++          
++                script.runScript();
+              }
+-             else
+-             {
+-                temp = (Loadable)bridges.get(bridge);
+-             }
+-
+-             temp.scriptLoaded(si);
+           }
+           catch (Exception ex)
+           {
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000181.html">[Sleep-svn] r199 - in sleep: src/sleep/engine tests/output
+</A></li>
+	<LI>Next message: <A HREF="000183.html">[Sleep-svn] r201 - in sleep: . src/sleep/bridges tests
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#182">[ date ]</a>
+              <a href="thread.html#182">[ thread ]</a>
+              <a href="subject.html#182">[ subject ]</a>
+              <a href="author.html#182">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,188 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r416 - in sleep: . src/sleep/parser tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2008-July/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r416%20-%20in%20sleep%3A%20.%20src/sleep/parser%20tests%20tests/output&In-Reply-To=%3C200807012322.m61NMaFB026168%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000390.html">
+   <LINK REL="Next"  HREF="000392.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r416 - in sleep: . src/sleep/parser tests tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r416%20-%20in%20sleep%3A%20.%20src/sleep/parser%20tests%20tests/output&In-Reply-To=%3C200807012322.m61NMaFB026168%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r416 - in sleep: . src/sleep/parser tests tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Wed Jul  2 01:22:36 CEST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000390.html">[Sleep-svn] r415 - in sleep: . src/sleep/bridges
+</A></li>
+        <LI>Next message: <A HREF="000392.html">[Sleep-svn] r417 - in sleep: . tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#391">[ date ]</a>
+              <a href="thread.html#391">[ thread ]</a>
+              <a href="subject.html#391">[ subject ]</a>
+              <a href="author.html#391">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2008-07-02 01:22:36 +0200 (Wed, 02 Jul 2008)
+New Revision: 416
+
+Added:
+   sleep/tests/argerr.sl
+   sleep/tests/keyvalueerr.sl
+   sleep/tests/output/argerr.sl
+   sleep/tests/output/keyvalueerr.sl
+Modified:
+   sleep/src/sleep/parser/CodeGenerator.java
+   sleep/whatsnew.txt
+Log:
+..
+
+
+Modified: sleep/src/sleep/parser/CodeGenerator.java
+===================================================================
+--- sleep/src/sleep/parser/CodeGenerator.java	2008-07-01 22:49:10 UTC (rev 415)
++++ sleep/src/sleep/parser/CodeGenerator.java	2008-07-01 23:22:36 UTC (rev 416)
+@@ -333,13 +333,13 @@
+       }
+    }
+   
+-   public void parseIdea(Token data) 
++   public List parseIdea(Token data) 
+    {
+       LinkedList allData = TokenParser.ParseIdea(parser, LexicalAnalyzer.GroupBlockTokens(parser, new StringIterator(data.toString(), data.getHint())));
+       
+       if (parser.hasErrors())
+       {
+-         return;
++         return null;
+       }
+ 
+       Iterator i = allData.iterator();
+@@ -347,6 +347,8 @@
+       {
+          parse((Statement)i.next());
+       }
++
++      return allData;
+    }
+ 
+    public void parse(Statement datum)
+@@ -392,8 +394,19 @@
+            //
+            // parse B
+            //
+-           parseIdea(tokens[2]);
++           List valuez = parseIdea(tokens[2]);
+ 
++           /* a bit of error checking to guard against a common error */
++           Iterator iz = valuez.iterator();
++           while (iz.hasNext())
++           {
++              Statement t = (Statement)iz.next();
++              if (t.getType() == IDEA_HASH_PAIR)
++              {
++                 parser.reportError(&quot;key/value pair specified for '&quot;+tokens[0]+&quot;', did you forget a comma?&quot;, tokens[2]);
++              }
++           }
++
+            //
+            // parse A - or just push it onto the stack as a literal token :)
+            //
+
+Added: sleep/tests/argerr.sl
+===================================================================
+--- sleep/tests/argerr.sl	2008-07-01 22:49:10 UTC (rev 415)
++++ sleep/tests/argerr.sl	2008-07-01 23:22:36 UTC (rev 416)
+@@ -0,0 +1,7 @@
++sub foo
++{
++   println(&quot;Named args are $a and $b&quot;);
++}
++
++foo(3, $a =&gt; &quot;whatever I phear you&quot; 
++       $b =&gt; 'uNF');
+
+Added: sleep/tests/keyvalueerr.sl
+===================================================================
+--- sleep/tests/keyvalueerr.sl	2008-07-01 22:49:10 UTC (rev 415)
++++ sleep/tests/keyvalueerr.sl	2008-07-01 23:22:36 UTC (rev 416)
+@@ -0,0 +1,8 @@
++%hash = %(a =&gt; &quot;baseball&quot;,
++          b =&gt; &quot;ardvarks&quot;,
++          c =&gt; &quot;cats&quot;
++          d =&gt; &quot;dogs&quot;);
++
++println(%hash);
++
++printAll(map({ return typeOf($1) . &quot; $1&quot;; }, values(%hash)));
+
+Added: sleep/tests/output/argerr.sl
+===================================================================
+--- sleep/tests/output/argerr.sl	2008-07-01 22:49:10 UTC (rev 415)
++++ sleep/tests/output/argerr.sl	2008-07-01 23:22:36 UTC (rev 416)
+@@ -0,0 +1,2 @@
++Error: key/value pair specified for '$a', did you forget a comma? at line 6
++       &quot;whatever I phear you&quot; $b =&gt; 'uNF'
+
+Added: sleep/tests/output/keyvalueerr.sl
+===================================================================
+--- sleep/tests/output/keyvalueerr.sl	2008-07-01 22:49:10 UTC (rev 415)
++++ sleep/tests/output/keyvalueerr.sl	2008-07-01 23:22:36 UTC (rev 416)
+@@ -0,0 +1,2 @@
++Error: key/value pair specified for 'c', did you forget a comma? at line 3
++       &quot;cats&quot; d =&gt; &quot;dogs&quot;
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2008-07-01 22:49:10 UTC (rev 415)
++++ sleep/whatsnew.txt	2008-07-01 23:22:36 UTC (rev 416)
+@@ -2,8 +2,9 @@
+ ===========
+ - splice() no longer corrupts sublists.
+ - values(%hash) now omits $null values.  
+-- sped up local, global, and this by cacheing the regex pattern
+-  used to split up the var names
++- sped up scope functions: &amp;local, &amp;global, and &amp;this by cacheing 
++  the regex pattern used to split up the var names
++- added a compile time check for %(a =&gt; ... b =&gt; ...) errors
+ 
+ 2.1-release  (16 Jun 08)
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000390.html">[Sleep-svn] r415 - in sleep: . src/sleep/bridges
+</A></li>
+	<LI>Next message: <A HREF="000392.html">[Sleep-svn] r417 - in sleep: . tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#391">[ date ]</a>
+              <a href="thread.html#391">[ thread ]</a>
+              <a href="subject.html#391">[ subject ]</a>
+              <a href="author.html#391">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

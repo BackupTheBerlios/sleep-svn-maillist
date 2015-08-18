@@ -1,0 +1,186 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r309 - in sleep: . docs src/sleep/bridges	src/sleep/runtime tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2007-October/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r309%20-%20in%20sleep%3A%20.%20docs%20src/sleep/bridges%0A%09src/sleep/runtime%20tests/output&In-Reply-To=%3C200710250025.l9P0PZMx021458%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000286.html">
+   <LINK REL="Next"  HREF="000288.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r309 - in sleep: . docs src/sleep/bridges	src/sleep/runtime tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r309%20-%20in%20sleep%3A%20.%20docs%20src/sleep/bridges%0A%09src/sleep/runtime%20tests/output&In-Reply-To=%3C200710250025.l9P0PZMx021458%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r309 - in sleep: . docs src/sleep/bridges	src/sleep/runtime tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Thu Oct 25 02:25:35 CEST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000286.html">[Sleep-svn] r308 - in sleep: . docs
+</A></li>
+        <LI>Next message: <A HREF="000288.html">[Sleep-svn] r310 - sleep
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#287">[ date ]</a>
+              <a href="thread.html#287">[ thread ]</a>
+              <a href="subject.html#287">[ subject ]</a>
+              <a href="author.html#287">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2007-10-25 02:25:33 +0200 (Thu, 25 Oct 2007)
+New Revision: 309
+
+Modified:
+   sleep/build.xml
+   sleep/docs/sleeplang.html
+   sleep/src/sleep/bridges/BridgeUtilities.java
+   sleep/src/sleep/bridges/SleepClosure.java
+   sleep/src/sleep/runtime/SleepUtils.java
+   sleep/tests/output/inline.sl
+Log:
+..
+
+
+Modified: sleep/build.xml
+===================================================================
+--- sleep/build.xml	2007-10-21 05:11:31 UTC (rev 308)
++++ sleep/build.xml	2007-10-25 00:25:33 UTC (rev 309)
+@@ -16,7 +16,7 @@
+            destdir=&quot;${project.build}&quot;
+            nowarn=&quot;yes&quot;
+            depend=&quot;yes&quot;
+-           debug=&quot;true&quot;
++           debug=&quot;false&quot;
+            source=&quot;1.4&quot;
+            target=&quot;1.4&quot;
+            optimize=&quot;yes&quot;
+
+Modified: sleep/docs/sleeplang.html
+===================================================================
+--- sleep/docs/sleeplang.html	2007-10-21 05:11:31 UTC (rev 308)
++++ sleep/docs/sleeplang.html	2007-10-25 00:25:33 UTC (rev 309)
+@@ -2003,6 +2003,15 @@
+ &lt;p&gt;callcc will save the current function state into a object.  The specified function will the be called with the current function continuation
+ as a parameter.  Control flow will be moved to the specified function.  callcc can be thought of as a functional-level goto.&lt;/p&gt;
+ 
++&lt;p&gt;The syntax for callcc is:&lt;/p&gt;
++
++&lt;p&gt;&lt;code&gt;callcc &lt;b&gt;closure&lt;/b&gt;&lt;/code&gt;;&lt;/p&gt;
++
++&lt;p&gt;The return value of the specified closure will be the return value of the current function.  The specified closure receives the continuation of 
++the current function as the &lt;var&gt;$1&lt;/var&gt; parameter.&lt;/p&gt;
++
++&lt;p&gt;The following is a simple example of callcc demonstrating the producer/consumer problem:&lt;/p&gt;
++
+ &lt;pre&gt;$buffer  = $null;
+ 
+ sub produce {
+@@ -2015,7 +2024,7 @@
+ 
+ sub consume {
+    println(&quot;Consume: $buffer&quot;);
+-   callcc &produce;
++   callcc $1; # resume the calling function
+ }
+ 
+ produce();&lt;/pre&gt;
+
+Modified: sleep/src/sleep/bridges/BridgeUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BridgeUtilities.java	2007-10-21 05:11:31 UTC (rev 308)
++++ sleep/src/sleep/bridges/BridgeUtilities.java	2007-10-25 00:25:33 UTC (rev 309)
+@@ -313,7 +313,7 @@
+    }
+ 
+    /** initializes local scope based on argument stack */
+-   public static int initLocalScope(ScriptVariables vars, Variable localLevel, Stack locals)
++   public static void initLocalScope(ScriptVariables vars, Variable localLevel, Stack locals)
+    {
+       int name = 1;
+ 
+@@ -341,7 +341,7 @@
+          }
+       }
+ 
+-      return name;
++      vars.setScalarLevel(&quot;@_&quot;, SleepUtils.getArrayScalar(new ArgumentArray(name, localLevel)), localLevel);
+    }
+ 
+    /** normalizes the index value based on the specified length */
+
+Modified: sleep/src/sleep/bridges/SleepClosure.java
+===================================================================
+--- sleep/src/sleep/bridges/SleepClosure.java	2007-10-21 05:11:31 UTC (rev 308)
++++ sleep/src/sleep/bridges/SleepClosure.java	2007-10-25 00:25:33 UTC (rev 309)
+@@ -211,8 +211,7 @@
+           // initialize local variables...
+           //
+           vars.setScalarLevel(&quot;$0&quot;, SleepUtils.getScalar(message), localLevel);
+-          int name = BridgeUtilities.initLocalScope(vars, localLevel, locals);
+-          vars.setScalarLevel(&quot;@_&quot;, SleepUtils.getArrayScalar(new ArgumentArray(name, localLevel)), localLevel);
++          BridgeUtilities.initLocalScope(vars, localLevel, locals);
+ 
+           //
+           // call the function, save the scalar that was returned. 
+
+Modified: sleep/src/sleep/runtime/SleepUtils.java
+===================================================================
+--- sleep/src/sleep/runtime/SleepUtils.java	2007-10-21 05:11:31 UTC (rev 308)
++++ sleep/src/sleep/runtime/SleepUtils.java	2007-10-25 00:25:33 UTC (rev 309)
+@@ -26,7 +26,7 @@
+ public class SleepUtils
+ {
+    /** A date stamp of this Sleep release in YYYYMMDD format */
+-   public static final int    SLEEP_RELEASE = 20070705;
++   public static final int    SLEEP_RELEASE = 20071024;
+ 
+    /** A string description of this Sleep release */
+    public static final String SLEEP_VERSION = &quot;Sleep 2.1&quot;;
+
+Modified: sleep/tests/output/inline.sl
+===================================================================
+--- sleep/tests/output/inline.sl	2007-10-21 05:11:31 UTC (rev 308)
++++ sleep/tests/output/inline.sl	2007-10-25 00:25:33 UTC (rev 309)
+@@ -6,7 +6,7 @@
+ Returned pHEAR
+ blah 3
+ bleh 2
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">- at _</A> = @()
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">+ at _</A> = @('aa', 'bbb', 'cccc')
+ Arg: aa
+ $foo: uNF
+ $this: &amp;closure[inline.sl:57-60]#3
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000286.html">[Sleep-svn] r308 - in sleep: . docs
+</A></li>
+	<LI>Next message: <A HREF="000288.html">[Sleep-svn] r310 - sleep
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#287">[ date ]</a>
+              <a href="thread.html#287">[ thread ]</a>
+              <a href="subject.html#287">[ subject ]</a>
+              <a href="author.html#287">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

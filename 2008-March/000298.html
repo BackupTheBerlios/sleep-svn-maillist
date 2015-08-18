@@ -1,0 +1,283 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r320 - in sleep: . src/sleep/bridges src/sleep/parser	tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2008-March/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r320%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20src/sleep/parser%0A%09tests%20tests/output&In-Reply-To=%3C200803191822.m2JIMoZL011906%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000297.html">
+   <LINK REL="Next"  HREF="000299.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r320 - in sleep: . src/sleep/bridges src/sleep/parser	tests tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r320%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20src/sleep/parser%0A%09tests%20tests/output&In-Reply-To=%3C200803191822.m2JIMoZL011906%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r320 - in sleep: . src/sleep/bridges src/sleep/parser	tests tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Wed Mar 19 19:22:50 CET 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000297.html">[Sleep-svn] r319 - in sleep: . src/sleep/bridges src/sleep/engine	tests tests/output
+</A></li>
+        <LI>Next message: <A HREF="000299.html">[Sleep-svn] r321 - in sleep/tests: . output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#298">[ date ]</a>
+              <a href="thread.html#298">[ thread ]</a>
+              <a href="subject.html#298">[ subject ]</a>
+              <a href="author.html#298">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2008-03-19 19:22:49 +0100 (Wed, 19 Mar 2008)
+New Revision: 320
+
+Added:
+   sleep/tests/output/push.sl
+   sleep/tests/output/warn2.sl
+   sleep/tests/push.sl
+   sleep/tests/warn2.sl
+Modified:
+   sleep/src/sleep/bridges/BasicUtilities.java
+   sleep/src/sleep/parser/CodeGenerator.java
+   sleep/tests/ifferr.sl
+   sleep/tests/output/ifferr.sl
+   sleep/whatsnew.txt
+Log:
+more changes.
+
+
+Modified: sleep/src/sleep/bridges/BasicUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicUtilities.java	2008-03-19 17:20:14 UTC (rev 319)
++++ sleep/src/sleep/bridges/BasicUtilities.java	2008-03-19 18:22:49 UTC (rev 320)
+@@ -915,6 +915,9 @@
+        }
+        else if (n.equals(&quot;&amp;warn&quot;))
+        {
++          /* for those looking at how to read current line number from an executing function, you can't.  this function
++             is a special case.  the parser looks for &amp;warn and adds an extra argument containing the current line number */
++          i.fireWarning(BridgeUtilities.getString(l, &quot;warning requested&quot;), BridgeUtilities.getInt(l, -1));
+           return SleepUtils.getEmptyScalar();
+        }
+        else if (n.equals(&quot;&amp;debug&quot;))
+@@ -959,7 +962,14 @@
+ 
+        if (n.equals(&quot;&amp;push&quot;))
+        {
+-          return value.getArray().push(SleepUtils.getScalar((Scalar)l.pop()));
++          Scalar pushed = null;
++          while (!l.isEmpty())
++          {
++             pushed = (Scalar)l.pop();
++             value.getArray().push(SleepUtils.getScalar(pushed));
++          }
++ 
++          return pushed == null ? SleepUtils.getEmptyScalar() : pushed;
+        }
+        else if ((n.equals(&quot;&amp;retainAll&quot;) || n.equals(&quot;&amp;removeAll&quot;)) &amp;&amp; value.getArray() != null)
+        {
+
+Modified: sleep/src/sleep/parser/CodeGenerator.java
+===================================================================
+--- sleep/src/sleep/parser/CodeGenerator.java	2008-03-19 17:20:14 UTC (rev 319)
++++ sleep/src/sleep/parser/CodeGenerator.java	2008-03-19 18:22:49 UTC (rev 320)
+@@ -780,24 +780,31 @@
+               strings[0] = '&amp;' + strings[0];
+            }
+ 
+-           if (strings[0].equals(&quot;&amp;iff&quot;) &amp;&amp; tokens.length &gt; 1)
++           if ((strings[0].equals(&quot;&amp;iff&quot;) || strings[0].equals(&quot;&amp;?&quot;)) &amp;&amp; tokens.length &gt; 1)
+            {
+               TokenList terms = ParserUtilities.groupByParameterTerm(parser, ParserUtilities.extract(tokens[1]));
+-
+               Token[] termsAr = terms.getTokens();
+ 
+-              if (termsAr.length != 3)
++              backup();
++              if (termsAr.length &gt;= 2)
+               {
+-                 parser.reportErrorWithMarker(&quot;iff(condition, value_t, value_f): invalid form.&quot;, tokens[0].copy(strings[0] + strings[1]));
+-                 break;
++                 parseIdea(termsAr[1]);
+               }
+-
+-              backup();
+-              parseIdea(termsAr[1]);
++              else
++              {
++                 parseIdea(termsAr[0].copy(&quot;true&quot;));
++              }
+               a = restore();
+ 
+               backup();
+-              parseIdea(termsAr[2]);
++              if (termsAr.length == 3)
++              {
++                 parseIdea(termsAr[2]);
++              }
++              else
++              {
++                 parseIdea(termsAr[0].copy(&quot;false&quot;));
++              }
+               b = restore();
+ 
+               atom = GeneratedSteps.Decide(parsePredicate(termsAr[0]), a, b);
+@@ -808,6 +815,13 @@
+               atom = GeneratedSteps.CreateFrame();
+               add(atom, tokens[0]);
+ 
++              /* if we're dealing with the warn function, sneak the current line number in as an argument. */
++              if (strings[0].equals(&quot;&amp;warn&quot;))
++              {
++                 atom    = GeneratedSteps.SValue(SleepUtils.getScalar(tokens[0].getHint()));
++                 add(atom, tokens[0]);
++              }
++
+               parseParameters(ParserUtilities.extract(tokens[1]));
+ 
+               atom = GeneratedSteps.Call(strings[0]);
+
+Modified: sleep/tests/ifferr.sl
+===================================================================
+--- sleep/tests/ifferr.sl	2008-03-19 17:20:14 UTC (rev 319)
++++ sleep/tests/ifferr.sl	2008-03-19 18:22:49 UTC (rev 320)
+@@ -1,5 +1,5 @@
+ #
+-# Testing beloved iff featured
++# Testing beloved iff featured (these forms used to be the cause of an error, as of Sleep 2.1-b21 they are good)
+ #
+ 
+ $x = 10;
+@@ -7,3 +7,7 @@
+ 
+ $x = 1;
+ println(&quot;Took &quot; . $x . &quot; second&quot; . iff($x &gt; 1, &quot;s&quot;, &quot;&quot;));
++
++println(&quot;Last test? &quot; . iff($x == 1));
++println(&quot;Last test? &quot; . iff($x != 1));
++
+
+Modified: sleep/tests/output/ifferr.sl
+===================================================================
+--- sleep/tests/output/ifferr.sl	2008-03-19 17:20:14 UTC (rev 319)
++++ sleep/tests/output/ifferr.sl	2008-03-19 18:22:49 UTC (rev 320)
+@@ -1,2 +1,4 @@
+-Error: iff(condition, value_t, value_f): invalid form. at line 6
+-       &amp;iff($x &gt; 1, &quot;s&quot;)
++Took 10 seconds
++Took 1 second
++Last test? 1
++Last test? 
+
+Added: sleep/tests/output/push.sl
+===================================================================
+--- sleep/tests/output/push.sl	2008-03-19 17:20:14 UTC (rev 319)
++++ sleep/tests/output/push.sl	2008-03-19 18:22:49 UTC (rev 320)
+@@ -0,0 +1,2 @@
++10
++@(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
+
+Added: sleep/tests/output/warn2.sl
+===================================================================
+--- sleep/tests/output/warn2.sl	2008-03-19 17:20:14 UTC (rev 319)
++++ sleep/tests/output/warn2.sl	2008-03-19 18:22:49 UTC (rev 320)
+@@ -0,0 +1,2 @@
++Warning: Couldn't open file: java.io.FileNotFoundException: jdfjsjkfjksfjksafjk (No such file or directory) at warn2.sl:15
++This is me acting really kewlios
+
+Added: sleep/tests/push.sl
+===================================================================
+--- sleep/tests/push.sl	2008-03-19 17:20:14 UTC (rev 319)
++++ sleep/tests/push.sl	2008-03-19 18:22:49 UTC (rev 320)
+@@ -0,0 +1,4 @@
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">+ at a</A> = @(1);
++$x = push(@a, 2, 3, 4, 5, 6, 7, 8, 9, 10);
++println($x);
++println(@a);
+
+Added: sleep/tests/warn2.sl
+===================================================================
+--- sleep/tests/warn2.sl	2008-03-19 17:20:14 UTC (rev 319)
++++ sleep/tests/warn2.sl	2008-03-19 18:22:49 UTC (rev 320)
+@@ -0,0 +1,20 @@
++debug(7 | 34);
++
++sub foo
++{
++   local('$handle $exception @data');
++
++   try 
++   {
++      $handle = openf(&quot;jdfjsjkfjksfjksafjk&quot;);
++      @data = readAll($handle);
++      closef($handle);
++   }
++   catch $exception
++   {
++      warn(&quot;Couldn't open file: $exception&quot;);
++      println(&quot;This is me acting really kewlios&quot;);
++   }
++}
++
++foo();
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2008-03-19 17:20:14 UTC (rev 319)
++++ sleep/whatsnew.txt	2008-03-19 18:22:49 UTC (rev 320)
+@@ -8,8 +8,7 @@
+   to the same function.
+ - added &amp;readAsObject and &amp;writeAsObject to read/write serialized
+   Java objects (in lieu of sleep.runtime.Scalar objects)
+-- updated &amp;copy to accept either a singular scalar or a hash 
+-  argument.
++- updated &amp;copy to also copy scalars and hashes.
+ - added &amp;pushl and &amp;popl for creating and removing local scope, 
+   arguments to these functions are used to pass data between the
+   current and resulting local scope.
+@@ -21,6 +20,12 @@
+   desired.
+ - replace function can now handle empty arguments, it will use
+   empty strings in their place.
++- added &amp;warn to send a message to the script warning watcher 
++  installed within the script environment... 
++- true and false arguments are now optional in iff expressions:
++  iff(3 == 3) = 1
++  iff(3 != 3) = $null
++- &amp;push can now push multiple arguments
+ 
+ 2.1-beta 20  (12 Nov 07)
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000297.html">[Sleep-svn] r319 - in sleep: . src/sleep/bridges src/sleep/engine	tests tests/output
+</A></li>
+	<LI>Next message: <A HREF="000299.html">[Sleep-svn] r321 - in sleep/tests: . output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#298">[ date ]</a>
+              <a href="thread.html#298">[ thread ]</a>
+              <a href="subject.html#298">[ subject ]</a>
+              <a href="author.html#298">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

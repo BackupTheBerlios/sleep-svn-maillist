@@ -1,0 +1,695 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r398 - in sleep: . src/sleep/bridges src/sleep/engine	src/sleep/parser src/sleep/runtime tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2008-May/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r398%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20src/sleep/engine%0A%09src/sleep/parser%20src/sleep/runtime%20tests%20tests/output&In-Reply-To=%3C200805301830.m4UIUQ2Y020701%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000373.html">
+   <LINK REL="Next"  HREF="000375.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r398 - in sleep: . src/sleep/bridges src/sleep/engine	src/sleep/parser src/sleep/runtime tests tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r398%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20src/sleep/engine%0A%09src/sleep/parser%20src/sleep/runtime%20tests%20tests/output&In-Reply-To=%3C200805301830.m4UIUQ2Y020701%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r398 - in sleep: . src/sleep/bridges src/sleep/engine	src/sleep/parser src/sleep/runtime tests tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Fri May 30 20:30:26 CEST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000373.html">[Sleep-svn] r397 - in sleep: . src/sleep/bridges src/sleep/engine	src/sleep/parser tests tests/output
+</A></li>
+        <LI>Next message: <A HREF="000375.html">[Sleep-svn] r399 - in sleep: . src/sleep/bridges tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#374">[ date ]</a>
+              <a href="thread.html#374">[ thread ]</a>
+              <a href="subject.html#374">[ subject ]</a>
+              <a href="author.html#374">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2008-05-30 20:30:17 +0200 (Fri, 30 May 2008)
+New Revision: 398
+
+Added:
+   sleep/tests/itererror.sl
+   sleep/tests/output/itererror.sl
+Modified:
+   sleep/src/sleep/bridges/BasicUtilities.java
+   sleep/src/sleep/bridges/BridgeUtilities.java
+   sleep/src/sleep/engine/Block.java
+   sleep/src/sleep/parser/CodeGenerator.java
+   sleep/src/sleep/runtime/SleepUtils.java
+   sleep/tests/output/callccfork.sl
+   sleep/tests/output/fe_generatordb.sl
+   sleep/tests/output/iternotrace.sl
+   sleep/tests/output/proxy.sl
+   sleep/tests/output/tracepo.sl
+   sleep/whatsnew.txt
+Log:
+modified how function literals are handled (and iterator errors thrown)
+
+
+
+Modified: sleep/src/sleep/bridges/BasicUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicUtilities.java	2008-05-30 17:44:36 UTC (rev 397)
++++ sleep/src/sleep/bridges/BasicUtilities.java	2008-05-30 18:30:17 UTC (rev 398)
+@@ -157,6 +157,7 @@
+ 
+         function funcs = new function();
+         temp.put(&quot;&amp;function&quot;,  TaintUtils.Sensitive(funcs));
++        temp.put(&quot;function&quot;,   temp.get(&quot;&amp;function&quot;)); /* special form used by the compiler */
+         temp.put(&quot;&amp;setf&quot;,      funcs);
+         temp.put(&quot;&amp;eval&quot;,      TaintUtils.Sensitive(new eval()));
+         temp.put(&quot;&amp;expr&quot;,      TaintUtils.Sensitive((Function)temp.get(&quot;&amp;eval&quot;)));
+@@ -514,7 +515,7 @@
+     {
+        public Scalar evaluate(String n, ScriptInstance si, Stack l)
+        {
+-          if (n.equals(&quot;&amp;function&quot;))
++          if (n.equals(&quot;&amp;function&quot;) || n.equals(&quot;function&quot;))
+           {
+              String temp = BridgeUtilities.getString(l, &quot;&quot;);
+ 
+
+Modified: sleep/src/sleep/bridges/BridgeUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BridgeUtilities.java	2008-05-30 17:44:36 UTC (rev 397)
++++ sleep/src/sleep/bridges/BridgeUtilities.java	2008-05-30 18:30:17 UTC (rev 398)
+@@ -152,7 +152,12 @@
+          return temp.getArray().scalarIterator();
+       }      
+ 
+-      return SleepUtils.getFunctionFromScalar(temp, script).scalarIterator();
++      if (SleepUtils.isFunctionScalar(temp))
++      {
++         return SleepUtils.getFunctionFromScalar(temp).scalarIterator();
++      }
++
++      throw new IllegalArgumentException(&quot;expected iterator (@array or &amp;closure)--received: &quot; + SleepUtils.describe(temp));
+    }
+ 
+    /** grab a sleep array, if the stack is empty a scalar array with no elements will be returned. */
+
+Modified: sleep/src/sleep/engine/Block.java
+===================================================================
+--- sleep/src/sleep/engine/Block.java	2008-05-30 17:44:36 UTC (rev 397)
++++ sleep/src/sleep/engine/Block.java	2008-05-30 18:30:17 UTC (rev 398)
+@@ -252,7 +252,6 @@
+               else if (ex instanceof NullPointerException)
+               {
+                  environment.getScriptInstance().fireWarning(&quot;null value error&quot;, temp.getLineNumber());
+-                 ex.printStackTrace();
+               }
+               else if (ex instanceof ConcurrentModificationException)
+               {
+
+Modified: sleep/src/sleep/parser/CodeGenerator.java
+===================================================================
+--- sleep/src/sleep/parser/CodeGenerator.java	2008-05-30 17:44:36 UTC (rev 397)
++++ sleep/src/sleep/parser/CodeGenerator.java	2008-05-30 18:30:17 UTC (rev 398)
+@@ -856,10 +856,15 @@
+            }
+            else
+            {
+-              // retrieve a function literal... 
++              // transform a function literal into call on &amp;function('&amp;literal') 
++              atom = factory.CreateFrame();
++              add(atom, tokens[0]);
+ 
+-              atom = factory.Get(strings[0]);
++              atom = factory.SValue(SleepUtils.getScalar(strings[0]));
+               add(atom, tokens[0]);
++
++              atom = factory.Call(&quot;function&quot;);
++              add(atom, tokens[0]);
+            }
+            break;
+          case EXPR_WHILE:                                        // done
+
+Modified: sleep/src/sleep/runtime/SleepUtils.java
+===================================================================
+--- sleep/src/sleep/runtime/SleepUtils.java	2008-05-30 17:44:36 UTC (rev 397)
++++ sleep/src/sleep/runtime/SleepUtils.java	2008-05-30 18:30:17 UTC (rev 398)
+@@ -341,13 +341,23 @@
+       return (value.objectValue() != null &amp;&amp; value.objectValue() instanceof SleepClosure);
+    }
+ 
+-   /** extracts a callable Function from the passed in Scalar.  The passed in Scalar can be either a SleepClosure scalar or a string scalar specifying a function name */
++   /** extracts a callable Function from the passed in Scalar.  Returns null if value does not contain a function.  Calling isFunctionScalar before this method is highly recommended. */
++   public static SleepClosure getFunctionFromScalar(Scalar value)
++   {
++       if (value.objectValue() != null &amp;&amp; value.objectValue() instanceof SleepClosure)
++           return (SleepClosure)value.objectValue();
++
++       return null;
++   }
++
++   /** extracts a callable Function from the passed in Scalar.  The passed in Scalar can be either a SleepClosure scalar or a string scalar specifying a function name.
++       This method exists for backwards compatability of old jIRCii scripts. */
+    public static SleepClosure getFunctionFromScalar(Scalar value, ScriptInstance script)
+    {
+-     if (value.objectValue() != null &amp;&amp; value.objectValue() instanceof SleepClosure)
+-         return (SleepClosure)value.objectValue();
++      if (value.objectValue() != null &amp;&amp; value.objectValue() instanceof SleepClosure)
++          return (SleepClosure)value.objectValue();
+ 
+-     return (SleepClosure)script.getScriptEnvironment().getFunction(value.toString());
++      return (SleepClosure)script.getScriptEnvironment().getFunction(value.toString());
+    }
+ 
+    /** creates an IO handle scalar suitable for use with the sleep IO API.  The passed in
+
+Added: sleep/tests/itererror.sl
+===================================================================
+--- sleep/tests/itererror.sl	2008-05-30 17:44:36 UTC (rev 397)
++++ sleep/tests/itererror.sl	2008-05-30 18:30:17 UTC (rev 398)
+@@ -0,0 +1 @@
++map({ println(&quot;Hello goldfish&quot;); }, &quot;345&quot;);
+
+Modified: sleep/tests/output/callccfork.sl
+===================================================================
+--- sleep/tests/output/callccfork.sl	2008-05-30 17:44:36 UTC (rev 397)
++++ sleep/tests/output/callccfork.sl	2008-05-30 18:30:17 UTC (rev 398)
+@@ -1,10 +1,11 @@
+ Trace: &amp;global('$handle $value') at callccfork.sl:18
++Trace: function('&amp;func') = &amp;closure[callccfork.sl:9-15]#X at callccfork.sl:20
+ Begin!
+ Trace: &amp;println('Begin!') at callccfork.sl:9
+ Inside of callcc function
+ Trace: &amp;println('Inside of callcc function') at callccfork.sl:12
+-Trace: [&amp;closure[callccfork.sl:12-13]#3 CALLCC: &amp;closure[callccfork.sl:9-15]#2] = 'pHEAR' at callccfork.sl:10
+-Trace: &amp;fork(&amp;closure[callccfork.sl:9-15]#1) = <A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">sleep.bridges.io.IOObject at dec8b3</A> at callccfork.sl:20
+-Trace: &amp;wait(<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">sleep.bridges.io.IOObject at dec8b3</A>, 5000) = 'pHEAR' at callccfork.sl:21
++Trace: [&amp;closure[callccfork.sl:12-13]#X CALLCC: &amp;closure[callccfork.sl:9-15]#X] = 'pHEAR' at callccfork.sl:10
++Trace: &amp;fork(&amp;closure[callccfork.sl:9-15]#X) = sleep.bridges.io.IOObject@###### at callccfork.sl:20
++Trace: &amp;wait(sleep.bridges.io.IOObject@######, 5000) = 'pHEAR' at callccfork.sl:21
+ pHEAR
+ Trace: &amp;println('pHEAR') at callccfork.sl:22
+
+Modified: sleep/tests/output/fe_generatordb.sl
+===================================================================
+--- sleep/tests/output/fe_generatordb.sl	2008-05-30 17:44:36 UTC (rev 397)
++++ sleep/tests/output/fe_generatordb.sl	2008-05-30 18:30:17 UTC (rev 398)
+@@ -1,97 +1,98 @@
+ Trace: &amp;this('$x') at fe_generatordb.sl:6
+-Trace: [&amp;closure[fe_generatordb.sl:6]#1 eval] = 'val: 0' at &lt;internal&gt;:-1
++Trace: [&amp;closure[fe_generatordb.sl:6]#X eval] = 'val: 0' at &lt;internal&gt;:-1
+ 0 =&gt; val: 0
+ Trace: &amp;println('0 =&gt; val: 0') at fe_generatordb.sl:8
+-Trace: [&amp;closure[fe_generatordb.sl:6]#1 eval] = 'val: 1' at &lt;internal&gt;:-1
++Trace: [&amp;closure[fe_generatordb.sl:6]#X eval] = 'val: 1' at &lt;internal&gt;:-1
+ 1 =&gt; val: 1
+ Trace: &amp;println('1 =&gt; val: 1') at fe_generatordb.sl:8
+-Trace: [&amp;closure[fe_generatordb.sl:6]#1 eval] = 'val: 2' at &lt;internal&gt;:-1
++Trace: [&amp;closure[fe_generatordb.sl:6]#X eval] = 'val: 2' at &lt;internal&gt;:-1
+ 2 =&gt; val: 2
+ Trace: &amp;println('2 =&gt; val: 2') at fe_generatordb.sl:8
+-Trace: [&amp;closure[fe_generatordb.sl:6]#1 eval] = 'val: 3' at &lt;internal&gt;:-1
++Trace: [&amp;closure[fe_generatordb.sl:6]#X eval] = 'val: 3' at &lt;internal&gt;:-1
+ 3 =&gt; val: 3
+ Trace: &amp;println('3 =&gt; val: 3') at fe_generatordb.sl:8
+-Trace: [&amp;closure[fe_generatordb.sl:6]#1 eval] = 'val: 4' at &lt;internal&gt;:-1
++Trace: [&amp;closure[fe_generatordb.sl:6]#X eval] = 'val: 4' at &lt;internal&gt;:-1
+ 4 =&gt; val: 4
+ Trace: &amp;println('4 =&gt; val: 4') at fe_generatordb.sl:8
+-Trace: [&amp;closure[fe_generatordb.sl:6]#1 eval] = 'val: 5' at &lt;internal&gt;:-1
++Trace: [&amp;closure[fe_generatordb.sl:6]#X eval] = 'val: 5' at &lt;internal&gt;:-1
+ 5 =&gt; val: 5
+ Trace: &amp;println('5 =&gt; val: 5') at fe_generatordb.sl:8
+-Trace: [&amp;closure[fe_generatordb.sl:6]#1 eval] = 'val: 6' at &lt;internal&gt;:-1
++Trace: [&amp;closure[fe_generatordb.sl:6]#X eval] = 'val: 6' at &lt;internal&gt;:-1
+ 6 =&gt; val: 6
+ Trace: &amp;println('6 =&gt; val: 6') at fe_generatordb.sl:8
+-Trace: [&amp;closure[fe_generatordb.sl:6]#1 eval] = 'val: 7' at &lt;internal&gt;:-1
++Trace: [&amp;closure[fe_generatordb.sl:6]#X eval] = 'val: 7' at &lt;internal&gt;:-1
+ 7 =&gt; val: 7
+ Trace: &amp;println('7 =&gt; val: 7') at fe_generatordb.sl:8
+-Trace: [&amp;closure[fe_generatordb.sl:6]#1 eval] = 'val: 8' at &lt;internal&gt;:-1
++Trace: [&amp;closure[fe_generatordb.sl:6]#X eval] = 'val: 8' at &lt;internal&gt;:-1
+ 8 =&gt; val: 8
+ Trace: &amp;println('8 =&gt; val: 8') at fe_generatordb.sl:8
+-Trace: [&amp;closure[fe_generatordb.sl:6]#1 eval] = 'val: 9' at &lt;internal&gt;:-1
++Trace: [&amp;closure[fe_generatordb.sl:6]#X eval] = 'val: 9' at &lt;internal&gt;:-1
+ 9 =&gt; val: 9
+ Trace: &amp;println('9 =&gt; val: 9') at fe_generatordb.sl:8
+-Trace: [&amp;closure[fe_generatordb.sl:6]#1 eval] at &lt;internal&gt;:-1
+-Trace: &amp;lambda(&amp;closure[fe_generatordb.sl:13-19]#2, $start =&gt; 50, $stop =&gt; 60) = &amp;closure[fe_generatordb.sl:13-19]#3 at fe_generatordb.sl:22
+-Trace: [&amp;closure[fe_generatordb.sl:13-19]#3 eval] = 50 at &lt;internal&gt;:-1
++Trace: [&amp;closure[fe_generatordb.sl:6]#X eval] at &lt;internal&gt;:-1
++Trace: function('&amp;_range') = &amp;closure[fe_generatordb.sl:13-19]#X at fe_generatordb.sl:22
++Trace: &amp;lambda(&amp;closure[fe_generatordb.sl:13-19]#X, $start =&gt; 50, $stop =&gt; 60) = &amp;closure[fe_generatordb.sl:13-19]#X at fe_generatordb.sl:22
++Trace: [&amp;closure[fe_generatordb.sl:13-19]#X eval] = 50 at &lt;internal&gt;:-1
+ Testing out range stuff: 0 =&gt; 50
+ Trace: &amp;println('Testing out range stuff: 0 =&gt; 50') at fe_generatordb.sl:24
+-Trace: [&amp;closure[fe_generatordb.sl:13-19]#3 eval] = 51 at &lt;internal&gt;:-1
++Trace: [&amp;closure[fe_generatordb.sl:13-19]#X eval] = 51 at &lt;internal&gt;:-1
+ Testing out range stuff: 1 =&gt; 51
+ Trace: &amp;println('Testing out range stuff: 1 =&gt; 51') at fe_generatordb.sl:24
+-Trace: [&amp;closure[fe_generatordb.sl:13-19]#3 eval] = 52 at &lt;internal&gt;:-1
++Trace: [&amp;closure[fe_generatordb.sl:13-19]#X eval] = 52 at &lt;internal&gt;:-1
+ Testing out range stuff: 2 =&gt; 52
+ Trace: &amp;println('Testing out range stuff: 2 =&gt; 52') at fe_generatordb.sl:24
+-Trace: [&amp;closure[fe_generatordb.sl:13-19]#3 eval] = 53 at &lt;internal&gt;:-1
++Trace: [&amp;closure[fe_generatordb.sl:13-19]#X eval] = 53 at &lt;internal&gt;:-1
+ Testing out range stuff: 3 =&gt; 53
+ Trace: &amp;println('Testing out range stuff: 3 =&gt; 53') at fe_generatordb.sl:24
+-Trace: [&amp;closure[fe_generatordb.sl:13-19]#3 eval] = 54 at &lt;internal&gt;:-1
++Trace: [&amp;closure[fe_generatordb.sl:13-19]#X eval] = 54 at &lt;internal&gt;:-1
+ Testing out range stuff: 4 =&gt; 54
+ Trace: &amp;println('Testing out range stuff: 4 =&gt; 54') at fe_generatordb.sl:24
+-Trace: [&amp;closure[fe_generatordb.sl:13-19]#3 eval] = 55 at &lt;internal&gt;:-1
++Trace: [&amp;closure[fe_generatordb.sl:13-19]#X eval] = 55 at &lt;internal&gt;:-1
+ Testing out range stuff: 5 =&gt; 55
+ Trace: &amp;println('Testing out range stuff: 5 =&gt; 55') at fe_generatordb.sl:24
+-Trace: [&amp;closure[fe_generatordb.sl:13-19]#3 eval] = 56 at &lt;internal&gt;:-1
++Trace: [&amp;closure[fe_generatordb.sl:13-19]#X eval] = 56 at &lt;internal&gt;:-1
+ Testing out range stuff: 6 =&gt; 56
+ Trace: &amp;println('Testing out range stuff: 6 =&gt; 56') at fe_generatordb.sl:24
+-Trace: [&amp;closure[fe_generatordb.sl:13-19]#3 eval] = 57 at &lt;internal&gt;:-1
++Trace: [&amp;closure[fe_generatordb.sl:13-19]#X eval] = 57 at &lt;internal&gt;:-1
+ Testing out range stuff: 7 =&gt; 57
+ Trace: &amp;println('Testing out range stuff: 7 =&gt; 57') at fe_generatordb.sl:24
+-Trace: [&amp;closure[fe_generatordb.sl:13-19]#3 eval] = 58 at &lt;internal&gt;:-1
++Trace: [&amp;closure[fe_generatordb.sl:13-19]#X eval] = 58 at &lt;internal&gt;:-1
+ Testing out range stuff: 8 =&gt; 58
+ Trace: &amp;println('Testing out range stuff: 8 =&gt; 58') at fe_generatordb.sl:24
+-Trace: [&amp;closure[fe_generatordb.sl:13-19]#3 eval] = 59 at &lt;internal&gt;:-1
++Trace: [&amp;closure[fe_generatordb.sl:13-19]#X eval] = 59 at &lt;internal&gt;:-1
+ Testing out range stuff: 9 =&gt; 59
+ Trace: &amp;println('Testing out range stuff: 9 =&gt; 59') at fe_generatordb.sl:24
+-Trace: [&amp;closure[fe_generatordb.sl:13-19]#3 eval] at &lt;internal&gt;:-1
++Trace: [&amp;closure[fe_generatordb.sl:13-19]#X eval] at &lt;internal&gt;:-1
+ Trace: &amp;this('$start $stop') at fe_generatordb.sl:29
+-Trace: &amp;_range2(70, 80) = &amp;closure[fe_generatordb.sl:29-39]#4 at fe_generatordb.sl:42
+-Trace: [&amp;closure[fe_generatordb.sl:29-39]#4 eval] = 70 at &lt;internal&gt;:-1
++Trace: &amp;_range2(70, 80) = &amp;closure[fe_generatordb.sl:29-39]#X at fe_generatordb.sl:42
++Trace: [&amp;closure[fe_generatordb.sl:29-39]#X eval] = 70 at &lt;internal&gt;:-1
+ My third test: 0 =&gt; 70
+ Trace: &amp;println('My third test: 0 =&gt; 70') at fe_generatordb.sl:44
+-Trace: [&amp;closure[fe_generatordb.sl:29-39]#4 eval] = 71 at &lt;internal&gt;:-1
++Trace: [&amp;closure[fe_generatordb.sl:29-39]#X eval] = 71 at &lt;internal&gt;:-1
+ My third test: 1 =&gt; 71
+ Trace: &amp;println('My third test: 1 =&gt; 71') at fe_generatordb.sl:44
+-Trace: [&amp;closure[fe_generatordb.sl:29-39]#4 eval] = 72 at &lt;internal&gt;:-1
++Trace: [&amp;closure[fe_generatordb.sl:29-39]#X eval] = 72 at &lt;internal&gt;:-1
+ My third test: 2 =&gt; 72
+ Trace: &amp;println('My third test: 2 =&gt; 72') at fe_generatordb.sl:44
+-Trace: [&amp;closure[fe_generatordb.sl:29-39]#4 eval] = 73 at &lt;internal&gt;:-1
++Trace: [&amp;closure[fe_generatordb.sl:29-39]#X eval] = 73 at &lt;internal&gt;:-1
+ My third test: 3 =&gt; 73
+ Trace: &amp;println('My third test: 3 =&gt; 73') at fe_generatordb.sl:44
+-Trace: [&amp;closure[fe_generatordb.sl:29-39]#4 eval] = 74 at &lt;internal&gt;:-1
++Trace: [&amp;closure[fe_generatordb.sl:29-39]#X eval] = 74 at &lt;internal&gt;:-1
+ My third test: 4 =&gt; 74
+ Trace: &amp;println('My third test: 4 =&gt; 74') at fe_generatordb.sl:44
+-Trace: [&amp;closure[fe_generatordb.sl:29-39]#4 eval] = 75 at &lt;internal&gt;:-1
++Trace: [&amp;closure[fe_generatordb.sl:29-39]#X eval] = 75 at &lt;internal&gt;:-1
+ My third test: 5 =&gt; 75
+ Trace: &amp;println('My third test: 5 =&gt; 75') at fe_generatordb.sl:44
+-Trace: [&amp;closure[fe_generatordb.sl:29-39]#4 eval] = 76 at &lt;internal&gt;:-1
++Trace: [&amp;closure[fe_generatordb.sl:29-39]#X eval] = 76 at &lt;internal&gt;:-1
+ My third test: 6 =&gt; 76
+ Trace: &amp;println('My third test: 6 =&gt; 76') at fe_generatordb.sl:44
+-Trace: [&amp;closure[fe_generatordb.sl:29-39]#4 eval] = 77 at &lt;internal&gt;:-1
++Trace: [&amp;closure[fe_generatordb.sl:29-39]#X eval] = 77 at &lt;internal&gt;:-1
+ My third test: 7 =&gt; 77
+ Trace: &amp;println('My third test: 7 =&gt; 77') at fe_generatordb.sl:44
+-Trace: [&amp;closure[fe_generatordb.sl:29-39]#4 eval] = 78 at &lt;internal&gt;:-1
++Trace: [&amp;closure[fe_generatordb.sl:29-39]#X eval] = 78 at &lt;internal&gt;:-1
+ My third test: 8 =&gt; 78
+ Trace: &amp;println('My third test: 8 =&gt; 78') at fe_generatordb.sl:44
+-Trace: [&amp;closure[fe_generatordb.sl:29-39]#4 eval] = 79 at &lt;internal&gt;:-1
++Trace: [&amp;closure[fe_generatordb.sl:29-39]#X eval] = 79 at &lt;internal&gt;:-1
+ My third test: 9 =&gt; 79
+ Trace: &amp;println('My third test: 9 =&gt; 79') at fe_generatordb.sl:44
+-Trace: [&amp;closure[fe_generatordb.sl:29-39]#4 eval] at &lt;internal&gt;:-1
++Trace: [&amp;closure[fe_generatordb.sl:29-39]#X eval] at &lt;internal&gt;:-1
+
+Added: sleep/tests/output/itererror.sl
+===================================================================
+--- sleep/tests/output/itererror.sl	2008-05-30 17:44:36 UTC (rev 397)
++++ sleep/tests/output/itererror.sl	2008-05-30 18:30:17 UTC (rev 398)
+@@ -0,0 +1 @@
++Warning: expected iterator (@array or &amp;closure)--received: '345' at itererror.sl:1
+
+Modified: sleep/tests/output/iternotrace.sl
+===================================================================
+--- sleep/tests/output/iternotrace.sl	2008-05-30 17:44:36 UTC (rev 397)
++++ sleep/tests/output/iternotrace.sl	2008-05-30 18:30:17 UTC (rev 398)
+@@ -1,41 +1,43 @@
++Trace: function('&amp;generator') = &amp;closure[iternotrace.sl:5-9]#X at iternotrace.sl:15
+ Trace: &amp;local('$x') at iternotrace.sl:5
+-Trace: [&amp;closure[iternotrace.sl:5-9]#1 eval] = 0 at &lt;internal&gt;:-1
++Trace: [&amp;closure[iternotrace.sl:5-9]#X eval] = 0 at &lt;internal&gt;:-1
+ Received 0
+ Trace: &amp;println('Received 0') at iternotrace.sl:17
+-Trace: [&amp;closure[iternotrace.sl:5-9]#1 eval] = 2 at &lt;internal&gt;:-1
++Trace: [&amp;closure[iternotrace.sl:5-9]#X eval] = 2 at &lt;internal&gt;:-1
+ Received 2
+ Trace: &amp;println('Received 2') at iternotrace.sl:17
+-Trace: [&amp;closure[iternotrace.sl:5-9]#1 eval] = 4 at &lt;internal&gt;:-1
++Trace: [&amp;closure[iternotrace.sl:5-9]#X eval] = 4 at &lt;internal&gt;:-1
+ Received 4
+ Trace: &amp;println('Received 4') at iternotrace.sl:17
+-Trace: [&amp;closure[iternotrace.sl:5-9]#1 eval] = 6 at &lt;internal&gt;:-1
++Trace: [&amp;closure[iternotrace.sl:5-9]#X eval] = 6 at &lt;internal&gt;:-1
+ Received 6
+ Trace: &amp;println('Received 6') at iternotrace.sl:17
+-Trace: [&amp;closure[iternotrace.sl:5-9]#1 eval] = 8 at &lt;internal&gt;:-1
++Trace: [&amp;closure[iternotrace.sl:5-9]#X eval] = 8 at &lt;internal&gt;:-1
+ Received 8
+ Trace: &amp;println('Received 8') at iternotrace.sl:17
+-Trace: [&amp;closure[iternotrace.sl:5-9]#1 eval] at &lt;internal&gt;:-1
++Trace: [&amp;closure[iternotrace.sl:5-9]#X eval] at &lt;internal&gt;:-1
++Trace: function('&amp;generator') = &amp;closure[iternotrace.sl:5-9]#X at iternotrace.sl:20
+ Trace: &amp;local('$x') at iternotrace.sl:5
+-Trace: [&amp;closure[iternotrace.sl:5-9]#1 eval] = 0 at &lt;internal&gt;:-1
++Trace: [&amp;closure[iternotrace.sl:5-9]#X eval] = 0 at &lt;internal&gt;:-1
+ More fp: 0
+ Trace: &amp;println('More fp: 0') at iternotrace.sl:20
+-Trace: [&amp;closure[iternotrace.sl:20]#3 eval: 0] at &lt;internal&gt;:-1
+-Trace: [&amp;closure[iternotrace.sl:5-9]#1 eval] = 2 at &lt;internal&gt;:-1
++Trace: [&amp;closure[iternotrace.sl:20]#X eval: 0] at &lt;internal&gt;:-1
++Trace: [&amp;closure[iternotrace.sl:5-9]#X eval] = 2 at &lt;internal&gt;:-1
+ More fp: 2
+ Trace: &amp;println('More fp: 2') at iternotrace.sl:20
+-Trace: [&amp;closure[iternotrace.sl:20]#3 eval: 2] at &lt;internal&gt;:-1
+-Trace: [&amp;closure[iternotrace.sl:5-9]#1 eval] = 4 at &lt;internal&gt;:-1
++Trace: [&amp;closure[iternotrace.sl:20]#X eval: 2] at &lt;internal&gt;:-1
++Trace: [&amp;closure[iternotrace.sl:5-9]#X eval] = 4 at &lt;internal&gt;:-1
+ More fp: 4
+ Trace: &amp;println('More fp: 4') at iternotrace.sl:20
+-Trace: [&amp;closure[iternotrace.sl:20]#3 eval: 4] at &lt;internal&gt;:-1
+-Trace: [&amp;closure[iternotrace.sl:5-9]#1 eval] = 6 at &lt;internal&gt;:-1
++Trace: [&amp;closure[iternotrace.sl:20]#X eval: 4] at &lt;internal&gt;:-1
++Trace: [&amp;closure[iternotrace.sl:5-9]#X eval] = 6 at &lt;internal&gt;:-1
+ More fp: 6
+ Trace: &amp;println('More fp: 6') at iternotrace.sl:20
+-Trace: [&amp;closure[iternotrace.sl:20]#3 eval: 6] at &lt;internal&gt;:-1
+-Trace: [&amp;closure[iternotrace.sl:5-9]#1 eval] = 8 at &lt;internal&gt;:-1
++Trace: [&amp;closure[iternotrace.sl:20]#X eval: 6] at &lt;internal&gt;:-1
++Trace: [&amp;closure[iternotrace.sl:5-9]#X eval] = 8 at &lt;internal&gt;:-1
+ More fp: 8
+ Trace: &amp;println('More fp: 8') at iternotrace.sl:20
+-Trace: [&amp;closure[iternotrace.sl:20]#3 eval: 8] at &lt;internal&gt;:-1
+-Trace: [&amp;closure[iternotrace.sl:5-9]#1 eval] at &lt;internal&gt;:-1
+-Trace: &amp;map(&amp;closure[iternotrace.sl:20]#3, &amp;closure[iternotrace.sl:5-9]#1) = @($null, $null, $null, $null, $null) at iternotrace.sl:20
++Trace: [&amp;closure[iternotrace.sl:20]#X eval: 8] at &lt;internal&gt;:-1
++Trace: [&amp;closure[iternotrace.sl:5-9]#X eval] at &lt;internal&gt;:-1
++Trace: &amp;map(&amp;closure[iternotrace.sl:20]#X, &amp;closure[iternotrace.sl:5-9]#X) = @($null, $null, $null, $null, $null) at iternotrace.sl:20
+ Trace: &amp;foo() at iternotrace.sl:23
+
+Modified: sleep/tests/output/proxy.sl
+===================================================================
+--- sleep/tests/output/proxy.sl	2008-05-30 17:44:36 UTC (rev 397)
++++ sleep/tests/output/proxy.sl	2008-05-30 18:30:17 UTC (rev 398)
+@@ -1,76 +1,77 @@
+ Trace: &amp;local('$enumeration') at proxy.sl:25
+-Trace: &amp;lambda(&amp;closure[proxy.sl:7-15]#1) = &amp;closure[proxy.sl:7-15]#3 at proxy.sl:26
+-Trace: &amp;foo() = &amp;closure[proxy.sl:7-15]#3 at proxy.sl:45
+-Trace: [&amp;closure[proxy.sl:28]#4] = 1 at &lt;internal&gt;:-1
+-Trace: &amp;invoke(&amp;closure[proxy.sl:28]#4, @(), $this =&gt; &amp;closure[proxy.sl:7-15]#3) = 1 at proxy.sl:11
+-Trace: [&amp;closure[proxy.sl:7-15]#3 hasMoreElements] = 1 at &lt;Java&gt;:-1
++Trace: function('&amp;object') = &amp;closure[proxy.sl:7-15]#X at proxy.sl:26
++Trace: &amp;lambda(&amp;closure[proxy.sl:7-15]#X) = &amp;closure[proxy.sl:7-15]#X at proxy.sl:26
++Trace: &amp;foo() = &amp;closure[proxy.sl:7-15]#X at proxy.sl:45
++Trace: [&amp;closure[proxy.sl:28]#X] = 1 at &lt;internal&gt;:-1
++Trace: &amp;invoke(&amp;closure[proxy.sl:28]#X, @(), $this =&gt; &amp;closure[proxy.sl:7-15]#X) = 1 at proxy.sl:11
++Trace: [&amp;closure[proxy.sl:7-15]#X hasMoreElements] = 1 at &lt;Java&gt;:-1
+ Trace: &amp;size(@('a', 'b', 'c', 'd', 'e')) = 5 at proxy.sl:30
+ Trace: &amp;pop(@('a', 'b', 'c', 'd', 'e')) = 'e' at proxy.sl:32
+-Trace: [&amp;closure[proxy.sl:30-36]#5] = 'e' at &lt;internal&gt;:-1
+-Trace: &amp;invoke(&amp;closure[proxy.sl:30-36]#5, @(), $this =&gt; &amp;closure[proxy.sl:7-15]#3) = 'e' at proxy.sl:11
+-Trace: [&amp;closure[proxy.sl:7-15]#3 nextElement] = 'e' at &lt;Java&gt;:-1
+-Trace: [&amp;closure[proxy.sl:28]#4] = 1 at &lt;internal&gt;:-1
+-Trace: &amp;invoke(&amp;closure[proxy.sl:28]#4, @(), $this =&gt; &amp;closure[proxy.sl:7-15]#3) = 1 at proxy.sl:11
+-Trace: [&amp;closure[proxy.sl:7-15]#3 hasMoreElements] = 1 at &lt;Java&gt;:-1
++Trace: [&amp;closure[proxy.sl:30-36]#X] = 'e' at &lt;internal&gt;:-1
++Trace: &amp;invoke(&amp;closure[proxy.sl:30-36]#X, @(), $this =&gt; &amp;closure[proxy.sl:7-15]#X) = 'e' at proxy.sl:11
++Trace: [&amp;closure[proxy.sl:7-15]#X nextElement] = 'e' at &lt;Java&gt;:-1
++Trace: [&amp;closure[proxy.sl:28]#X] = 1 at &lt;internal&gt;:-1
++Trace: &amp;invoke(&amp;closure[proxy.sl:28]#X, @(), $this =&gt; &amp;closure[proxy.sl:7-15]#X) = 1 at proxy.sl:11
++Trace: [&amp;closure[proxy.sl:7-15]#X hasMoreElements] = 1 at &lt;Java&gt;:-1
+ Trace: &amp;size(@('a', 'b', 'c', 'd')) = 4 at proxy.sl:30
+ Trace: &amp;pop(@('a', 'b', 'c', 'd')) = 'd' at proxy.sl:32
+-Trace: [&amp;closure[proxy.sl:30-36]#5] = 'd' at &lt;internal&gt;:-1
+-Trace: &amp;invoke(&amp;closure[proxy.sl:30-36]#5, @(), $this =&gt; &amp;closure[proxy.sl:7-15]#3) = 'd' at proxy.sl:11
+-Trace: [&amp;closure[proxy.sl:7-15]#3 nextElement] = 'd' at &lt;Java&gt;:-1
+-Trace: [&amp;closure[proxy.sl:28]#4] = 1 at &lt;internal&gt;:-1
+-Trace: &amp;invoke(&amp;closure[proxy.sl:28]#4, @(), $this =&gt; &amp;closure[proxy.sl:7-15]#3) = 1 at proxy.sl:11
+-Trace: [&amp;closure[proxy.sl:7-15]#3 hasMoreElements] = 1 at &lt;Java&gt;:-1
++Trace: [&amp;closure[proxy.sl:30-36]#X] = 'd' at &lt;internal&gt;:-1
++Trace: &amp;invoke(&amp;closure[proxy.sl:30-36]#X, @(), $this =&gt; &amp;closure[proxy.sl:7-15]#X) = 'd' at proxy.sl:11
++Trace: [&amp;closure[proxy.sl:7-15]#X nextElement] = 'd' at &lt;Java&gt;:-1
++Trace: [&amp;closure[proxy.sl:28]#X] = 1 at &lt;internal&gt;:-1
++Trace: &amp;invoke(&amp;closure[proxy.sl:28]#X, @(), $this =&gt; &amp;closure[proxy.sl:7-15]#X) = 1 at proxy.sl:11
++Trace: [&amp;closure[proxy.sl:7-15]#X hasMoreElements] = 1 at &lt;Java&gt;:-1
+ Trace: &amp;size(@('a', 'b', 'c')) = 3 at proxy.sl:30
+ Trace: &amp;pop(@('a', 'b', 'c')) = 'c' at proxy.sl:32
+-Trace: [&amp;closure[proxy.sl:30-36]#5] = 'c' at &lt;internal&gt;:-1
+-Trace: &amp;invoke(&amp;closure[proxy.sl:30-36]#5, @(), $this =&gt; &amp;closure[proxy.sl:7-15]#3) = 'c' at proxy.sl:11
+-Trace: [&amp;closure[proxy.sl:7-15]#3 nextElement] = 'c' at &lt;Java&gt;:-1
+-Trace: [&amp;closure[proxy.sl:28]#4] = 1 at &lt;internal&gt;:-1
+-Trace: &amp;invoke(&amp;closure[proxy.sl:28]#4, @(), $this =&gt; &amp;closure[proxy.sl:7-15]#3) = 1 at proxy.sl:11
+-Trace: [&amp;closure[proxy.sl:7-15]#3 hasMoreElements] = 1 at &lt;Java&gt;:-1
++Trace: [&amp;closure[proxy.sl:30-36]#X] = 'c' at &lt;internal&gt;:-1
++Trace: &amp;invoke(&amp;closure[proxy.sl:30-36]#X, @(), $this =&gt; &amp;closure[proxy.sl:7-15]#X) = 'c' at proxy.sl:11
++Trace: [&amp;closure[proxy.sl:7-15]#X nextElement] = 'c' at &lt;Java&gt;:-1
++Trace: [&amp;closure[proxy.sl:28]#X] = 1 at &lt;internal&gt;:-1
++Trace: &amp;invoke(&amp;closure[proxy.sl:28]#X, @(), $this =&gt; &amp;closure[proxy.sl:7-15]#X) = 1 at proxy.sl:11
++Trace: [&amp;closure[proxy.sl:7-15]#X hasMoreElements] = 1 at &lt;Java&gt;:-1
+ Trace: &amp;size(@('a', 'b')) = 2 at proxy.sl:30
+ Trace: &amp;pop(@('a', 'b')) = 'b' at proxy.sl:32
+-Trace: [&amp;closure[proxy.sl:30-36]#5] = 'b' at &lt;internal&gt;:-1
+-Trace: &amp;invoke(&amp;closure[proxy.sl:30-36]#5, @(), $this =&gt; &amp;closure[proxy.sl:7-15]#3) = 'b' at proxy.sl:11
+-Trace: [&amp;closure[proxy.sl:7-15]#3 nextElement] = 'b' at &lt;Java&gt;:-1
+-Trace: [&amp;closure[proxy.sl:28]#4] = 1 at &lt;internal&gt;:-1
+-Trace: &amp;invoke(&amp;closure[proxy.sl:28]#4, @(), $this =&gt; &amp;closure[proxy.sl:7-15]#3) = 1 at proxy.sl:11
+-Trace: [&amp;closure[proxy.sl:7-15]#3 hasMoreElements] = 1 at &lt;Java&gt;:-1
++Trace: [&amp;closure[proxy.sl:30-36]#X] = 'b' at &lt;internal&gt;:-1
++Trace: &amp;invoke(&amp;closure[proxy.sl:30-36]#X, @(), $this =&gt; &amp;closure[proxy.sl:7-15]#X) = 'b' at proxy.sl:11
++Trace: [&amp;closure[proxy.sl:7-15]#X nextElement] = 'b' at &lt;Java&gt;:-1
++Trace: [&amp;closure[proxy.sl:28]#X] = 1 at &lt;internal&gt;:-1
++Trace: &amp;invoke(&amp;closure[proxy.sl:28]#X, @(), $this =&gt; &amp;closure[proxy.sl:7-15]#X) = 1 at proxy.sl:11
++Trace: [&amp;closure[proxy.sl:7-15]#X hasMoreElements] = 1 at &lt;Java&gt;:-1
+ Trace: &amp;size(@('a')) = 1 at proxy.sl:30
+ Trace: &amp;pop(@('a')) = 'a' at proxy.sl:32
+-Trace: [&amp;closure[proxy.sl:30-36]#5] = 'a' at &lt;internal&gt;:-1
+-Trace: &amp;invoke(&amp;closure[proxy.sl:30-36]#5, @(), $this =&gt; &amp;closure[proxy.sl:7-15]#3) = 'a' at proxy.sl:11
+-Trace: [&amp;closure[proxy.sl:7-15]#3 nextElement] = 'a' at &lt;Java&gt;:-1
+-Trace: [&amp;closure[proxy.sl:28]#4] = 1 at &lt;internal&gt;:-1
+-Trace: &amp;invoke(&amp;closure[proxy.sl:28]#4, @(), $this =&gt; &amp;closure[proxy.sl:7-15]#3) = 1 at proxy.sl:11
+-Trace: [&amp;closure[proxy.sl:7-15]#3 hasMoreElements] = 1 at &lt;Java&gt;:-1
++Trace: [&amp;closure[proxy.sl:30-36]#X] = 'a' at &lt;internal&gt;:-1
++Trace: &amp;invoke(&amp;closure[proxy.sl:30-36]#X, @(), $this =&gt; &amp;closure[proxy.sl:7-15]#X) = 'a' at proxy.sl:11
++Trace: [&amp;closure[proxy.sl:7-15]#X nextElement] = 'a' at &lt;Java&gt;:-1
++Trace: [&amp;closure[proxy.sl:28]#X] = 1 at &lt;internal&gt;:-1
++Trace: &amp;invoke(&amp;closure[proxy.sl:28]#X, @(), $this =&gt; &amp;closure[proxy.sl:7-15]#X) = 1 at proxy.sl:11
++Trace: [&amp;closure[proxy.sl:7-15]#X hasMoreElements] = 1 at &lt;Java&gt;:-1
+ Trace: &amp;size(@()) = 0 at proxy.sl:30
+ Trace: [new java.util.NoSuchElementException: 'overextending my bounds dude :('] = java.util.NoSuchElementException: overextending my bounds dude :( at proxy.sl:36
+-Trace: [&amp;closure[proxy.sl:30-36]#5] - FAILED! at &lt;internal&gt;:-1
+-Trace: &amp;invoke(&amp;closure[proxy.sl:30-36]#5, @(), $this =&gt; &amp;closure[proxy.sl:7-15]#3) - FAILED! at proxy.sl:11
+-Trace: [&amp;closure[proxy.sl:7-15]#3 nextElement] - FAILED! at &lt;Java&gt;:-1
+-Trace: [java.util.Collections list: &amp;closure[proxy.sl:7-15]#3] - FAILED! at proxy.sl:45
++Trace: [&amp;closure[proxy.sl:30-36]#X] - FAILED! at &lt;internal&gt;:-1
++Trace: &amp;invoke(&amp;closure[proxy.sl:30-36]#X, @(), $this =&gt; &amp;closure[proxy.sl:7-15]#X) - FAILED! at proxy.sl:11
++Trace: [&amp;closure[proxy.sl:7-15]#X nextElement] - FAILED! at &lt;Java&gt;:-1
++Trace: [java.util.Collections list: &amp;closure[proxy.sl:7-15]#X] - FAILED! at proxy.sl:45
+ Trace: [java.util.NoSuchElementException: overextending my bounds dude :( getClass] = class java.util.NoSuchElementException at proxy.sl:49
+ Trace: [java.util.NoSuchElementException: overextending my bounds dude :( getMessage] = 'overextending my bounds dude :(' at proxy.sl:49
+ Error: overextending my bounds dude :( from: class java.util.NoSuchElementException
+ Trace: &amp;println('Error: overextending my bounds dude :( from: class java.util.NoSuchElementException') at proxy.sl:49
+-Trace: &amp;getStackTrace() = @(   proxy.sl:45 public static java.util.ArrayList java.util.Collections.list(java.util.Enumeration),    &lt;Java&gt;:-1 &amp;closure[proxy.sl:7-15]#3 as public abstract java.lang.Object java.util.Enumeration.nextElement(),    proxy.sl:11 &amp;invoke(),    &lt;internal&gt;:-1 &amp;closure[proxy.sl:30-36]#5,    proxy.sl:36 &lt;origin of exception&gt;) at proxy.sl:50
++Trace: &amp;getStackTrace() = @(   proxy.sl:45 public static java.util.ArrayList java.util.Collections.list(java.util.Enumeration),    &lt;Java&gt;:-1 &amp;closure[proxy.sl:7-15]#X as public abstract java.lang.Object java.util.Enumeration.nextElement(),    proxy.sl:11 &amp;invoke(),    &lt;internal&gt;:-1 &amp;closure[proxy.sl:30-36]#X,    proxy.sl:36 &lt;origin of exception&gt;) at proxy.sl:50
+    proxy.sl:45 public static java.util.ArrayList java.util.Collections.list(java.util.Enumeration)
+-   &lt;Java&gt;:-1 &amp;closure[proxy.sl:7-15]#3 as public abstract java.lang.Object java.util.Enumeration.nextElement()
++   &lt;Java&gt;:-1 &amp;closure[proxy.sl:7-15]#X as public abstract java.lang.Object java.util.Enumeration.nextElement()
+    proxy.sl:11 &amp;invoke()
+-   &lt;internal&gt;:-1 &amp;closure[proxy.sl:30-36]#5
++   &lt;internal&gt;:-1 &amp;closure[proxy.sl:30-36]#X
+    proxy.sl:36 &lt;origin of exception&gt;
+-Trace: &amp;printAll(@(   proxy.sl:45 public static java.util.ArrayList java.util.Collections.list(java.util.Enumeration),    &lt;Java&gt;:-1 &amp;closure[proxy.sl:7-15]#3 as public abstract java.lang.Object java.util.Enumeration.nextElement(),    proxy.sl:11 &amp;invoke(),    &lt;internal&gt;:-1 &amp;closure[proxy.sl:30-36]#5,    proxy.sl:36 &lt;origin of exception&gt;)) at proxy.sl:50
++Trace: &amp;printAll(@(   proxy.sl:45 public static java.util.ArrayList java.util.Collections.list(java.util.Enumeration),    &lt;Java&gt;:-1 &amp;closure[proxy.sl:7-15]#X as public abstract java.lang.Object java.util.Enumeration.nextElement(),    proxy.sl:11 &amp;invoke(),    &lt;internal&gt;:-1 &amp;closure[proxy.sl:30-36]#X,    proxy.sl:36 &lt;origin of exception&gt;)) at proxy.sl:50
+ Trying again... what will java do?
+ Trace: &amp;println('Trying again... what will java do?') at proxy.sl:55
+-Trace: [&amp;closure[proxy.sl:57]#6 hasMoreElements] - FAILED! at &lt;Java&gt;:-1
+-Trace: [java.util.Collections list: &amp;closure[proxy.sl:57]#6] - FAILED! at proxy.sl:56
++Trace: [&amp;closure[proxy.sl:57]#X hasMoreElements] - FAILED! at &lt;Java&gt;:-1
++Trace: [java.util.Collections list: &amp;closure[proxy.sl:57]#X] - FAILED! at proxy.sl:56
+ Trace: [java.lang.RuntimeException: haha... testing bish!@#$ getClass] = class java.lang.RuntimeException at proxy.sl:62
+ Trace: [java.lang.RuntimeException: haha... testing bish!@#$ getMessage] = 'haha... testing bish!@#$' at proxy.sl:62
+ Error: haha... testing bish!@#$ from: class java.lang.RuntimeException
+ Trace: &amp;println('Error: haha... testing bish!@#$ from: class java.lang.RuntimeException') at proxy.sl:62
+-Trace: &amp;getStackTrace() = @(   proxy.sl:56 public static java.util.ArrayList java.util.Collections.list(java.util.Enumeration),    &lt;Java&gt;:-1 &amp;closure[proxy.sl:57]#6 as public abstract boolean java.util.Enumeration.hasMoreElements(),    proxy.sl:57 &lt;origin of exception&gt;) at proxy.sl:63
++Trace: &amp;getStackTrace() = @(   proxy.sl:56 public static java.util.ArrayList java.util.Collections.list(java.util.Enumeration),    &lt;Java&gt;:-1 &amp;closure[proxy.sl:57]#X as public abstract boolean java.util.Enumeration.hasMoreElements(),    proxy.sl:57 &lt;origin of exception&gt;) at proxy.sl:63
+    proxy.sl:56 public static java.util.ArrayList java.util.Collections.list(java.util.Enumeration)
+-   &lt;Java&gt;:-1 &amp;closure[proxy.sl:57]#6 as public abstract boolean java.util.Enumeration.hasMoreElements()
++   &lt;Java&gt;:-1 &amp;closure[proxy.sl:57]#X as public abstract boolean java.util.Enumeration.hasMoreElements()
+    proxy.sl:57 &lt;origin of exception&gt;
+-Trace: &amp;printAll(@(   proxy.sl:56 public static java.util.ArrayList java.util.Collections.list(java.util.Enumeration),    &lt;Java&gt;:-1 &amp;closure[proxy.sl:57]#6 as public abstract boolean java.util.Enumeration.hasMoreElements(),    proxy.sl:57 &lt;origin of exception&gt;)) at proxy.sl:63
++Trace: &amp;printAll(@(   proxy.sl:56 public static java.util.ArrayList java.util.Collections.list(java.util.Enumeration),    &lt;Java&gt;:-1 &amp;closure[proxy.sl:57]#X as public abstract boolean java.util.Enumeration.hasMoreElements(),    proxy.sl:57 &lt;origin of exception&gt;)) at proxy.sl:63
+
+Modified: sleep/tests/output/tracepo.sl
+===================================================================
+--- sleep/tests/output/tracepo.sl	2008-05-30 17:44:36 UTC (rev 397)
++++ sleep/tests/output/tracepo.sl	2008-05-30 18:30:17 UTC (rev 398)
+@@ -1,62 +1,63 @@
+ Trace: &amp;local('$enumeration') at tracepo.sl:25
+-Trace: &amp;lambda(&amp;closure[tracepo.sl:7-15]#1) = &amp;closure[tracepo.sl:7-15]#3 at tracepo.sl:26
+-Trace: &amp;foo() = &amp;closure[tracepo.sl:7-15]#3 at tracepo.sl:45
+-Trace: [&amp;closure[tracepo.sl:28]#4] = 1 at &lt;internal&gt;:-1
+-Trace: &amp;invoke(&amp;closure[tracepo.sl:28]#4, @(), $this =&gt; &amp;closure[tracepo.sl:7-15]#3) = 1 at tracepo.sl:11
+-Trace: [&amp;closure[tracepo.sl:7-15]#3 hasMoreElements] = 1 at &lt;Java&gt;:-1
++Trace: function('&amp;object') = &amp;closure[tracepo.sl:7-15]#X at tracepo.sl:26
++Trace: &amp;lambda(&amp;closure[tracepo.sl:7-15]#X) = &amp;closure[tracepo.sl:7-15]#X at tracepo.sl:26
++Trace: &amp;foo() = &amp;closure[tracepo.sl:7-15]#X at tracepo.sl:45
++Trace: [&amp;closure[tracepo.sl:28]#X] = 1 at &lt;internal&gt;:-1
++Trace: &amp;invoke(&amp;closure[tracepo.sl:28]#X, @(), $this =&gt; &amp;closure[tracepo.sl:7-15]#X) = 1 at tracepo.sl:11
++Trace: [&amp;closure[tracepo.sl:7-15]#X hasMoreElements] = 1 at &lt;Java&gt;:-1
+ Trace: &amp;size(@('a', 'b', 'c', 'd', 'e')) = 5 at tracepo.sl:30
+ Trace: &amp;pop(@('a', 'b', 'c', 'd', 'e')) = 'e' at tracepo.sl:32
+-Trace: [&amp;closure[tracepo.sl:30-36]#5] = 'e' at &lt;internal&gt;:-1
+-Trace: &amp;invoke(&amp;closure[tracepo.sl:30-36]#5, @(), $this =&gt; &amp;closure[tracepo.sl:7-15]#3) = 'e' at tracepo.sl:11
+-Trace: [&amp;closure[tracepo.sl:7-15]#3 nextElement] = 'e' at &lt;Java&gt;:-1
+-Trace: [&amp;closure[tracepo.sl:28]#4] = 1 at &lt;internal&gt;:-1
+-Trace: &amp;invoke(&amp;closure[tracepo.sl:28]#4, @(), $this =&gt; &amp;closure[tracepo.sl:7-15]#3) = 1 at tracepo.sl:11
+-Trace: [&amp;closure[tracepo.sl:7-15]#3 hasMoreElements] = 1 at &lt;Java&gt;:-1
++Trace: [&amp;closure[tracepo.sl:30-36]#X] = 'e' at &lt;internal&gt;:-1
++Trace: &amp;invoke(&amp;closure[tracepo.sl:30-36]#X, @(), $this =&gt; &amp;closure[tracepo.sl:7-15]#X) = 'e' at tracepo.sl:11
++Trace: [&amp;closure[tracepo.sl:7-15]#X nextElement] = 'e' at &lt;Java&gt;:-1
++Trace: [&amp;closure[tracepo.sl:28]#X] = 1 at &lt;internal&gt;:-1
++Trace: &amp;invoke(&amp;closure[tracepo.sl:28]#X, @(), $this =&gt; &amp;closure[tracepo.sl:7-15]#X) = 1 at tracepo.sl:11
++Trace: [&amp;closure[tracepo.sl:7-15]#X hasMoreElements] = 1 at &lt;Java&gt;:-1
+ Trace: &amp;size(@('a', 'b', 'c', 'd')) = 4 at tracepo.sl:30
+ Trace: &amp;pop(@('a', 'b', 'c', 'd')) = 'd' at tracepo.sl:32
+-Trace: [&amp;closure[tracepo.sl:30-36]#5] = 'd' at &lt;internal&gt;:-1
+-Trace: &amp;invoke(&amp;closure[tracepo.sl:30-36]#5, @(), $this =&gt; &amp;closure[tracepo.sl:7-15]#3) = 'd' at tracepo.sl:11
+-Trace: [&amp;closure[tracepo.sl:7-15]#3 nextElement] = 'd' at &lt;Java&gt;:-1
+-Trace: [&amp;closure[tracepo.sl:28]#4] = 1 at &lt;internal&gt;:-1
+-Trace: &amp;invoke(&amp;closure[tracepo.sl:28]#4, @(), $this =&gt; &amp;closure[tracepo.sl:7-15]#3) = 1 at tracepo.sl:11
+-Trace: [&amp;closure[tracepo.sl:7-15]#3 hasMoreElements] = 1 at &lt;Java&gt;:-1
++Trace: [&amp;closure[tracepo.sl:30-36]#X] = 'd' at &lt;internal&gt;:-1
++Trace: &amp;invoke(&amp;closure[tracepo.sl:30-36]#X, @(), $this =&gt; &amp;closure[tracepo.sl:7-15]#X) = 'd' at tracepo.sl:11
++Trace: [&amp;closure[tracepo.sl:7-15]#X nextElement] = 'd' at &lt;Java&gt;:-1
++Trace: [&amp;closure[tracepo.sl:28]#X] = 1 at &lt;internal&gt;:-1
++Trace: &amp;invoke(&amp;closure[tracepo.sl:28]#X, @(), $this =&gt; &amp;closure[tracepo.sl:7-15]#X) = 1 at tracepo.sl:11
++Trace: [&amp;closure[tracepo.sl:7-15]#X hasMoreElements] = 1 at &lt;Java&gt;:-1
+ Trace: &amp;size(@('a', 'b', 'c')) = 3 at tracepo.sl:30
+ Trace: &amp;pop(@('a', 'b', 'c')) = 'c' at tracepo.sl:32
+-Trace: [&amp;closure[tracepo.sl:30-36]#5] = 'c' at &lt;internal&gt;:-1
+-Trace: &amp;invoke(&amp;closure[tracepo.sl:30-36]#5, @(), $this =&gt; &amp;closure[tracepo.sl:7-15]#3) = 'c' at tracepo.sl:11
+-Trace: [&amp;closure[tracepo.sl:7-15]#3 nextElement] = 'c' at &lt;Java&gt;:-1
+-Trace: [&amp;closure[tracepo.sl:28]#4] = 1 at &lt;internal&gt;:-1
+-Trace: &amp;invoke(&amp;closure[tracepo.sl:28]#4, @(), $this =&gt; &amp;closure[tracepo.sl:7-15]#3) = 1 at tracepo.sl:11
+-Trace: [&amp;closure[tracepo.sl:7-15]#3 hasMoreElements] = 1 at &lt;Java&gt;:-1
++Trace: [&amp;closure[tracepo.sl:30-36]#X] = 'c' at &lt;internal&gt;:-1
++Trace: &amp;invoke(&amp;closure[tracepo.sl:30-36]#X, @(), $this =&gt; &amp;closure[tracepo.sl:7-15]#X) = 'c' at tracepo.sl:11
++Trace: [&amp;closure[tracepo.sl:7-15]#X nextElement] = 'c' at &lt;Java&gt;:-1
++Trace: [&amp;closure[tracepo.sl:28]#X] = 1 at &lt;internal&gt;:-1
++Trace: &amp;invoke(&amp;closure[tracepo.sl:28]#X, @(), $this =&gt; &amp;closure[tracepo.sl:7-15]#X) = 1 at tracepo.sl:11
++Trace: [&amp;closure[tracepo.sl:7-15]#X hasMoreElements] = 1 at &lt;Java&gt;:-1
+ Trace: &amp;size(@('a', 'b')) = 2 at tracepo.sl:30
+ Trace: &amp;pop(@('a', 'b')) = 'b' at tracepo.sl:32
+-Trace: [&amp;closure[tracepo.sl:30-36]#5] = 'b' at &lt;internal&gt;:-1
+-Trace: &amp;invoke(&amp;closure[tracepo.sl:30-36]#5, @(), $this =&gt; &amp;closure[tracepo.sl:7-15]#3) = 'b' at tracepo.sl:11
+-Trace: [&amp;closure[tracepo.sl:7-15]#3 nextElement] = 'b' at &lt;Java&gt;:-1
+-Trace: [&amp;closure[tracepo.sl:28]#4] = 1 at &lt;internal&gt;:-1
+-Trace: &amp;invoke(&amp;closure[tracepo.sl:28]#4, @(), $this =&gt; &amp;closure[tracepo.sl:7-15]#3) = 1 at tracepo.sl:11
+-Trace: [&amp;closure[tracepo.sl:7-15]#3 hasMoreElements] = 1 at &lt;Java&gt;:-1
++Trace: [&amp;closure[tracepo.sl:30-36]#X] = 'b' at &lt;internal&gt;:-1
++Trace: &amp;invoke(&amp;closure[tracepo.sl:30-36]#X, @(), $this =&gt; &amp;closure[tracepo.sl:7-15]#X) = 'b' at tracepo.sl:11
++Trace: [&amp;closure[tracepo.sl:7-15]#X nextElement] = 'b' at &lt;Java&gt;:-1
++Trace: [&amp;closure[tracepo.sl:28]#X] = 1 at &lt;internal&gt;:-1
++Trace: &amp;invoke(&amp;closure[tracepo.sl:28]#X, @(), $this =&gt; &amp;closure[tracepo.sl:7-15]#X) = 1 at tracepo.sl:11
++Trace: [&amp;closure[tracepo.sl:7-15]#X hasMoreElements] = 1 at &lt;Java&gt;:-1
+ Trace: &amp;size(@('a')) = 1 at tracepo.sl:30
+ Trace: &amp;pop(@('a')) = 'a' at tracepo.sl:32
+-Trace: [&amp;closure[tracepo.sl:30-36]#5] = 'a' at &lt;internal&gt;:-1
+-Trace: &amp;invoke(&amp;closure[tracepo.sl:30-36]#5, @(), $this =&gt; &amp;closure[tracepo.sl:7-15]#3) = 'a' at tracepo.sl:11
+-Trace: [&amp;closure[tracepo.sl:7-15]#3 nextElement] = 'a' at &lt;Java&gt;:-1
+-Trace: [&amp;closure[tracepo.sl:28]#4] = 1 at &lt;internal&gt;:-1
+-Trace: &amp;invoke(&amp;closure[tracepo.sl:28]#4, @(), $this =&gt; &amp;closure[tracepo.sl:7-15]#3) = 1 at tracepo.sl:11
+-Trace: [&amp;closure[tracepo.sl:7-15]#3 hasMoreElements] = 1 at &lt;Java&gt;:-1
++Trace: [&amp;closure[tracepo.sl:30-36]#X] = 'a' at &lt;internal&gt;:-1
++Trace: &amp;invoke(&amp;closure[tracepo.sl:30-36]#X, @(), $this =&gt; &amp;closure[tracepo.sl:7-15]#X) = 'a' at tracepo.sl:11
++Trace: [&amp;closure[tracepo.sl:7-15]#X nextElement] = 'a' at &lt;Java&gt;:-1
++Trace: [&amp;closure[tracepo.sl:28]#X] = 1 at &lt;internal&gt;:-1
++Trace: &amp;invoke(&amp;closure[tracepo.sl:28]#X, @(), $this =&gt; &amp;closure[tracepo.sl:7-15]#X) = 1 at tracepo.sl:11
++Trace: [&amp;closure[tracepo.sl:7-15]#X hasMoreElements] = 1 at &lt;Java&gt;:-1
+ Trace: &amp;size(@()) = 0 at tracepo.sl:30
+ Trace: [new java.util.NoSuchElementException: 'overextending my bounds dude :('] = java.util.NoSuchElementException: overextending my bounds dude :( at tracepo.sl:36
+-Trace: [&amp;closure[tracepo.sl:30-36]#5] - FAILED! at &lt;internal&gt;:-1
+-Trace: &amp;invoke(&amp;closure[tracepo.sl:30-36]#5, @(), $this =&gt; &amp;closure[tracepo.sl:7-15]#3) - FAILED! at tracepo.sl:11
+-Trace: [&amp;closure[tracepo.sl:7-15]#3 nextElement] - FAILED! at &lt;Java&gt;:-1
+-Trace: [java.util.Collections list: &amp;closure[tracepo.sl:7-15]#3] - FAILED! at tracepo.sl:45
++Trace: [&amp;closure[tracepo.sl:30-36]#X] - FAILED! at &lt;internal&gt;:-1
++Trace: &amp;invoke(&amp;closure[tracepo.sl:30-36]#X, @(), $this =&gt; &amp;closure[tracepo.sl:7-15]#X) - FAILED! at tracepo.sl:11
++Trace: [&amp;closure[tracepo.sl:7-15]#X nextElement] - FAILED! at &lt;Java&gt;:-1
++Trace: [java.util.Collections list: &amp;closure[tracepo.sl:7-15]#X] - FAILED! at tracepo.sl:45
+ Warning: checkError(): java.util.NoSuchElementException: overextending my bounds dude :( at tracepo.sl:45
+ 
+ Trace: &amp;println($null) at tracepo.sl:45
+ Trying again... what will java do?
+ Trace: &amp;println('Trying again... what will java do?') at tracepo.sl:55
+-Trace: [&amp;closure[tracepo.sl:57]#6 hasMoreElements] - FAILED! at &lt;Java&gt;:-1
+-Trace: [java.util.Collections list: &amp;closure[tracepo.sl:57]#6] - FAILED! at tracepo.sl:56
++Trace: [&amp;closure[tracepo.sl:57]#X hasMoreElements] - FAILED! at &lt;Java&gt;:-1
++Trace: [java.util.Collections list: &amp;closure[tracepo.sl:57]#X] - FAILED! at tracepo.sl:56
+ Warning: checkError(): java.lang.RuntimeException: haha... testing bish!@#$ at tracepo.sl:56
+ 
+ Trace: &amp;println($null) at tracepo.sl:56
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2008-05-30 17:44:36 UTC (rev 397)
++++ sleep/whatsnew.txt	2008-05-30 18:30:17 UTC (rev 398)
+@@ -28,6 +28,13 @@
+   begin with &amp;
+ - empty functions now retain proper line number information 
+   (compiler introduces a NOP into the body of an empty function)
++- reworked how Sleep handles &amp;function literals--the compiler
++  transforms these into a call against function('&amp;function')--
++  this has the benefit of providing more debug info in a trace
++  and simplifying bridges that expect to receive a function as
++  a parameter.
++- BridgeUtilities.getIterator() throws an exception if the 
++  value on the stack is not an iterator.
+ 
+ 2.1-beta 26  (15 May 08)
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000373.html">[Sleep-svn] r397 - in sleep: . src/sleep/bridges src/sleep/engine	src/sleep/parser tests tests/output
+</A></li>
+	<LI>Next message: <A HREF="000375.html">[Sleep-svn] r399 - in sleep: . src/sleep/bridges tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#374">[ date ]</a>
+              <a href="thread.html#374">[ thread ]</a>
+              <a href="subject.html#374">[ subject ]</a>
+              <a href="author.html#374">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

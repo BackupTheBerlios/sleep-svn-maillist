@@ -1,0 +1,235 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r378 - in sleep: . src/sleep/bridges tests
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2008-May/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r378%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20tests&In-Reply-To=%3C200805151749.m4FHnQNX022589%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000353.html">
+   <LINK REL="Next"  HREF="000355.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r378 - in sleep: . src/sleep/bridges tests</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r378%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20tests&In-Reply-To=%3C200805151749.m4FHnQNX022589%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r378 - in sleep: . src/sleep/bridges tests">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Thu May 15 19:49:26 CEST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000353.html">[Sleep-svn] r377 - in sleep: . src/sleep/bridges src/sleep/console	src/sleep/runtime
+</A></li>
+        <LI>Next message: <A HREF="000355.html">[Sleep-svn] r379 - in sleep: . src/sleep/runtime src/sleep/taint
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#354">[ date ]</a>
+              <a href="thread.html#354">[ thread ]</a>
+              <a href="subject.html#354">[ subject ]</a>
+              <a href="author.html#354">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2008-05-15 19:49:25 +0200 (Thu, 15 May 2008)
+New Revision: 378
+
+Modified:
+   sleep/build.xml
+   sleep/src/sleep/bridges/RegexBridge.java
+   sleep/tests/behavior.sl
+   sleep/whatsnew.txt
+Log:
+reinstated the ability for regex's to recurse on eachother... 
+
+
+Modified: sleep/build.xml
+===================================================================
+--- sleep/build.xml	2008-05-15 16:10:37 UTC (rev 377)
++++ sleep/build.xml	2008-05-15 17:49:25 UTC (rev 378)
+@@ -16,7 +16,7 @@
+            destdir=&quot;${project.build}&quot;
+            nowarn=&quot;yes&quot;
+            depend=&quot;yes&quot;
+-           debug=&quot;true&quot;
++           debug=&quot;false&quot;
+            source=&quot;1.4&quot;
+            target=&quot;1.4&quot;
+            optimize=&quot;yes&quot;
+
+Modified: sleep/src/sleep/bridges/RegexBridge.java
+===================================================================
+--- sleep/src/sleep/bridges/RegexBridge.java	2008-05-15 16:10:37 UTC (rev 377)
++++ sleep/src/sleep/bridges/RegexBridge.java	2008-05-15 17:49:25 UTC (rev 378)
+@@ -117,19 +117,30 @@
+        }
+     }
+ 
+-    /** a helper utility to get the matcher out of the script environment */
+-    private static Scalar getMatcher(ScriptEnvironment env, String text, Pattern p)
++    private static String key(String text, Pattern p)
+     {
++       StringBuffer buffer = new StringBuffer();
++       buffer.append(text);
++       buffer.append(p.pattern());
++
++       return buffer.toString();
++    }
++
++    private static Scalar getLastMatcher(ScriptEnvironment env)
++    {
+        Scalar temp = (Scalar)env.getContextMetadata(&quot;matcher&quot;);
++       return temp == null ? SleepUtils.getEmptyScalar() : temp;    
++    }
+ 
+-       if (temp == null &amp;&amp; text == null &amp;&amp; p == null)
++    /** a helper utility to get the matcher out of the script environment */
++    private static Scalar getMatcher(ScriptEnvironment env, String key, String text, Pattern p)
++    {
++       Scalar temp = (Scalar)env.getContextMetadata(key);
++
++       if (temp == null)
+        {
+-          return SleepUtils.getEmptyScalar();
+-       }
+-       else if (temp == null || (p != null &amp;&amp; ((Matcher)temp.objectValue()).pattern() != p))
+-       {
+           temp = SleepUtils.getScalar(p.matcher(text));
+-          env.setContextMetadata(&quot;matcher&quot;, temp);
++          env.setContextMetadata(key, temp);
+           return temp;
+        }
+        else
+@@ -150,30 +161,41 @@
+ 
+           Pattern pattern = RegexBridge.getPattern(bb.toString());
+ 
+-          Scalar container = getMatcher(i.getScriptEnvironment(), aa.toString(), pattern);
+-          Matcher matcher  = (Matcher)container.objectValue();
++          Scalar  container = null;
++          Matcher matcher   = null;
+ 
+-          /* check our taint value please */ 
+-          if (TaintUtils.isTainted(aa) || TaintUtils.isTainted(bb))
++          if (n.equals(&quot;hasmatch&quot;))
+           {
+-             TaintUtils.taintAll(container);
+-          }
++              String key = key(aa.toString(), pattern);
+ 
+-          if (n.equals(&quot;hasmatch&quot;))
+-          {
++              container = getMatcher(i.getScriptEnvironment(), key, aa.toString(), pattern);
++              matcher  = (Matcher)container.objectValue();
++
+               rv = matcher.find();
++
++              if (!rv)
++              {
++                 i.getScriptEnvironment().setContextMetadata(key, null);
++              }
+           }
+           else
+           {
+-              matcher.reset(aa.toString());
++              matcher = pattern.matcher(aa.toString());
++              container = SleepUtils.getScalar(matcher);
++
+               rv = matcher.matches();
+           }
+ 
+-          if (!rv) 
++
++          /* check our taint value please */ 
++          if (TaintUtils.isTainted(aa) || TaintUtils.isTainted(bb))
+           {
+-             i.getScriptEnvironment().setContextMetadata(&quot;matcher&quot;, null);
++             TaintUtils.taintAll(container);
+           }
+ 
++          /* set our matcher for retrieval by matched() later */
++          i.getScriptEnvironment().setContextMetadata(&quot;matcher&quot;, rv ? container : null);
++
+           return rv;
+        }
+ 
+@@ -181,7 +203,7 @@
+        {
+           Scalar value = SleepUtils.getArrayScalar();            
+ 
+-          Scalar container = getMatcher(i.getScriptEnvironment(), null, null);
++          Scalar container = getLastMatcher(i.getScriptEnvironment());
+ 
+           if (!SleepUtils.isEmptyScalar(container))
+           {
+
+Modified: sleep/tests/behavior.sl
+===================================================================
+--- sleep/tests/behavior.sl	2008-05-15 16:10:37 UTC (rev 377)
++++ sleep/tests/behavior.sl	2008-05-15 17:49:25 UTC (rev 378)
+@@ -1,15 +1,11 @@
+-sub foo
++while ('(654) 555-1212(248) 399-8219(734) 586-9912' hasmatch '\((\d\d\d)\) (\d\d\d-\d\d\d\d)')
+ {
++   ($areaCode, $phoneNumber) = matched();
++   println(&quot;$areaCode and $phoneNumber&quot;);
++
+    while ('(123) 456-7890 sfdsdf (453) 443-3455' hasmatch '\((\d\d\d)\) (\d\d\d-\d\d\d\d)')
+    {
+       ($areaCode, $phoneNumber) = matched();
+       println(&quot;    $areaCode and $phoneNumber&quot;);
+    }
+ }
+-
+-while ('(654) 555-1212(248) 399-8219(734) 586-9912' hasmatch '\((\d\d\d)\) (\d\d\d-\d\d\d\d)')
+-{
+-   ($areaCode, $phoneNumber) = matched();
+-   println(&quot;$areaCode and $phoneNumber&quot;);
+-   foo();
+-}
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2008-05-15 16:10:37 UTC (rev 377)
++++ sleep/whatsnew.txt	2008-05-15 17:49:25 UTC (rev 378)
+@@ -24,9 +24,7 @@
+   &amp;matched() works to retrieve the matched groups from the
+   substring.
+ - conducted a 3am cleanup of the RegexBridge--you know what 
+-  that means.  consequently, nesting of loops that iterate
+-  hasmatch no longer works.  This is to prevent a memory leak
+-  from unremoved regex state.
++  that means.
+ - updated array implementation to use a LinkedList in lieu of
+   a Stack.  This offers better performance characteristics for
+   most array operations.  The only real losing operation is
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000353.html">[Sleep-svn] r377 - in sleep: . src/sleep/bridges src/sleep/console	src/sleep/runtime
+</A></li>
+	<LI>Next message: <A HREF="000355.html">[Sleep-svn] r379 - in sleep: . src/sleep/runtime src/sleep/taint
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#354">[ date ]</a>
+              <a href="thread.html#354">[ thread ]</a>
+              <a href="subject.html#354">[ subject ]</a>
+              <a href="author.html#354">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

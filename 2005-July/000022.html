@@ -1,0 +1,278 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r34 - in sleep: . src/sleep/bridges src/sleep/engine
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2005-July/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r34%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20src/sleep/engine&In-Reply-To=%3C200507070258.j672wn0k023999%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000021.html">
+   <LINK REL="Next"  HREF="000023.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r34 - in sleep: . src/sleep/bridges src/sleep/engine</H1>
+    <B>Raphael Mudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r34%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20src/sleep/engine&In-Reply-To=%3C200507070258.j672wn0k023999%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r34 - in sleep: . src/sleep/bridges src/sleep/engine">rsmudge at berlios.de
+       </A><BR>
+    <I>Thu Jul  7 04:58:49 CEST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000021.html">[Sleep-svn] r33 - sleep/docs
+</A></li>
+        <LI>Next message: <A HREF="000023.html">[Sleep-svn] r35 - sleep/docs
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#22">[ date ]</a>
+              <a href="thread.html#22">[ thread ]</a>
+              <a href="subject.html#22">[ subject ]</a>
+              <a href="author.html#22">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2005-07-07 04:58:47 +0200 (Thu, 07 Jul 2005)
+New Revision: 34
+
+Modified:
+   sleep/readme.txt
+   sleep/src/sleep/bridges/BasicNumbers.java
+   sleep/src/sleep/engine/ObjectUtilities.java
+   sleep/whatsnew.txt
+Log:
+More stuff :P
+
+
+Modified: sleep/readme.txt
+===================================================================
+--- sleep/readme.txt	2005-07-06 14:50:23 UTC (rev 33)
++++ sleep/readme.txt	2005-07-07 02:58:47 UTC (rev 34)
+@@ -1,5 +1,5 @@
+  ------- -------------------- ---------   ---------------  ------- ---------
+-Sleep - 2.0-stable - README   
++Sleep - 2.0-beta 10 - README   
+ -  ------------- -------- -   ---------------- --       -    -     -     - - -
+ 
+ &quot;You got the language, all you need now is the O'Reilly book&quot;.  That is
+
+Modified: sleep/src/sleep/bridges/BasicNumbers.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicNumbers.java	2005-07-06 14:50:23 UTC (rev 33)
++++ sleep/src/sleep/bridges/BasicNumbers.java	2005-07-07 02:58:47 UTC (rev 34)
+@@ -32,7 +32,7 @@
+ import java.math.*;
+ 
+ /** provides some of the basic number crunching functionality */
+-public class BasicNumbers implements Predicate, Operator, Loadable
++public class BasicNumbers implements Predicate, Operator, Loadable, Function
+ {
+     public static Class TYPE_LONG;
+     public static Class TYPE_INT;
+@@ -61,6 +61,16 @@
+     {
+        Hashtable temp = aScript.getScriptEnvironment().getEnvironment();
+ 
++       // math ops..
++
++       String funcs[] = new String[] { &quot;&amp;abs&quot;, &quot;&amp;acos&quot;, &quot;&amp;asin&quot;, &quot;&amp;atan&quot;, &quot;&amp;atan2&quot;, &quot;&amp;ceil&quot;, &quot;&amp;cos&quot;, &quot;&amp;log&quot;, &quot;&amp;round&quot;, 
++                                       &quot;&amp;sin&quot;, &quot;&amp;sqrt&quot;, &quot;&amp;tan&quot;, &quot;&amp;radians&quot;, &quot;&amp;degrees&quot;, &quot;&amp;exp&quot;, &quot;&amp;floor&quot; };
++
++       for (int x = 0; x &lt; funcs.length; x++)
++       {
++          temp.put(funcs[x], this);
++       }
++
+        // functions
+        temp.put(&quot;&amp;double&quot;, new convert_double());
+        temp.put(&quot;&amp;int&quot;,    new convert_int());
+@@ -111,6 +121,29 @@
+           return SleepUtils.getScalar(temp.longValue());
+        }
+     }
++
++    public Scalar evaluate(String name, ScriptInstance si, Stack args)
++    {
++       if (name.equals(&quot;&amp;abs&quot;)) { return SleepUtils.getScalar(Math.abs(BridgeUtilities.getDouble(args, 0.0))); }
++       else if (name.equals(&quot;&amp;acos&quot;)) { return SleepUtils.getScalar(Math.acos(BridgeUtilities.getDouble(args, 0.0))); }
++       else if (name.equals(&quot;&amp;asin&quot;)) { return SleepUtils.getScalar(Math.asin(BridgeUtilities.getDouble(args, 0.0))); }
++       else if (name.equals(&quot;&amp;atan&quot;)) { return SleepUtils.getScalar(Math.atan(BridgeUtilities.getDouble(args, 0.0))); }
++       else if (name.equals(&quot;&amp;atan2&quot;)) { return SleepUtils.getScalar(Math.atan2(BridgeUtilities.getDouble(args, 0.0), BridgeUtilities.getDouble(args, 0.0))); }
++       else if (name.equals(&quot;&amp;ceil&quot;)) { return SleepUtils.getScalar(Math.ceil(BridgeUtilities.getDouble(args, 0.0))); }
++       else if (name.equals(&quot;&amp;floor&quot;)) { return SleepUtils.getScalar(Math.floor(BridgeUtilities.getDouble(args, 0.0))); }
++       else if (name.equals(&quot;&amp;cos&quot;)) { return SleepUtils.getScalar(Math.cos(BridgeUtilities.getDouble(args, 0.0))); }
++       else if (name.equals(&quot;&amp;log&quot;) &amp;&amp; args.size() == 1) { return SleepUtils.getScalar(Math.log(BridgeUtilities.getDouble(args, 0.0))); }
++       else if (name.equals(&quot;&amp;log&quot;) &amp;&amp; args.size() == 2) { return SleepUtils.getScalar(Math.log(BridgeUtilities.getDouble(args, 0.0)) / Math.log(BridgeUtilities.getDouble(args, 0.0))); }
++       else if (name.equals(&quot;&amp;round&quot;)) { return SleepUtils.getScalar(Math.round(BridgeUtilities.getDouble(args, 0.0))); }
++       else if (name.equals(&quot;&amp;sin&quot;)) { return SleepUtils.getScalar(Math.sin(BridgeUtilities.getDouble(args, 0.0))); }
++       else if (name.equals(&quot;&amp;sqrt&quot;)) { return SleepUtils.getScalar(Math.sqrt(BridgeUtilities.getDouble(args, 0.0))); }
++       else if (name.equals(&quot;&amp;tan&quot;)) { return SleepUtils.getScalar(Math.tan(BridgeUtilities.getDouble(args, 0.0))); }
++       else if (name.equals(&quot;&amp;radians&quot;)) { return SleepUtils.getScalar(Math.toRadians(BridgeUtilities.getDouble(args, 0.0))); }
++       else if (name.equals(&quot;&amp;degrees&quot;)) { return SleepUtils.getScalar(Math.toDegrees(BridgeUtilities.getDouble(args, 0.0))); }
++       else if (name.equals(&quot;&amp;exp&quot;)) { return SleepUtils.getScalar(Math.exp(BridgeUtilities.getDouble(args, 0.0))); }
++
++       return SleepUtils.getEmptyScalar();
++    }
+     
+     private static class formatNumber implements Function
+     {
+
+Modified: sleep/src/sleep/engine/ObjectUtilities.java
+===================================================================
+--- sleep/src/sleep/engine/ObjectUtilities.java	2005-07-06 14:50:23 UTC (rev 33)
++++ sleep/src/sleep/engine/ObjectUtilities.java	2005-07-07 02:58:47 UTC (rev 34)
+@@ -37,8 +37,7 @@
+    private static Class INT_SCALAR; 
+    private static Class DOUBLE_SCALAR;
+    private static Class LONG_SCALAR;
+-   private static Class STRING_TYPE;
+-   private static Class BOOLEAN_TYPE;
++   private static Class BOOLEAN_TYPE, BYTE_TYPE, CHARACTER_TYPE, DOUBLE_TYPE, FLOAT_TYPE, INTEGER_TYPE, LONG_TYPE, STRING_TYPE;
+ 
+    static
+    {
+@@ -49,8 +48,14 @@
+          DOUBLE_SCALAR = Class.forName(&quot;sleep.engine.types.DoubleValue&quot;);
+          LONG_SCALAR   = Class.forName(&quot;sleep.engine.types.LongValue&quot;);
+ 
+-         STRING_TYPE   = Class.forName(&quot;java.lang.String&quot;);
+-         BOOLEAN_TYPE  = Class.forName(&quot;java.lang.Boolean&quot;);
++         BOOLEAN_TYPE    = Class.forName(&quot;java.lang.Boolean&quot;);
++         BYTE_TYPE       = Class.forName(&quot;java.lang.Byte&quot;);
++         CHARACTER_TYPE  = Class.forName(&quot;java.lang.Character&quot;);
++         DOUBLE_TYPE     = Class.forName(&quot;java.lang.Double&quot;);
++         FLOAT_TYPE      = Class.forName(&quot;java.lang.Float&quot;);
++         INTEGER_TYPE    = Class.forName(&quot;java.lang.Integer&quot;);
++         LONG_TYPE       = Class.forName(&quot;java.lang.Long&quot;);
++         STRING_TYPE     = Class.forName(&quot;java.lang.String&quot;);
+       }
+       catch (Exception ex) { }
+    }
+@@ -295,41 +300,41 @@
+          return array;
+       }
+ 
++      Class check = value.getClass();
++
+       if (primitives)
+       {
+-         if (value.getClass() == Boolean.TYPE || value.getClass() == BOOLEAN_TYPE)
++         if (check == BOOLEAN_TYPE)
+          {
+-            // java reflection has a bug where a boolean primitive is returned as a java.lang.Boolean object and not a
+-            // type as specified by Boolean.TYPE.  Dorks.
+             return SleepUtils.getScalar(  ((Boolean)value).booleanValue() ? 1 : 0 );
+          }
+-         else if (value.getClass() == Byte.TYPE)
++         else if (check == BYTE_TYPE)
+          {
+             return SleepUtils.getScalar(  (int)( ((Byte)value).byteValue() )  );
+          }
+-         else if (value.getClass() == Character.TYPE)
++         else if (check == CHARACTER_TYPE)
+          {
+             return SleepUtils.getScalar(  value.toString()  );
+          }
+-         else if (value.getClass() == Double.TYPE)
++         else if (check == DOUBLE_TYPE)
+          {
+             return SleepUtils.getScalar(  ((Double)value).doubleValue()   );
+          }
+-         else if (value.getClass() == Float.TYPE)
++         else if (check == FLOAT_TYPE)
+          {
+             return SleepUtils.getScalar(  (double)( ((Float)value).floatValue() )  );
+          }
+-         else if (value.getClass() == Integer.TYPE)
++         else if (check == INTEGER_TYPE)
+          {
+             return SleepUtils.getScalar(  ((Integer)value).intValue()   );
+          }
+-         else if (value.getClass() == Long.TYPE)
++         else if (check == LONG_TYPE)
+          {
+             return SleepUtils.getScalar(  ((Long)value).longValue()   );
+          }
+       }
+ 
+-      if (value.getClass() == STRING_TYPE)
++      if (check == STRING_TYPE)
+       {
+          return SleepUtils.getScalar(value.toString());
+       }
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2005-07-06 14:50:23 UTC (rev 33)
++++ sleep/whatsnew.txt	2005-07-07 02:58:47 UTC (rev 34)
+@@ -1,26 +1,28 @@
+-2.0-stable
+-======
+-- fixed a bug with the primitive boolean from HOES being returned as a 
+-  scalar string and not an integer 1/0.
+-- added a function &amp;values(%hash) for extracting all of the values from
+-  a scalar hash.
++2.0-b10
++=======
++- fixed a bug with primitive values returned by HOES expressions not
++  being interpreted as their primitive selves.
++- added a function &amp;values(%hash) for extracting all of the values from a 
++  scalar hash.
+ - exposed the PrintWriter/BufferedReader in the IOObject API
+-- added a check to prevent ls() on a non-existant directory from fireing
+-  an exception..
++- added a check to prevent ls() on a non-existant directory from fireing an 
++  exception..
+ - added uint(n) to convert scalar int n to a scalar long as an unsigned int.
+ - fixed bug that was supressing HOES syntax errors
+-- fixed bug with SleepUtils.getScalar(boolean) always returning a false
++- fixed bug with SleepUtils.getScalar(boolean) always returning a false 
+   boolean, thanks to Ralph Becker for finding and isolating the fix for this.
+ - fixed a bug with pack() packing creating the byte string the wrong way 
+-- fixed bug with z/Z formats only grabbing one character of a string from
+-  the IO stream if no max string size is specified.
++- fixed bug with z/Z formats only grabbing one character of a string from the 
++  IO stream if no max string size is specified.
+ - changed the u format and added a U format.. u/U reads/writes 16 bit UTF-16
+   characters similar to how z/Z handles 8 bit ASCII characters.
+ - bwrite and writeb now automatically flush the data after writing everything
+ - added &amp;wait($handle, [timeout]) to wait for a fork or callback associated
+   with $handle to finish.  If the specified timeout is reached the function
+-  will return the empty scalar.  If $handle is a fork, the return value of 
+-  the fork will be returned by &amp;wait.
++  will return the empty scalar.  If $handle is a fork, the return value of the 
++  fork will be returned by &amp;wait.
++- added a whole slew of mathematical functions bridgeing most of java.lang.Math 
++  into Sleep.
+ 
+ 2.0-b9 
+ ======
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000021.html">[Sleep-svn] r33 - sleep/docs
+</A></li>
+	<LI>Next message: <A HREF="000023.html">[Sleep-svn] r35 - sleep/docs
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#22">[ date ]</a>
+              <a href="thread.html#22">[ thread ]</a>
+              <a href="subject.html#22">[ subject ]</a>
+              <a href="author.html#22">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

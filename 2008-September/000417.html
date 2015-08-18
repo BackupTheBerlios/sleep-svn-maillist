@@ -1,0 +1,209 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r439 - in sleep: . src/sleep/engine	src/sleep/engine/atoms src/sleep/runtime tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2008-September/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r439%20-%20in%20sleep%3A%20.%20src/sleep/engine%0A%09src/sleep/engine/atoms%20src/sleep/runtime%20tests%20tests/output&In-Reply-To=%3C200809252130.m8PLUbkV000917%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000416.html">
+   <LINK REL="Next"  HREF="000418.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r439 - in sleep: . src/sleep/engine	src/sleep/engine/atoms src/sleep/runtime tests tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r439%20-%20in%20sleep%3A%20.%20src/sleep/engine%0A%09src/sleep/engine/atoms%20src/sleep/runtime%20tests%20tests/output&In-Reply-To=%3C200809252130.m8PLUbkV000917%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r439 - in sleep: . src/sleep/engine	src/sleep/engine/atoms src/sleep/runtime tests tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Thu Sep 25 23:30:37 CEST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000416.html">[Sleep-svn] r438 - in sleep: . src/sleep/engine/types tests	tests/output
+</A></li>
+        <LI>Next message: <A HREF="000418.html">[Sleep-svn] r440 - in sleep: . src/sleep/bridges tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#417">[ date ]</a>
+              <a href="thread.html#417">[ thread ]</a>
+              <a href="subject.html#417">[ subject ]</a>
+              <a href="author.html#417">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2008-09-25 23:30:36 +0200 (Thu, 25 Sep 2008)
+New Revision: 439
+
+Added:
+   sleep/tests/debugproxy.sl
+   sleep/tests/output/debugproxy.sl
+Modified:
+   sleep/src/sleep/engine/ProxyInterface.java
+   sleep/src/sleep/engine/atoms/ObjectAccess.java
+   sleep/src/sleep/runtime/SleepUtils.java
+   sleep/tests/output/newInstance.sl
+   sleep/whatsnew.txt
+Log:
+better proxy instance.
+
+
+Modified: sleep/src/sleep/engine/ProxyInterface.java
+===================================================================
+--- sleep/src/sleep/engine/ProxyInterface.java	2008-09-25 20:38:34 UTC (rev 438)
++++ sleep/src/sleep/engine/ProxyInterface.java	2008-09-25 21:30:36 UTC (rev 439)
+@@ -29,6 +29,12 @@
+       return script;
+    }
+ 
++   /** Returns a string description of this proxy interface */
++   public String toString()
++   {
++      return func.toString();
++   }
++
+    /** Constructs a new instance of the specified class that uses the passed Sleep function to respond
+        to all method calls on this instance. */
+    public static Object BuildInterface(Class className, Function subroutine, ScriptInstance script)
+
+Modified: sleep/src/sleep/engine/atoms/ObjectAccess.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/ObjectAccess.java	2008-09-25 20:38:34 UTC (rev 438)
++++ sleep/src/sleep/engine/atoms/ObjectAccess.java	2008-09-25 21:30:36 UTC (rev 439)
+@@ -82,10 +82,6 @@
+          {
+             trace.append(theClass.getName() + &quot; &quot; + name + args + &quot;]&quot;);
+          }
+-         else if (Proxy.isProxyClass(theClass))
+-         {
+-            trace.append(theClass.getName() + &quot; &quot; + name + args + &quot;]&quot;);
+-         }
+          else
+          {
+             trace.append(SleepUtils.describe(scalar) + &quot; &quot; + name + args + &quot;]&quot;);
+
+Modified: sleep/src/sleep/runtime/SleepUtils.java
+===================================================================
+--- sleep/src/sleep/runtime/SleepUtils.java	2008-09-25 20:38:34 UTC (rev 438)
++++ sleep/src/sleep/runtime/SleepUtils.java	2008-09-25 21:30:36 UTC (rev 439)
+@@ -502,6 +502,28 @@
+          }
+          else if (scalar.getActualValue().getType() == ObjectValue.class)
+          {
++            if (java.lang.reflect.Proxy.isProxyClass(scalar.objectValue().getClass()))
++            {
++               StringBuffer buffer = new StringBuffer();
++               buffer.append(&quot;[&quot;);
++               buffer.append(java.lang.reflect.Proxy.getInvocationHandler(scalar.objectValue()).toString());
++               buffer.append(&quot; as &quot;);
++
++               Class[] interfaces = scalar.objectValue().getClass().getInterfaces();
++
++               for (int x = 0; x &lt; interfaces.length; x++)
++               {
++                  if (x &gt; 0)
++                  {
++                     buffer.append(&quot;, &quot;); 
++                  }
++                  buffer.append(interfaces[x].getName());
++               }
++
++               buffer.append(&quot;]&quot;);
++
++               return buffer.toString();
++            }
+             return scalar.toString();
+          }
+          else if (scalar.getActualValue().getType() == LongValue.class)
+
+Added: sleep/tests/debugproxy.sl
+===================================================================
+--- sleep/tests/debugproxy.sl	2008-09-25 20:38:34 UTC (rev 438)
++++ sleep/tests/debugproxy.sl	2008-09-25 21:30:36 UTC (rev 439)
+@@ -0,0 +1,14 @@
++#
++# debug with proxy instances.
++# 
++
++local('$object $object1');
++
++debug(7 | 15);
++
++$object = newInstance(@(^List, ^Set), { warn(&quot;Method called: $0 &quot; . @_); });
++[$object add: &quot;x&quot;];
++
++$object1 = newInstance(^List, { warn(&quot;Method called: $0 &quot; . @_); });
++[$object1 add: &quot;x&quot;];
++
+
+Added: sleep/tests/output/debugproxy.sl
+===================================================================
+--- sleep/tests/output/debugproxy.sl	2008-09-25 20:38:34 UTC (rev 438)
++++ sleep/tests/output/debugproxy.sl	2008-09-25 21:30:36 UTC (rev 439)
+@@ -0,0 +1,8 @@
++Trace: &amp;newInstance(@(interface java.util.List, interface java.util.Set), &amp;closure[debugproxy.sl:9]#1) = [&amp;closure[debugproxy.sl:9]#1 as java.util.List, java.util.Set] at debugproxy.sl:9
++Warning: Method called: add @('x') at debugproxy.sl:9
++Trace: [&amp;closure[debugproxy.sl:9]#1 add: 'x'] = $null at &lt;Java&gt;:-1
++Trace: [[&amp;closure[debugproxy.sl:9]#1 as java.util.List, java.util.Set] add: 'x'] = 0 at debugproxy.sl:10
++Trace: &amp;newInstance(interface java.util.List, &amp;closure[debugproxy.sl:12]#2) = [&amp;closure[debugproxy.sl:12]#2 as java.util.List] at debugproxy.sl:12
++Warning: Method called: add @('x') at debugproxy.sl:12
++Trace: [&amp;closure[debugproxy.sl:12]#2 add: 'x'] = $null at &lt;Java&gt;:-1
++Trace: [[&amp;closure[debugproxy.sl:12]#2 as java.util.List] add: 'x'] = 0 at debugproxy.sl:13
+
+Modified: sleep/tests/output/newInstance.sl
+===================================================================
+--- sleep/tests/output/newInstance.sl	2008-09-25 20:38:34 UTC (rev 438)
++++ sleep/tests/output/newInstance.sl	2008-09-25 21:30:36 UTC (rev 439)
+@@ -10,7 +10,7 @@
+   0 =&gt; foo
+ Trace: &amp;println('  0 =&gt; foo') at newInstance.sl:16
+ Trace: [&amp;closure[newInstance.sl:5-19]#X compareTo: 'foo'] = 3 at &lt;Java&gt;:-1
+-Trace: [$Proxy# compareTo: 'foo'] = 3 at newInstance.sl:29
++Trace: [[&amp;closure[newInstance.sl:5-19]#X as java.lang.Comparable] compareTo: 'foo'] = 3 at newInstance.sl:29
+ 3
+ Trace: &amp;println(3) at newInstance.sl:29
+ Trace: &amp;debug(7) = 7 at newInstance.sl:31
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2008-09-25 20:38:34 UTC (rev 438)
++++ sleep/whatsnew.txt	2008-09-25 21:30:36 UTC (rev 439)
+@@ -16,6 +16,9 @@
+   [previous behavior resulted in a null error and corrupted the Sleep
+   stack, so if this affected you, you already knew and weren't happy with
+   with it].
++- proxy instances now have a more detailed string representation.  also the
++  string description of a proxy instance no longer calls the underlying
++  closure requesting toString.
+ 
+ 2.1-release  (7 Aug 08) [update 2.5]
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000416.html">[Sleep-svn] r438 - in sleep: . src/sleep/engine/types tests	tests/output
+</A></li>
+	<LI>Next message: <A HREF="000418.html">[Sleep-svn] r440 - in sleep: . src/sleep/bridges tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#417">[ date ]</a>
+              <a href="thread.html#417">[ thread ]</a>
+              <a href="subject.html#417">[ subject ]</a>
+              <a href="author.html#417">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

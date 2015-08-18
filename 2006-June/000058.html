@@ -1,0 +1,102 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r76 - sleep/docs
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2006-June/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r76%20-%20sleep/docs&In-Reply-To=%3C200606170711.k5H7Bxfo026987%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000057.html">
+   <LINK REL="Next"  HREF="000059.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r76 - sleep/docs</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r76%20-%20sleep/docs&In-Reply-To=%3C200606170711.k5H7Bxfo026987%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r76 - sleep/docs">rsmudge at berlios.de
+       </A><BR>
+    <I>Sat Jun 17 09:11:59 CEST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000057.html">[Sleep-svn] r75 - in sleep: . src/sleep/runtime
+</A></li>
+        <LI>Next message: <A HREF="000059.html">[Sleep-svn] r77 - in sleep: docs src/sleep/bridges src/sleep/bridges/io
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#58">[ date ]</a>
+              <a href="thread.html#58">[ thread ]</a>
+              <a href="subject.html#58">[ subject ]</a>
+              <a href="author.html#58">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2006-06-17 09:11:56 +0200 (Sat, 17 Jun 2006)
+New Revision: 76
+
+Modified:
+   sleep/docs/sleeplang.html
+Log:
+Small doc update to note comparison of $null to &quot;&quot; and 0
+
+
+
+Modified: sleep/docs/sleeplang.html
+===================================================================
+--- sleep/docs/sleeplang.html	2006-06-17 07:06:11 UTC (rev 75)
++++ sleep/docs/sleeplang.html	2006-06-17 07:11:56 UTC (rev 76)
+@@ -323,6 +323,24 @@
+  &lt;/tr&gt;
+ &lt;/table&gt;
+ 
++&lt;p&gt;One example use of the &lt;code&gt;is&lt;/code&gt; comparison is to check if a function really returned
++&lt;var&gt;$null&lt;/var&gt; and not just an empty string:&lt;/p&gt;
++
++&lt;pre&gt;if ($null is &quot;&quot;)
++{
++   println(&quot;This will not print&quot;);
++}
++
++if ($null is 0)
++{
++   println(&quot;This will not print either.&quot;);
++}
++
++if ($null is $null)
++{
++   println(&quot;Bingo!&quot;);
++}&lt;/pre&gt;
++
+ &lt;p&gt;Most comparisons in sleep can be negated with the ! exclamation point before the operator in the comparison.&lt;/p&gt;
+ 
+ &lt;pre&gt;if (&quot;test&quot; !isin &quot;walrus&quot;)
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000057.html">[Sleep-svn] r75 - in sleep: . src/sleep/runtime
+</A></li>
+	<LI>Next message: <A HREF="000059.html">[Sleep-svn] r77 - in sleep: docs src/sleep/bridges src/sleep/bridges/io
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#58">[ date ]</a>
+              <a href="thread.html#58">[ thread ]</a>
+              <a href="subject.html#58">[ subject ]</a>
+              <a href="author.html#58">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

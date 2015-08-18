@@ -1,0 +1,366 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r289 - in sleep: . src/sleep/bridges src/sleep/engine	tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2007-July/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r289%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20src/sleep/engine%0A%09tests%20tests/output&In-Reply-To=%3C200707041929.l64JTh2b032708%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000267.html">
+   <LINK REL="Next"  HREF="000269.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r289 - in sleep: . src/sleep/bridges src/sleep/engine	tests tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r289%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20src/sleep/engine%0A%09tests%20tests/output&In-Reply-To=%3C200707041929.l64JTh2b032708%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r289 - in sleep: . src/sleep/bridges src/sleep/engine	tests tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Wed Jul  4 21:29:43 CEST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000267.html">[Sleep-svn] r288 - in sleep: . src/sleep/bridges tests tests/output
+</A></li>
+        <LI>Next message: <A HREF="000269.html">[Sleep-svn] r290 - in sleep: . src/sleep/bridges tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#268">[ date ]</a>
+              <a href="thread.html#268">[ thread ]</a>
+              <a href="subject.html#268">[ subject ]</a>
+              <a href="author.html#268">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2007-07-04 21:29:42 +0200 (Wed, 04 Jul 2007)
+New Revision: 289
+
+Added:
+   sleep/tests/asis.sl
+   sleep/tests/byteconvert2.sl
+   sleep/tests/output/asis.sl
+   sleep/tests/output/byteconvert2.sl
+Modified:
+   sleep/src/sleep/bridges/BasicIO.java
+   sleep/src/sleep/bridges/BasicUtilities.java
+   sleep/src/sleep/bridges/BridgeUtilities.java
+   sleep/src/sleep/engine/ObjectUtilities.java
+   sleep/whatsnew.txt
+Log:
+made lots of small changes to HOES method resolution and some other stuff...
+
+
+
+Modified: sleep/src/sleep/bridges/BasicIO.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicIO.java	2007-07-04 17:23:47 UTC (rev 288)
++++ sleep/src/sleep/bridges/BasicIO.java	2007-07-04 19:29:42 UTC (rev 289)
+@@ -52,29 +52,18 @@
+ 
+        try
+        { 
+-          // execute our process and setup a reader for it 
+- 
+           Process proc  = Runtime.getRuntime().exec(value);
+           BufferedReader reader    = new BufferedReader(new InputStreamReader(proc.getInputStream()));
+-          BufferedReader errstream = new BufferedReader(new InputStreamReader(proc.getErrorStream()));
+ 
+-          // read each line from the process output, stuff it into our scalar array rv
+-          if (errstream.ready())
+-          {
+-             System.out.println(&quot;err stream is pissing me off!&quot;);
+-             rv.getArray().push(SleepUtils.getScalar(&quot;** &quot; + errstream.readLine()));
+-          }
+-
+           String text = null;
+           while ((text = reader.readLine()) != null)
+           {
+              rv.getArray().push(SleepUtils.getScalar(text));
++          }
+ 
+-             if (errstream.ready())
+-             {
+-                System.out.println(&quot;err stream is pissing me off! 2&quot;);
+-                rv.getArray().push(SleepUtils.getScalar(&quot;** &quot; + errstream.readLine()));
+-             }
++          if (proc.waitFor() != 0)
++          {
++             script.getScriptEnvironment().flagError(&quot;abnormal termination: &quot; + proc.exitValue());
+           }
+        }
+        catch (Exception ex)
+@@ -157,18 +146,6 @@
+         return true;
+     }
+ 
+-    private static byte[] toByteArrayNoConversion(String textz)
+-    {
+-        char[] text = textz.toCharArray();
+-        byte[] data = new byte[text.length];
+-        for (int x = 0; x &lt; text.length; x++)
+-        {
+-           data[x] = (byte)text[x];
+-        }
+-
+-        return data;
+-    }
+-
+     private static Checksum getChecksum(String algorithm)
+     {
+        if (algorithm.equals(&quot;Adler32&quot;)) { return new Adler32(); }
+@@ -279,7 +256,7 @@
+              {
+ 
+                 MessageDigest doit = MessageDigest.getInstance(algo);
+-                doit.update(toByteArrayNoConversion(temp), 0, temp.length());
++                doit.update(BridgeUtilities.toByteArrayNoConversion(temp), 0, temp.length());
+                 return SleepUtils.getScalar(doit.digest());
+              }
+              catch (NoSuchAlgorithmException ex)
+@@ -355,7 +332,7 @@
+              String algo = BridgeUtilities.getString(l, &quot;CRC32&quot;);
+ 
+              Checksum doit = getChecksum(algo);
+-             doit.update(toByteArrayNoConversion(temp), 0, temp.length());
++             doit.update(BridgeUtilities.toByteArrayNoConversion(temp), 0, temp.length());
+              return SleepUtils.getScalar(doit.getValue());
+           }
+        }
+
+Modified: sleep/src/sleep/bridges/BasicUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicUtilities.java	2007-07-04 17:23:47 UTC (rev 288)
++++ sleep/src/sleep/bridges/BasicUtilities.java	2007-07-04 19:29:42 UTC (rev 289)
+@@ -379,17 +379,7 @@
+              }             
+              else if (type.toString().charAt(0) == 'b')
+              {
+-                // we do a straight conversion here because we don't want byte data to be mucked up by charsets
+-                // this is because string stores an array of bytes as a string...
+-                char[] tempc = value.toString().toCharArray();
+-                byte[] tempb = new byte[tempc.length];
+-
+-                for (int x = 0; x &lt; tempc.length; x++)
+-                {
+-                   tempb[x] = (byte)tempc[x];
+-                }
+-
+-                return SleepUtils.getScalar((Object)tempb);
++                return SleepUtils.getScalar((Object)BridgeUtilities.toByteArrayNoConversion(value.toString()));
+              }             
+ 
+              return SleepUtils.getEmptyScalar();
+
+Modified: sleep/src/sleep/bridges/BridgeUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BridgeUtilities.java	2007-07-04 17:23:47 UTC (rev 288)
++++ sleep/src/sleep/bridges/BridgeUtilities.java	2007-07-04 19:29:42 UTC (rev 289)
+@@ -52,6 +52,19 @@
+  */
+ public class BridgeUtilities
+ {
++   /** converts the specified string to an array of bytes (useful as Sleep stores byte arrays to strings) */
++   public static byte[] toByteArrayNoConversion(String textz)
++   {
++      byte[] data = new byte[textz.length()];
++
++      for (int y = 0; y &lt; data.length; y++)
++      {
++         data[y] = (byte)textz.charAt(y);
++      }
++
++      return data;
++   }
++
+    /** grab an integer. if the stack is empty 0 will be returned. */
+    public static int getInt(Stack arguments)
+    {
+
+Modified: sleep/src/sleep/engine/ObjectUtilities.java
+===================================================================
+--- sleep/src/sleep/engine/ObjectUtilities.java	2007-07-04 17:23:47 UTC (rev 288)
++++ sleep/src/sleep/engine/ObjectUtilities.java	2007-07-04 19:29:42 UTC (rev 289)
+@@ -155,6 +155,10 @@
+          {
+             return ARG_MATCH_YES;
+          }
++         else if (check == java.lang.Object.class)
++         {
++            return ARG_MATCH_MAYBE;
++         }
+          else
+          {
+             return ARG_MATCH_NO;
+@@ -217,6 +221,18 @@
+          Class stemp = scalar.getActualValue().getClass();
+          return (stemp == OBJECT_SCALAR) ? ARG_MATCH_YES : ARG_MATCH_MAYBE;
+       }
++      else if (check.isArray())
++      {
++         Class stemp = scalar.getActualValue().getClass();
++         if (stemp == STRING_SCALAR &amp;&amp; (check.getComponentType() == Character.TYPE || check.getComponentType() == Byte.TYPE))
++         {
++            return ARG_MATCH_MAYBE;
++         }
++         else
++         {
++            return ARG_MATCH_NO;
++         }
++      }
+       else
+       {
+          return ARG_MATCH_NO;
+@@ -432,6 +448,17 @@
+       {
+          return null;
+       }
++      else if (type.isArray() &amp;&amp; value.getActualValue().getClass() == sleep.engine.types.StringValue.class)
++      {
++         if (type.getComponentType() == Byte.TYPE || type.getComponentType() == Byte.class)
++         {
++            return BridgeUtilities.toByteArrayNoConversion(value.toString());
++         }
++         else if (type.getComponentType() == Character.TYPE || type.getComponentType() == Character.class)
++         {
++            return value.toString().toCharArray();
++         }
++      }
+       else if (type.isInterface() &amp;&amp; SleepUtils.isFunctionScalar(value))
+       {
+          return ProxyInterface.BuildInterface(type, SleepUtils.getFunctionFromScalar(value, script), script);
+@@ -495,6 +522,10 @@
+          {
+             return SleepUtils.getScalar((byte[])value);            
+          }
++         else if (check.getComponentType() == Character.TYPE || check.getComponentType() == Character.class)
++         {
++            return SleepUtils.getScalar(new String((char[])value));            
++         }
+          else
+          {
+             Scalar array = SleepUtils.getArrayScalar();
+@@ -548,6 +579,10 @@
+       {
+          return SleepUtils.getScalar(value.toString());
+       }
++      else if (check == Scalar.class || check == WatchScalar.class) 
++      {
++         return (Scalar)value;
++      }
+       else 
+       {
+          return SleepUtils.getScalar(value);
+
+Added: sleep/tests/asis.sl
+===================================================================
+--- sleep/tests/asis.sl	2007-07-04 17:23:47 UTC (rev 288)
++++ sleep/tests/asis.sl	2007-07-04 19:29:42 UTC (rev 289)
+@@ -0,0 +1,12 @@
++#
++# ...
++#
++
++$x = [SleepUtils getScalar: &quot;hi dudez&quot;];
++println(typeOf($x));
++println([$x getClass]);
++
++$y = [SleepUtils getHashScalar];
++println(typeOf($y));
++$y[&quot;pHEAR&quot;] = &quot;blah bleh bleh&quot;;
++println($y);
+
+Added: sleep/tests/byteconvert2.sl
+===================================================================
+--- sleep/tests/byteconvert2.sl	2007-07-04 17:23:47 UTC (rev 288)
++++ sleep/tests/byteconvert2.sl	2007-07-04 19:29:42 UTC (rev 289)
+@@ -0,0 +1,16 @@
++#
++# ensure that byte[] arrays returned by Java functions are converted to sleep byte strings
++#
++
++debug(7);
++
++import java.security.MessageDigest;
++
++$data = readb(openf(&quot;data/test.jar&quot;), lof(&quot;data/test.jar&quot;));
++
++$summer = [MessageDigest getInstance: &quot;MD5&quot;];
++[$summer update: $data]; # sleep will now cast a string into a byte array.
++
++$bytes  = [$summer digest];
++
++println(&quot;The MD5 value of test.jar is: &quot; . unpack(&quot;H*&quot;, $bytes)[0]);
+
+Added: sleep/tests/output/asis.sl
+===================================================================
+--- sleep/tests/output/asis.sl	2007-07-04 17:23:47 UTC (rev 288)
++++ sleep/tests/output/asis.sl	2007-07-04 19:29:42 UTC (rev 289)
+@@ -0,0 +1,4 @@
++class sleep.engine.types.StringValue
++class java.lang.String
++class sleep.engine.types.HashContainer
++%(pHEAR =&gt; 'blah bleh bleh')
+
+Added: sleep/tests/output/byteconvert2.sl
+===================================================================
+--- sleep/tests/output/byteconvert2.sl	2007-07-04 17:23:47 UTC (rev 288)
++++ sleep/tests/output/byteconvert2.sl	2007-07-04 19:29:42 UTC (rev 289)
+@@ -0,0 +1,4 @@
++Warning: variable '$data' not declared at byteconvert2.sl:9
++Warning: variable '$summer' not declared at byteconvert2.sl:11
++Warning: variable '$bytes' not declared at byteconvert2.sl:14
++The MD5 value of test.jar is: 052168a92bfc545941d9352b35288ac3
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2007-07-04 17:23:47 UTC (rev 288)
++++ sleep/whatsnew.txt	2007-07-04 19:29:42 UTC (rev 289)
+@@ -6,6 +6,19 @@
+ - added a srand(long) function for seeding the Sleep random number
+   generator.   %RANDOM% in the script environment contains the random
+   number generator reference.
++- Sleep now evaluates text within a back ticks as an expression to
++  execute.  The expression returns an array with the output printed by
++  the executed command.  Execution errors and non-zero process termination
++  value are available via checkError()
++- Scalar hashes can now be passed to Java methods expecting an Object
++  value (if desired)
++- character arrays returned by Java calls will now be converted to a 
++  Sleep string
++- Sleep strings will now be recognized as valid matches for Java methods
++  requesting a byte[] or char[] parameter.
++- Sleep scalars returned by Java calls will be returned as is.
++- increased performance (x3) of Sleeps internal functions to convert a 
++  String to a non-tampered byte array. 
+ 
+ 2.1-beta 17  (17 Jun 07)
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000267.html">[Sleep-svn] r288 - in sleep: . src/sleep/bridges tests tests/output
+</A></li>
+	<LI>Next message: <A HREF="000269.html">[Sleep-svn] r290 - in sleep: . src/sleep/bridges tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#268">[ date ]</a>
+              <a href="thread.html#268">[ thread ]</a>
+              <a href="subject.html#268">[ subject ]</a>
+              <a href="author.html#268">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

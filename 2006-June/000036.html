@@ -1,0 +1,304 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r53 - in sleep: src/sleep/bridges src/sleep/engine src/sleep/runtime tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2006-June/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r53%20-%20in%20sleep%3A%20src/sleep/bridges%20src/sleep/engine%20src/sleep/runtime%20tests%20tests/output&In-Reply-To=%3C200606112046.k5BKkbii023716%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000035.html">
+   <LINK REL="Next"  HREF="000037.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r53 - in sleep: src/sleep/bridges src/sleep/engine src/sleep/runtime tests tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r53%20-%20in%20sleep%3A%20src/sleep/bridges%20src/sleep/engine%20src/sleep/runtime%20tests%20tests/output&In-Reply-To=%3C200606112046.k5BKkbii023716%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r53 - in sleep: src/sleep/bridges src/sleep/engine src/sleep/runtime tests tests/output">rsmudge at berlios.de
+       </A><BR>
+    <I>Sun Jun 11 22:46:37 CEST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000035.html">[Sleep-svn] r52 - in sleep: src/sleep/bridges src/sleep/engine src/sleep/engine/atoms src/sleep/parser src/sleep/runtime tests tests/output
+</A></li>
+        <LI>Next message: <A HREF="000037.html">[Sleep-svn] r54 - in sleep: src/sleep/engine src/sleep/engine/atoms src/sleep/parser tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#36">[ date ]</a>
+              <a href="thread.html#36">[ thread ]</a>
+              <a href="subject.html#36">[ subject ]</a>
+              <a href="author.html#36">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2006-06-11 22:46:37 +0200 (Sun, 11 Jun 2006)
+New Revision: 53
+
+Added:
+   sleep/tests/cor_other_callers.sl
+   sleep/tests/output/cor_other_callers.sl
+Modified:
+   sleep/src/sleep/bridges/SleepClosure.java
+   sleep/src/sleep/engine/Block.java
+   sleep/src/sleep/runtime/ScriptEnvironment.java
+Log:
+More coroutine work, made it so coroutines can call other coroutines without losing state.  This is not the same
+as a coroutine being able to recursively call itself.  
+
+
+
+Modified: sleep/src/sleep/bridges/SleepClosure.java
+===================================================================
+--- sleep/src/sleep/bridges/SleepClosure.java	2006-06-10 18:40:32 UTC (rev 52)
++++ sleep/src/sleep/bridges/SleepClosure.java	2006-06-11 20:46:37 UTC (rev 53)
+@@ -62,7 +62,7 @@
+     {
+        code     = _code;
+        owner    = si;
+-       context  = null;
++       context  = new Stack();
+ 
+        _var.putScalar(&quot;$this&quot;, SleepUtils.getScalar(this));
+        setVariables(_var);
+@@ -148,13 +148,13 @@
+           //
+           // call the function, save the scalar that was returned. 
+           //
+-          if (context != null &amp;&amp; ! context.isEmpty())
++          if (context.isEmpty())
+           {
+-             temp = env.evaluateOldContext();
++             temp = code.evaluate(env);
+           }
+           else
+           {
+-             temp = code.evaluate(env);
++             temp = env.evaluateOldContext();
+           }
+ 
+           context = env.saveContext();
+
+Modified: sleep/src/sleep/engine/Block.java
+===================================================================
+--- sleep/src/sleep/engine/Block.java	2006-06-10 18:40:32 UTC (rev 52)
++++ sleep/src/sleep/engine/Block.java	2006-06-11 20:46:37 UTC (rev 53)
+@@ -168,7 +168,10 @@
+               {
+                  if (temp instanceof sleep.engine.atoms.Return)
+                  {
+-                    environment.addToContext(this, temp.next);
++                    if (temp.next != null)
++                    {
++                       environment.addToContext(this, temp.next);
++                    }
+                  }
+                  else
+                  {
+
+Modified: sleep/src/sleep/runtime/ScriptEnvironment.java
+===================================================================
+--- sleep/src/sleep/runtime/ScriptEnvironment.java	2006-06-10 18:40:32 UTC (rev 52)
++++ sleep/src/sleep/runtime/ScriptEnvironment.java	2006-06-11 20:46:37 UTC (rev 53)
+@@ -214,38 +214,35 @@
+     {
+        public Block block;
+        public Step  last;       
+-
+-       public String toString() { return &quot;[&quot; + last.toString() + &quot;:&quot; + last.getLineNumber() + &quot;]&quot;; }
+     }
+ 
+-    protected Stack contextStack = null;
++    protected Stack context      = null;
++    protected Stack contextStack = new Stack();
+ 
+     public void loadContext(Stack c)
+     {
+-       contextStack = c;
++       if (context != null)
++       { 
++          contextStack.push(context);
++       }
++       context = c;
+     }
+ 
+     public void addToContext(Block b, Step s)
+     {
+-       if (contextStack == null)
+-           contextStack = new Stack();
+-
+        Context temp = new Context();
+        temp.block = b;
+        temp.last  = s;
+-       contextStack.add(0, temp);
++       context.add(0, temp);
+     }
+ 
+     public Scalar evaluateOldContext()
+     {
+        Scalar rv = SleepUtils.getEmptyScalar();
+ 
+-       if (contextStack == null)
+-           return rv;
++       Stack cstack = context;
++       context      = new Stack();
+ 
+-       Stack cstack = contextStack;
+-       contextStack = null;
+-
+        while (!cstack.isEmpty())
+        {
+           Context temp = (Context)cstack.pop();
+@@ -257,9 +254,18 @@
+ 
+     public Stack saveContext()
+     {
+-       Stack temp   = contextStack;
+-       contextStack = null;
+-       return temp;
++       Stack cstack = context;
++
++       if (contextStack.isEmpty())
++       {
++          context = null;
++       }
++       else
++       {
++          context = (Stack)(contextStack.pop());
++       }
++
++       return cstack;
+     }
+ 
+     //
+
+Added: sleep/tests/cor_other_callers.sl
+===================================================================
+--- sleep/tests/cor_other_callers.sl	2006-06-10 18:40:32 UTC (rev 52)
++++ sleep/tests/cor_other_callers.sl	2006-06-11 20:46:37 UTC (rev 53)
+@@ -0,0 +1,50 @@
++#
++# coroutine test 
++#    ensure that coroutine state is not lost when another coroutine is called within the same coroutine
++#    note that this test is *different* from a coroutine being able to recursively call itself... 
++#  
++
++sub a
++{
++   this('$y');  
++   $y = 0;
++   while ($y &lt; 10)
++   {
++      println(&quot;a() yields: $y * b()&quot;);
++      yield $y * b();
++      $y++;
++   }
++
++   return -1;
++}
++
++sub b
++{
++   this('$x');
++   $x = 10;
++   while ($x &lt; 20)
++   {
++      println(&quot;b() yields: $x * c()&quot;);
++      yield $x * c();
++      $x++;
++   }
++}
++
++sub c
++{
++   this('$z');
++   $z = 20;
++   while ($z &lt; 30)
++   {
++      println(&quot;c() yields: $z&quot;);
++      yield $z;
++      $z++;
++   }  
++}
++
++$z = a();
++while ($z &gt; -1)
++{
++   println($z);
++   $z = a();
++} 
+
+Added: sleep/tests/output/cor_other_callers.sl
+===================================================================
+--- sleep/tests/output/cor_other_callers.sl	2006-06-10 18:40:32 UTC (rev 52)
++++ sleep/tests/output/cor_other_callers.sl	2006-06-11 20:46:37 UTC (rev 53)
+@@ -0,0 +1,40 @@
++a() yields: 0 * b()
++b() yields: 10 * c()
++c() yields: 20
++0
++a() yields: 1 * b()
++b() yields: 11 * c()
++c() yields: 21
++231
++a() yields: 2 * b()
++b() yields: 12 * c()
++c() yields: 22
++528
++a() yields: 3 * b()
++b() yields: 13 * c()
++c() yields: 23
++897
++a() yields: 4 * b()
++b() yields: 14 * c()
++c() yields: 24
++1344
++a() yields: 5 * b()
++b() yields: 15 * c()
++c() yields: 25
++1875
++a() yields: 6 * b()
++b() yields: 16 * c()
++c() yields: 26
++2496
++a() yields: 7 * b()
++b() yields: 17 * c()
++c() yields: 27
++3213
++a() yields: 8 * b()
++b() yields: 18 * c()
++c() yields: 28
++4032
++a() yields: 9 * b()
++b() yields: 19 * c()
++c() yields: 29
++4959
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000035.html">[Sleep-svn] r52 - in sleep: src/sleep/bridges src/sleep/engine src/sleep/engine/atoms src/sleep/parser src/sleep/runtime tests tests/output
+</A></li>
+	<LI>Next message: <A HREF="000037.html">[Sleep-svn] r54 - in sleep: src/sleep/engine src/sleep/engine/atoms src/sleep/parser tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#36">[ date ]</a>
+              <a href="thread.html#36">[ thread ]</a>
+              <a href="subject.html#36">[ subject ]</a>
+              <a href="author.html#36">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

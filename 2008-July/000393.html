@@ -1,0 +1,123 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r418 - in sleep: . src/sleep/runtime
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2008-July/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r418%20-%20in%20sleep%3A%20.%20src/sleep/runtime&In-Reply-To=%3C200807012343.m61Nh4W3026475%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000392.html">
+   <LINK REL="Next"  HREF="000394.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r418 - in sleep: . src/sleep/runtime</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r418%20-%20in%20sleep%3A%20.%20src/sleep/runtime&In-Reply-To=%3C200807012343.m61Nh4W3026475%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r418 - in sleep: . src/sleep/runtime">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Wed Jul  2 01:43:04 CEST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000392.html">[Sleep-svn] r417 - in sleep: . tests tests/output
+</A></li>
+        <LI>Next message: <A HREF="000394.html">[Sleep-svn] Einschreiben von TanjaPrivat
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#393">[ date ]</a>
+              <a href="thread.html#393">[ thread ]</a>
+              <a href="subject.html#393">[ subject ]</a>
+              <a href="author.html#393">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2008-07-02 01:43:03 +0200 (Wed, 02 Jul 2008)
+New Revision: 418
+
+Modified:
+   sleep/readme.txt
+   sleep/src/sleep/runtime/SleepUtils.java
+   sleep/whatsnew.txt
+Log:
+..
+
+
+Modified: sleep/readme.txt
+===================================================================
+--- sleep/readme.txt	2008-07-01 23:40:23 UTC (rev 417)
++++ sleep/readme.txt	2008-07-01 23:43:03 UTC (rev 418)
+@@ -23,7 +23,7 @@
+ closures and access to the Java class library. 
+ 
+ After Sleep 2.0 I let the project sit and collect bug reports for about a 
+-year.   At some point I added coroutines into Sleep 2.0 and thus Sleep 2.1 
++year.  At some point I added coroutines into Sleep 2.0 and thus Sleep 2.1 
+ was born.  This release is the result of a 2 year polishing effort on the Sleep 
+ 2.0 codebase. 
+ 
+@@ -170,8 +170,8 @@
+ -  ------------- -------- -   ---------------- --       -    -     -     - - -
+ 
+ Sleep is (c) 2002, 2003, 2004, 2005, 2006, 2007, and 2008 (wow, been at this
+-awhile) Raphael Mudge (<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">rsmudge at gmail.com</A>).  All of the source and somehow the 
+-documentation are released under the GNU Lesser Public License.  
++awhile) Raphael Mudge (<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">rsmudge at gmail.com</A>).  All of the source is released under
++the GNU Lesser Public License.
+ 
+ The scripts and library files supplied as input to or produced as output 
+ from the Sleep library do not automatically fall under the copyright of the
+
+Modified: sleep/src/sleep/runtime/SleepUtils.java
+===================================================================
+--- sleep/src/sleep/runtime/SleepUtils.java	2008-07-01 23:40:23 UTC (rev 417)
++++ sleep/src/sleep/runtime/SleepUtils.java	2008-07-01 23:43:03 UTC (rev 418)
+@@ -26,7 +26,7 @@
+ public class SleepUtils
+ {
+    /** A date stamp of this Sleep release in YYYYMMDD format */
+-   public static final int    SLEEP_RELEASE = 20080616;
++   public static final int    SLEEP_RELEASE = 20080701;
+ 
+    /** A string description of this Sleep release */
+    public static final String SLEEP_VERSION = &quot;Sleep 2.1&quot;;
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2008-07-01 23:40:23 UTC (rev 417)
++++ sleep/whatsnew.txt	2008-07-01 23:43:03 UTC (rev 418)
+@@ -1,4 +1,4 @@
+-2.1-release  (...)
++2.1-release  (1 Jul 08)
+ ===========
+ - splice() no longer corrupts sublists.
+ - values(%hash) now omits $null values.  
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000392.html">[Sleep-svn] r417 - in sleep: . tests tests/output
+</A></li>
+	<LI>Next message: <A HREF="000394.html">[Sleep-svn] Einschreiben von TanjaPrivat
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#393">[ date ]</a>
+              <a href="thread.html#393">[ thread ]</a>
+              <a href="subject.html#393">[ subject ]</a>
+              <a href="author.html#393">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

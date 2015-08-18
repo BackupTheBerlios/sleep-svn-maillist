@@ -1,0 +1,225 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r266 - in sleep: . docs src/sleep/bridges	src/sleep/runtime
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2007-June/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r266%20-%20in%20sleep%3A%20.%20docs%20src/sleep/bridges%0A%09src/sleep/runtime&In-Reply-To=%3C200706110244.l5B2i8tP025133%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000244.html">
+   <LINK REL="Next"  HREF="000246.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r266 - in sleep: . docs src/sleep/bridges	src/sleep/runtime</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r266%20-%20in%20sleep%3A%20.%20docs%20src/sleep/bridges%0A%09src/sleep/runtime&In-Reply-To=%3C200706110244.l5B2i8tP025133%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r266 - in sleep: . docs src/sleep/bridges	src/sleep/runtime">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Mon Jun 11 04:44:08 CEST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000244.html">[Sleep-svn] r265 - in sleep: src/sleep/runtime tests tests/output
+</A></li>
+        <LI>Next message: <A HREF="000246.html">[Sleep-svn] r267 - sleep/tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#245">[ date ]</a>
+              <a href="thread.html#245">[ thread ]</a>
+              <a href="subject.html#245">[ subject ]</a>
+              <a href="author.html#245">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2007-06-11 04:44:07 +0200 (Mon, 11 Jun 2007)
+New Revision: 266
+
+Modified:
+   sleep/docs/sleeplang.html
+   sleep/readme.txt
+   sleep/src/sleep/bridges/BasicUtilities.java
+   sleep/src/sleep/runtime/SleepUtils.java
+   sleep/whatsnew.txt
+Log:
+Sleep 2.1-b16
+
+
+Modified: sleep/docs/sleeplang.html
+===================================================================
+--- sleep/docs/sleeplang.html	2007-06-11 02:31:22 UTC (rev 265)
++++ sleep/docs/sleeplang.html	2007-06-11 02:44:07 UTC (rev 266)
+@@ -1007,7 +1007,7 @@
+ it.&lt;/p&gt;
+ 
+ &lt;p&gt;To obtain an @array of all of the keys in a hash you can use the keys() function with the %hash as the parameter.   To remove 
+-a key from a hash you can use remove(%hash, &quot;key&quot;).&lt;/P&gt;
++a value from a hash you can use remove(%hash, &quot;value&quot;).&lt;/P&gt;
+ 
+ &lt;p&gt;To remove a key key from a hash simply set the value to $null.&lt;/p&gt;
+ 
+@@ -1037,6 +1037,9 @@
+ 
+ &lt;p&gt;The example above prints 'My name is Raphael Mudge, and I like ice cream!!!' three times.&lt;/p&gt;
+ 
++&lt;p&gt;Sleep functions that expect a key/value pair will accept either a key/value expression or a string of the form
++&quot;key=value&quot;.&lt;/p&gt;
++
+ &lt;h3&gt;Multidimensional Hashes/Arrays&lt;/h3&gt;
+ 
+ &lt;p&gt;Multidimensional hashes work exactly the same as Sleep arrays.  It is also possible to have an array of hashes, or a hash of 
+@@ -1939,8 +1942,8 @@
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td&gt;@&lt;/td&gt;
+-  &lt;td&gt;flatten(@array)&lt;/td&gt;
+-  &lt;td&gt;returns a copy of a multidimensional(?) @array flattened into a one dimensional array&lt;/td&gt;
++  &lt;td&gt;flatten(@|&amp;)&lt;/td&gt;
++  &lt;td&gt;returns a copy of a multidimensional(?) @array or &amp;generator flattened into a one dimensional array (only array elements are flattened)&lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td&gt;@&lt;/td&gt;
+@@ -1973,9 +1976,9 @@
+   &lt;td&gt;removes all elements of @b from @a. equivalent to the different of @a and @b&lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+-  &lt;td&gt;$&lt;/td&gt;
+-  &lt;td&gt;removeAt(@arrray, index)&lt;/td&gt;
+-  &lt;td&gt;removes the element at index from @array.&lt;/td&gt;
++  &lt;td&gt;&lt;/td&gt;
++  &lt;td&gt;removeAt(@arrray, index, ...)&lt;/td&gt;
++  &lt;td&gt;removes the elements at the specified indices.&lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td&gt;@&lt;/td&gt;
+@@ -2226,10 +2229,20 @@
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td&gt;&lt;/td&gt;
+-  &lt;td&gt;remove(%hash, $key, ...)&lt;/td&gt;
+-  &lt;td&gt;removes all specified keys from %hash&lt;/td&gt;
++  &lt;td&gt;remove(%hash, $value, ...)&lt;/td&gt;
++  &lt;td&gt;removes all specified values from %hash&lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
++  &lt;td&gt;&lt;/td&gt;
++  &lt;td&gt;removeAt(%hash, &quot;key&quot;, ...)&lt;/td&gt;
++  &lt;td&gt;removes the specified keys from the hash.&lt;/td&gt;
++ &lt;/tr&gt;
++ &lt;tr&gt;
++  &lt;td&gt;$&lt;/td&gt;
++  &lt;td&gt;size(%hash)&lt;/td&gt;
++  &lt;td&gt;returns the number of elements in %hash&lt;/td&gt;
++ &lt;/tr&gt;
++ &lt;tr&gt;
+   &lt;td&gt;@&lt;/td&gt;
+   &lt;td&gt;values(%hash, $key)&lt;/td&gt;
+   &lt;td&gt;returns a flat array of all the values in %hash&lt;/td&gt;
+@@ -2643,8 +2656,8 @@
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td&gt;$&lt;/td&gt;
+-  &lt;td&gt;join(&quot;string&quot;, @array)&lt;/td&gt;
+-  &lt;td&gt;joins the elements of @array with &quot;string&quot;&lt;/td&gt;
++  &lt;td&gt;join(&quot;string&quot;, @|&amp;)&lt;/td&gt;
++  &lt;td&gt;joins the elements of @array or &amp;generator with &quot;string&quot;&lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td&gt;$&lt;/td&gt;
+@@ -2755,7 +2768,12 @@
+  &lt;tr&gt;
+   &lt;td&gt;$&lt;/td&gt;
+   &lt;td&gt;debug(level)&lt;/td&gt;
+-  &lt;td&gt;explicitly enables the specified debug level for this script: 0 - no debugging; 1 - show only critical errors (default); 2 - show all messages flagged for retrieval with checkError(); 4 - show first time use of non-declared variables; 8 - trace all function calls (collects profiler statistics); 24 - trace only for the purpose of collecting profiler statistics; 34 - &quot;throw&quot; all messages flagged for use with checkError() - this allows use of try/catch to deal with errors.  any of the levels can be |'d together.&lt;/td&gt;
++  &lt;td&gt;explicitly enables the specified debug level for this script: 0 - no debugging; 1 - show only critical
++errors (default); 2 - show all messages flagged for retrieval with checkError(); 4 - show first time use of
++non-declared variables; 8 - trace all function calls (collects profiler statistics); 24 - trace only for the
++purpose of collecting profiler statistics; 34 - &quot;throw&quot; all messages flagged for use with checkError() - this
++allows use of try/catch to deal with errors; 64 - trace all logical comparisons.  any of the levels can be |'d 
++together.&lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td&gt;$&lt;/td&gt;
+
+Modified: sleep/readme.txt
+===================================================================
+--- sleep/readme.txt	2007-06-11 02:31:22 UTC (rev 265)
++++ sleep/readme.txt	2007-06-11 02:44:07 UTC (rev 266)
+@@ -1,5 +1,5 @@
+  ------- -------------------- ---------   ---------------  ------- ---------
+-Sleep - 2.1 beta 15 - README   
++Sleep - 2.1 beta 16 - README   
+ -  ------------- -------- -   ---------------- --       -    -     -     - - -
+ 
+ &quot;You got the language, all you need now is the O'Reilly book&quot;.  That is
+
+Modified: sleep/src/sleep/bridges/BasicUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicUtilities.java	2007-06-11 02:31:22 UTC (rev 265)
++++ sleep/src/sleep/bridges/BasicUtilities.java	2007-06-11 02:44:07 UTC (rev 266)
+@@ -603,10 +603,9 @@
+ 
+           if (value.getArray() != null)
+           {
+-             int size = value.getArray().size();
+              while (!l.isEmpty())
+              {             
+-                value.getArray().remove(BridgeUtilities.normalize(BridgeUtilities.getInt(l, 0), size));
++                value.getArray().remove(BridgeUtilities.normalize(BridgeUtilities.getInt(l, 0), value.getArray().size()));
+              }
+           }
+           else if (value.getHash() != null)
+
+Modified: sleep/src/sleep/runtime/SleepUtils.java
+===================================================================
+--- sleep/src/sleep/runtime/SleepUtils.java	2007-06-11 02:31:22 UTC (rev 265)
++++ sleep/src/sleep/runtime/SleepUtils.java	2007-06-11 02:44:07 UTC (rev 266)
+@@ -26,7 +26,7 @@
+ public class SleepUtils
+ {
+    /** A date stamp of this Sleep release in YYYYMMDD format */
+-   public static final int    SLEEP_RELEASE = 20070425;
++   public static final int    SLEEP_RELEASE = 20070611;
+ 
+    /** A string description of this Sleep release */
+    public static final String SLEEP_VERSION = &quot;Sleep 2.1&quot;;
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2007-06-11 02:31:22 UTC (rev 265)
++++ sleep/whatsnew.txt	2007-06-11 02:44:07 UTC (rev 266)
+@@ -1,4 +1,4 @@
+-2.1-beta 16
++2.1-beta 16  (11 Jun 07)
+ ===========
+ - passing a value that can not be used as a key/value pair when a kvp 
+   is expected now results in an error message.   valid kvp's include:
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000244.html">[Sleep-svn] r265 - in sleep: src/sleep/runtime tests tests/output
+</A></li>
+	<LI>Next message: <A HREF="000246.html">[Sleep-svn] r267 - sleep/tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#245">[ date ]</a>
+              <a href="thread.html#245">[ thread ]</a>
+              <a href="subject.html#245">[ subject ]</a>
+              <a href="author.html#245">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

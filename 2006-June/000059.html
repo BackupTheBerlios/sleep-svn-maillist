@@ -1,0 +1,132 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r77 - in sleep: docs src/sleep/bridges src/sleep/bridges/io
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2006-June/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r77%20-%20in%20sleep%3A%20docs%20src/sleep/bridges%20src/sleep/bridges/io&In-Reply-To=%3C200606170729.k5H7TrrV031529%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000058.html">
+   <LINK REL="Next"  HREF="000060.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r77 - in sleep: docs src/sleep/bridges src/sleep/bridges/io</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r77%20-%20in%20sleep%3A%20docs%20src/sleep/bridges%20src/sleep/bridges/io&In-Reply-To=%3C200606170729.k5H7TrrV031529%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r77 - in sleep: docs src/sleep/bridges src/sleep/bridges/io">rsmudge at berlios.de
+       </A><BR>
+    <I>Sat Jun 17 09:29:53 CEST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000058.html">[Sleep-svn] r76 - sleep/docs
+</A></li>
+        <LI>Next message: <A HREF="000060.html">[Sleep-svn] r78 - sleep/docs
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#59">[ date ]</a>
+              <a href="thread.html#59">[ thread ]</a>
+              <a href="subject.html#59">[ subject ]</a>
+              <a href="author.html#59">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2006-06-17 09:29:51 +0200 (Sat, 17 Jun 2006)
+New Revision: 77
+
+Modified:
+   sleep/docs/sleepguide.html
+   sleep/src/sleep/bridges/BasicIO.java
+   sleep/src/sleep/bridges/io/IOObject.java
+Log:
+Working on updating the console API plus more doc updates (documented halt and done in 2.7)
+
+
+
+Modified: sleep/docs/sleepguide.html
+===================================================================
+--- sleep/docs/sleepguide.html	2006-06-17 07:11:56 UTC (rev 76)
++++ sleep/docs/sleepguide.html	2006-06-17 07:29:51 UTC (rev 77)
+@@ -648,6 +648,12 @@
+ event driven scripting to popup menu structures to my application. Environments are a very powerful way to get the most out of 
+ integrating your application with the sleep language.&lt;/p&gt;
+ 
++&lt;p&gt;As a side note, Sleep comes with two extra keywords built-in.  These are &lt;code&gt;halt&lt;/code&gt;
++and &lt;code&gt;done&lt;/code&gt;.  These keywords function exactly like return except they return a 
++specific integer constant.  In the case of halt the return value is 2.  done returns a 1.  
++These keywords were put into the Sleep language to work with the event handling bridges in the
++IRC client jIRCii.  Feel free to take advantage of them within your own apps.&lt;/p&gt;
++
+ &lt;h2&gt;&lt;a name=&quot;2.8&quot;&gt;Filtered Environment Bridges&lt;/a&gt;&lt;/h2&gt;
+ 
+ &lt;p&gt;Filtered environments are similar to normal keyword environments except they also allow a parameter specified by the user.  
+
+Modified: sleep/src/sleep/bridges/BasicIO.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicIO.java	2006-06-17 07:11:56 UTC (rev 76)
++++ sleep/src/sleep/bridges/BasicIO.java	2006-06-17 07:29:51 UTC (rev 77)
+@@ -348,7 +348,7 @@
+     {
+        public Scalar evaluate(String n, ScriptInstance i, Stack l)
+        {
+-          return SleepUtils.getScalar(IOObject.getConsole());
++          return SleepUtils.getScalar(IOObject.getConsole(i.getScriptEnvironment()));
+        }
+     }
+ 
+
+Modified: sleep/src/sleep/bridges/io/IOObject.java
+===================================================================
+--- sleep/src/sleep/bridges/io/IOObject.java	2006-06-17 07:11:56 UTC (rev 76)
++++ sleep/src/sleep/bridges/io/IOObject.java	2006-06-17 07:29:51 UTC (rev 77)
+@@ -68,9 +68,19 @@
+       token = t;
+    }
+ 
+-   /** returns an IOObject that represents stdin/stdout */
++   /** this method is no longer the preferred way for obtaining the console IOObject */
+    public static IOObject getConsole()
+    {
++      IOObject temp = new IOObject();
++      temp.openRead(System.in);
++      temp.openWrite(System.out);
++
++      return temp;
++   }
++
++   /** returns an IOObject that represents stdin/stdout */
++   public static IOObject getConsole(ScriptEnvironment environment)
++   {
+       if (console == null)
+       {
+          console = new IOObject();
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000058.html">[Sleep-svn] r76 - sleep/docs
+</A></li>
+	<LI>Next message: <A HREF="000060.html">[Sleep-svn] r78 - sleep/docs
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#59">[ date ]</a>
+              <a href="thread.html#59">[ thread ]</a>
+              <a href="subject.html#59">[ subject ]</a>
+              <a href="author.html#59">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

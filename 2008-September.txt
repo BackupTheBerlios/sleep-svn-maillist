@@ -1,0 +1,568 @@
+From rsmudge at mail.berlios.de  Thu Sep 25 22:26:38 2008
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Thu, 25 Sep 2008 22:26:38 +0200
+Subject: [Sleep-svn] r437 - in sleep: . src/sleep/bridges
+	src/sleep/engine/types src/sleep/parser tests tests/output
+Message-ID: <200809252026.m8PKQcha025820@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2008-09-25 22:26:37 +0200 (Thu, 25 Sep 2008)
+New Revision: 437
+
+Added:
+   sleep/tests/castbug.sl
+   sleep/tests/expassign.sl
+   sleep/tests/ohashsem.sl
+   sleep/tests/output/castbug.sl
+   sleep/tests/output/expassign.sl
+   sleep/tests/output/ohashsem.sl
+Modified:
+   sleep/src/sleep/bridges/BasicUtilities.java
+   sleep/src/sleep/engine/types/OrderedHashContainer.java
+   sleep/src/sleep/parser/TokenParser.java
+   sleep/whatsnew.txt
+Log:
+blah blah blah.
+
+
+Modified: sleep/src/sleep/bridges/BasicUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicUtilities.java	2008-08-07 21:13:36 UTC (rev 436)
++++ sleep/src/sleep/bridges/BasicUtilities.java	2008-09-25 20:26:37 UTC (rev 437)
+@@ -482,6 +482,12 @@
+ 
+           int current[] = new int[dimensions.length]; // defaults at 0, 0, 0
+ 
++          /* special case, we're casting an empty array */
++          if (flat.getArray().size() == 0)
++          {
++             return SleepUtils.getScalar(rv);
++          }
++
+           for (int x = 0; true; x++)
+           {
+              Object tempa = rv;
+
+Modified: sleep/src/sleep/engine/types/OrderedHashContainer.java
+===================================================================
+--- sleep/src/sleep/engine/types/OrderedHashContainer.java	2008-08-07 21:13:36 UTC (rev 436)
++++ sleep/src/sleep/engine/types/OrderedHashContainer.java	2008-09-25 20:26:37 UTC (rev 437)
+@@ -117,7 +117,7 @@
+          locals.push(key);
+          locals.push(SleepUtils.getHashScalar(this));
+ 
+-         value = missPolicy.callClosure("miss", null, locals);
++         value = SleepUtils.getScalar(missPolicy.callClosure("miss", null, locals));
+          values.put(temp, value);
+       }
+       else if (value == null)
+
+Modified: sleep/src/sleep/parser/TokenParser.java
+===================================================================
+--- sleep/src/sleep/parser/TokenParser.java	2008-08-07 21:13:36 UTC (rev 436)
++++ sleep/src/sleep/parser/TokenParser.java	2008-09-25 20:26:37 UTC (rev 437)
+@@ -735,7 +735,7 @@
+             x += 3;
+          }
+          else if ((check = findPrecedentOperators(myToken, data, x, "+= -= *= .= /= %= |= &= ^=", 2)) != x ||
+-                  (check = findPrecedentOperators(myToken, data, x, "<<= >>=", 3)) != x) // checking for a assignment :)
++                  (check = findPrecedentOperators(myToken, data, x, "<<= >>= **=", 3)) != x) // checking for a assignment :)
+          {
+             if (Checkers.isExpression(strings[x]))
+             {
+
+Added: sleep/tests/castbug.sl
+===================================================================
+--- sleep/tests/castbug.sl	2008-08-07 21:13:36 UTC (rev 436)
++++ sleep/tests/castbug.sl	2008-09-25 20:26:37 UTC (rev 437)
+@@ -0,0 +1,11 @@
++#
++
++$x = cast(@(), "o");
++println([$x getClass]);
++
++$x = cast(@(), "o", 3, 0);
++println([$x getClass]);
++
++$x = cast(@(), "o", 3, 4, 5, 6, 7, 8, 0);
++println([$x getClass]);
++
+
+Added: sleep/tests/expassign.sl
+===================================================================
+--- sleep/tests/expassign.sl	2008-08-07 21:13:36 UTC (rev 436)
++++ sleep/tests/expassign.sl	2008-09-25 20:26:37 UTC (rev 437)
+@@ -0,0 +1,6 @@
++# test exponentation in the assignment ops
++
++$x = 2;
++$x **= 3;
++
++println($x);
+
+Added: sleep/tests/ohashsem.sl
+===================================================================
+--- sleep/tests/ohashsem.sl	2008-08-07 21:13:36 UTC (rev 436)
++++ sleep/tests/ohashsem.sl	2008-09-25 20:26:37 UTC (rev 437)
+@@ -0,0 +1,9 @@
++$default = 42;
++%hash = ohash();
++setMissPolicy(%hash, lambda({ return $default; }, \$default));
++
++%hash["uh"] += 4;
++%hash["eh"] += 7;
++
++
++println(%hash);
+
+Added: sleep/tests/output/castbug.sl
+===================================================================
+--- sleep/tests/output/castbug.sl	2008-08-07 21:13:36 UTC (rev 436)
++++ sleep/tests/output/castbug.sl	2008-09-25 20:26:37 UTC (rev 437)
+@@ -0,0 +1,3 @@
++class [Ljava.lang.Object;
++class [[Ljava.lang.Object;
++class [[[[[[[Ljava.lang.Object;
+
+Added: sleep/tests/output/expassign.sl
+===================================================================
+--- sleep/tests/output/expassign.sl	2008-08-07 21:13:36 UTC (rev 436)
++++ sleep/tests/output/expassign.sl	2008-09-25 20:26:37 UTC (rev 437)
+@@ -0,0 +1 @@
++8.0
+
+Added: sleep/tests/output/ohashsem.sl
+===================================================================
+--- sleep/tests/output/ohashsem.sl	2008-08-07 21:13:36 UTC (rev 436)
++++ sleep/tests/output/ohashsem.sl	2008-09-25 20:26:37 UTC (rev 437)
+@@ -0,0 +1 @@
++%(uh => 46, eh => 49)
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2008-08-07 21:13:36 UTC (rev 436)
++++ sleep/whatsnew.txt	2008-09-25 20:26:37 UTC (rev 437)
+@@ -5,6 +5,11 @@
+ - [$obj field] can now get protected members declared within the parent of
+   $obj.  This does not extend to protected members declared up the class 
+   hierarchy.
++- added exponent operator as an assignment op i.e. $x **= 2; 
++- fixed a bug with cast preventing the creation of empty arrays.
++- ordered hash now makes a copy of value returned by miss policy.  This
++  prevents a situation where all members of a hash share reference to same
++  default value (and are thus changeable in place).
+ 
+ 2.1-release  (7 Aug 08) [update 2.5]
+ ===========
+
+
+
+From rsmudge at mail.berlios.de  Thu Sep 25 22:38:35 2008
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Thu, 25 Sep 2008 22:38:35 +0200
+Subject: [Sleep-svn] r438 - in sleep: . src/sleep/engine/types tests
+	tests/output
+Message-ID: <200809252038.m8PKcZQL027221@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2008-09-25 22:38:34 +0200 (Thu, 25 Sep 2008)
+New Revision: 438
+
+Added:
+   sleep/tests/output/serohash.sl
+   sleep/tests/serohash.sl
+Modified:
+   sleep/src/sleep/engine/types/OrderedHashContainer.java
+   sleep/whatsnew.txt
+Log:
+fixed a bug with serialized ordered hashes.
+
+
+
+Modified: sleep/src/sleep/engine/types/OrderedHashContainer.java
+===================================================================
+--- sleep/src/sleep/engine/types/OrderedHashContainer.java	2008-09-25 20:26:37 UTC (rev 437)
++++ sleep/src/sleep/engine/types/OrderedHashContainer.java	2008-09-25 20:38:34 UTC (rev 438)
+@@ -33,10 +33,10 @@
+    }
+ 
+    /** policy function for what to do when a miss occurs */
+-   protected SleepClosure missPolicy;
++   protected transient SleepClosure missPolicy;
+ 
+    /** policy function for what to do when a hit occurs */
+-   protected SleepClosure removalPolicy;
++   protected transient SleepClosure removalPolicy;
+ 
+    /** set the removal policy for this hash (decides if an entry should be removed or not */
+    public void setRemovalPolicy(SleepClosure policy)
+
+Added: sleep/tests/output/serohash.sl
+===================================================================
+--- sleep/tests/output/serohash.sl	2008-09-25 20:26:37 UTC (rev 437)
++++ sleep/tests/output/serohash.sl	2008-09-25 20:38:34 UTC (rev 438)
+@@ -0,0 +1,7 @@
++Warning: Miss policy called at serohash.sl:2
++Warning: Removal policy called at serohash.sl:3
++Warning: Miss policy called at serohash.sl:2
++Warning: Removal policy called at serohash.sl:3
++201527, 201527
++%(b => 201527, a => 201527)
++%(b => 201527, a => 201527, xx => '33')
+
+Added: sleep/tests/serohash.sl
+===================================================================
+--- sleep/tests/serohash.sl	2008-09-25 20:26:37 UTC (rev 437)
++++ sleep/tests/serohash.sl	2008-09-25 20:38:34 UTC (rev 438)
+@@ -0,0 +1,14 @@
++%ohash = ohash();
++setMissPolicy(%ohash, { warn("Miss policy called"); return 0x31337; });
++setRemovalPolicy(%ohash, { warn("Removal policy called"); return 0; });
++
++println(%ohash["a"] . ', ' . %ohash["b"]);
++
++$buffer = allocate();
++writeObject($buffer, %ohash);
++closef($buffer);
++
++$hash = readObject($buffer);
++println($hash);
++$hash["xx"] = "33";
++println($hash);
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2008-09-25 20:26:37 UTC (rev 437)
++++ sleep/whatsnew.txt	2008-09-25 20:38:34 UTC (rev 438)
+@@ -10,7 +10,13 @@
+ - ordered hash now makes a copy of value returned by miss policy.  This
+   prevents a situation where all members of a hash share reference to same
+   default value (and are thus changeable in place).
++- ohash now longer serializes miss and removal policies.  be warned when
++  you deserialize these hashes you'll want to readd the policy functions
+ 
++  [previous behavior resulted in a null error and corrupted the Sleep
++  stack, so if this affected you, you already knew and weren't happy with
++  with it].
++
+ 2.1-release  (7 Aug 08) [update 2.5]
+ ===========
+ - made a sanity check with inline function execution to keep jIRCii
+
+
+
+From rsmudge at mail.berlios.de  Thu Sep 25 23:30:37 2008
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Thu, 25 Sep 2008 23:30:37 +0200
+Subject: [Sleep-svn] r439 - in sleep: . src/sleep/engine
+	src/sleep/engine/atoms src/sleep/runtime tests tests/output
+Message-ID: <200809252130.m8PLUbkV000917@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2008-09-25 23:30:36 +0200 (Thu, 25 Sep 2008)
+New Revision: 439
+
+Added:
+   sleep/tests/debugproxy.sl
+   sleep/tests/output/debugproxy.sl
+Modified:
+   sleep/src/sleep/engine/ProxyInterface.java
+   sleep/src/sleep/engine/atoms/ObjectAccess.java
+   sleep/src/sleep/runtime/SleepUtils.java
+   sleep/tests/output/newInstance.sl
+   sleep/whatsnew.txt
+Log:
+better proxy instance.
+
+
+Modified: sleep/src/sleep/engine/ProxyInterface.java
+===================================================================
+--- sleep/src/sleep/engine/ProxyInterface.java	2008-09-25 20:38:34 UTC (rev 438)
++++ sleep/src/sleep/engine/ProxyInterface.java	2008-09-25 21:30:36 UTC (rev 439)
+@@ -29,6 +29,12 @@
+       return script;
+    }
+ 
++   /** Returns a string description of this proxy interface */
++   public String toString()
++   {
++      return func.toString();
++   }
++
+    /** Constructs a new instance of the specified class that uses the passed Sleep function to respond
+        to all method calls on this instance. */
+    public static Object BuildInterface(Class className, Function subroutine, ScriptInstance script)
+
+Modified: sleep/src/sleep/engine/atoms/ObjectAccess.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/ObjectAccess.java	2008-09-25 20:38:34 UTC (rev 438)
++++ sleep/src/sleep/engine/atoms/ObjectAccess.java	2008-09-25 21:30:36 UTC (rev 439)
+@@ -82,10 +82,6 @@
+          {
+             trace.append(theClass.getName() + " " + name + args + "]");
+          }
+-         else if (Proxy.isProxyClass(theClass))
+-         {
+-            trace.append(theClass.getName() + " " + name + args + "]");
+-         }
+          else
+          {
+             trace.append(SleepUtils.describe(scalar) + " " + name + args + "]");
+
+Modified: sleep/src/sleep/runtime/SleepUtils.java
+===================================================================
+--- sleep/src/sleep/runtime/SleepUtils.java	2008-09-25 20:38:34 UTC (rev 438)
++++ sleep/src/sleep/runtime/SleepUtils.java	2008-09-25 21:30:36 UTC (rev 439)
+@@ -502,6 +502,28 @@
+          }
+          else if (scalar.getActualValue().getType() == ObjectValue.class)
+          {
++            if (java.lang.reflect.Proxy.isProxyClass(scalar.objectValue().getClass()))
++            {
++               StringBuffer buffer = new StringBuffer();
++               buffer.append("[");
++               buffer.append(java.lang.reflect.Proxy.getInvocationHandler(scalar.objectValue()).toString());
++               buffer.append(" as ");
++
++               Class[] interfaces = scalar.objectValue().getClass().getInterfaces();
++
++               for (int x = 0; x < interfaces.length; x++)
++               {
++                  if (x > 0)
++                  {
++                     buffer.append(", "); 
++                  }
++                  buffer.append(interfaces[x].getName());
++               }
++
++               buffer.append("]");
++
++               return buffer.toString();
++            }
+             return scalar.toString();
+          }
+          else if (scalar.getActualValue().getType() == LongValue.class)
+
+Added: sleep/tests/debugproxy.sl
+===================================================================
+--- sleep/tests/debugproxy.sl	2008-09-25 20:38:34 UTC (rev 438)
++++ sleep/tests/debugproxy.sl	2008-09-25 21:30:36 UTC (rev 439)
+@@ -0,0 +1,14 @@
++#
++# debug with proxy instances.
++# 
++
++local('$object $object1');
++
++debug(7 | 15);
++
++$object = newInstance(@(^List, ^Set), { warn("Method called: $0 " . @_); });
++[$object add: "x"];
++
++$object1 = newInstance(^List, { warn("Method called: $0 " . @_); });
++[$object1 add: "x"];
++
+
+Added: sleep/tests/output/debugproxy.sl
+===================================================================
+--- sleep/tests/output/debugproxy.sl	2008-09-25 20:38:34 UTC (rev 438)
++++ sleep/tests/output/debugproxy.sl	2008-09-25 21:30:36 UTC (rev 439)
+@@ -0,0 +1,8 @@
++Trace: &newInstance(@(interface java.util.List, interface java.util.Set), &closure[debugproxy.sl:9]#1) = [&closure[debugproxy.sl:9]#1 as java.util.List, java.util.Set] at debugproxy.sl:9
++Warning: Method called: add @('x') at debugproxy.sl:9
++Trace: [&closure[debugproxy.sl:9]#1 add: 'x'] = $null at <Java>:-1
++Trace: [[&closure[debugproxy.sl:9]#1 as java.util.List, java.util.Set] add: 'x'] = 0 at debugproxy.sl:10
++Trace: &newInstance(interface java.util.List, &closure[debugproxy.sl:12]#2) = [&closure[debugproxy.sl:12]#2 as java.util.List] at debugproxy.sl:12
++Warning: Method called: add @('x') at debugproxy.sl:12
++Trace: [&closure[debugproxy.sl:12]#2 add: 'x'] = $null at <Java>:-1
++Trace: [[&closure[debugproxy.sl:12]#2 as java.util.List] add: 'x'] = 0 at debugproxy.sl:13
+
+Modified: sleep/tests/output/newInstance.sl
+===================================================================
+--- sleep/tests/output/newInstance.sl	2008-09-25 20:38:34 UTC (rev 438)
++++ sleep/tests/output/newInstance.sl	2008-09-25 21:30:36 UTC (rev 439)
+@@ -10,7 +10,7 @@
+   0 => foo
+ Trace: &println('  0 => foo') at newInstance.sl:16
+ Trace: [&closure[newInstance.sl:5-19]#X compareTo: 'foo'] = 3 at <Java>:-1
+-Trace: [$Proxy# compareTo: 'foo'] = 3 at newInstance.sl:29
++Trace: [[&closure[newInstance.sl:5-19]#X as java.lang.Comparable] compareTo: 'foo'] = 3 at newInstance.sl:29
+ 3
+ Trace: &println(3) at newInstance.sl:29
+ Trace: &debug(7) = 7 at newInstance.sl:31
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2008-09-25 20:38:34 UTC (rev 438)
++++ sleep/whatsnew.txt	2008-09-25 21:30:36 UTC (rev 439)
+@@ -16,6 +16,9 @@
+   [previous behavior resulted in a null error and corrupted the Sleep
+   stack, so if this affected you, you already knew and weren't happy with
+   with it].
++- proxy instances now have a more detailed string representation.  also the
++  string description of a proxy instance no longer calls the underlying
++  closure requesting toString.
+ 
+ 2.1-release  (7 Aug 08) [update 2.5]
+ ===========
+
+
+
+From rsmudge at mail.berlios.de  Fri Sep 26 00:29:24 2008
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Fri, 26 Sep 2008 00:29:24 +0200
+Subject: [Sleep-svn] r440 - in sleep: . src/sleep/bridges tests tests/output
+Message-ID: <200809252229.m8PMTOlZ007798@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2008-09-26 00:29:23 +0200 (Fri, 26 Sep 2008)
+New Revision: 440
+
+Added:
+   sleep/tests/doubleship.sl
+   sleep/tests/output/doubleship.sl
+Modified:
+   sleep/src/sleep/bridges/BasicStrings.java
+   sleep/tests/output/keywrds.sl
+   sleep/whatsnew.txt
+Log:
+rewrote <=> op
+
+
+Modified: sleep/src/sleep/bridges/BasicStrings.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicStrings.java	2008-09-25 21:30:36 UTC (rev 439)
++++ sleep/src/sleep/bridges/BasicStrings.java	2008-09-25 22:29:23 UTC (rev 440)
+@@ -639,12 +639,27 @@
+ 
+            if (left.getType() == sleep.engine.types.DoubleValue.class || right.getType() == sleep.engine.types.DoubleValue.class)
+            {        
+-              return SleepUtils.getScalar(new java.math.BigDecimal(left.doubleValue()).compareTo(new java.math.BigDecimal(right.doubleValue())));
++              if (left.doubleValue() > right.doubleValue())
++              {
++                 return SleepUtils.getScalar(1);
++              }
++              else if (left.doubleValue() < right.doubleValue())
++              {
++                 return SleepUtils.getScalar(-1);
++              }
+            }
+            else
+            {
+-              return SleepUtils.getScalar(left.longValue() - right.longValue());
++              if (left.longValue() > right.longValue())
++              {
++                 return SleepUtils.getScalar(1);
++              }
++              else if (left.longValue() < right.longValue())
++              {
++                 return SleepUtils.getScalar(-1);
++              }
+            }
++           return SleepUtils.getScalar(0);
+         }
+     }
+ 
+
+Added: sleep/tests/doubleship.sl
+===================================================================
+--- sleep/tests/doubleship.sl	2008-09-25 21:30:36 UTC (rev 439)
++++ sleep/tests/doubleship.sl	2008-09-25 22:29:23 UTC (rev 440)
+@@ -0,0 +1,14 @@
++#
++# test out the spaceship operator with doubles.
++#
++
++ at array = @(
++0.00000000000000000000043574857347858734,
++0.00000000000300000000043574857347858734,
++0.00000000000000000000043574857347958888,
++0.00000000000000000000053574857347858734,
++0.00000000000000000000073574857347858734,
++0.00000000000000000000023574857347858734);
++
++printAll(sort({ return $1 <=> $2; }, @array));
++
+
+Added: sleep/tests/output/doubleship.sl
+===================================================================
+--- sleep/tests/output/doubleship.sl	2008-09-25 21:30:36 UTC (rev 439)
++++ sleep/tests/output/doubleship.sl	2008-09-25 22:29:23 UTC (rev 440)
+@@ -0,0 +1,6 @@
++2.3574857347858734E-22
++4.357485734785873E-22
++4.357485734795889E-22
++5.357485734785873E-22
++7.357485734785873E-22
++3.0000000004357486E-12
+
+Modified: sleep/tests/output/keywrds.sl
+===================================================================
+--- sleep/tests/output/keywrds.sl	2008-09-25 21:30:36 UTC (rev 439)
++++ sleep/tests/output/keywrds.sl	2008-09-25 22:29:23 UTC (rev 440)
+@@ -1,2 +1,2 @@
+ -1
+--4
++-1
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2008-09-25 21:30:36 UTC (rev 439)
++++ sleep/whatsnew.txt	2008-09-25 22:29:23 UTC (rev 440)
+@@ -19,6 +19,9 @@
+ - proxy instances now have a more detailed string representation.  also the
+   string description of a proxy instance no longer calls the underlying
+   closure requesting toString.
++- rewrote <=> to return solely 1, 0, or -1 depending on how values compare.
++  this replaces the old method which subtracted the left value from the right
++  one.  avoids issues with overflowed bits this way.
+ 
+ 2.1-release  (7 Aug 08) [update 2.5]
+ ===========
+
+
+
+From rsmudge at mail.berlios.de  Fri Sep 26 00:36:29 2008
+From: rsmudge at mail.berlios.de (rsmudge at BerliOS)
+Date: Fri, 26 Sep 2008 00:36:29 +0200
+Subject: [Sleep-svn] r441 - in sleep: . src/sleep/runtime
+Message-ID: <200809252236.m8PMaTU0016855@sheep.berlios.de>
+
+Author: rsmudge
+Date: 2008-09-26 00:36:28 +0200 (Fri, 26 Sep 2008)
+New Revision: 441
+
+Modified:
+   sleep/src/sleep/runtime/SleepUtils.java
+   sleep/whatsnew.txt
+Log:
+Sleep 2.1-u3
+
+
+Modified: sleep/src/sleep/runtime/SleepUtils.java
+===================================================================
+--- sleep/src/sleep/runtime/SleepUtils.java	2008-09-25 22:29:23 UTC (rev 440)
++++ sleep/src/sleep/runtime/SleepUtils.java	2008-09-25 22:36:28 UTC (rev 441)
+@@ -26,7 +26,7 @@
+ public class SleepUtils
+ {
+    /** A date stamp of this Sleep release in YYYYMMDD format */
+-   public static final int    SLEEP_RELEASE = 20080807;
++   public static final int    SLEEP_RELEASE = 20080925;
+ 
+    /** A string description of this Sleep release */
+    public static final String SLEEP_VERSION = "Sleep 2.1";
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2008-09-25 22:29:23 UTC (rev 440)
++++ sleep/whatsnew.txt	2008-09-25 22:36:28 UTC (rev 441)
+@@ -1,4 +1,4 @@
+-2.1-release
++2.1-release (25 Sept 08) [update 3]
+ ===========
+ - fixed a problem with setField not accessing fields declared in a parent
+   class for an object.
+
+
+

@@ -1,0 +1,199 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r125 - in sleep: . src/sleep/bridges tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2006-September/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r125%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20tests%20tests/output&In-Reply-To=%3C200609241849.k8OInhKf027553%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000106.html">
+   <LINK REL="Next"  HREF="000108.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r125 - in sleep: . src/sleep/bridges tests tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r125%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20tests%20tests/output&In-Reply-To=%3C200609241849.k8OInhKf027553%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r125 - in sleep: . src/sleep/bridges tests tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Sun Sep 24 20:49:43 CEST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000106.html">[Sleep-svn] r124 - in sleep: . src/sleep/bridges src/sleep/engine	src/sleep/parser src/sleep/runtime tests tests/output
+</A></li>
+        <LI>Next message: <A HREF="000108.html">[Sleep-svn] r126 - in sleep: . src/sleep/bridges src/sleep/parser	tests tests/data tests/data/src/org/hick/blah	tests/data/src/org/hick/tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#107">[ date ]</a>
+              <a href="thread.html#107">[ thread ]</a>
+              <a href="subject.html#107">[ subject ]</a>
+              <a href="author.html#107">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2006-09-24 20:49:43 +0200 (Sun, 24 Sep 2006)
+New Revision: 125
+
+Added:
+   sleep/tests/hexbites.sl
+   sleep/tests/output/hexbites.sl
+Modified:
+   sleep/src/sleep/bridges/BasicIO.java
+   sleep/whatsnew.txt
+Log:
+Added a better unit tests for packing/unpacking hex data and a check to ensure only even length
+strings are being used as a source of hex data to pack.
+
+
+
+Modified: sleep/src/sleep/bridges/BasicIO.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicIO.java	2006-09-24 18:13:22 UTC (rev 124)
++++ sleep/src/sleep/bridges/BasicIO.java	2006-09-24 18:49:43 UTC (rev 125)
+@@ -826,8 +826,15 @@
+              try
+              {
+                 StringBuffer number = new StringBuffer(&quot;FF&quot;);
+-                char[] tempchars = BridgeUtilities.getString(arguments, &quot;&quot;).toCharArray();
++                String       argzz  = BridgeUtilities.getString(arguments, &quot;&quot;);
++             
++                if ((argzz.length() % 2) != 0)
++                {
++                   throw new IllegalArgumentException(&quot;can not pack '&quot; + argzz + &quot;' as hex string, number of characters must be even&quot;);
++                }
+ 
++                char[] tempchars = argzz.toCharArray();
++
+                 for (int y = 0; y &lt; tempchars.length; y += 2)
+                 {
+                    if (pattern.value == 'H')
+@@ -845,6 +852,11 @@
+                    out.write(bdata, 3, 1);
+                 }
+              }
++             catch (IllegalArgumentException aex)
++             {
++                if (control != null) control.close();
++                throw (aex);
++             }
+              catch (Exception ex)
+              {
+                 ex.printStackTrace();
+
+Added: sleep/tests/hexbites.sl
+===================================================================
+--- sleep/tests/hexbites.sl	2006-09-24 18:13:22 UTC (rev 124)
++++ sleep/tests/hexbites.sl	2006-09-24 18:49:43 UTC (rev 125)
+@@ -0,0 +1,40 @@
++#
++# test some stuff packing and unpacking hex bytes.. dig?!?
++#
++
++$string =&quot;000123456789ABCDEF&quot;;
++
++# low nybble first
++$pack   = pack(&quot;h*&quot;, $string);
++
++for ($x = 0; $x &lt; strlen($pack); $x++)
++{
++   println(&quot;low -&gt; $[3]x : &quot; . asc(charAt($pack, $x)));
++}
++
++($unpack) = unpack(&quot;h*&quot;, $pack);
++println(&quot;low: $unpack&quot;);
++
++($unpack) = unpack(&quot;H*&quot;, $pack);
++println(&quot;...: $unpack&quot;);
++
++# high nybble first
++$pack   = pack(&quot;H*&quot;, $string);
++
++for ($x = 0; $x &lt; strlen($pack); $x++)
++{
++   println(&quot;high -&gt; $[3]x : &quot; . asc(charAt($pack, $x)));
++}
++
++($unpack) = unpack(&quot;H*&quot;, $pack);
++println(&quot;high: $unpack&quot;);
++
++($unpack) = unpack(&quot;h*&quot;, $pack);
++println(&quot;....: $unpack&quot;);
++
++$string =&quot;0001234567890ABCDEF&quot;; # we want to cause an error here...
++
++# low nybble first
++$pack   = pack(&quot;h*&quot;, $string);
++
++println(&quot;Packed: $pack&quot;);
+
+Added: sleep/tests/output/hexbites.sl
+===================================================================
+--- sleep/tests/output/hexbites.sl	2006-09-24 18:13:22 UTC (rev 124)
++++ sleep/tests/output/hexbites.sl	2006-09-24 18:49:43 UTC (rev 125)
+@@ -0,0 +1,23 @@
++low -&gt; 0   : 0
++low -&gt; 1   : 16
++low -&gt; 2   : 50
++low -&gt; 3   : 84
++low -&gt; 4   : 118
++low -&gt; 5   : 152
++low -&gt; 6   : 186
++low -&gt; 7   : 220
++low -&gt; 8   : 254
++low: 000123456789abcdef
++...: 001032547698badcfe
++high -&gt; 0   : 0
++high -&gt; 1   : 1
++high -&gt; 2   : 35
++high -&gt; 3   : 69
++high -&gt; 4   : 103
++high -&gt; 5   : 137
++high -&gt; 6   : 171
++high -&gt; 7   : 205
++high -&gt; 8   : 239
++high: 000123456789abcdef
++....: 001032547698badcfe
++Warning: can not pack '0001234567890ABCDEF' as hex string, number of characters must be even at line 38
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-09-24 18:13:22 UTC (rev 124)
++++ sleep/whatsnew.txt	2006-09-24 18:49:43 UTC (rev 125)
+@@ -10,6 +10,7 @@
+ - when yield is called, the local variable state is preserved until the 
+   coroutine is called again (only when the coroutine is reset, i.e. exited w/o
+   a yield is the local variable state dropped).
++- added an error check for attempts to pack odd length hex strings
+ 
+ 2.1-beta 5  (17 Sept 06)
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000106.html">[Sleep-svn] r124 - in sleep: . src/sleep/bridges src/sleep/engine	src/sleep/parser src/sleep/runtime tests tests/output
+</A></li>
+	<LI>Next message: <A HREF="000108.html">[Sleep-svn] r126 - in sleep: . src/sleep/bridges src/sleep/parser	tests tests/data tests/data/src/org/hick/blah	tests/data/src/org/hick/tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#107">[ date ]</a>
+              <a href="thread.html#107">[ thread ]</a>
+              <a href="subject.html#107">[ subject ]</a>
+              <a href="author.html#107">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

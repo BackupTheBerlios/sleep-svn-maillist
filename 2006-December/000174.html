@@ -1,0 +1,156 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r192 - in sleep: . src/sleep/parser tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2006-December/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r192%20-%20in%20sleep%3A%20.%20src/sleep/parser%20tests%20tests/output&In-Reply-To=%3C200612022335.kB2NZCTk028498%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000173.html">
+   <LINK REL="Next"  HREF="000175.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r192 - in sleep: . src/sleep/parser tests tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r192%20-%20in%20sleep%3A%20.%20src/sleep/parser%20tests%20tests/output&In-Reply-To=%3C200612022335.kB2NZCTk028498%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r192 - in sleep: . src/sleep/parser tests tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Sun Dec  3 00:35:12 CET 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000173.html">[Sleep-svn] r191 - in sleep: src/sleep/bridges	src/sleep/engine/atoms tests tests/output
+</A></li>
+        <LI>Next message: <A HREF="000175.html">[Sleep-svn] r193 - in sleep: . src/sleep/engine	src/sleep/engine/atoms tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#174">[ date ]</a>
+              <a href="thread.html#174">[ thread ]</a>
+              <a href="subject.html#174">[ subject ]</a>
+              <a href="author.html#174">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2006-12-03 00:35:11 +0100 (Sun, 03 Dec 2006)
+New Revision: 192
+
+Added:
+   sleep/tests/output/skew.sl
+   sleep/tests/skew.sl
+Modified:
+   sleep/src/sleep/parser/ParserUtilities.java
+   sleep/whatsnew.txt
+Log:
+fixed a line number skew issue with multi-line tokens passed as parameters...
+
+
+
+Modified: sleep/src/sleep/parser/ParserUtilities.java
+===================================================================
+--- sleep/src/sleep/parser/ParserUtilities.java	2006-12-01 03:35:23 UTC (rev 191)
++++ sleep/src/sleep/parser/ParserUtilities.java	2006-12-02 23:35:11 UTC (rev 192)
+@@ -87,12 +87,13 @@
+        while (i.hasNext())
+        {
+           Token temp = (Token)i.next();
+-          hint       = temp.getHint();
++          hint       = hint == -1 ? temp.getHint() : hint;
+ 
+           if (temp.toString().equals(&quot;EOT&quot;))
+           {
+              rv.add(new Token(current.toString(), hint));
+              current = new StringBuffer();
++             hint    = -1; /* reset hint to prevent line # skew */
+           }
+           else
+           {
+
+Added: sleep/tests/output/skew.sl
+===================================================================
+--- sleep/tests/output/skew.sl	2006-12-01 03:35:23 UTC (rev 191)
++++ sleep/tests/output/skew.sl	2006-12-02 23:35:11 UTC (rev 192)
+@@ -0,0 +1,11 @@
++Warning: variable '$2' not declared at line 14
++Warning: variable '$1' not declared at line 10
++
++   some stuff here: 
++   some more stuff
++   and more stuff
++   and even more stuff...
++   
++
++   
++Warning: variable '$x' not declared at line 21
+
+Added: sleep/tests/skew.sl
+===================================================================
+--- sleep/tests/skew.sl	2006-12-01 03:35:23 UTC (rev 191)
++++ sleep/tests/skew.sl	2006-12-02 23:35:11 UTC (rev 192)
+@@ -0,0 +1,23 @@
++#
++# a test of more line number skew...
++#
++
++debug(7);
++
++sub funky
++{
++   println(&quot;
++   some stuff here: &quot; . $1 . &quot;
++   some more stuff
++   and more stuff
++   and even more stuff...
++   &quot; . $2 . &quot;
++
++   &quot;);
++}
++
++funky();
++
++$x = '
++
++  this is a  test';
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-12-01 03:35:23 UTC (rev 191)
++++ sleep/whatsnew.txt	2006-12-02 23:35:11 UTC (rev 192)
+@@ -14,6 +14,8 @@
+   enable it.  Profiler statistics are available in the ScriptInstance class
+   with the getProfilerStatistics method.  Scripts can access their profiler
+   statistics with the &amp;profile() function which returns an array.  
++- fixed a line number skew issue with multi-line tokens passed as parameters
++  to a function/expression.  
+ 
+ 2.1-beta 10 (20 Nov 06)
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000173.html">[Sleep-svn] r191 - in sleep: src/sleep/bridges	src/sleep/engine/atoms tests tests/output
+</A></li>
+	<LI>Next message: <A HREF="000175.html">[Sleep-svn] r193 - in sleep: . src/sleep/engine	src/sleep/engine/atoms tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#174">[ date ]</a>
+              <a href="thread.html#174">[ thread ]</a>
+              <a href="subject.html#174">[ subject ]</a>
+              <a href="author.html#174">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

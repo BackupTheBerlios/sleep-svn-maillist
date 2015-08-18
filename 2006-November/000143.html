@@ -1,0 +1,116 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r161 - in sleep: . src/sleep/console
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2006-November/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r161%20-%20in%20sleep%3A%20.%20src/sleep/console&In-Reply-To=%3C200611060021.kA60LXKY009745%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000142.html">
+   <LINK REL="Next"  HREF="000144.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r161 - in sleep: . src/sleep/console</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r161%20-%20in%20sleep%3A%20.%20src/sleep/console&In-Reply-To=%3C200611060021.kA60LXKY009745%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r161 - in sleep: . src/sleep/console">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Mon Nov  6 01:21:33 CET 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000142.html">[Sleep-svn] r160 - in sleep: . src/sleep/bridges tests/output
+</A></li>
+        <LI>Next message: <A HREF="000144.html">[Sleep-svn] r162 - in sleep: . src/sleep/console
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#143">[ date ]</a>
+              <a href="thread.html#143">[ thread ]</a>
+              <a href="subject.html#143">[ subject ]</a>
+              <a href="author.html#143">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2006-11-06 01:21:33 +0100 (Mon, 06 Nov 2006)
+New Revision: 161
+
+Modified:
+   sleep/build.xml
+   sleep/src/sleep/console/ConsoleImplementation.java
+   sleep/whatsnew.txt
+Log:
+fixed a bug in the console
+
+
+Modified: sleep/build.xml
+===================================================================
+--- sleep/build.xml	2006-11-06 00:17:22 UTC (rev 160)
++++ sleep/build.xml	2006-11-06 00:21:33 UTC (rev 161)
+@@ -16,7 +16,7 @@
+            destdir=&quot;${project.build}&quot;
+            nowarn=&quot;yes&quot;
+            depend=&quot;yes&quot;
+-           debug=&quot;false&quot;
++           debug=&quot;true&quot;
+            source=&quot;1.4&quot;
+            target=&quot;1.4&quot;
+            optimize=&quot;yes&quot;
+
+Modified: sleep/src/sleep/console/ConsoleImplementation.java
+===================================================================
+--- sleep/src/sleep/console/ConsoleImplementation.java	2006-11-06 00:17:22 UTC (rev 160)
++++ sleep/src/sleep/console/ConsoleImplementation.java	2006-11-06 00:21:33 UTC (rev 161)
+@@ -226,7 +226,8 @@
+              }
+              else if (command.equals(&quot;x&quot;) &amp;&amp; args != null)
+              {
+-                getProxy().consolePrintln(eval(&quot;return &quot; + args + &quot;;&quot;));
++                Scalar value = eval(&quot;return &quot; + args + &quot;;&quot;);
++                if (value != null) { getProxy().consolePrintln(value + &quot;&quot;); }
+              }
+              else if (command.equals(&quot;quit&quot;) || command.equals(&quot;exit&quot;) || command.equals(&quot;done&quot;))
+              {
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-11-06 00:17:22 UTC (rev 160)
++++ sleep/whatsnew.txt	2006-11-06 00:21:33 UTC (rev 161)
+@@ -19,6 +19,8 @@
+   java.io.File awhile back).
+ - ls() with no parameters now returns the listing of files/dirs in the
+   current directory.
++- fixed a bug with 'x' crashing the sleep console when the expression 
++  had a syntax error.
+ 
+ 2.1-beta 8  (29 Oct 06)
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000142.html">[Sleep-svn] r160 - in sleep: . src/sleep/bridges tests/output
+</A></li>
+	<LI>Next message: <A HREF="000144.html">[Sleep-svn] r162 - in sleep: . src/sleep/console
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#143">[ date ]</a>
+              <a href="thread.html#143">[ thread ]</a>
+              <a href="subject.html#143">[ subject ]</a>
+              <a href="author.html#143">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

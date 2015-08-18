@@ -1,0 +1,191 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r63 - in sleep: . src/sleep/bridges src/sleep/engine/atoms tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2006-June/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r63%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20src/sleep/engine/atoms%20tests%20tests/output&In-Reply-To=%3C200606150135.k5F1ZiXK022010%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000045.html">
+   <LINK REL="Next"  HREF="000047.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r63 - in sleep: . src/sleep/bridges src/sleep/engine/atoms tests tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r63%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20src/sleep/engine/atoms%20tests%20tests/output&In-Reply-To=%3C200606150135.k5F1ZiXK022010%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r63 - in sleep: . src/sleep/bridges src/sleep/engine/atoms tests tests/output">rsmudge at berlios.de
+       </A><BR>
+    <I>Thu Jun 15 03:35:44 CEST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000045.html">[Sleep-svn] r62 - in sleep: . src/sleep/bridges tests tests/output
+</A></li>
+        <LI>Next message: <A HREF="000047.html">[Sleep-svn] r64 - in sleep: . src/sleep/bridges tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#46">[ date ]</a>
+              <a href="thread.html#46">[ thread ]</a>
+              <a href="subject.html#46">[ subject ]</a>
+              <a href="author.html#46">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2006-06-15 03:35:29 +0200 (Thu, 15 Jun 2006)
+New Revision: 63
+
+Added:
+   sleep/tests/foreachrem.sl
+   sleep/tests/output/foreachrem.sl
+Modified:
+   sleep/src/sleep/bridges/BasicUtilities.java
+   sleep/src/sleep/engine/atoms/Iterate.java
+   sleep/whatsnew.txt
+Log:
+updated remove() function to remove current element of foreach loop if 
+no parameter is passed (works for arrays only due to how scalarIterator() 
+woprks)
+
+
+
+Modified: sleep/src/sleep/bridges/BasicUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicUtilities.java	2006-06-14 22:25:46 UTC (rev 62)
++++ sleep/src/sleep/bridges/BasicUtilities.java	2006-06-15 01:35:29 UTC (rev 63)
+@@ -592,6 +592,24 @@
+ 
+     public Scalar evaluate(String n, ScriptInstance i, Stack l)
+     {
++       if (l.isEmpty() &amp;&amp; n.equals(&quot;&amp;remove&quot;))
++       {
++          Stack iterators = (Stack)(i.getScriptEnvironment().getContextMetadata(&quot;iterators&quot;));
++
++          if (iterators == null || iterators.isEmpty())
++          {
++             throw new RuntimeException(&quot;&amp;remove: no active foreach loop to remove element from&quot;);
++          }
++          else
++          {
++             sleep.engine.atoms.Iterate.IteratorData d = (sleep.engine.atoms.Iterate.IteratorData)iterators.peek();
++             d.iterator.remove();
++             d.count = d.count - 1;
++          }
++         
++          return SleepUtils.getEmptyScalar();
++       }
++
+        Scalar value = BridgeUtilities.getScalar(l);
+ 
+        if (n.equals(&quot;&amp;push&quot;))
+
+Modified: sleep/src/sleep/engine/atoms/Iterate.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/Iterate.java	2006-06-14 22:25:46 UTC (rev 62)
++++ sleep/src/sleep/engine/atoms/Iterate.java	2006-06-15 01:35:29 UTC (rev 63)
+@@ -28,7 +28,7 @@
+ 
+ public class Iterate extends Step
+ {
+-   private static class IteratorData
++   public static class IteratorData
+    {
+       public String   key      = null;
+       public Variable kenv     = null;
+
+Added: sleep/tests/foreachrem.sl
+===================================================================
+--- sleep/tests/foreachrem.sl	2006-06-14 22:25:46 UTC (rev 62)
++++ sleep/tests/foreachrem.sl	2006-06-15 01:35:29 UTC (rev 63)
+@@ -0,0 +1,23 @@
++#
++# test arrays...
++#
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">+ at temp</A> = array(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;, &quot;d&quot;, &quot;e&quot;, &quot;f&quot;);
++printAll(@temp);
++println(&quot;---&quot;);
++
++foreach $index =&gt; $value (@temp)
++{
++   println(&quot;@temp[ $+ $index $+ ] = $value : &quot; . @temp[$index]);
++
++   if ($value eq &quot;c&quot; || $value eq &quot;e&quot;) 
++   {
++       remove();
++   }
++}
++
++println(&quot;---&quot;);
++printAll(@temp);
++
++# test out the error clause...
++remove();
++
+
+Added: sleep/tests/output/foreachrem.sl
+===================================================================
+--- sleep/tests/output/foreachrem.sl	2006-06-14 22:25:46 UTC (rev 62)
++++ sleep/tests/output/foreachrem.sl	2006-06-15 01:35:29 UTC (rev 63)
+@@ -0,0 +1,19 @@
++a
++b
++c
++d
++e
++f
++---
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">+ at temp</A>[0] = a : a
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">+ at temp</A>[1] = b : b
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">+ at temp</A>[2] = c : c
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">+ at temp</A>[2] = d : d
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">+ at temp</A>[3] = e : e
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">+ at temp</A>[3] = f : f
++---
++a
++b
++d
++f
++Warning: &amp;remove: no active foreach loop to remove element from at line 22
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-06-14 22:25:46 UTC (rev 62)
++++ sleep/whatsnew.txt	2006-06-15 01:35:29 UTC (rev 63)
+@@ -17,6 +17,8 @@
+   for bridge writers to track bridge data by script context).
+ - oops, fixed broken ^ operator (bridge was written wrong, thanks
+   to Ralph Becker for catching this one).
++- remove() with no parameters will remove the current array element
++  in a foreach loop (this only works on arrays, not hashes).
+ 
+ 2.0-release
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000045.html">[Sleep-svn] r62 - in sleep: . src/sleep/bridges tests tests/output
+</A></li>
+	<LI>Next message: <A HREF="000047.html">[Sleep-svn] r64 - in sleep: . src/sleep/bridges tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#46">[ date ]</a>
+              <a href="thread.html#46">[ thread ]</a>
+              <a href="subject.html#46">[ subject ]</a>
+              <a href="author.html#46">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

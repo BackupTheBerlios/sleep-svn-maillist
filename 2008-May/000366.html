@@ -1,0 +1,299 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r390 - in sleep: src/sleep/engine/types tests	tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2008-May/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r390%20-%20in%20sleep%3A%20src/sleep/engine/types%20tests%0A%09tests/output&In-Reply-To=%3C200805301543.m4UFhr7B015671%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000365.html">
+   <LINK REL="Next"  HREF="000367.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r390 - in sleep: src/sleep/engine/types tests	tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r390%20-%20in%20sleep%3A%20src/sleep/engine/types%20tests%0A%09tests/output&In-Reply-To=%3C200805301543.m4UFhr7B015671%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r390 - in sleep: src/sleep/engine/types tests	tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Fri May 30 17:43:53 CEST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000365.html">[Sleep-svn] r389 - in sleep: src/sleep/engine	src/sleep/engine/types tests tests/output
+</A></li>
+        <LI>Next message: <A HREF="000367.html">[Sleep-svn] r391 - sleep/src/sleep/engine/types
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#366">[ date ]</a>
+              <a href="thread.html#366">[ thread ]</a>
+              <a href="subject.html#366">[ subject ]</a>
+              <a href="author.html#366">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2008-05-30 17:43:52 +0200 (Fri, 30 May 2008)
+New Revision: 390
+
+Added:
+   sleep/tests/listops_empty2.sl
+   sleep/tests/output/listops_empty2.sl
+Modified:
+   sleep/src/sleep/engine/types/MyLinkedList.java
+Log:
+more changes to the linked list implementation
+
+
+Modified: sleep/src/sleep/engine/types/MyLinkedList.java
+===================================================================
+--- sleep/src/sleep/engine/types/MyLinkedList.java	2008-05-30 01:11:36 UTC (rev 389)
++++ sleep/src/sleep/engine/types/MyLinkedList.java	2008-05-30 15:43:52 UTC (rev 390)
+@@ -33,19 +33,12 @@
+       {
+          checkSafety();
+ 
+-         if (size == 0)
+-         {
+-            current = current.addBefore(o);
+-         }
+-         else
+-         {
+-            /* add the new element after the current element */
+-            current = current.addAfter(o);
++         /* add the new element after the current element */
++         current = current.addAfter(o);
+  
+-            /* increment the list so that the next element returned is
+-               unaffected by this call */
+-            index++;
+-         }
++         /* increment the list so that the next element returned is
++            unaffected by this call */
++         index++;
+         
+          modCountCheck++;
+       }
+@@ -117,8 +110,6 @@
+    private ListEntry header;
+ 
+    /* fields used by sublists */
+-   private ListEntry    boundaryLeft;
+-   private ListEntry    boundaryRight;
+    private MyLinkedList parentList;
+ 
+    public int size()
+@@ -131,12 +122,7 @@
+       parentList = plist;
+       modCount = parentList.modCount;
+ 
+-      /* setup the header */
+-      header = new SublistHeaderEntry();
+-
+-      boundaryLeft = begin;
+-      boundaryRight = end;
+-      
++      header = new SublistHeaderEntry(begin, end);
+       size = _size;
+    }
+ 
+@@ -251,8 +237,15 @@
+ 
+    private class SublistHeaderEntry implements ListEntry
+    {
+-      public SublistHeaderEntry() { }
++      private ListEntry anchorLeft;
++      private ListEntry anchorRight;
+ 
++      public SublistHeaderEntry(ListEntry a, ListEntry b) 
++      {
++         anchorLeft  = a.previous();
++         anchorRight = b.next();
++      }
++
+       public ListEntry remove() 
+       {
+          throw new UnsupportedOperationException(&quot;remove&quot;);
+@@ -260,22 +253,24 @@
+ 
+       public ListEntry previous() 
+       {
+-         return new ListEntryWrapper(boundaryRight);
++         return new ListEntryWrapper(anchorRight.previous());
+       }
+ 
+       public ListEntry next() 
+       {
+-         return new ListEntryWrapper(boundaryLeft);
++         return new ListEntryWrapper(anchorLeft.next());
+       }
+ 
+       public void setNext(ListEntry e)
+       {
+-         throw new UnsupportedOperationException(&quot;setNext&quot;);
++         anchorRight.setPrevious(e);
++         e.setNext(anchorRight);
+       }
+ 
+       public void setPrevious(ListEntry e)
+       {
+-         throw new UnsupportedOperationException(&quot;setPrevious&quot;);
++         anchorLeft.setNext(e);
++         e.setPrevious(anchorLeft);
+       }
+ 
+       public ListEntry addBefore(Object o)
+@@ -319,23 +314,18 @@
+ 
+          if (size == 0)
+          {
+-            boundaryLeft = boundaryLeft.previous();
+-            boundaryRight = boundaryRight.next();
+-
+-//            System.out.println(&quot;Did the remove() magic: &quot; + boundaryLeft.element() + &quot; and &quot; + boundaryRight.element());
+-
+             return header;
+          }
+          else
+          {
+-            if (parent == boundaryLeft)
++            if (parent == header.next())
+             {
+-                boundaryLeft = temp;
++                header.setNext(temp);
+             } 
+ 
+-            if (parent == boundaryRight)
++            if (parent == header.previous())
+             {
+-                boundaryRight = temp;
++                header.setPrevious(temp);
+             }
+          }
+ 
+@@ -353,12 +343,12 @@
+ 
+          if (size == 1)
+          {
+-            boundaryLeft = temp;
+-            boundaryRight = temp;
++            header.setNext(temp);
++            header.setPrevious(temp);
+          }
+-         else if (parent == boundaryLeft)
++         else if (parent == header.next())
+          {
+-            boundaryLeft = temp;
++            header.setPrevious(temp);
+          }
+ 
+          return new ListEntryWrapper(temp);
+@@ -375,12 +365,12 @@
+ 
+          if (size == 1)
+          {
+-            boundaryLeft = temp;
+-            boundaryRight = temp;
++            header.setNext(temp);
++            header.setPrevious(temp);
+          }
+-         else if (parent == boundaryRight)
++         else if (parent == header.previous())
+          {
+-            boundaryRight = temp;
++            header.setNext(temp);
+          }
+ 	
+          return new ListEntryWrapper(temp);
+@@ -410,9 +400,9 @@
+       {
+          checkSafety();
+ 
+-         if (parent == boundaryRight)
++         if (parent == header.next())
+          {
+-            return new ListEntryWrapper(boundaryLeft);
++            return new ListEntryWrapper(header);
+          }
+ 
+          ListEntryWrapper r = new ListEntryWrapper(parent.next());
+@@ -423,9 +413,9 @@
+       {
+          checkSafety();
+ 
+-         if (parent == boundaryLeft)
++         if (parent == header.previous())
+          {
+-            return new ListEntryWrapper(boundaryRight);
++            return new ListEntryWrapper(header);
+          }
+ 
+          ListEntryWrapper r = new ListEntryWrapper(parent.previous());
+
+Added: sleep/tests/listops_empty2.sl
+===================================================================
+--- sleep/tests/listops_empty2.sl	2008-05-30 01:11:36 UTC (rev 389)
++++ sleep/tests/listops_empty2.sl	2008-05-30 15:43:52 UTC (rev 390)
+@@ -0,0 +1,20 @@
++#
++# operations on empty sublists.
++#
++
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">+ at a</A> = @(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;, &quot;d&quot;, &quot;e&quot;, &quot;f&quot;, &quot;g&quot;, &quot;h&quot;);
++println(@a);
++
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">+ at b</A> = sublist(@a, 2, 3);
++println(@b);
++add(@b, &quot;PHEAR&quot;);
++println(@a);
++println(@b);
++
++clear(@b);
++println(@a);
++println(@b);
++
++add(@b, &quot;uNF&quot;);
++println(@a);
++println(@b);
+
+Added: sleep/tests/output/listops_empty2.sl
+===================================================================
+--- sleep/tests/output/listops_empty2.sl	2008-05-30 01:11:36 UTC (rev 389)
++++ sleep/tests/output/listops_empty2.sl	2008-05-30 15:43:52 UTC (rev 390)
+@@ -0,0 +1,8 @@
++@('a', 'b', 'c', 'd', 'e', 'f', 'g', 'h')
++@('c')
++@('a', 'b', 'PHEAR', 'c', 'd', 'e', 'f', 'g', 'h')
++@('PHEAR', 'c')
++@('a', 'b', 'd', 'e', 'f', 'g', 'h')
++@()
++@('a', 'b', 'uNF', 'd', 'e', 'f', 'g', 'h')
++@('uNF')
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000365.html">[Sleep-svn] r389 - in sleep: src/sleep/engine	src/sleep/engine/types tests tests/output
+</A></li>
+	<LI>Next message: <A HREF="000367.html">[Sleep-svn] r391 - sleep/src/sleep/engine/types
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#366">[ date ]</a>
+              <a href="thread.html#366">[ thread ]</a>
+              <a href="subject.html#366">[ subject ]</a>
+              <a href="author.html#366">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

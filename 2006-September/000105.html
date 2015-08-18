@@ -1,0 +1,310 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r123 - in sleep: . src/sleep/bridges	src/sleep/engine/atoms
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2006-September/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r123%20-%20in%20sleep%3A%20.%20src/sleep/bridges%0A%09src/sleep/engine/atoms&In-Reply-To=%3C200609181908.k8IJ8GRB030235%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000104.html">
+   <LINK REL="Next"  HREF="000106.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r123 - in sleep: . src/sleep/bridges	src/sleep/engine/atoms</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r123%20-%20in%20sleep%3A%20.%20src/sleep/bridges%0A%09src/sleep/engine/atoms&In-Reply-To=%3C200609181908.k8IJ8GRB030235%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r123 - in sleep: . src/sleep/bridges	src/sleep/engine/atoms">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Mon Sep 18 21:08:16 CEST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000104.html">[Sleep-svn] r122 - sleep
+</A></li>
+        <LI>Next message: <A HREF="000106.html">[Sleep-svn] r124 - in sleep: . src/sleep/bridges src/sleep/engine	src/sleep/parser src/sleep/runtime tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#105">[ date ]</a>
+              <a href="thread.html#105">[ thread ]</a>
+              <a href="subject.html#105">[ subject ]</a>
+              <a href="author.html#105">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2006-09-18 21:08:16 +0200 (Mon, 18 Sep 2006)
+New Revision: 123
+
+Modified:
+   sleep/build.xml
+   sleep/src/sleep/bridges/SleepClosure.java
+   sleep/src/sleep/engine/atoms/Call.java
+   sleep/src/sleep/engine/atoms/ObjectAccess.java
+   sleep/src/sleep/engine/atoms/ObjectNew.java
+   sleep/whatsnew.txt
+Log:
+named parameters and improvements to tracing.
+
+
+
+Modified: sleep/build.xml
+===================================================================
+--- sleep/build.xml	2006-09-17 22:40:48 UTC (rev 122)
++++ sleep/build.xml	2006-09-18 19:08:16 UTC (rev 123)
+@@ -37,6 +37,7 @@
+            &lt;include name=&quot;sleep/console/ConsoleImplementation.java&quot; /&gt;
+            &lt;include name=&quot;sleep/console/ConsoleProxy.java&quot; /&gt;
+            &lt;include name=&quot;sleep/engine/Block.java&quot; /&gt;
++           &lt;include name=&quot;sleep/engine/ObjectUtilities.java&quot; /&gt;
+            &lt;include name=&quot;sleep/engine/atoms/Check.java&quot; /&gt;
+            &lt;include name=&quot;sleep/error/*.java&quot; /&gt;
+            &lt;include name=&quot;sleep/interfaces/*.java&quot; /&gt;
+
+Modified: sleep/src/sleep/bridges/SleepClosure.java
+===================================================================
+--- sleep/src/sleep/bridges/SleepClosure.java	2006-09-17 22:40:48 UTC (rev 122)
++++ sleep/src/sleep/bridges/SleepClosure.java	2006-09-18 19:08:16 UTC (rev 123)
+@@ -25,6 +25,7 @@
+ import java.io.*;
+ 
+ import sleep.engine.*;
++import sleep.engine.types.*;
+ import sleep.interfaces.*;
+ import sleep.runtime.*;
+ 
+@@ -174,8 +175,26 @@
+           int name = 1;
+           while (!locals.isEmpty())
+           {
+-             vars.setScalarLevel(&quot;$&quot;+name, (Scalar)locals.pop(), localLevel);
+-             name++;
++             Scalar lvar = (Scalar)locals.pop();
++
++             if (lvar.getValue() != null &amp;&amp; lvar.getValue().getClass() == ObjectValue.class &amp;&amp; lvar.getValue().objectValue() != null &amp;&amp; lvar.getValue().objectValue().getClass() == KeyValuePair.class)
++             {
++                KeyValuePair kvp = (KeyValuePair)lvar.getValue().objectValue();
++
++                if (kvp.getKey().toString().charAt(0) != '$')
++                {
++                   throw new IllegalArgumentException(&quot;unreachable named parameter: &quot; + kvp.getKey());
++                }
++                else
++                {
++                   vars.setScalarLevel(kvp.getKey().toString(), kvp.getValue(), localLevel);
++                }
++             } 
++             else
++             {
++                vars.setScalarLevel(&quot;$&quot;+name, lvar, localLevel);
++                name++;
++             }
+           }
+ 
+           vars.setScalarLevel(&quot;@_&quot;, SleepUtils.getArrayScalar(new ArgumentArray(name, localLevel)), localLevel);
+
+Modified: sleep/src/sleep/engine/atoms/Call.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/Call.java	2006-09-17 22:40:48 UTC (rev 122)
++++ sleep/src/sleep/engine/atoms/Call.java	2006-09-18 19:08:16 UTC (rev 123)
+@@ -60,16 +60,24 @@
+          {
+              String args = SleepUtils.describe(e.getCurrentFrame());
+ 
+-             temp = callme.evaluate(function, e.getScriptInstance(), e.getCurrentFrame());
+-             e.clearReturn();
+-             
+-             if (SleepUtils.isEmptyScalar(temp))
++             try
+              {
+-                e.getScriptInstance().fireWarning(function + &quot;(&quot; + args + &quot;)&quot;, getLineNumber(), true);
++                temp = callme.evaluate(function, e.getScriptInstance(), e.getCurrentFrame());
++                e.clearReturn();
++              
++                if (SleepUtils.isEmptyScalar(temp))
++                {
++                   e.getScriptInstance().fireWarning(function + &quot;(&quot; + args + &quot;)&quot;, getLineNumber(), true);
++                }
++                else
++                {
++                   e.getScriptInstance().fireWarning(function + &quot;(&quot; + args + &quot;) = &quot; + SleepUtils.describe(temp), getLineNumber(), true);
++                }
+              }
+-             else
++             catch (RuntimeException rex)
+              {
+-                e.getScriptInstance().fireWarning(function + &quot;(&quot; + args + &quot;) = &quot; + SleepUtils.describe(temp), getLineNumber(), true);
++                e.getScriptInstance().fireWarning(function + &quot;(&quot; + args + &quot;) - FAILED!&quot;, getLineNumber(), true);
++                throw(rex);
+              }
+          }
+          else
+
+Modified: sleep/src/sleep/engine/atoms/ObjectAccess.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/ObjectAccess.java	2006-09-17 22:40:48 UTC (rev 122)
++++ sleep/src/sleep/engine/atoms/ObjectAccess.java	2006-09-18 19:08:16 UTC (rev 123)
+@@ -99,11 +99,9 @@
+          {
+             String args = SleepUtils.describe(e.getCurrentFrame());
+ 
+-            result = func.evaluate(name, e.getScriptInstance(), e.getCurrentFrame());
+-
+             /* construct the actual trace message */
+ 
+-            StringBuffer trace = new StringBuffer(&quot;[&amp;closure&quot;);
++            StringBuffer trace = new StringBuffer(&quot;[&quot; + SleepUtils.describe(scalar));
+            
+             if (name != null &amp;&amp; name.length() &gt; 0)
+             {
+@@ -119,12 +117,23 @@
+                trace.append(&quot;]&quot;);
+             }
+ 
+-            if (!SleepUtils.isEmptyScalar(result))
++            try
+             {
+-               trace.append(&quot; = &quot; + SleepUtils.describe(result));
++               result = func.evaluate(name, e.getScriptInstance(), e.getCurrentFrame());
++
++               if (!SleepUtils.isEmptyScalar(result))
++               {
++                  trace.append(&quot; = &quot; + SleepUtils.describe(result));
++               }
++
++               e.getScriptInstance().fireWarning(trace.toString(), getLineNumber(), true); 
+             }
+-
+-            e.getScriptInstance().fireWarning(trace.toString(), getLineNumber(), true); 
++            catch (RuntimeException rex)
++            {
++               trace.append(&quot; - FAILED!&quot;);
++               e.getScriptInstance().fireWarning(trace.toString(), getLineNumber(), true); 
++               throw(rex);
++            }
+          }
+          else
+          {
+@@ -172,7 +181,6 @@
+                if (args.length() &gt; 0) { args = &quot;: &quot; + args; }
+ 
+                parameters = ObjectUtilities.buildArgumentArray(theMethod.getParameterTypes(), e.getCurrentFrame(), e.getScriptInstance());
+-               result = ObjectUtilities.BuildScalar(true, theMethod.invoke(accessMe, parameters));
+ 
+                /* construct the actual trace message */
+ 
+@@ -187,12 +195,23 @@
+                   trace.append(SleepUtils.describe(scalar) + &quot; &quot; + name + args + &quot;]&quot;);
+                }
+ 
+-               if (!SleepUtils.isEmptyScalar(result))
++               try
+                {
+-                  trace.append(&quot; = &quot; + SleepUtils.describe(result));
++                  result = ObjectUtilities.BuildScalar(true, theMethod.invoke(accessMe, parameters));
++
++                  if (!SleepUtils.isEmptyScalar(result))
++                  {
++                     trace.append(&quot; = &quot; + SleepUtils.describe(result));
++                  }
++
++                  e.getScriptInstance().fireWarning(trace.toString(), getLineNumber(), true); 
+                }
+-
+-               e.getScriptInstance().fireWarning(trace.toString(), getLineNumber(), true); 
++               catch (RuntimeException rex)
++               {
++                  trace.append(&quot; - FAILED!&quot;);
++                  e.getScriptInstance().fireWarning(trace.toString(), getLineNumber(), true); 
++                  throw(rex);
++               }
+             }
+             else
+             {
+
+Modified: sleep/src/sleep/engine/atoms/ObjectNew.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/ObjectNew.java	2006-09-17 22:40:48 UTC (rev 122)
++++ sleep/src/sleep/engine/atoms/ObjectNew.java	2006-09-18 19:08:16 UTC (rev 123)
+@@ -77,7 +77,6 @@
+                String args = SleepUtils.describe(e.getCurrentFrame());
+ 
+                parameters = ObjectUtilities.buildArgumentArray(theConstructor.getParameterTypes(), e.getCurrentFrame(), e.getScriptInstance());
+-               result = ObjectUtilities.BuildScalar(false, theConstructor.newInstance(parameters));
+ 
+                StringBuffer trace = new StringBuffer(&quot;[new &quot; + name.getName());
+ 
+@@ -88,12 +87,23 @@
+ 
+                trace.append(&quot;]&quot;);
+ 
+-               if (!SleepUtils.isEmptyScalar(result))
++               try
+                {
+-                  trace.append(&quot; = &quot; + SleepUtils.describe(result));
++                  result = ObjectUtilities.BuildScalar(false, theConstructor.newInstance(parameters));
++
++                  if (!SleepUtils.isEmptyScalar(result))
++                  {
++                     trace.append(&quot; = &quot; + SleepUtils.describe(result));
++                  }
++
++                  e.getScriptInstance().fireWarning(trace.toString(), getLineNumber(), true);
+                }
+-
+-               e.getScriptInstance().fireWarning(trace.toString(), getLineNumber(), true);
++               catch (RuntimeException rex)
++               {
++                  trace.append(&quot; - FAILED!&quot;);
++                  e.getScriptInstance().fireWarning(trace.toString(), getLineNumber(), true);
++                  throw(rex);
++               }
+             }
+             else
+             {
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-09-17 22:40:48 UTC (rev 122)
++++ sleep/whatsnew.txt	2006-09-18 19:08:16 UTC (rev 123)
+@@ -1,3 +1,12 @@
++2.1-beta 6 
++===========
++- added named parameters for Sleep closures.  When a $key =&gt; value argument is
++  passed to a sleep closure the value will be installed into the local scope of
++  the function as variable $key.  This breaks the old behavior which was to 
++  convert the key/value pair into a string i.e. $key=value
++- improved function call traceing to detect when a function call failed and to
++  indicate that such an event occured.
++
+ 2.1-beta 5  (17 Sept 06)
+ ===========
+ - fixed a bug with import [path] from: [jar] not working when a package.class
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000104.html">[Sleep-svn] r122 - sleep
+</A></li>
+	<LI>Next message: <A HREF="000106.html">[Sleep-svn] r124 - in sleep: . src/sleep/bridges src/sleep/engine	src/sleep/parser src/sleep/runtime tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#105">[ date ]</a>
+              <a href="thread.html#105">[ thread ]</a>
+              <a href="subject.html#105">[ subject ]</a>
+              <a href="author.html#105">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

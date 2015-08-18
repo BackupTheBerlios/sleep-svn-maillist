@@ -1,0 +1,129 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r306 - in sleep: . tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2007-October/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r306%20-%20in%20sleep%3A%20.%20tests%20tests/output&In-Reply-To=%3C200710201653.l9KGrH6q017065%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000283.html">
+   <LINK REL="Next"  HREF="000285.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r306 - in sleep: . tests tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r306%20-%20in%20sleep%3A%20.%20tests%20tests/output&In-Reply-To=%3C200710201653.l9KGrH6q017065%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r306 - in sleep: . tests tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Sat Oct 20 18:53:17 CEST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000283.html">[Sleep-svn] r305 - in sleep: . src/sleep/engine/atoms
+</A></li>
+        <LI>Next message: <A HREF="000285.html">[Sleep-svn] r307 - in sleep: src/sleep/engine tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#284">[ date ]</a>
+              <a href="thread.html#284">[ thread ]</a>
+              <a href="subject.html#284">[ subject ]</a>
+              <a href="author.html#284">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2007-10-20 18:53:16 +0200 (Sat, 20 Oct 2007)
+New Revision: 306
+
+Added:
+   sleep/tests/callccbg.sl
+   sleep/tests/output/callccbg.sl
+Modified:
+   sleep/whatsnew.txt
+Log:
+test case..
+
+
+Added: sleep/tests/callccbg.sl
+===================================================================
+--- sleep/tests/callccbg.sl	2007-10-20 15:51:21 UTC (rev 305)
++++ sleep/tests/callccbg.sl	2007-10-20 16:53:16 UTC (rev 306)
+@@ -0,0 +1,26 @@
++#
++# potential callcc bug...
++#
++
++sub bar
++{
++   println(&quot;Hello from bar!&quot;);
++}
++
++sub foo
++{
++   local('$x');
++   $x = 100;
++   if ($x == 100)
++   {
++      if ($x != 10)
++      {
++         callcc &bar;
++         println(&quot;Post cc same block&quot;);
++      }
++   }
++
++   println(&quot;Ho! post continuation!&quot;);
++}
++
++foo();
+
+Added: sleep/tests/output/callccbg.sl
+===================================================================
+--- sleep/tests/output/callccbg.sl	2007-10-20 15:51:21 UTC (rev 305)
++++ sleep/tests/output/callccbg.sl	2007-10-20 16:53:16 UTC (rev 306)
+@@ -0,0 +1 @@
++Hello from bar!
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2007-10-20 15:51:21 UTC (rev 305)
++++ sleep/whatsnew.txt	2007-10-20 16:53:16 UTC (rev 306)
+@@ -35,6 +35,10 @@
+ 
+   inline return12 { return 12; }
+ 
++  inline functions themselves always give back $null in an expression. 
++  using an inline function within an expression is not recommended.
++
++  callcc/yield behavior within an expression will break things.
+ - major refactor of Sleep's logic flow for managing function calls, debug 
+   options, etc.. to one file.  please report any bugs 
+ - added callcc to Sleep.  callcc packages up the current function (as 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000283.html">[Sleep-svn] r305 - in sleep: . src/sleep/engine/atoms
+</A></li>
+	<LI>Next message: <A HREF="000285.html">[Sleep-svn] r307 - in sleep: src/sleep/engine tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#284">[ date ]</a>
+              <a href="thread.html#284">[ thread ]</a>
+              <a href="subject.html#284">[ subject ]</a>
+              <a href="author.html#284">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

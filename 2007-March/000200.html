@@ -1,0 +1,318 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r221 - in sleep: . src/sleep/bridges	src/sleep/bridges/io src/sleep/engine/atoms tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2007-March/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r221%20-%20in%20sleep%3A%20.%20src/sleep/bridges%0A%09src/sleep/bridges/io%20src/sleep/engine/atoms%20tests%20tests/output&In-Reply-To=%3C200703170516.l2H5GSVi015032%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000199.html">
+   <LINK REL="Next"  HREF="000201.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r221 - in sleep: . src/sleep/bridges	src/sleep/bridges/io src/sleep/engine/atoms tests tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r221%20-%20in%20sleep%3A%20.%20src/sleep/bridges%0A%09src/sleep/bridges/io%20src/sleep/engine/atoms%20tests%20tests/output&In-Reply-To=%3C200703170516.l2H5GSVi015032%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r221 - in sleep: . src/sleep/bridges	src/sleep/bridges/io src/sleep/engine/atoms tests tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Sat Mar 17 06:16:28 CET 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000199.html">[Sleep-svn] r220 - in sleep/tests: . output
+</A></li>
+        <LI>Next message: <A HREF="000201.html">[Sleep-svn] r222 - in sleep: . src/sleep/parser tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#200">[ date ]</a>
+              <a href="thread.html#200">[ thread ]</a>
+              <a href="subject.html#200">[ subject ]</a>
+              <a href="author.html#200">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2007-03-17 06:16:27 +0100 (Sat, 17 Mar 2007)
+New Revision: 221
+
+Modified:
+   sleep/build.xml
+   sleep/src/sleep/bridges/BasicIO.java
+   sleep/src/sleep/bridges/FileSystemBridge.java
+   sleep/src/sleep/bridges/io/FileObject.java
+   sleep/src/sleep/bridges/io/IOObject.java
+   sleep/src/sleep/bridges/io/ProcessObject.java
+   sleep/src/sleep/bridges/io/SocketObject.java
+   sleep/src/sleep/engine/atoms/ObjectNew.java
+   sleep/tests/forker.sl
+   sleep/tests/output/forker.sl
+   sleep/whatsnew.txt
+Log:
+more changes... (:
+
+
+
+Modified: sleep/build.xml
+===================================================================
+--- sleep/build.xml	2007-03-17 04:46:23 UTC (rev 220)
++++ sleep/build.xml	2007-03-17 05:16:27 UTC (rev 221)
+@@ -16,7 +16,7 @@
+            destdir=&quot;${project.build}&quot;
+            nowarn=&quot;yes&quot;
+            depend=&quot;yes&quot;
+-           debug=&quot;true&quot;
++           debug=&quot;false&quot;
+            source=&quot;1.4&quot;
+            target=&quot;1.4&quot;
+            optimize=&quot;yes&quot;
+
+Modified: sleep/src/sleep/bridges/BasicIO.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicIO.java	2007-03-17 04:46:23 UTC (rev 220)
++++ sleep/src/sleep/bridges/BasicIO.java	2007-03-17 05:16:27 UTC (rev 221)
+@@ -157,7 +157,7 @@
+              }
+              catch (Exception ex)
+              {
+-                i.getScriptEnvironment().flagError(&quot;&amp;writeObject(&quot; + SleepUtils.describe(SleepUtils.getScalar(a)) + &quot;, &quot; + SleepUtils.describe(b) + &quot;): &quot; + ex.toString());
++                i.getScriptEnvironment().flagError(ex);
+                 a.close();
+              }
+           }
+@@ -173,7 +173,7 @@
+           }
+           catch (Exception ex)
+           {
+-             i.getScriptEnvironment().flagError(&quot;&amp;readObject: &quot; + ex.toString());
++             i.getScriptEnvironment().flagError(ex);
+              a.close();
+           }
+        }
+@@ -218,7 +218,7 @@
+              }
+              catch (NoSuchAlgorithmException ex)
+              {
+-                i.getScriptEnvironment().flagError(&quot;&amp;digest: no such algorithm: &quot; + temp);
++                i.getScriptEnvironment().flagError(ex);
+              }
+           }
+           else if (s.objectValue() != null &amp;&amp; s.objectValue() instanceof MessageDigest)
+@@ -239,7 +239,7 @@
+              }
+              catch (NoSuchAlgorithmException ex)
+              {
+-                i.getScriptEnvironment().flagError(&quot;&amp;digest: no such algorithm: &quot; + algo);
++                i.getScriptEnvironment().flagError(ex);
+              }
+           }
+ 
+@@ -453,7 +453,7 @@
+           }
+           catch (Exception ex)
+           {
+-             i.getScriptEnvironment().flagError(ex.toString());
++             i.getScriptEnvironment().flagError(ex);
+           }
+ 
+           return SleepUtils.getScalar(parent_io);
+@@ -845,7 +845,7 @@
+                         break;
+ 
+                       default:
+-                        env.flagError(&quot;unknown file pattern character: &quot; + pattern.value);
++                        env.flagError(new Exception(&quot;unknown file pattern character: &quot; + pattern.value));
+                    }
+                 }
+                 catch (Exception ex) 
+@@ -1047,7 +1047,7 @@
+                         }
+                         catch (Exception ex)
+                         {
+-                           env.flagError(&quot;Could not serialize &quot; + SleepUtils.describe(temp) + &quot;: &quot; + ex.toString());
++                           env.flagError(ex);
+                            if (control != null) control.close();
+                            return;
+                         }
+
+Modified: sleep/src/sleep/bridges/FileSystemBridge.java
+===================================================================
+--- sleep/src/sleep/bridges/FileSystemBridge.java	2007-03-17 04:46:23 UTC (rev 220)
++++ sleep/src/sleep/bridges/FileSystemBridge.java	2007-03-17 05:16:27 UTC (rev 221)
+@@ -62,7 +62,7 @@
+                  return SleepUtils.getScalar(1);
+               }
+            }
+-           catch (Exception ex) { i.getScriptEnvironment().flagError(ex.getMessage()); }
++           catch (Exception ex) { i.getScriptEnvironment().flagError(ex); }
+         }
+         else if (n.equals(&quot;&amp;deleteFile&quot;))
+         {
+
+Modified: sleep/src/sleep/bridges/io/FileObject.java
+===================================================================
+--- sleep/src/sleep/bridges/io/FileObject.java	2007-03-17 04:46:23 UTC (rev 220)
++++ sleep/src/sleep/bridges/io/FileObject.java	2007-03-17 05:16:27 UTC (rev 221)
+@@ -37,7 +37,7 @@
+       }
+       catch (Exception ex)
+       {
+-         env.flagError(ex.toString());
++         env.flagError(ex);
+       }
+    }
+ }
+
+Modified: sleep/src/sleep/bridges/io/IOObject.java
+===================================================================
+--- sleep/src/sleep/bridges/io/IOObject.java	2007-03-17 04:46:23 UTC (rev 220)
++++ sleep/src/sleep/bridges/io/IOObject.java	2007-03-17 05:16:27 UTC (rev 221)
+@@ -95,13 +95,13 @@
+ 
+             if (getThread().isAlive())
+             {
+-               env.flagError(&quot;wait on object timed out&quot;);
++               env.flagError(new IOException(&quot;wait on object timed out&quot;));
+                return SleepUtils.getEmptyScalar();
+             }
+          }
+          catch (Exception ex)
+          {
+-            env.flagError(&quot;wait on object failed: &quot; + ex.getMessage());
++            env.flagError(ex);
+             return SleepUtils.getEmptyScalar();
+          }
+       }
+
+Modified: sleep/src/sleep/bridges/io/ProcessObject.java
+===================================================================
+--- sleep/src/sleep/bridges/io/ProcessObject.java	2007-03-17 04:46:23 UTC (rev 220)
++++ sleep/src/sleep/bridges/io/ProcessObject.java	2007-03-17 05:16:27 UTC (rev 221)
+@@ -30,8 +30,7 @@
+       }
+       catch (Exception ex)
+       {
+-         ex.printStackTrace();
+-         env.flagError(ex.toString());
++         env.flagError(ex);
+       }
+    }
+ 
+@@ -49,7 +48,7 @@
+       }
+       catch (Exception ex)
+       {
+-         env.flagError(&quot;wait for process failed: &quot; + ex);
++         env.flagError(ex);
+       }
+ 
+       return SleepUtils.getEmptyScalar();
+
+Modified: sleep/src/sleep/bridges/io/SocketObject.java
+===================================================================
+--- sleep/src/sleep/bridges/io/SocketObject.java	2007-03-17 04:46:23 UTC (rev 220)
++++ sleep/src/sleep/bridges/io/SocketObject.java	2007-03-17 05:16:27 UTC (rev 221)
+@@ -30,7 +30,7 @@
+       }
+       catch (Exception ex)
+       {
+-         env.flagError(ex.toString());
++         env.flagError(ex);
+       }
+    }
+ 
+@@ -108,7 +108,7 @@
+       }
+       catch (Exception ex)
+       {
+-         env.flagError(ex.toString());
++         env.flagError(ex);
+       }
+ 
+       try
+
+Modified: sleep/src/sleep/engine/atoms/ObjectNew.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/ObjectNew.java	2007-03-17 04:46:23 UTC (rev 220)
++++ sleep/src/sleep/engine/atoms/ObjectNew.java	2007-03-17 05:16:27 UTC (rev 221)
+@@ -149,12 +149,10 @@
+       }
+       catch (InstantiationException iex)
+       {
+-         e.flagError(&quot;unable to instantiate abstract class &quot; + name.getName());
+          e.getScriptInstance().fireWarning(&quot;unable to instantiate abstract class &quot; + name.getName(), getLineNumber());
+       }
+       catch (Exception iax)
+       {
+-         e.flagError(iax.toString());
+          e.getScriptInstance().fireWarning(iax.toString(), getLineNumber());
+       }
+ 
+
+Modified: sleep/tests/forker.sl
+===================================================================
+--- sleep/tests/forker.sl	2007-03-17 04:46:23 UTC (rev 220)
++++ sleep/tests/forker.sl	2007-03-17 05:16:27 UTC (rev 221)
+@@ -9,4 +9,6 @@
+    check(&quot;within fork&quot;);
+ });
+ 
++sleep(1000);
++
+ check(&quot;outside of fork&quot;);
+
+Modified: sleep/tests/output/forker.sl
+===================================================================
+--- sleep/tests/output/forker.sl	2007-03-17 04:46:23 UTC (rev 220)
++++ sleep/tests/output/forker.sl	2007-03-17 05:16:27 UTC (rev 221)
+@@ -1,3 +1,4 @@
+ Trace: &amp;check('within fork') at forker.sl:9
+-Trace: &amp;fork(&amp;closure[forker.sl:9]#2) = <A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">sleep.bridges.io.IOObject at d0d45b</A> at forker.sl:8
+-Trace: &amp;check('outside of fork') at forker.sl:12
++Trace: &amp;fork(&amp;closure[forker.sl:9]#2) = <A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">sleep.bridges.io.IOObject at 96f4b5</A> at forker.sl:8
++Trace: &amp;sleep(1000) at forker.sl:12
++Trace: &amp;check('outside of fork') at forker.sl:14
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2007-03-17 04:46:23 UTC (rev 220)
++++ sleep/whatsnew.txt	2007-03-17 05:16:27 UTC (rev 221)
+@@ -30,6 +30,10 @@
+   of the mill error handling.  (see how it all fits together now?)
+ - added an &amp;exit() function to force Sleep to stop processing within the
+   current script environment.
++- updated sleep library to force functions to pass exceptions for consumption
++  by checkError() in lieu of strings.  This means the error messages are
++  somewhat less descriptive but on the other hand you can fully inspect them
++  for whatever additional details you want.
+ 
+ 2.1-beta 12  (11 Mar 07)
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000199.html">[Sleep-svn] r220 - in sleep/tests: . output
+</A></li>
+	<LI>Next message: <A HREF="000201.html">[Sleep-svn] r222 - in sleep: . src/sleep/parser tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#200">[ date ]</a>
+              <a href="thread.html#200">[ thread ]</a>
+              <a href="subject.html#200">[ subject ]</a>
+              <a href="author.html#200">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

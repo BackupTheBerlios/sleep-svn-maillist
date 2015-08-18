@@ -1,0 +1,223 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r212 - in sleep: . src/sleep/bridges	src/sleep/bridges/io tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2007-March/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r212%20-%20in%20sleep%3A%20.%20src/sleep/bridges%0A%09src/sleep/bridges/io%20tests%20tests/output&In-Reply-To=%3C200703111629.l2BGTTf4019814%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000192.html">
+   <LINK REL="Next"  HREF="000194.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r212 - in sleep: . src/sleep/bridges	src/sleep/bridges/io tests tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r212%20-%20in%20sleep%3A%20.%20src/sleep/bridges%0A%09src/sleep/bridges/io%20tests%20tests/output&In-Reply-To=%3C200703111629.l2BGTTf4019814%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r212 - in sleep: . src/sleep/bridges	src/sleep/bridges/io tests tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Sun Mar 11 17:29:29 CET 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000192.html">[Sleep-svn] r211 - in sleep: . src/sleep/bridges	src/sleep/bridges/io tests tests/output
+</A></li>
+        <LI>Next message: <A HREF="000194.html">[Sleep-svn] r214 - sleep/src/sleep/parser
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#193">[ date ]</a>
+              <a href="thread.html#193">[ thread ]</a>
+              <a href="subject.html#193">[ subject ]</a>
+              <a href="author.html#193">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2007-03-11 17:29:29 +0100 (Sun, 11 Mar 2007)
+New Revision: 212
+
+Added:
+   sleep/tests/oopack.sl
+   sleep/tests/output/oopack.sl
+Modified:
+   sleep/src/sleep/bridges/BasicIO.java
+   sleep/src/sleep/bridges/io/DataPattern.java
+   sleep/src/sleep/bridges/io/ProcessObject.java
+   sleep/whatsnew.txt
+Log:
+A few changes, pack/unpack can handle objects and an updated exec function
+
+
+
+Modified: sleep/src/sleep/bridges/BasicIO.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicIO.java	2007-03-11 15:40:12 UTC (rev 211)
++++ sleep/src/sleep/bridges/BasicIO.java	2007-03-11 16:29:29 UTC (rev 212)
+@@ -335,10 +335,21 @@
+     {
+        public Scalar evaluate(String n, ScriptInstance i, Stack l)
+        {
+-          String   command  = BridgeUtilities.getString(l, null);
+-          String[] envp     = null;
+-          File     start    = null;
++          Scalar   cmd      = l.isEmpty() ? SleepUtils.getEmptyScalar() : (Scalar)l.pop();
++          String   command[];
+ 
++          if (cmd.getArray() != null)
++          {
++             command = (String[])(SleepUtils.getListFromArray(cmd.getArray()).toArray(new String[0])); 
++          }
++          else
++          {
++             command = cmd.toString().split(&quot;\\s&quot;);
++          }
++
++          String[] envp      = null;
++          File     start     = null;
++
+           if (!l.isEmpty())
+           {
+              if (SleepUtils.isEmptyScalar((Scalar)l.peek()))
+@@ -828,8 +839,14 @@
+ 
+                         value = SleepUtils.getScalar(buffer.getLong(0)); // turns the byte into an int
+                         break;
++
++                      case 'o':
++                        ObjectInputStream ois = new ObjectInputStream(in);
++                        value = (Scalar)ois.readObject();
++                        break;
++
+                       default:
+-                        env.getScriptInstance().fireWarning(&quot;Erroneous file pattern character: &quot; + pattern.value, -1);
++                        env.flagError(&quot;unknown file pattern character: &quot; + pattern.value);
+                    }
+                 }
+                 catch (Exception ex) 
+@@ -1023,6 +1040,9 @@
+                         buffer.putLong(0, temp.longValue());
+                         out.write(bdata, 0, 8);
+                         break;
++                      case 'o':
++                        ObjectOutputStream oos = new ObjectOutputStream(out);
++                        oos.writeObject(temp);
+                       default:
+                    }
+                 }
+
+Modified: sleep/src/sleep/bridges/io/DataPattern.java
+===================================================================
+--- sleep/src/sleep/bridges/io/DataPattern.java	2007-03-11 15:40:12 UTC (rev 211)
++++ sleep/src/sleep/bridges/io/DataPattern.java	2007-03-11 16:29:29 UTC (rev 212)
+@@ -69,6 +69,7 @@
+                case 'h':
+                case 'H':
+                case 'x':
++               case 'o':
+                  temp.size = 1;
+                  break;
+                case 'u':
+
+Modified: sleep/src/sleep/bridges/io/ProcessObject.java
+===================================================================
+--- sleep/src/sleep/bridges/io/ProcessObject.java	2007-03-11 15:40:12 UTC (rev 211)
++++ sleep/src/sleep/bridges/io/ProcessObject.java	2007-03-11 16:29:29 UTC (rev 212)
+@@ -13,16 +13,14 @@
+       return process;
+    }
+ 
+-   public void open(String command, String[] environment, File startDir, ScriptEnvironment env)
++   public void open(String command[], String[] environment, File startDir, ScriptEnvironment env)
+    {
+       try
+       {
+-         if (command.indexOf(' ') &gt; -1)
++         if (command.length &gt; 0)
+          {
+             String args;
+-            args    = command.substring(command.indexOf(' '), command.length());
+-            command = command.substring(0, command.indexOf(' ')).replace('/', File.separatorChar);
+-            command = command + args;
++            command[0] = command[0].replace('/', File.separatorChar);
+          }
+ 
+          process = Runtime.getRuntime().exec(command, environment, startDir);
+
+Added: sleep/tests/oopack.sl
+===================================================================
+--- sleep/tests/oopack.sl	2007-03-11 15:40:12 UTC (rev 211)
++++ sleep/tests/oopack.sl	2007-03-11 16:29:29 UTC (rev 212)
+@@ -0,0 +1,19 @@
++global('$str $num $func $x');
++
++debug(7);
++
++#
++# test of pack/unpack with sleep objects
++#
++
++$x = pack(&quot;o3&quot;, &quot;this is a test&quot;, 3, { println(&quot;doit!&quot;); });
++
++println(strlen($x));
++
++($str, $num, $func) = unpack(&quot;o*&quot;, $x);
++
++[$func];
++
++if (-isnumber $num) { println(&quot;It is a number: $num&quot;); }
++
++println($str);
+
+Added: sleep/tests/output/oopack.sl
+===================================================================
+--- sleep/tests/output/oopack.sl	2007-03-11 15:40:12 UTC (rev 211)
++++ sleep/tests/output/oopack.sl	2007-03-11 16:29:29 UTC (rev 212)
+@@ -0,0 +1,4 @@
++1962
++doit!
++It is a number: 3
++this is a test
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2007-03-11 15:40:12 UTC (rev 211)
++++ sleep/whatsnew.txt	2007-03-11 16:29:29 UTC (rev 212)
+@@ -29,6 +29,10 @@
+   to allocate a writeable buffer.  the first time &amp;closef is called the
+   buffer will flip to a readable buffer.  the second time all the resources
+   will be cleared.
++- pack/unpack/bwrite/bread can now parse sleep scalars with the 'o' format
++- added another form of &amp;exec that allows the command/arguments to be
++  specified as an array.  useful for including arguments with spaces in
++  them.
+ 
+ 2.1-beta 11  (3 Dec 06)
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000192.html">[Sleep-svn] r211 - in sleep: . src/sleep/bridges	src/sleep/bridges/io tests tests/output
+</A></li>
+	<LI>Next message: <A HREF="000194.html">[Sleep-svn] r214 - sleep/src/sleep/parser
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#193">[ date ]</a>
+              <a href="thread.html#193">[ thread ]</a>
+              <a href="subject.html#193">[ subject ]</a>
+              <a href="author.html#193">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

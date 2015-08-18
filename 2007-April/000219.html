@@ -1,0 +1,104 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r240 - sleep/src/sleep/engine
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2007-April/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r240%20-%20sleep/src/sleep/engine&In-Reply-To=%3C200704060409.l3649CCd027404%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000218.html">
+   <LINK REL="Next"  HREF="000220.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r240 - sleep/src/sleep/engine</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r240%20-%20sleep/src/sleep/engine&In-Reply-To=%3C200704060409.l3649CCd027404%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r240 - sleep/src/sleep/engine">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Fri Apr  6 06:09:12 CEST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000218.html">[Sleep-svn] r239 - in sleep: . src/sleep/bridges	src/sleep/engine/atoms src/sleep/parser tests tests/output
+</A></li>
+        <LI>Next message: <A HREF="000220.html">[Sleep-svn] r241 - in sleep/src/sleep: engine runtime
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#219">[ date ]</a>
+              <a href="thread.html#219">[ thread ]</a>
+              <a href="subject.html#219">[ subject ]</a>
+              <a href="author.html#219">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2007-04-06 06:09:11 +0200 (Fri, 06 Apr 2007)
+New Revision: 240
+
+Modified:
+   sleep/src/sleep/engine/Block.java
+Log:
+one small change to ensure thrown returns have priority over debug messages.
+
+
+
+Modified: sleep/src/sleep/engine/Block.java
+===================================================================
+--- sleep/src/sleep/engine/Block.java	2007-04-06 03:45:10 UTC (rev 239)
++++ sleep/src/sleep/engine/Block.java	2007-04-06 04:09:11 UTC (rev 240)
+@@ -258,13 +258,8 @@
+                  }
+               }
+ 
+-              if (environment.isDebugInterrupt())
++              if (environment.isThrownValue())
+               {
+-                 environment.getScriptInstance().fireWarning(environment.getDebugString(), temp.getLineNumber());
+-                 /** get debug string clears the debug interrupt! */
+-              }
+-              else if (environment.isThrownValue())
+-              {
+                  if (!environment.isExceptionHandlerInstalled())
+                  {
+                     /* if no handler is installed we will fire a warning and then flag a return of $null so at least the
+@@ -287,6 +282,11 @@
+                  return environment.getReturnValue(); /* we do this because the exception will get cleared and after that
+                                                          there may be a return value */
+               }
++              else if (environment.isDebugInterrupt())
++              {
++                 environment.getScriptInstance().fireWarning(environment.getDebugString(), temp.getLineNumber());
++                 /** get debug string clears the debug interrupt! */
++              }
+               else
+               {
+                  environment.popSource();
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000218.html">[Sleep-svn] r239 - in sleep: . src/sleep/bridges	src/sleep/engine/atoms src/sleep/parser tests tests/output
+</A></li>
+	<LI>Next message: <A HREF="000220.html">[Sleep-svn] r241 - in sleep/src/sleep: engine runtime
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#219">[ date ]</a>
+              <a href="thread.html#219">[ thread ]</a>
+              <a href="subject.html#219">[ subject ]</a>
+              <a href="author.html#219">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

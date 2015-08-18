@@ -1,0 +1,170 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r191 - in sleep: src/sleep/bridges	src/sleep/engine/atoms tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2006-December/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r191%20-%20in%20sleep%3A%20src/sleep/bridges%0A%09src/sleep/engine/atoms%20tests%20tests/output&In-Reply-To=%3C200612010335.kB13ZNck010770%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000172.html">
+   <LINK REL="Next"  HREF="000174.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r191 - in sleep: src/sleep/bridges	src/sleep/engine/atoms tests tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r191%20-%20in%20sleep%3A%20src/sleep/bridges%0A%09src/sleep/engine/atoms%20tests%20tests/output&In-Reply-To=%3C200612010335.kB13ZNck010770%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r191 - in sleep: src/sleep/bridges	src/sleep/engine/atoms tests tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Fri Dec  1 04:35:23 CET 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000172.html">[Sleep-svn] r190 - in sleep: src/sleep/runtime tests tests/output
+</A></li>
+        <LI>Next message: <A HREF="000174.html">[Sleep-svn] r192 - in sleep: . src/sleep/parser tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#173">[ date ]</a>
+              <a href="thread.html#173">[ thread ]</a>
+              <a href="subject.html#173">[ subject ]</a>
+              <a href="author.html#173">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2006-12-01 04:35:23 +0100 (Fri, 01 Dec 2006)
+New Revision: 191
+
+Modified:
+   sleep/src/sleep/bridges/Semaphore.java
+   sleep/src/sleep/bridges/SleepClosure.java
+   sleep/src/sleep/engine/atoms/ObjectAccess.java
+   sleep/tests/output/profiler.sl
+   sleep/tests/profiler.sl
+Log:
+more changes..
+
+
+
+Modified: sleep/src/sleep/bridges/Semaphore.java
+===================================================================
+--- sleep/src/sleep/bridges/Semaphore.java	2006-12-01 02:19:30 UTC (rev 190)
++++ sleep/src/sleep/bridges/Semaphore.java	2006-12-01 03:35:23 UTC (rev 191)
+@@ -49,4 +49,10 @@
+          notify();
+       }
+    }
++
++   /** returns a nice string representation of this semaphore */
++   public String toString()
++   {
++      return &quot;[Semaphore: &quot; + count + &quot;]&quot;;
++   } 
+ }
+
+Modified: sleep/src/sleep/bridges/SleepClosure.java
+===================================================================
+--- sleep/src/sleep/bridges/SleepClosure.java	2006-12-01 02:19:30 UTC (rev 190)
++++ sleep/src/sleep/bridges/SleepClosure.java	2006-12-01 03:35:23 UTC (rev 191)
+@@ -97,6 +97,16 @@
+        return (Stack)context.pop();
+     }
+ 
++    public String toStringGeneric()
++    {
++       if (owner != null)
++       {
++          return &quot;&amp;closure[&quot; + new File(owner.getName()).getName() + &quot;:&quot; + code.getApproximateLineRange() + &quot;]&quot;;
++       }
++
++       return &quot;&amp;closure[unknown:&quot; + code.getApproximateLineRange() + &quot;]&quot;;
++    }
++
+     public String toString()
+     {
+        return &quot;&amp;closure&quot; + id + &quot;:&quot; + code.getApproximateLineRange();
+
+Modified: sleep/src/sleep/engine/atoms/ObjectAccess.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/ObjectAccess.java	2006-12-01 02:19:30 UTC (rev 190)
++++ sleep/src/sleep/engine/atoms/ObjectAccess.java	2006-12-01 03:35:23 UTC (rev 191)
+@@ -102,7 +102,7 @@
+                long stat = System.currentTimeMillis();
+                result = func.evaluate(name, e.getScriptInstance(), e.getCurrentFrame());
+                stat = System.currentTimeMillis() - stat;
+-               e.getScriptInstance().collect(SleepUtils.describe(scalar), getLineNumber(), stat);
++               e.getScriptInstance().collect(((SleepClosure)scalar.objectValue()).toStringGeneric(), getLineNumber(), stat);
+             }
+             else
+             {
+@@ -131,7 +131,7 @@
+                   long stat = System.currentTimeMillis();
+                   result = func.evaluate(name, e.getScriptInstance(), e.getCurrentFrame());
+                   stat = System.currentTimeMillis() - stat;
+-                  e.getScriptInstance().collect(SleepUtils.describe(scalar), getLineNumber(), stat);
++                  e.getScriptInstance().collect(((SleepClosure)scalar.objectValue()).toStringGeneric(), getLineNumber(), stat);
+ 
+                   if (!SleepUtils.isEmptyScalar(result))
+                   {
+
+Modified: sleep/tests/output/profiler.sl
+===================================================================
+--- sleep/tests/output/profiler.sl	2006-12-01 02:19:30 UTC (rev 190)
++++ sleep/tests/output/profiler.sl	2006-12-01 03:35:23 UTC (rev 191)
+@@ -1,8 +1,8 @@
+ Hello World
+ string length is: 4
+ this is a closure call!: 3628800.0
+-10  &amp;closure1:7
+-1   &amp;closure2:16
+-5   &amp;println
++10  &amp;closure[profiler.sl:7]
++4   &amp;println
++1   public int java.lang.String.length()
+ 1   &amp;fact
+-1   public int java.lang.String.length()
++1   &amp;closure[profiler.sl:16]
+
+Modified: sleep/tests/profiler.sl
+===================================================================
+--- sleep/tests/profiler.sl	2006-12-01 02:19:30 UTC (rev 190)
++++ sleep/tests/profiler.sl	2006-12-01 03:35:23 UTC (rev 191)
+@@ -16,6 +16,9 @@
+ println([{ return &quot;this is a closure call!: &quot; . fact(10.0); }]);
+ 
+ @stats = profile();
++
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">+ at stats</A> = reverse(sort({ return [$1 calls] &lt;=&gt; [$2 calls]; }, copy(@stats)));
++
+ foreach $var (@stats)
+ {
+    # $var is a ScriptInstance.ProfilerStatistic object, it accepts
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000172.html">[Sleep-svn] r190 - in sleep: src/sleep/runtime tests tests/output
+</A></li>
+	<LI>Next message: <A HREF="000174.html">[Sleep-svn] r192 - in sleep: . src/sleep/parser tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#173">[ date ]</a>
+              <a href="thread.html#173">[ thread ]</a>
+              <a href="subject.html#173">[ subject ]</a>
+              <a href="author.html#173">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

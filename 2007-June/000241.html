@@ -1,0 +1,132 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r262 - in sleep: . src/sleep/bridges tests
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2007-June/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r262%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20tests&In-Reply-To=%3C200706102308.l5AN8Rab013878%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000240.html">
+   <LINK REL="Next"  HREF="000242.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r262 - in sleep: . src/sleep/bridges tests</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r262%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20tests&In-Reply-To=%3C200706102308.l5AN8Rab013878%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r262 - in sleep: . src/sleep/bridges tests">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Mon Jun 11 01:08:27 CEST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000240.html">[Sleep-svn] r261 - in sleep: . src/sleep/bridges tests tests/output
+</A></li>
+        <LI>Next message: <A HREF="000242.html">[Sleep-svn] r263 - in sleep: . src/sleep/engine/atoms	src/sleep/runtime tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#241">[ date ]</a>
+              <a href="thread.html#241">[ thread ]</a>
+              <a href="subject.html#241">[ subject ]</a>
+              <a href="author.html#241">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2007-06-11 01:08:26 +0200 (Mon, 11 Jun 2007)
+New Revision: 262
+
+Added:
+   sleep/tests/readobj.sl
+Modified:
+   sleep/src/sleep/bridges/BasicIO.java
+   sleep/whatsnew.txt
+Log:
+readobj no longer throws an EOF exception
+
+
+Modified: sleep/src/sleep/bridges/BasicIO.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicIO.java	2007-06-10 22:56:28 UTC (rev 261)
++++ sleep/src/sleep/bridges/BasicIO.java	2007-06-10 23:08:26 UTC (rev 262)
+@@ -171,6 +171,10 @@
+              Scalar value = (Scalar)ois.readObject();
+              return value;
+           }
++          catch (EOFException eofex)
++          {
++             a.close();
++          }
+           catch (Exception ex)
+           {
+              i.getScriptEnvironment().flagError(ex);
+
+Added: sleep/tests/readobj.sl
+===================================================================
+--- sleep/tests/readobj.sl	2007-06-10 22:56:28 UTC (rev 261)
++++ sleep/tests/readobj.sl	2007-06-10 23:08:26 UTC (rev 262)
+@@ -0,0 +1,23 @@
++
++debug(7);
++global('$handle $temp');
++
++$handle = allocate();
++writeObject($handle, &quot;this is a test&quot;);
++writeObject($handle, 1);
++writeObject($handle, @(&quot;a&quot;, &quot;b&quot;, @(&quot;c&quot;, &quot;d&quot;, &quot;e&quot;)));
++writeObject($handle, { println(&quot;Hello World!&quot;); });
++closef($handle);
++
++while $temp (readObject($handle))
++{
++   if (!-isfunction $temp)
++   {
++      println(&quot;Read: $temp&quot;);
++   }
++   else
++   {
++      println(&quot;Read: $temp (function, will invoke!)&quot;);
++      invoke($temp);
++   }
++}
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2007-06-10 22:56:28 UTC (rev 261)
++++ sleep/whatsnew.txt	2007-06-10 23:08:26 UTC (rev 262)
+@@ -17,6 +17,7 @@
+   scope, etc..
+ - &amp;join, &amp;flatten functions now accept either a sleep array or generator
+   function.
++- &amp;readObject no longer throws an EOFException.
+ 
+ 2.1-beta 15  (25 Apr 07)
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000240.html">[Sleep-svn] r261 - in sleep: . src/sleep/bridges tests tests/output
+</A></li>
+	<LI>Next message: <A HREF="000242.html">[Sleep-svn] r263 - in sleep: . src/sleep/engine/atoms	src/sleep/runtime tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#241">[ date ]</a>
+              <a href="thread.html#241">[ thread ]</a>
+              <a href="subject.html#241">[ subject ]</a>
+              <a href="author.html#241">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,495 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r211 - in sleep: . src/sleep/bridges	src/sleep/bridges/io tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2007-March/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r211%20-%20in%20sleep%3A%20.%20src/sleep/bridges%0A%09src/sleep/bridges/io%20tests%20tests/output&In-Reply-To=%3C200703111540.l2BFeDdt016880%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000191.html">
+   <LINK REL="Next"  HREF="000193.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r211 - in sleep: . src/sleep/bridges	src/sleep/bridges/io tests tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r211%20-%20in%20sleep%3A%20.%20src/sleep/bridges%0A%09src/sleep/bridges/io%20tests%20tests/output&In-Reply-To=%3C200703111540.l2BFeDdt016880%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r211 - in sleep: . src/sleep/bridges	src/sleep/bridges/io tests tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Sun Mar 11 16:40:13 CET 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000191.html">[Sleep-svn] r210 - in sleep: . src/sleep/bridges src/sleep/runtime	tests tests/output
+</A></li>
+        <LI>Next message: <A HREF="000193.html">[Sleep-svn] r212 - in sleep: . src/sleep/bridges	src/sleep/bridges/io tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#192">[ date ]</a>
+              <a href="thread.html#192">[ thread ]</a>
+              <a href="subject.html#192">[ subject ]</a>
+              <a href="author.html#192">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2007-03-11 16:40:12 +0100 (Sun, 11 Mar 2007)
+New Revision: 211
+
+Added:
+   sleep/src/sleep/bridges/io/BufferObject.java
+   sleep/tests/buffer.sl
+   sleep/tests/megaio.sl
+   sleep/tests/output/buffer.sl
+   sleep/tests/output/megaio.sl
+Modified:
+   sleep/src/sleep/bridges/BasicIO.java
+   sleep/whatsnew.txt
+Log:
+added writeable buffer I/O handle type thingie...
+
+
+
+Modified: sleep/src/sleep/bridges/BasicIO.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicIO.java	2007-03-10 22:10:06 UTC (rev 210)
++++ sleep/src/sleep/bridges/BasicIO.java	2007-03-11 15:40:12 UTC (rev 211)
+@@ -62,6 +62,8 @@
+         temp.put(&quot;&amp;listen&quot;,     f);
+         temp.put(&quot;&amp;exec&quot;,       new exec());
+         temp.put(&quot;&amp;fork&quot;,       new fork());
++        temp.put(&quot;&amp;allocate&quot;,   this);
++
+         temp.put(&quot;&amp;sleep&quot;,      new sleep());
+ 
+         temp.put(&quot;&amp;closef&quot;,     new closef());
+@@ -175,6 +177,13 @@
+              a.close();
+           }
+        }
++       else if (n.equals(&quot;&amp;allocate&quot;))
++       {
++          int capacity = BridgeUtilities.getInt(l, 1024 * 32); // 32K initial buffer by default
++          BufferObject temp = new BufferObject();
++          temp.allocate(capacity);
++          return SleepUtils.getScalar(temp);
++       }
+        else if (n.equals(&quot;&amp;digest&quot;))
+        {
+           Scalar   s = BridgeUtilities.getScalar(l);
+
+Added: sleep/src/sleep/bridges/io/BufferObject.java
+===================================================================
+--- sleep/src/sleep/bridges/io/BufferObject.java	2007-03-10 22:10:06 UTC (rev 210)
++++ sleep/src/sleep/bridges/io/BufferObject.java	2007-03-11 15:40:12 UTC (rev 211)
+@@ -0,0 +1,49 @@
++package sleep.bridges.io;
++
++import java.io.*;
++import sleep.bridges.BridgeUtilities;
++import sleep.runtime.ScriptEnvironment;
++
++/** The buffer works as follows.  Once allocated it is open for writing.  When the scripter chooses to
++    close the buffer it is then available for reading.  The second time it is closed all of its resources
++    are deallocated. */
++public class BufferObject extends IOObject
++{
++   /** The writeable source for this IO object */
++   protected ByteArrayOutputStream source;
++
++   /** The readable source for this IO object */
++   protected ByteArrayInputStream  readme;
++
++   /** returns the stream referenced by this IOObject */
++   public Object getSource()
++   {
++      return source;
++   }
++
++   /** handles our closing semantices i.e. first time it is called the writeable portion is opened
++       up for reading and the second time all resources are deallocated */
++   public void close()
++   {   
++      super.close();
++
++      if (readme != null)
++      {
++         readme = null;
++      }
++
++      if (source != null)
++      {
++         readme = new ByteArrayInputStream(source.toByteArray());
++         openRead(readme);
++         source = null;
++      }
++   }
++
++   /** allocates a writeable buffer with the specified initial capacity */
++   public void allocate(int initialSize)
++   {
++      source = new ByteArrayOutputStream(initialSize);
++      openWrite(source);
++   }
++}
+
+Added: sleep/tests/buffer.sl
+===================================================================
+--- sleep/tests/buffer.sl	2007-03-10 22:10:06 UTC (rev 210)
++++ sleep/tests/buffer.sl	2007-03-11 15:40:12 UTC (rev 211)
+@@ -0,0 +1,49 @@
++#
++# more tests of the ever loveable buffer..
++#
++
++debug(7);
++
++global('$handle');
++
++$handle = allocate(1024 * 1024); # 1K buffer...
++
++println($handle, &quot;this is a test&quot;);
++println(&quot;Number of bytes available to read? &quot; . available($handle));
++
++println($handle, &quot;this is another test :)&quot;);
++
++println(&quot;Trying a read: &quot; . readln($handle)); # should fail!
++
++closef($handle); # the buffer is now readable...
++
++println(&quot;Bytes avail: &quot; . available($handle));
++
++mark($handle, 1024);
++
++println(strrep(readb($handle, available($handle)), &quot;\n&quot;, '\n'));
++println(&quot;Bytes avail (post read): &quot; . available($handle));
++
++println(&quot;--- Reading the two sentences ---&quot;);
++reset($handle);
++mark($handle);
++
++println(&quot;Reading a single byte: &quot; . readb($handle, 1));
++
++println(&quot;Bytes avail: &quot; . available($handle));
++println(readln($handle)); 
++
++println(&quot;Bytes avail: &quot; . available($handle)); # this is 0 for some reason and I'm not sure why...
++                                               # seems readln and friends disturb the force?
++ 
++                                               # now I know why!! it appears that ops to read unicode
++                                               # chars will suck up some of the buffer contents to
++                                               # make things more &quot;efficient&quot;. 
++
++println(readln($handle)); 
++println(&quot;Bytes avail: &quot; . available($handle));
++
++println(&quot;--- Final Read Step ---&quot;);
++reset($handle);
++println(&quot;Bytes avail: &quot; . available($handle));
++printAll(readAll($handle));
+
+Added: sleep/tests/megaio.sl
+===================================================================
+--- sleep/tests/megaio.sl	2007-03-10 22:10:06 UTC (rev 210)
++++ sleep/tests/megaio.sl	2007-03-11 15:40:12 UTC (rev 211)
+@@ -0,0 +1,52 @@
++#
++# this script is similar to dataio.sl except it uses buffers to handle a larger amount of data (faster!)
++# handles 10x as much data as dataio.sl in about the same amount of time.
++#
++
++debug(7);
++
++global('$src');
++
++$src = fork({
++  local('$str $server $x');
++
++  $server = $source;
++
++  $str = allocate(1024 * 100);
++
++  for ($x = 0; $x &lt; (1024 * 100); $x++)
++  {
++     writeb($str, chr(rand(0, 255)));
++
++     if (($x % 1024) == 0)
++     {
++        print(&quot;.&quot;);
++     }
++  }
++
++  println();
++  println(&quot;Writing a massive amount of crap&quot;);
++
++  println(&quot;Pre-Close: Avail for reading from str: &quot; . available($str));
++  closef($str);
++  println(&quot;Post-Close: Avail for reading from str: &quot; . available($str));
++
++  print($server, readb($str, available($str)));
++  closef($server);
++});
++
++sleep(2000);
++
++fork({
++  local('$data $z');
++
++  while $data (readb($handle, 603))
++  {
++     println(&quot;Read: &quot; . strlen($data) . &quot; bytes&quot;);
++     $z += strlen($data);
++  }
++
++  println(&quot;Read in $z bytes&quot;);
++
++  closef($handle);
++}, $handle =&gt; $src);
+
+Added: sleep/tests/output/buffer.sl
+===================================================================
+--- sleep/tests/output/buffer.sl	2007-03-10 22:10:06 UTC (rev 210)
++++ sleep/tests/output/buffer.sl	2007-03-11 15:40:12 UTC (rev 211)
+@@ -0,0 +1,16 @@
++Number of bytes available to read? 
++Trying a read: 
++Bytes avail: 39
++this is a test\nthis is another test :)\n
++Bytes avail (post read): 0
++--- Reading the two sentences ---
++Reading a single byte: t
++Bytes avail: 38
++his is a test
++Bytes avail: 0
++this is another test :)
++Bytes avail: 0
++--- Final Read Step ---
++Bytes avail: 39
++this is a test
++this is another test :)
+
+Added: sleep/tests/output/megaio.sl
+===================================================================
+--- sleep/tests/output/megaio.sl	2007-03-10 22:10:06 UTC (rev 210)
++++ sleep/tests/output/megaio.sl	2007-03-11 15:40:12 UTC (rev 211)
+@@ -0,0 +1,175 @@
++....................................................................................................
++Writing a massive amount of crap
++Pre-Close: Avail for reading from str: 
++Post-Close: Avail for reading from str: 102400
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 603 bytes
++Read: 493 bytes
++Read in 102400 bytes
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2007-03-10 22:10:06 UTC (rev 210)
++++ sleep/whatsnew.txt	2007-03-11 15:40:12 UTC (rev 211)
+@@ -24,6 +24,11 @@
+   a read.  If the handle is closed $null is returned.
+ - fixed bugs in &amp;readb that come about when reading in the last chunk of 
+   data that is usually smaller than the total buffer size.  
++- added a new I/O handle type: the buffer.  this can be used to construct
++  and manipulate very large strings of data in memory.  use &amp;allocate()
++  to allocate a writeable buffer.  the first time &amp;closef is called the
++  buffer will flip to a readable buffer.  the second time all the resources
++  will be cleared.
+ 
+ 2.1-beta 11  (3 Dec 06)
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000191.html">[Sleep-svn] r210 - in sleep: . src/sleep/bridges src/sleep/runtime	tests tests/output
+</A></li>
+	<LI>Next message: <A HREF="000193.html">[Sleep-svn] r212 - in sleep: . src/sleep/bridges	src/sleep/bridges/io tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#192">[ date ]</a>
+              <a href="thread.html#192">[ thread ]</a>
+              <a href="subject.html#192">[ subject ]</a>
+              <a href="author.html#192">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

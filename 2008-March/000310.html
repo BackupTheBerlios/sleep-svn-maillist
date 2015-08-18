@@ -1,0 +1,143 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r332 - in sleep: . src/sleep/engine/atoms
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2008-March/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r332%20-%20in%20sleep%3A%20.%20src/sleep/engine/atoms&In-Reply-To=%3C200803280443.m2S4hm7X021198%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000309.html">
+   <LINK REL="Next"  HREF="000311.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r332 - in sleep: . src/sleep/engine/atoms</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r332%20-%20in%20sleep%3A%20.%20src/sleep/engine/atoms&In-Reply-To=%3C200803280443.m2S4hm7X021198%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r332 - in sleep: . src/sleep/engine/atoms">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Fri Mar 28 05:43:48 CET 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000309.html">[Sleep-svn] r331 - in sleep: . src/sleep/engine src/sleep/runtime	tests/output
+</A></li>
+        <LI>Next message: <A HREF="000311.html">[Sleep-svn] r333 - sleep/src/sleep/engine/atoms
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#310">[ date ]</a>
+              <a href="thread.html#310">[ thread ]</a>
+              <a href="subject.html#310">[ subject ]</a>
+              <a href="author.html#310">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2008-03-28 05:43:48 +0100 (Fri, 28 Mar 2008)
+New Revision: 332
+
+Modified:
+   sleep/build.xml
+   sleep/readme.txt
+   sleep/src/sleep/engine/atoms/Assign.java
+   sleep/src/sleep/engine/atoms/AssignT.java
+Log:
+packaging for release.
+
+
+Modified: sleep/build.xml
+===================================================================
+--- sleep/build.xml	2008-03-28 04:00:30 UTC (rev 331)
++++ sleep/build.xml	2008-03-28 04:43:48 UTC (rev 332)
+@@ -16,7 +16,7 @@
+            destdir=&quot;${project.build}&quot;
+            nowarn=&quot;yes&quot;
+            depend=&quot;yes&quot;
+-           debug=&quot;true&quot;
++           debug=&quot;false&quot;
+            source=&quot;1.4&quot;
+            target=&quot;1.4&quot;
+            optimize=&quot;yes&quot;
+
+Modified: sleep/readme.txt
+===================================================================
+--- sleep/readme.txt	2008-03-28 04:00:30 UTC (rev 331)
++++ sleep/readme.txt	2008-03-28 04:43:48 UTC (rev 332)
+@@ -21,7 +21,6 @@
+ and stabilized.  
+ 
+ Sleep Project Homepage: <A HREF="http://sleep.hick.org/">http://sleep.hick.org/</A>
+-              (Mirror): <A HREF="http://sleep.berlios.de/">http://sleep.berlios.de/</A>
+ 
+  ------- -------------------- ---------   ---------------  ------- ---------
+ Documentation
+@@ -157,9 +156,9 @@
+ Legal Garbage
+ -  ------------- -------- -   ---------------- --       -    -     -     - - -
+ 
+-Sleep is (c) 2002, 2003, 2004, 2005, 2006, 2007 Raphael Mudge (<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">raffi at hick.org</A>).  
+-All of the source and somehow the documentation are released under the GNU 
+-Lesser Public License.  
++Sleep is (c) 2002, 2003, 2004, 2005, 2006, 2007, and 2008 (wow, been at this
++awhile) Raphael Mudge (<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">rsmudge at gmail.com</A>).  All of the source and somehow the 
++documentation are released under the GNU Lesser Public License.  
+ 
+ The scripts and library files supplied as input to or produced as output 
+ from the Sleep library do not automatically fall under the copyright of the
+
+Modified: sleep/src/sleep/engine/atoms/Assign.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/Assign.java	2008-03-28 04:00:30 UTC (rev 331)
++++ sleep/src/sleep/engine/atoms/Assign.java	2008-03-28 04:43:48 UTC (rev 332)
+@@ -89,7 +89,7 @@
+       }
+ 
+       putv.setValue(value);    
+-      e.FrameResult(value);
++      e.KillFrame();
+       return null;
+    }
+ }
+
+Modified: sleep/src/sleep/engine/atoms/AssignT.java
+===================================================================
+--- sleep/src/sleep/engine/atoms/AssignT.java	2008-03-28 04:00:30 UTC (rev 331)
++++ sleep/src/sleep/engine/atoms/AssignT.java	2008-03-28 04:43:48 UTC (rev 332)
+@@ -135,7 +135,8 @@
+          putv.setValue(value);
+       }
+ 
+-      e.FrameResult(scalar); } catch (Exception ex) { ex.printStackTrace(); }
++      e.KillFrame();
++      } catch (Exception ex) { ex.printStackTrace(); }
+       return null;
+    }
+ }
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000309.html">[Sleep-svn] r331 - in sleep: . src/sleep/engine src/sleep/runtime	tests/output
+</A></li>
+	<LI>Next message: <A HREF="000311.html">[Sleep-svn] r333 - sleep/src/sleep/engine/atoms
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#310">[ date ]</a>
+              <a href="thread.html#310">[ thread ]</a>
+              <a href="subject.html#310">[ subject ]</a>
+              <a href="author.html#310">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

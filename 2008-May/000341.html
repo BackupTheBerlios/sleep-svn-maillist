@@ -1,0 +1,215 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r365 - in sleep: . src/sleep/bridges tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2008-May/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r365%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20tests%20tests/output&In-Reply-To=%3C200805141859.m4EIx9IS015386%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000340.html">
+   <LINK REL="Next"  HREF="000342.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r365 - in sleep: . src/sleep/bridges tests tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r365%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20tests%20tests/output&In-Reply-To=%3C200805141859.m4EIx9IS015386%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r365 - in sleep: . src/sleep/bridges tests tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Wed May 14 20:59:09 CEST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000340.html">[Sleep-svn] r364 - in sleep: . src/sleep/bridges src/sleep/engine	src/sleep/engine/types src/sleep/runtime src/sleep/taint	tests tests/output
+</A></li>
+        <LI>Next message: <A HREF="000342.html">[Sleep-svn] r366 - in sleep: . src/sleep/bridges tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#341">[ date ]</a>
+              <a href="thread.html#341">[ thread ]</a>
+              <a href="subject.html#341">[ subject ]</a>
+              <a href="author.html#341">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2008-05-14 20:59:09 +0200 (Wed, 14 May 2008)
+New Revision: 365
+
+Added:
+   sleep/tests/output/sublist.sl
+   sleep/tests/sublist.sl
+Modified:
+   sleep/src/sleep/bridges/BasicUtilities.java
+   sleep/whatsnew.txt
+Log:
+..
+
+
+Modified: sleep/src/sleep/bridges/BasicUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicUtilities.java	2008-05-14 18:34:29 UTC (rev 364)
++++ sleep/src/sleep/bridges/BasicUtilities.java	2008-05-14 18:59:09 UTC (rev 365)
+@@ -81,6 +81,7 @@
+         temp.put(&quot;&amp;clear&quot;, this);
+         temp.put(&quot;&amp;splice&quot;, this);
+         temp.put(&quot;&amp;subarray&quot;, this);
++        temp.put(&quot;&amp;sublist&quot;, this);
+         temp.put(&quot;&amp;copy&quot;,  new copy());
+         temp.put(&quot;&amp;setRemovalPolicy&quot;, this);
+         temp.put(&quot;&amp;setMissPolicy&quot;, this);
+@@ -1137,7 +1138,12 @@
+        {
+           if (value.getArray() != null)
+           {
+-             value.setValue(SleepUtils.getArrayScalar());
++             Iterator iter = value.getArray().scalarIterator();
++             while (iter.hasNext())
++             {
++                iter.next();
++                iter.remove();
++             }
+           }
+           else if (value.getHash() != null)
+           {
+@@ -1211,9 +1217,12 @@
+ 
+           return a;
+        }
+-       else if (n.equals(&quot;&amp;subarray&quot;))
++       else if (n.equals(&quot;&amp;subarray&quot;) || n.equals(&quot;&amp;sublist&quot;))
+        {
+-          return subarray(value, BridgeUtilities.getInt(l, 0), BridgeUtilities.getInt(l, value.getArray().size()));
++          if (value.getArray() == null)
++             throw new IllegalArgumentException(n + &quot;: expected @array, received: &quot; + SleepUtils.describe(value));
++
++          return sublist(value, BridgeUtilities.getInt(l, 0), BridgeUtilities.getInt(l, value.getArray().size()));
+        }
+        else if (n.equals(&quot;&amp;remove&quot;))
+        {
+@@ -1365,31 +1374,20 @@
+        return SleepUtils.getEmptyScalar();
+     }
+ 
+-    private static final Scalar subarray(Scalar value, int _start, int _end)
++    private static Scalar sublist(Scalar value, int _start, int _end)
+     { 
+-       Scalar rv = SleepUtils.getArrayScalar();
++       int length = value.getArray().size();
++       int start, end;
+ 
+-       if (value.getArray() != null)
+-       {
+-          int length = value.getArray().size();
+-          int start, end;
++       start = BridgeUtilities.normalize(_start, length);
++       end   = (_end &lt; 0 ? _end + length : _end);
++       end   = end &lt;= length ? end : length;
+ 
+-          start = BridgeUtilities.normalize(_start, length);
+-          end   = (_end &lt; 0 ? _end + length : _end);
+-          end   = end &lt;= length ? end : length;
+-
+-          if (start &gt; end)
+-          {
+-             throw new IllegalArgumentException(&quot;illegal subarray(&quot; + SleepUtils.describe(value) + &quot;, &quot; + _start + &quot; -&gt; &quot; + start + &quot;, &quot; + _end + &quot; -&gt; &quot; + end + &quot;)&quot;);
+-          }
+-  
+-          while (start &lt; end)
+-          {
+-             rv.getArray().push(SleepUtils.getScalar(value.getArray().getAt(start)));
+-             start++;
+-          }
++       if (start &gt; end)
++       {
++          throw new IllegalArgumentException(&quot;illegal subarray(&quot; + SleepUtils.describe(value) + &quot;, &quot; + _start + &quot; -&gt; &quot; + start + &quot;, &quot; + _end + &quot; -&gt; &quot; + end + &quot;)&quot;);
+        }
+-
+-       return rv;
++  
++       return SleepUtils.getArrayScalar(value.getArray().sublist(start, end));
+     }
+ }
+
+Added: sleep/tests/output/sublist.sl
+===================================================================
+--- sleep/tests/output/sublist.sl	2008-05-14 18:34:29 UTC (rev 364)
++++ sleep/tests/output/sublist.sl	2008-05-14 18:59:09 UTC (rev 365)
+@@ -0,0 +1,5 @@
++@('k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u')
++@('d', 'e', 'f', 'g', 'h')
++@('a', 'b', 'c', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u')
++@('j', 'k', 'doe', 'ray', 'me', 'fa')
++@('a', 'b', 'c', 'i', 'j', 'k', 'doe', 'ray', 'me', 'fa', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u')
+
+Added: sleep/tests/sublist.sl
+===================================================================
+--- sleep/tests/sublist.sl	2008-05-14 18:34:29 UTC (rev 364)
++++ sleep/tests/sublist.sl	2008-05-14 18:59:09 UTC (rev 365)
+@@ -0,0 +1,24 @@
++#
++# test out the &amp;sublist function.
++#
++
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">+ at array</A> = @(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;, &quot;d&quot;, &quot;e&quot;, &quot;f&quot;, &quot;g&quot;, &quot;h&quot;, &quot;i&quot;, &quot;j&quot;, &quot;k&quot;, &quot;l&quot;, &quot;m&quot;, &quot;n&quot;, &quot;o&quot;, &quot;p&quot;, &quot;q&quot;, &quot;r&quot;, &quot;s&quot;, &quot;t&quot;, &quot;u&quot;);
++
++println(sublist(@array, 10));
++
++# extract a sublist; modifications in the sublist affect the parent
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">+ at temp</A> = sublist(@array, 3, 8);
++println(@temp);
++clear(@temp);
++
++println(@array);
++
++#
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">+ at temp</A> = sublist(@array, 4, 6);
++push(@temp, &quot;doe&quot;);
++push(@temp, &quot;ray&quot;);
++push(@temp, &quot;me&quot;);
++push(@temp, &quot;fa&quot;);
++
++println(@temp);
++println(@array);
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2008-05-14 18:34:29 UTC (rev 364)
++++ sleep/whatsnew.txt	2008-05-14 18:59:09 UTC (rev 365)
+@@ -32,6 +32,8 @@
+   random access which now has a worst case of O(n)
+ - inline functions now restore anonymous arguments and @_ prior
+   to returning control to the parent function.
++- renamed &amp;subarray to &amp;sublist(@array, n, m).  Updates to the
++  returned &amp;sublist will affect the parent list.
+   
+ 2.1-beta 25  (8 May 08) [will this beta process ever end?]
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000340.html">[Sleep-svn] r364 - in sleep: . src/sleep/bridges src/sleep/engine	src/sleep/engine/types src/sleep/runtime src/sleep/taint	tests tests/output
+</A></li>
+	<LI>Next message: <A HREF="000342.html">[Sleep-svn] r366 - in sleep: . src/sleep/bridges tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#341">[ date ]</a>
+              <a href="thread.html#341">[ thread ]</a>
+              <a href="subject.html#341">[ subject ]</a>
+              <a href="author.html#341">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

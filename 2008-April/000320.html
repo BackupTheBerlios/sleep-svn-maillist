@@ -1,0 +1,100 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r342 - in sleep: . src/sleep/parser
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2008-April/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r342%20-%20in%20sleep%3A%20.%20src/sleep/parser&In-Reply-To=%3C200804190032.m3J0WqfN030689%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000319.html">
+   <LINK REL="Next"  HREF="000321.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r342 - in sleep: . src/sleep/parser</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r342%20-%20in%20sleep%3A%20.%20src/sleep/parser&In-Reply-To=%3C200804190032.m3J0WqfN030689%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r342 - in sleep: . src/sleep/parser">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Sat Apr 19 02:32:52 CEST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000319.html">[Sleep-svn] r341 - in sleep: . src/sleep/console	src/sleep/engine/types tests tests/output
+</A></li>
+        <LI>Next message: <A HREF="000321.html">[Sleep-svn] r343 - in sleep: . src/sleep/bridges
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#320">[ date ]</a>
+              <a href="thread.html#320">[ thread ]</a>
+              <a href="subject.html#320">[ subject ]</a>
+              <a href="author.html#320">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2008-04-19 02:32:49 +0200 (Sat, 19 Apr 2008)
+New Revision: 342
+
+Modified:
+   sleep/src/sleep/parser/ParserConfig.java
+   sleep/whatsnew.txt
+Log:
+..
+
+
+Modified: sleep/src/sleep/parser/ParserConfig.java
+===================================================================
+--- sleep/src/sleep/parser/ParserConfig.java	2008-04-18 22:19:24 UTC (rev 341)
++++ sleep/src/sleep/parser/ParserConfig.java	2008-04-19 00:32:49 UTC (rev 342)
+@@ -63,7 +63,7 @@
+ 
+        if (cp.exists()) { return cp; }
+ 
+-       String[] paths = System.getProperty(&quot;sleep.classpath&quot;, &quot;.&quot;).split(&quot;;&quot;);
++       String[] paths = System.getProperty(&quot;sleep.classpath&quot;, &quot;.&quot;).replace(':', ';').split(&quot;;&quot;);
+ 
+        for (int x = 0; x &lt; paths.length; x++)
+        {
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2008-04-18 22:19:24 UTC (rev 341)
++++ sleep/whatsnew.txt	2008-04-19 00:32:49 UTC (rev 342)
+@@ -13,6 +13,8 @@
+   as-is prior to the string conversion.
+ - Sleep now parses command line arguments in a more flexible
+   manner allowing different orders/combinations of switches.
++- sleep.classpath value accepts either a ; or : as the path
++  separator.
+ 
+ 2.1-beta 22  (17 Apr 08)
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000319.html">[Sleep-svn] r341 - in sleep: . src/sleep/console	src/sleep/engine/types tests tests/output
+</A></li>
+	<LI>Next message: <A HREF="000321.html">[Sleep-svn] r343 - in sleep: . src/sleep/bridges
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#320">[ date ]</a>
+              <a href="thread.html#320">[ thread ]</a>
+              <a href="subject.html#320">[ subject ]</a>
+              <a href="author.html#320">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

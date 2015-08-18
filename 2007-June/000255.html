@@ -1,0 +1,163 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r276 - in sleep: . src/sleep/bridges src/sleep/engine
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2007-June/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r276%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20src/sleep/engine&In-Reply-To=%3C200706151506.l5FF6ZRk032547%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000254.html">
+   <LINK REL="Next"  HREF="000256.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r276 - in sleep: . src/sleep/bridges src/sleep/engine</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r276%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20src/sleep/engine&In-Reply-To=%3C200706151506.l5FF6ZRk032547%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r276 - in sleep: . src/sleep/bridges src/sleep/engine">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Fri Jun 15 17:06:35 CEST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000254.html">[Sleep-svn] r275 - in sleep: . src/sleep/bridges src/sleep/parser	tests tests/output
+</A></li>
+        <LI>Next message: <A HREF="000256.html">[Sleep-svn] r277 - in sleep: . tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#255">[ date ]</a>
+              <a href="thread.html#255">[ thread ]</a>
+              <a href="subject.html#255">[ subject ]</a>
+              <a href="author.html#255">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2007-06-15 17:06:34 +0200 (Fri, 15 Jun 2007)
+New Revision: 276
+
+Modified:
+   sleep/src/sleep/bridges/BasicUtilities.java
+   sleep/src/sleep/engine/ObjectUtilities.java
+   sleep/whatsnew.txt
+Log:
+whee...
+
+
+
+Modified: sleep/src/sleep/bridges/BasicUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicUtilities.java	2007-06-15 14:47:26 UTC (rev 275)
++++ sleep/src/sleep/bridges/BasicUtilities.java	2007-06-15 15:06:34 UTC (rev 276)
+@@ -353,13 +353,11 @@
+        public Scalar evaluate(String n, ScriptInstance si, Stack l)
+        {
+           Scalar value      = BridgeUtilities.getScalar(l);
+-          String type       = BridgeUtilities.getString(l, &quot; &quot;);
++          Scalar type       = BridgeUtilities.getScalar(l);
+ 
+-          if (type.length() == 0) { type = &quot; &quot;; }
+-
+           if (n.equals(&quot;&amp;casti&quot;))
+           {
+-             Class  atype = ObjectUtilities.convertDescriptionToClass(type);
++             Class  atype = ObjectUtilities.convertScalarDescriptionToClass(type);
+ 
+              if (atype != null)
+              {
+@@ -374,11 +372,11 @@
+ 
+           if (value.getArray() == null)
+           {
+-             if (type.charAt(0) == 'c')
++             if (type.toString().charAt(0) == 'c')
+              {
+                 return SleepUtils.getScalar((Object)value.toString().toCharArray());
+              }             
+-             else if (type.charAt(0) == 'b')
++             else if (type.toString().charAt(0) == 'b')
+              {
+                 // we do a straight conversion here because we don't want byte data to be mucked up by charsets
+                 // this is because string stores an array of bytes as a string...
+@@ -410,7 +408,7 @@
+ 
+           Object rv;
+ 
+-          Class atype = ObjectUtilities.convertDescriptionToClass(type);
++          Class atype = ObjectUtilities.convertScalarDescriptionToClass(type);
+ 
+           if (atype == null)
+               atype = ObjectUtilities.getArrayType(value, Object.class);
+
+Modified: sleep/src/sleep/engine/ObjectUtilities.java
+===================================================================
+--- sleep/src/sleep/engine/ObjectUtilities.java	2007-06-15 14:47:26 UTC (rev 275)
++++ sleep/src/sleep/engine/ObjectUtilities.java	2007-06-15 15:06:34 UTC (rev 276)
+@@ -275,9 +275,25 @@
+       return temp;
+    }
+ 
++   /** this function checks if the specified scalar is a Class literal and uses that if it is, otherwise description is converted to a string and the convertDescriptionToClass method is used */
++   public static Class convertScalarDescriptionToClass(Scalar description)
++   {
++       if (description.objectValue() instanceof Class)
++       {
++          return (Class)description.objectValue();
++       }
++
++       return convertDescriptionToClass(description.toString());
++   }
++
+    /** converts the one character class description to the specified Class type, i.e. z = boolean, c = char, b = byte, i = integer, etc.. */
+    public static Class convertDescriptionToClass(String description)
+    {
++      if (description.length() != 1)
++      {
++         return null;
++      }
++
+       Class atype = null;
+ 
+       switch (description.charAt(0))
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2007-06-15 14:47:26 UTC (rev 275)
++++ sleep/whatsnew.txt	2007-06-15 15:06:34 UTC (rev 276)
+@@ -21,6 +21,8 @@
+ - &amp;use can now accept a class literal as its first argument (safer
+   than specifying bridge as a string as class literals are resolved 
+   at compile time)
++- updated &amp;cast and &amp;casti to allow a class literal to be specified
++  as the type to cast to.
+ 
+ 2.1-beta 16  (11 Jun 07)
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000254.html">[Sleep-svn] r275 - in sleep: . src/sleep/bridges src/sleep/parser	tests tests/output
+</A></li>
+	<LI>Next message: <A HREF="000256.html">[Sleep-svn] r277 - in sleep: . tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#255">[ date ]</a>
+              <a href="thread.html#255">[ thread ]</a>
+              <a href="subject.html#255">[ subject ]</a>
+              <a href="author.html#255">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

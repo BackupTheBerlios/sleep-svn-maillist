@@ -1,0 +1,682 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r291 - in sleep: . src/sleep/bridges src/sleep/parser	src/sleep/runtime tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2007-July/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r291%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20src/sleep/parser%0A%09src/sleep/runtime%20tests%20tests/output&In-Reply-To=%3C200707050044.l650iZcL008811%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000269.html">
+   <LINK REL="Next"  HREF="000271.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r291 - in sleep: . src/sleep/bridges src/sleep/parser	src/sleep/runtime tests tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r291%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20src/sleep/parser%0A%09src/sleep/runtime%20tests%20tests/output&In-Reply-To=%3C200707050044.l650iZcL008811%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r291 - in sleep: . src/sleep/bridges src/sleep/parser	src/sleep/runtime tests tests/output">rsmudge at mail.berlios.de
+       </A><BR>
+    <I>Thu Jul  5 02:44:35 CEST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000269.html">[Sleep-svn] r290 - in sleep: . src/sleep/bridges tests tests/output
+</A></li>
+        <LI>Next message: <A HREF="000271.html">[Sleep-svn] r292 - in sleep: . docs src/sleep/runtime
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#270">[ date ]</a>
+              <a href="thread.html#270">[ thread ]</a>
+              <a href="subject.html#270">[ subject ]</a>
+              <a href="author.html#270">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2007-07-05 02:44:33 +0200 (Thu, 05 Jul 2007)
+New Revision: 291
+
+Added:
+   sleep/tests/identity.sl
+   sleep/tests/identity2.sl
+   sleep/tests/imperror.sl
+   sleep/tests/output/identity.sl
+   sleep/tests/output/identity2.sl
+   sleep/tests/output/imperror.sl
+Modified:
+   sleep/src/sleep/bridges/BasicUtilities.java
+   sleep/src/sleep/parser/CodeGenerator.java
+   sleep/src/sleep/parser/ImportManager.java
+   sleep/src/sleep/parser/Parser.java
+   sleep/src/sleep/runtime/Scalar.java
+   sleep/src/sleep/runtime/SleepUtils.java
+   sleep/tests/output/cast.sl
+   sleep/tests/output/convertds3.sl
+   sleep/tests/output/trace.sl
+   sleep/tests/output/wrong.sl
+   sleep/whatsnew.txt
+Log:
+fixed things in import, added concept of scalar identity.
+
+
+
+Modified: sleep/src/sleep/bridges/BasicUtilities.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicUtilities.java	2007-07-04 20:01:11 UTC (rev 290)
++++ sleep/src/sleep/bridges/BasicUtilities.java	2007-07-05 00:44:33 UTC (rev 291)
+@@ -43,6 +43,8 @@
+     static
+     {
+        ParserConfig.addKeyword(&quot;isa&quot;);
++       ParserConfig.addKeyword(&quot;in&quot;);
++       ParserConfig.addKeyword(&quot;=~&quot;);
+     }
+ 
+     public boolean scriptUnloaded (ScriptInstance i)
+@@ -101,6 +103,8 @@
+         temp.put(&quot;-ishash&quot;,  this); 
+         temp.put(&quot;-isfunction&quot;, this);
+         temp.put(&quot;isa&quot;, this);
++        temp.put(&quot;in&quot;, this);
++        temp.put(&quot;=~&quot;, this);
+         temp.put(&quot;&amp;setField&quot;, this);
+         temp.put(&quot;&amp;typeOf&quot;, this);
+         temp.put(&quot;&amp;newInstance&quot;, this);
+@@ -196,6 +200,31 @@
+           Object bleh = BridgeUtilities.getObject(terms);
+           return blah != null &amp;&amp; blah.isInstance(bleh);          
+        }
++       else if (predName.equals(&quot;=~&quot;))
++       {
++          Scalar right = BridgeUtilities.getScalar(terms);
++          Scalar left  = BridgeUtilities.getScalar(terms);
++
++          return left.sameAs(right);
++       }
++       else if (predName.equals(&quot;in&quot;))
++       {
++          // $x in @(...)
++          Iterator iter = BridgeUtilities.getIterator(terms, anInstance);
++          Scalar   left = BridgeUtilities.getScalar(terms);
++
++          while (iter.hasNext())
++          {
++             Scalar right = (Scalar)iter.next();
++
++             if (left.sameAs(right))
++             {
++                return true;
++             }
++          }
++
++          return false;
++       }
+  
+        Scalar value = (Scalar)terms.pop();
+  
+@@ -885,26 +914,34 @@
+        {
+           ScalarArray a = value.getArray();
+           ScalarArray b = BridgeUtilities.getArray(l);
+-    
++          Scalar temp;    
++
+           HashSet s = new HashSet();
+           Iterator iter = b.scalarIterator();
+           while (iter.hasNext())
+           {
+-             s.add(iter.next().toString());
++             temp = (Scalar)iter.next();
++             s.add(temp.identity());
+           }      
+ 
+           iter = a.scalarIterator();
+           while (iter.hasNext())
+           {
+-             Object temp = iter.next();
++             temp = (Scalar)iter.next();
+ 
+-             if (!s.contains(temp.toString()) &amp;&amp; n.equals(&quot;&amp;retainAll&quot;))
++             if (!s.contains(temp.identity()))
+              {
+-                iter.remove();
++                if (n.equals(&quot;&amp;retainAll&quot;))
++                {
++                   iter.remove();
++                }
+              }
+-             else if (s.contains(temp.toString()) &amp;&amp; n.equals(&quot;&amp;removeAll&quot;))
++             else
+              {
+-                iter.remove();
++                if (n.equals(&quot;&amp;removeAll&quot;))
++                {
++                   iter.remove();
++                }
+              }
+           }
+ 
+@@ -917,17 +954,20 @@
+     
+           HashSet s = new HashSet();
+           Iterator iter = a.scalarIterator();
++          Scalar temp;
++
+           while (iter.hasNext())
+           {
+-             s.add(iter.next().toString());
++             temp = (Scalar)iter.next();
++             s.add(temp.identity());
+           }      
+ 
+           iter = b.scalarIterator();
+           while (iter.hasNext())
+           {
+-             Scalar temp = (Scalar)iter.next();
++             temp = (Scalar)iter.next();
+ 
+-             if (!s.contains(temp.toString()))
++             if (!s.contains(temp.identity()))
+              {
+                 a.push(SleepUtils.getScalar(temp));
+              }
+
+Modified: sleep/src/sleep/parser/CodeGenerator.java
+===================================================================
+--- sleep/src/sleep/parser/CodeGenerator.java	2007-07-04 20:01:11 UTC (rev 290)
++++ sleep/src/sleep/parser/CodeGenerator.java	2007-07-05 00:44:33 UTC (rev 291)
+@@ -1080,20 +1080,30 @@
+            add(atom, tokens[1]);
+            break;
+          case OBJECT_IMPORT:
+-           if (strings.length == 1)
++           try
+            {
+-              parser.importPackage(strings[0], null);
++              if (strings.length == 1)
++              {
++                 parser.importPackage(strings[0], null);
++              }
++              else
++              {
++                 if (Checkers.isString(strings[1]) || Checkers.isLiteral(strings[1]))
++                    strings[1] = ParserUtilities.extract(strings[1]);
++
++                 parser.importPackage(strings[0], strings[1]);
++              }
+            }
+-           else
++           catch (Exception ex)
+            {
+-              if (Checkers.isString(strings[1]) || Checkers.isLiteral(strings[1]))
+-                 strings[1] = ParserUtilities.extract(strings[1]);
+-
+-              File searchFor = parser.importPackage(strings[0], strings[1]);
+-              if (searchFor == null || !searchFor.exists())
++              if (tokens.length == 2)
+               {
+-                 parser.reportError(&quot;jar file to import package from was not found!&quot;, ParserUtilities.makeToken(&quot;import &quot; + strings[0] + &quot; from: &quot; + strings[1], tokens[1]));
++                 parser.reportError(ex.getMessage(), ParserUtilities.makeToken(&quot;import &quot; + strings[0] + &quot; from: &quot; + strings[1], tokens[1]));
+               }
++              else
++              {
++                 parser.reportError(ex.getMessage(), ParserUtilities.makeToken(&quot;import &quot; + strings[0], tokens[0]));
++              }
+            }
+            break;           
+          case EXPR_ASSERT:
+
+Modified: sleep/src/sleep/parser/ImportManager.java
+===================================================================
+--- sleep/src/sleep/parser/ImportManager.java	2007-07-04 20:01:11 UTC (rev 290)
++++ sleep/src/sleep/parser/ImportManager.java	2007-07-05 00:44:33 UTC (rev 291)
+@@ -16,22 +16,32 @@
+    protected HashMap    jars      = new HashMap(); /* resolved jar files, key=jar name value=ClassLoader */  
+ 
+    /** Used by Sleep to import statement to save an imported package name. */
+-   public File importPackage(String packagez, String from)
++   public void importPackage(String packagez, String from)
+    {
+-       File returnValue = null;
+-
+        String pack, clas;
+-       clas = packagez.substring(packagez.lastIndexOf(&quot;.&quot;) + 1, packagez.length());
+-       pack = packagez.substring(0, packagez.lastIndexOf(&quot;.&quot;));
+ 
++       if (packagez.indexOf(&quot;.&quot;) &gt; -1)
++       {
++          clas = packagez.substring(packagez.lastIndexOf(&quot;.&quot;) + 1, packagez.length());
++          pack = packagez.substring(0, packagez.lastIndexOf(&quot;.&quot;));
++       }
++       else
++       {
++          clas = packagez;
++          pack = null;
++       }
++
+        /* resolve and setup our class loader for the specified jar file */
+ 
+        if (from != null)
+        {
++          File returnValue = null;
++          returnValue = ParserConfig.findJarFile(from);
++
++          if (returnValue == null || !returnValue.exists()) { throw new RuntimeException(&quot;jar file to import package from was not found!&quot;); }
++
+           try
+           {
+-             returnValue = ParserConfig.findJarFile(from);
+- 
+              if (!jars.containsKey(from))
+              {
+                 URLClassLoader loader = new URLClassLoader(new URL[] { returnValue.toURL() }, Thread.currentThread().getContextClassLoader());
+@@ -47,30 +57,44 @@
+        {
+           imports.put(pack, from);
+        }
++       else if (pack == null)
++       {
++          imports.put(packagez, from);
++          Class found = resolveClass(null, packagez, (String)imports.get(packagez)); /* try with no package to see if we have an anonymous class */
++          classes.put(packagez, found);
++
++          if (found == null)
++             throw new RuntimeException(&quot;imported class was not found&quot;);
++       }
+        else
+        {
+           imports.put(packagez, from);
+          
+           Class found = findImportedClass(packagez);
+           classes.put(clas, found);
++
++          if (found == null)
++             throw new RuntimeException(&quot;imported class was not found&quot;);
+        }
+-
+-       return returnValue;
+    }
+ 
+    /** This method is used by Sleep to resolve a specific class (or at least try) */
+    private Class resolveClass(String pack, String clas, String jar)
+    {
++       StringBuffer name = new StringBuffer();
++       if (pack != null) { name.append(pack); name.append(&quot;.&quot;); }
++       name.append(clas);
++
+        try
+        {
+           if (jar != null)
+           {
+              ClassLoader cl = (ClassLoader)jars.get(jar);
+-             return Class.forName(pack + &quot;.&quot; + clas, true, cl);
++             return Class.forName(name.toString(), true, cl);
+           }
+           else
+           {
+-             return Class.forName(pack + &quot;.&quot; + clas);
++             return Class.forName(name.toString());
+           }
+        }
+        catch (Exception ex) { }
+@@ -96,6 +120,8 @@
+           }
+           else
+           {
++             rv = resolveClass(null, name, (String)imports.get(name)); /* try with no package to see if we have an anonymous class */
++
+              Iterator i = imports.entrySet().iterator();
+              while (i.hasNext() &amp;&amp; rv == null)
+              {
+
+Modified: sleep/src/sleep/parser/Parser.java
+===================================================================
+--- sleep/src/sleep/parser/Parser.java	2007-07-04 20:01:11 UTC (rev 290)
++++ sleep/src/sleep/parser/Parser.java	2007-07-05 00:44:33 UTC (rev 291)
+@@ -80,9 +80,9 @@
+    }
+ 
+    /** Used by Sleep to import statement to save an imported package name. */
+-   public File importPackage(String packagez, String from)
++   public void importPackage(String packagez, String from)
+    {
+-      return imports.importPackage(packagez, from);
++      imports.importPackage(packagez, from);
+    }   
+ 
+    /** Attempts to find a class, starts out with the passed in string itself, if that doesn't resolve then the string is
+
+Modified: sleep/src/sleep/runtime/Scalar.java
+===================================================================
+--- sleep/src/sleep/runtime/Scalar.java	2007-07-04 20:01:11 UTC (rev 290)
++++ sleep/src/sleep/runtime/Scalar.java	2007-07-05 00:44:33 UTC (rev 291)
+@@ -176,6 +176,44 @@
+       hash  = _hash;
+    }
+ 
++   /** returns an identity value for this scalar.  the identity value is used in set operations.  basically any scalar values
++       that are handled by reference (object,s arrays, and hashes) use their reference as their identity.  other values used
++       their string value as their identity (doubles that do not have a decimal point will be converted to longs). */
++   public Object identity()
++   {
++      if (this.getArray() != null) { return array; }
++      if (this.getHash() != null) { return hash; }
++      if (value.getClass() == sleep.engine.types.ObjectValue.class) { return this.objectValue(); }
++      return this.toString();
++   }
++ 
++   /** compares two scalars in terms of their identity.  scalars that hold references (array, object, and hash) are compared by
++       reference where other values are compared by their string value.  doubles with a round value will be converted to a long */
++   public boolean sameAs(Scalar other)
++   {
++      if (this.getArray() != null &amp;&amp; other.getArray() != null &amp;&amp; this.getArray() == other.getArray())
++      {
++         return true;
++      } 
++      else if (this.getHash() != null &amp;&amp; other.getHash() != null &amp;&amp; this.getHash() == other.getHash())
++      {
++         return true;
++      }
++      else if (this.getActualValue() != null &amp;&amp; other.getActualValue() != null)
++      {
++         if (this.getActualValue().getClass() == sleep.engine.types.ObjectValue.class || other.getActualValue().getClass() == sleep.engine.types.ObjectValue.class)
++         {
++            return (this.objectValue() == other.objectValue());
++         }
++         else 
++         { 
++            return this.identity().equals(other.identity());
++         }
++      }
++ 
++      return false;
++   }
++
+    public String toString()
+    {
+       return stringValue();
+
+Modified: sleep/src/sleep/runtime/SleepUtils.java
+===================================================================
+--- sleep/src/sleep/runtime/SleepUtils.java	2007-07-04 20:01:11 UTC (rev 290)
++++ sleep/src/sleep/runtime/SleepUtils.java	2007-07-05 00:44:33 UTC (rev 291)
+@@ -55,31 +55,12 @@
+         while (collection.hasNext())
+         {
+             Scalar next = (Scalar)collection.next();
+-
+-            if (value.getArray() != null &amp;&amp; next.getArray() != null &amp;&amp; value.getArray() == next.getArray())
++            if (value.sameAs(next))
+             {
+                collection.remove();
+             }
+-            else if (value.getHash() != null &amp;&amp; next.getHash() != null &amp;&amp; value.getHash() == next.getHash())
+-            {
+-               collection.remove();
+-            }
+-            else if (value.getActualValue() != null &amp;&amp; next.getActualValue() != null)
+-            {
+-               if (value.getActualValue().getClass() == ObjectValue.class || next.getActualValue().getClass() == ObjectValue.class) 
+-               {
+-                  if (value.objectValue() == next.objectValue())
+-                  {
+-                     collection.remove(); /* two objects with matching references! */
+-                  }
+-               }
+-               else if (value.getActualValue().toString().equals(next.getActualValue().toString()))
+-               {
+-                  collection.remove(); /* whee... */
+-               } 
+-            }
+         }
+-    }
++     }
+ 
+    /** &quot;safely&quot; run a snippet of code.  The main thing this function does is clear the return value 
+     *  before returning the value to the caller.  This is important because the return value (if there 
+
+Added: sleep/tests/identity.sl
+===================================================================
+--- sleep/tests/identity.sl	2007-07-04 20:01:11 UTC (rev 290)
++++ sleep/tests/identity.sl	2007-07-05 00:44:33 UTC (rev 291)
+@@ -0,0 +1,17 @@
++$g = { println(&quot;ggg!&quot;); };
++$s = $g . &quot;&quot;;
++
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">+ at a</A> = @(1, 2, 3, 4.0, 5, $g);
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">+ at b</A> = @(4, 6, 7, 8, 9, $g, $s);
++
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">+ at c</A> = copy(@a);
++addAll(@c, @b);
++println(@c);
++
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">+ at c</A> = copy(@a);
++removeAll(@c, @b);
++println(@c);
++
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">+ at c</A> = copy(@a);
++retainAll(@c, @b);
++println(@c);
+
+Added: sleep/tests/identity2.sl
+===================================================================
+--- sleep/tests/identity2.sl	2007-07-04 20:01:11 UTC (rev 290)
++++ sleep/tests/identity2.sl	2007-07-05 00:44:33 UTC (rev 291)
+@@ -0,0 +1,19 @@
++#
++# do some scalar identity fun with setop garbage.
++#
++
++$f = { println(&quot;aaa&quot;); };
++$g = { println(&quot;bbb&quot;); };
++
+<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">+ at a</A> = @(1, 2, 3, 4.0, 5, 6, 7, 8, &quot;pHEAR&quot;, $f);
++
++assert $f !=~ $g;
++assert 3.0 !=~ 3;
++assert 3 in @a;
++assert $f in @a;
++assert 45 in { local('$x'); for ($x = 0; $x &lt; 100; $x += 5) { println($x); yield $x; } };
++assert &quot;3&quot; !=~ 3.0;
++assert &quot;3.1&quot; !=~ 3;
++assert 3.1 =~ 3.1;
++assert @a =~ @a;
++assert 3.1 !=~ 3;
+
+Added: sleep/tests/imperror.sl
+===================================================================
+--- sleep/tests/imperror.sl	2007-07-04 20:01:11 UTC (rev 290)
++++ sleep/tests/imperror.sl	2007-07-05 00:44:33 UTC (rev 291)
+@@ -0,0 +1,3 @@
++import sleep.runtime.YourCodeSucksException;
++
++println(&quot;la la la&quot;);
+
+Modified: sleep/tests/output/cast.sl
+===================================================================
+--- sleep/tests/output/cast.sl	2007-07-04 20:01:11 UTC (rev 290)
++++ sleep/tests/output/cast.sl	2007-07-05 00:44:33 UTC (rev 291)
+@@ -1,2 +1,2 @@
+-[Ljava.lang.CharSequence;@4be2cc class [Ljava.lang.CharSequence;
+-[Ljava.util.List;@7a4489 class [Ljava.util.List;
++[Ljava.lang.CharSequence;@697b67 class [Ljava.lang.CharSequence;
++[Ljava.util.List;@d439fe class [Ljava.util.List;
+
+Modified: sleep/tests/output/convertds3.sl
+===================================================================
+--- sleep/tests/output/convertds3.sl	2007-07-04 20:01:11 UTC (rev 290)
++++ sleep/tests/output/convertds3.sl	2007-07-05 00:44:33 UTC (rev 291)
+@@ -32,9 +32,9 @@
+ int[] a
+ Collection a
+ Collection a
+-Warning: there is no method that matches mar([<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">Z at 83b1b</A>) in sleep.ArrayTest1 at convertds3.sl:36
+-Warning: there is no method that matches mar([<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">F at 608760</A>) in sleep.ArrayTest1 at convertds3.sl:37
+-Warning: there is no method that matches mar([Ljava.lang.Object;@57ea4a) in sleep.ArrayTest1 at convertds3.sl:38
++Warning: there is no method that matches mar([<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">Z at 1a1399</A>) in sleep.ArrayTest1 at convertds3.sl:36
++Warning: there is no method that matches mar([<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">F at fcc0a2</A>) in sleep.ArrayTest1 at convertds3.sl:37
++Warning: there is no method that matches mar([Ljava.lang.Object;@caf6c1) in sleep.ArrayTest1 at convertds3.sl:38
+ int[] a
+ Collection a
+ Collection a
+
+Added: sleep/tests/output/identity.sl
+===================================================================
+--- sleep/tests/output/identity.sl	2007-07-04 20:01:11 UTC (rev 290)
++++ sleep/tests/output/identity.sl	2007-07-05 00:44:33 UTC (rev 291)
+@@ -0,0 +1,3 @@
++@(1, 2, 3, 4.0, 5, &amp;closure[identity.sl:1]#1, 4, 6, 7, 8, 9, '&amp;closure[identity.sl:1]#1')
++@(1, 2, 3, 4.0, 5)
++@(&amp;closure[identity.sl:1]#1)
+
+Added: sleep/tests/output/identity2.sl
+===================================================================
+--- sleep/tests/output/identity2.sl	2007-07-04 20:01:11 UTC (rev 290)
++++ sleep/tests/output/identity2.sl	2007-07-05 00:44:33 UTC (rev 291)
+@@ -0,0 +1,10 @@
++0
++5
++10
++15
++20
++25
++30
++35
++40
++45
+
+Added: sleep/tests/output/imperror.sl
+===================================================================
+--- sleep/tests/output/imperror.sl	2007-07-04 20:01:11 UTC (rev 290)
++++ sleep/tests/output/imperror.sl	2007-07-05 00:44:33 UTC (rev 291)
+@@ -0,0 +1,2 @@
++Error: imported class was not found at line 1
++       import sleep.runtime.YourCodeSucksException
+
+Modified: sleep/tests/output/trace.sl
+===================================================================
+--- sleep/tests/output/trace.sl	2007-07-04 20:01:11 UTC (rev 290)
++++ sleep/tests/output/trace.sl	2007-07-05 00:44:33 UTC (rev 291)
+@@ -1,13 +1,13 @@
+ this is a test
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 4ac216</A> println: 'this is a test'] at trace.sl:6
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at b301f2</A> println: 'this is a test'] at trace.sl:6
+ Trace: [java.lang.Math pow: 3, 4] = 81.0 at trace.sl:7
+ 81.0
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 4ac216</A> println: 81.0] at trace.sl:7
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at b301f2</A> println: 81.0] at trace.sl:7
+ Trace: [java.lang.Math pow: 3, 5] = 243.0 at trace.sl:8
+ 243.0
+ Trace: &amp;println(243.0) at trace.sl:8
+ testing again...
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 4ac216</A> println: 'testing again...'] at trace.sl:10
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at b301f2</A> println: 'testing again...'] at trace.sl:10
+ Trace: [sleep.runtime.SleepUtils getListFromArray: @('a', 'b', 'c')] = [a, b, c] at trace.sl:12
+ Trace: [new java.util.LinkedList: [a, b, c]] = [a, b, c] at trace.sl:12
+ Warning: variable '$list' not declared at trace.sl:12
+
+Modified: sleep/tests/output/wrong.sl
+===================================================================
+--- sleep/tests/output/wrong.sl	2007-07-04 20:01:11 UTC (rev 290)
++++ sleep/tests/output/wrong.sl	2007-07-05 00:44:33 UTC (rev 291)
+@@ -1,32 +1,32 @@
+ Trace: [java.lang.Math pow: 3, 4] = 81.0 at wrong.sl:6
+ 81.0
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 7a4489</A> println: 81.0] at wrong.sl:6
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 855562</A> println: 81.0] at wrong.sl:6
+ Trace: &amp;casti(1, 'z') = true at wrong.sl:9
+ true
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 7a4489</A> println: true] at wrong.sl:9
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 855562</A> println: true] at wrong.sl:9
+ Trace: &amp;casti(0, 'z') = false at wrong.sl:10
+ false
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 7a4489</A> println: false] at wrong.sl:10
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 855562</A> println: false] at wrong.sl:10
+ Trace: &amp;casti(1, 'd') = 1.0 at wrong.sl:13
+ 1.0
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 7a4489</A> println: 1.0] at wrong.sl:13
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 855562</A> println: 1.0] at wrong.sl:13
+ Trace: &amp;casti(1, 'b') = 1 at wrong.sl:16
+ 1
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 7a4489</A> println: 1] at wrong.sl:16
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 855562</A> println: 1] at wrong.sl:16
+ Trace: &amp;casti(100, 'f') = 100.0 at wrong.sl:19
+ 100.0
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 7a4489</A> println: 100.0] at wrong.sl:19
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 855562</A> println: 100.0] at wrong.sl:19
+ Trace: &amp;casti('b', 'c') = b at wrong.sl:22
+ b
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 7a4489</A> println: b] at wrong.sl:22
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 855562</A> println: b] at wrong.sl:22
+ Trace: &amp;casti(63, 'i') = 63 at wrong.sl:25
+ 63
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 7a4489</A> println: 63] at wrong.sl:25
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 855562</A> println: 63] at wrong.sl:25
+ this is a string y0
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 7a4489</A> println: 'this is a string y0'] at wrong.sl:28
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 855562</A> println: 'this is a string y0'] at wrong.sl:28
+ Trace: [new java.lang.StringBuilder: 'test'] = test at wrong.sl:31
+ test
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 7a4489</A> println: test] at wrong.sl:31
+-Trace: &amp;cast(@('a', 'b', 'c', 'd'), 'c') = [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">C at d439fe</A> at wrong.sl:34
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 855562</A> println: test] at wrong.sl:31
++Trace: &amp;cast(@('a', 'b', 'c', 'd'), 'c') = [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">C at 3caa4b</A> at wrong.sl:34
+ abcd
+-Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 7a4489</A> println: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">C at d439fe</A>] at wrong.sl:34
++Trace: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">java.io.PrintStream at 855562</A> println: [<A HREF="https://lists.berlios.de/mailman/listinfo/sleep-svn">C at 3caa4b</A>] at wrong.sl:34
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2007-07-04 20:01:11 UTC (rev 290)
++++ sleep/whatsnew.txt	2007-07-05 00:44:33 UTC (rev 291)
+@@ -17,11 +17,20 @@
+ - Sleep strings will now be recognized as valid matches for Java methods
+   requesting a byte[] or char[] parameter.
+ - Sleep scalars returned by Java calls will be returned as is.
+-- increased performance (x3) of Sleeps internal functions to convert a 
++- improved performance (x3) of Sleeps internal functions to convert a 
+   String to a non-mangled byte array. 
+-- &amp;remove returns data structure data was removed from
++- &amp;remove now returns data structure data was removed from
+ - extended &amp;add to accept a hash and multiple key/value pairs for
+   adding stuff to an existing hash.
++- Sleep's set operations removeAll, retainAll, and addAll now work based
++  on scalar identity in lieu of string representation
++- Added &quot;in&quot; operator to check if a scalar with same identity is contained 
++  within an iteratable data structure (generator function / array)
++- Added =~ for comparing two scalars by identity (scalar that reference
++  something are identical if their references match, other scalars are
++  identical if their string reps match).
++- fixed a bug causing import to crash parser when no package was specified
++- Sleep parser now checks if a class exists when it is imported
+ 
+ 2.1-beta 17  (17 Jun 07)
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000269.html">[Sleep-svn] r290 - in sleep: . src/sleep/bridges tests tests/output
+</A></li>
+	<LI>Next message: <A HREF="000271.html">[Sleep-svn] r292 - in sleep: . docs src/sleep/runtime
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#270">[ date ]</a>
+              <a href="thread.html#270">[ thread ]</a>
+              <a href="subject.html#270">[ subject ]</a>
+              <a href="author.html#270">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>

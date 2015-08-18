@@ -1,0 +1,234 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Sleep-svn] r64 - in sleep: . src/sleep/bridges tests tests/output
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/sleep-svn/2006-June/index.html" >
+   <LINK REL="made" HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r64%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20tests%20tests/output&In-Reply-To=%3C200606150232.k5F2W11s015169%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000046.html">
+   <LINK REL="Next"  HREF="000048.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Sleep-svn] r64 - in sleep: . src/sleep/bridges tests tests/output</H1>
+    <B>rsmudge at BerliOS</B> 
+    <A HREF="mailto:sleep-svn%40lists.berlios.de?Subject=Re%3A%20%5BSleep-svn%5D%20r64%20-%20in%20sleep%3A%20.%20src/sleep/bridges%20tests%20tests/output&In-Reply-To=%3C200606150232.k5F2W11s015169%40sheep.berlios.de%3E"
+       TITLE="[Sleep-svn] r64 - in sleep: . src/sleep/bridges tests tests/output">rsmudge at berlios.de
+       </A><BR>
+    <I>Thu Jun 15 04:32:01 CEST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000046.html">[Sleep-svn] r63 - in sleep: . src/sleep/bridges src/sleep/engine/atoms tests tests/output
+</A></li>
+        <LI>Next message: <A HREF="000048.html">[Sleep-svn] r65 - in sleep: . src/sleep/bridges src/sleep/runtime tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#47">[ date ]</a>
+              <a href="thread.html#47">[ thread ]</a>
+              <a href="subject.html#47">[ subject ]</a>
+              <a href="author.html#47">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: rsmudge
+Date: 2006-06-15 04:31:50 +0200 (Thu, 15 Jun 2006)
+New Revision: 64
+
+Added:
+   sleep/tests/iswm2.sl
+   sleep/tests/output/iswm2.sl
+Modified:
+   sleep/build.xml
+   sleep/src/sleep/bridges/BasicStrings.java
+   sleep/whatsnew.txt
+Log:
+Fixed some bugs in iswm
+
+
+
+Modified: sleep/build.xml
+===================================================================
+--- sleep/build.xml	2006-06-15 01:35:29 UTC (rev 63)
++++ sleep/build.xml	2006-06-15 02:31:50 UTC (rev 64)
+@@ -16,7 +16,7 @@
+            destdir=&quot;${project.build}&quot;
+            nowarn=&quot;yes&quot;
+            depend=&quot;yes&quot;
+-           debug=&quot;no&quot;
++           debug=&quot;true&quot;
+            optimize=&quot;yes&quot;
+     &gt;
+     &lt;/javac&gt;
+
+Modified: sleep/src/sleep/bridges/BasicStrings.java
+===================================================================
+--- sleep/src/sleep/bridges/BasicStrings.java	2006-06-15 01:35:29 UTC (rev 63)
++++ sleep/src/sleep/bridges/BasicStrings.java	2006-06-15 02:31:50 UTC (rev 64)
+@@ -205,6 +205,8 @@
+            String b = locals.pop().toString();
+            String a = locals.pop().toString();
+ 
++           try
++           {
+            if ((a.length() == 0 || b.length() == 0) &amp;&amp; a.length() != b.length())
+               return false;
+ 
+@@ -225,21 +227,32 @@
+                     }
+                  }
+ 
+-                 for (cptr = aptr; cptr &lt; a.length() &amp;&amp; a.charAt(cptr) != '?' &amp;&amp; a.charAt(cptr) != '*'; cptr++);
++                 for (cptr = aptr; cptr &lt; a.length() &amp;&amp; a.charAt(cptr) != '?' &amp;&amp; a.charAt(cptr) != '*'; cptr++) { } // body intentionally left empty.
+ 
+-                 if (greedy)
+-                    cptr = b.lastIndexOf(a.substring(aptr, cptr)); 
+-                 else
+-                    cptr = b.indexOf(a.substring(aptr, cptr), bptr); 
++                 if (cptr != aptr) // don't advance our bptr unless there is some non-wildcard pattern to look for next in the string
++                 {
++                    if (greedy)
++                       cptr = b.lastIndexOf(a.substring(aptr, cptr)); 
++                    else
++                       cptr = b.indexOf(a.substring(aptr, cptr), bptr);
+ 
++                    if (cptr == -1 || cptr &lt; bptr) // &lt; - require 0 or more chars, &lt;= - requires 1 or more chars
++                    {
++                       return false;
++                    }
+ 
+-                 if (cptr == -1 || cptr &lt; bptr) // &lt; - require 0 or more chars, &lt;= - requires 1 or more chars
++                    bptr = cptr;
++                 }
++
++                 if (a.charAt(aptr) == '?') // if the current aptr is a ?, decrement so the loop can deal with it on the next round
+                  {
+-                    return false;
++                    aptr--;
+                  }
+-
+-                 bptr = cptr;
+               }
++              else if (bptr &gt;= b.length())
++              {
++                 return false;
++              }
+               else if (a.charAt(aptr) == '\\')
+               {
+                  aptr++;
+@@ -255,9 +268,13 @@
+               aptr++;
+               bptr++;
+            }
+-
+            return (bptr == b.length());
++           }
++           catch (Exception ex) { ex.printStackTrace(); }
++     
++           return false;
+         }
++     
+     }
+ 
+     private static class func_left implements Function
+
+Added: sleep/tests/iswm2.sl
+===================================================================
+--- sleep/tests/iswm2.sl	2006-06-15 01:35:29 UTC (rev 63)
++++ sleep/tests/iswm2.sl	2006-06-15 02:31:50 UTC (rev 64)
+@@ -0,0 +1,27 @@
++#
++# tests for the iswm algorithm...
++# making sure that when lhs (wildcard pattern) is longer than rhs the results still workout as they should
++#
++
++println(&quot;LHS empty string: &quot; . iff(&quot;&quot; iswm &quot;aaaa&quot;, &quot;true&quot;, &quot;false&quot;));
++
++println(&quot;case 1: &quot; . iff(&quot;test *&quot; iswm &quot;test&quot;, &quot;true&quot;, &quot;false&quot;)); # false
++println(&quot;case 2: &quot; . iff(&quot;test*abcdefghijk*&quot; iswm &quot;test&quot;, &quot;true&quot;, &quot;false&quot;)); # false
++println(&quot;case 3: &quot; . iff(&quot;test*&quot; iswm &quot;test&quot;, &quot;true&quot;, &quot;false&quot;)); # true
++println(&quot;case 4: &quot; . iff(&quot;test******************&quot; iswm &quot;test&quot;, &quot;true&quot;, &quot;false&quot;)); # true
++println(&quot;case 5: &quot; . iff(&quot;test**********?&quot; iswm &quot;test&quot;, &quot;true&quot;, &quot;false&quot;)); # false
++println(&quot;case 6: &quot; . iff(&quot;test***?****&quot; iswm &quot;test&quot;, &quot;true&quot;, &quot;false&quot;)); # false
++println(&quot;case 7: &quot; . iff(&quot;test****?****&quot; iswm &quot;test&quot;, &quot;true&quot;, &quot;false&quot;)); # false
++println(&quot;case 8: &quot; . iff(&quot;test?*&quot; iswm &quot;test&quot;, &quot;true&quot;, &quot;false&quot;)); # false
++println(&quot;case 9: &quot; . iff(&quot;test*?*&quot; iswm &quot;test&quot;, &quot;true&quot;, &quot;false&quot;)); # false
++println(&quot;case 10: &quot; . iff(&quot;test?&quot; iswm &quot;test&quot;, &quot;true&quot;, &quot;false&quot;)); # false
++
++println(&quot;case a: &quot; . iff(&quot;*test&quot; iswm &quot;test&quot;, &quot;true&quot;, &quot;false&quot;)); # true
++println(&quot;case b: &quot; . iff(&quot;?test&quot; iswm &quot;test&quot;, &quot;true&quot;, &quot;false&quot;)); # false
++println(&quot;case c: &quot; . iff(&quot;**test&quot; iswm &quot;test&quot;, &quot;true&quot;, &quot;false&quot;)); # true
++println(&quot;case d: &quot; . iff(&quot;*?*test&quot; iswm &quot;test&quot;, &quot;true&quot;, &quot;false&quot;)); # false
++
++println(&quot;case e: &quot; . iff(&quot;tes*t&quot; iswm &quot;test&quot;, &quot;true&quot;, &quot;false&quot;)); # true
++println(&quot;case f: &quot; . iff(&quot;tes?t&quot; iswm &quot;test&quot;, &quot;true&quot;, &quot;false&quot;)); # false
++println(&quot;case g: &quot; . iff(&quot;tes*?*t&quot; iswm &quot;test&quot;, &quot;true&quot;, &quot;false&quot;)); # false
++println(&quot;case h: &quot; . iff(&quot;tes**********t&quot; iswm &quot;test&quot;, &quot;true&quot;, &quot;false&quot;)); # true
+
+Added: sleep/tests/output/iswm2.sl
+===================================================================
+--- sleep/tests/output/iswm2.sl	2006-06-15 01:35:29 UTC (rev 63)
++++ sleep/tests/output/iswm2.sl	2006-06-15 02:31:50 UTC (rev 64)
+@@ -0,0 +1,19 @@
++LHS empty string: false
++case 1: false
++case 2: false
++case 3: true
++case 4: true
++case 5: false
++case 6: false
++case 7: false
++case 8: false
++case 9: false
++case 10: false
++case a: true
++case b: false
++case c: true
++case d: false
++case e: true
++case f: false
++case g: false
++case h: true
+
+Modified: sleep/whatsnew.txt
+===================================================================
+--- sleep/whatsnew.txt	2006-06-15 01:35:29 UTC (rev 63)
++++ sleep/whatsnew.txt	2006-06-15 02:31:50 UTC (rev 64)
+@@ -19,6 +19,8 @@
+   to Ralph Becker for catching this one).
+ - remove() with no parameters will remove the current array element
+   in a foreach loop (this only works on arrays, not hashes).
++- fixed bugs with iswm algorithm when wildcard pattern is longer 
++  than the text it is being compared against.
+ 
+ 2.0-release
+ ===========
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000046.html">[Sleep-svn] r63 - in sleep: . src/sleep/bridges src/sleep/engine/atoms tests tests/output
+</A></li>
+	<LI>Next message: <A HREF="000048.html">[Sleep-svn] r65 - in sleep: . src/sleep/bridges src/sleep/runtime tests tests/output
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#47">[ date ]</a>
+              <a href="thread.html#47">[ thread ]</a>
+              <a href="subject.html#47">[ subject ]</a>
+              <a href="author.html#47">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/sleep-svn">More information about the Sleep-svn
+mailing list</a><br>
+</body></html>
